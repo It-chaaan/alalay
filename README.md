@@ -66,6 +66,16 @@ npm run dev
 
 The frontend defaults to Vite's local dev URL, usually `http://localhost:5173`. The backend defaults to `http://localhost:3000`.
 
+To run the backend over HTTPS, set these environment variables before starting it:
+
+```bash
+HTTPS_ENABLED=true
+HTTPS_CERT_PATH=./certs/server-cert.pem
+HTTPS_KEY_PATH=./certs/server-key.pem
+```
+
+When HTTPS is enabled, the backend will listen with a TLS certificate instead of plain HTTP. For local development, `supabase/config.toml` can also enable self-signed TLS for Supabase's API endpoints if you provide the certificate paths.
+
 ## Environment Variables
 
 | Variable | Required? | Used By | Description |

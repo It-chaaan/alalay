@@ -341,7 +341,7 @@ export function HomePage() {
             Free to start, no credit card needed.
           </p>
           <a
-            href="#signup"
+            href="/register"
             className="mt-10 inline-flex items-center justify-center rounded-full bg-white px-7 py-4 font-semibold text-[#0f6f57] transition hover:bg-slate-100"
           >
             Create your free account →

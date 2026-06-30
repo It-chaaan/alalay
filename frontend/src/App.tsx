@@ -2,7 +2,17 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { getSupabaseClient } from "./lib/supabase";
 import { AuthPage } from "./pages/auth/AuthPage";
+import { AiAssistantPage } from "./pages/dashboard/AiAssistantPage";
+import { BillsPage } from "./pages/dashboard/BillsPage";
+import { BudgetPage } from "./pages/dashboard/BudgetPage";
+import { ExpensesPage } from "./pages/dashboard/ExpensesPage";
 import { DashboardPage } from "./pages/dashboard/DashboardPage";
+import { IncomePage } from "./pages/dashboard/IncomePage";
+import { OcrScannerPage } from "./pages/dashboard/OcrScannerPage";
+import { ReportsPage } from "./pages/dashboard/ReportsPage";
+import { SavingsGoalsPage } from "./pages/dashboard/SavingsGoalsPage";
+import { SettingsPage } from "./pages/dashboard/SettingsPage";
+import { SubscriptionsPage } from "./pages/dashboard/SubscriptionsPage";
 import { HomePage } from "./pages/home/HomePage";
 
 function AppLoading() {
@@ -91,6 +101,96 @@ export default function App() {
     }
 
     return <DashboardPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/bills") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <BillsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/subscriptions") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <SubscriptionsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/expenses") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <ExpensesPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/income") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <IncomePage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/savings-goals") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <SavingsGoalsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/budget") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <BudgetPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/reports") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <ReportsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/ai-assistant") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <AiAssistantPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/ocr-scanner") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <OcrScannerPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/settings") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <SettingsPage session={session} onSignOut={handleSignOut} />;
   }
 
   return <HomePage />;

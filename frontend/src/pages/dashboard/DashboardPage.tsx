@@ -1,15 +1,9 @@
 import type { Session } from "@supabase/supabase-js";
 import alalayLogo from "../../assets/alalay.svg";
-import {
-  aiInsight,
-  dashboardNav,
-  dashboardSummary,
-  financialHealth,
-  monthlySpending,
-  recentActivity,
-  weeklyBills,
-} from "../../constants/dashboard";
-import { formatCurrency } from "../../utils/formatters";
+import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useDashboard } from "../../hooks/useDashboard";
+import type { DashboardSummary, Expense } from "../../hooks/types";
+import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 type DashboardPageProps = {
   session: Session;
@@ -59,62 +53,17 @@ function SmallIcon({ type }: { type: string }) {
   );
 }
 
-function DashboardSidebar({ name, onSignOut }: { name: string; onSignOut: () => void }) {
-  return (
-    <aside className="hidden min-h-screen w-64 shrink-0 border-r border-slate-200 bg-app-surface lg:flex lg:flex-col">
-      <div className="flex h-20 items-center gap-3 px-6">
-        <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-xl bg-brand-primary">
-          <img src={alalayLogo} alt="" className="h-7 w-7 object-contain" />
-        </span>
-        <span className="font-bold text-slate-950">Alalay</span>
-      </div>
+function SummaryCards({ summary }: { summary: DashboardSummary }) {
+  const items = [
+    { label: "Total bills", value: formatCurrency(summary.total_bills_this_month), note: "This month", icon: "receipt" },
+    { label: "Due this week", value: formatCurrency(summary.bills_due_this_week), note: "Upcoming bills", icon: "clock" },
+    { label: "Monthly expenses", value: formatCurrency(summary.monthly_expenses), note: `${summary.monthly_expenses_delta_percent}% vs last month`, icon: "wallet" },
+    { label: "Savings progress", value: `${summary.savings_progress_percent}%`, note: `${formatCurrency(summary.savings_current)} of ${formatCurrency(summary.savings_target)}`, icon: "spark" },
+  ];
 
-      <nav className="flex-1 space-y-1 px-4">
-        {dashboardNav.map((item, index) => (
-          <a
-            key={item}
-            href={index === 0 ? "/app" : "#"}
-            className={`flex min-h-10 items-center rounded-xl px-4 text-sm font-medium transition ${
-              index === 0 ? "bg-brand-muted text-brand-dark" : "text-slate-600 hover:bg-slate-100"
-            }`}
-          >
-            <span className="mr-3 h-2 w-2 rounded-full bg-current opacity-50" />
-            {item}
-          </a>
-        ))}
-      </nav>
-
-      <div className="border-t border-slate-200 p-5">
-        <div className="flex items-center gap-3">
-          <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-primary text-sm font-bold text-white">
-            {name.charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-950">{name}</p>
-            <p className="mt-1 w-fit rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-500">Free plan</p>
-          </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            aria-label="Sign out"
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-              <path d="m16 17 5-5-5-5" />
-              <path d="M21 12H9" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </aside>
-  );
-}
-
-function SummaryCards() {
   return (
     <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4" aria-label="Account summary">
-      {dashboardSummary.map((item) => (
+      {items.map((item) => (
         <article key={item.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-start justify-between gap-4">
             <p className="text-sm text-slate-500">{item.label}</p>
@@ -130,19 +79,25 @@ function SummaryCards() {
   );
 }
 
-function HealthCard() {
+function HealthCard({ score }: { score: number }) {
+  const metrics = [
+    { label: "On-time bills", value: Math.min(100, score), color: "bg-brand-primary" },
+    { label: "Savings rate", value: Math.min(100, score), color: "bg-sky-500" },
+    { label: "Budget use", value: Math.min(100, score), color: "bg-amber-500" },
+  ];
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="font-semibold text-slate-950">Financial Health</h2>
       <div className="mt-6 grid gap-6 sm:grid-cols-[120px_1fr]">
         <div className="grid h-28 w-28 place-items-center rounded-full border-[10px] border-brand-primary">
           <div className="text-center">
-            <div className="font-mono text-2xl font-bold text-brand-primary">{financialHealth.score}</div>
+            <div className="font-mono text-2xl font-bold text-brand-primary">{score}</div>
             <div className="text-xs text-slate-500">/100</div>
           </div>
         </div>
         <div className="space-y-4">
-          {financialHealth.metrics.map((metric) => (
+          {metrics.map((metric) => (
             <div key={metric.label}>
               <div className="mb-1 flex justify-between text-xs text-slate-500">
                 <span>{metric.label}</span>
@@ -159,7 +114,7 @@ function HealthCard() {
   );
 }
 
-function AiInsightCard() {
+function AiInsightCard({ message }: { message: string }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start gap-4">
@@ -173,27 +128,20 @@ function AiInsightCard() {
               Bagong insight
             </span>
           </div>
-          <p className="mt-3 max-w-3xl leading-7 text-slate-800">{aiInsight.body}</p>
+          <p className="mt-3 max-w-3xl leading-7 text-slate-800">{message}</p>
         </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
-        {aiInsight.cards.map((card) => (
-          <div
-            key={card.title}
-            className={`rounded-xl p-4 ${
-              card.tone === "warning" ? "bg-orange-50 text-orange-950" : "bg-brand-muted text-brand-dark"
-            }`}
-          >
-            <p className="text-sm font-semibold">{card.title}</p>
-            <p className="mt-1 text-sm opacity-80">{card.body}</p>
-          </div>
-        ))}
+        <div className="rounded-xl bg-brand-muted p-4 text-brand-dark">
+          <p className="text-sm font-semibold">AI status</p>
+          <p className="mt-1 text-sm opacity-80">Connect the AI Edge Function to enable personalized insights.</p>
+        </div>
       </div>
     </article>
   );
 }
 
-function WeeklyBills() {
+function WeeklyBills({ bills }: { bills: DashboardSummary["weekly_bills"] }) {
   const toneClass = {
     today: "bg-orange-50 text-orange-700",
     upcoming: "bg-amber-50 text-amber-700",
@@ -209,24 +157,24 @@ function WeeklyBills() {
         </a>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {weeklyBills.map((bill) => (
+        {bills.map((bill) => (
           <article
-            key={bill.name}
+            key={bill.id}
             className={`rounded-2xl border bg-white p-4 shadow-sm ${
-              bill.tone === "overdue" ? "border-red-200" : "border-slate-200"
+              bill.status === "overdue" ? "border-red-200" : "border-slate-200"
             }`}
           >
             <div className="flex items-start justify-between gap-3">
               <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-primary text-sm font-bold text-white">
-                {bill.initial}
+                {bill.title.charAt(0)}
               </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass[bill.tone as keyof typeof toneClass]}`}>
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass[bill.status === "overdue" ? "overdue" : "upcoming"]}`}>
                 {bill.status}
               </span>
             </div>
-            <p className="mt-4 text-sm font-semibold text-slate-950">{bill.name}</p>
-            <p className="mt-1 font-mono text-lg font-bold text-slate-950">{formatCurrency(bill.amount)}</p>
-            <p className="mt-1 text-xs text-slate-500">{bill.due}</p>
+            <p className="mt-4 text-sm font-semibold text-slate-950">{bill.title}</p>
+            <p className="mt-1 font-mono text-lg font-bold text-slate-950">{formatCurrency(Number(bill.amount))}</p>
+            <p className="mt-1 text-xs text-slate-500">Due {formatDateShort(bill.due_date)}</p>
           </article>
         ))}
       </div>
@@ -234,8 +182,8 @@ function WeeklyBills() {
   );
 }
 
-function SpendingChart() {
-  const max = Math.max(...monthlySpending.map((item) => item.value));
+function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary["monthly_spending"] }) {
+  const max = Math.max(1, ...monthlySpending.map((item) => item.value));
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -259,23 +207,22 @@ function SpendingChart() {
   );
 }
 
-function RecentActivity() {
+function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="font-semibold text-slate-950">Recent activity</h2>
       <div className="mt-5 space-y-4">
         {recentActivity.map((activity) => (
           <div key={`${activity.merchant}-${activity.date}`} className="flex items-center gap-3">
-            <span className={`grid h-8 w-8 place-items-center rounded-full text-xs font-bold text-white ${activity.color}`}>
-              {activity.initial}
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-orange-500 text-xs font-bold text-white">
+              {activity.merchant.charAt(0)}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-950">{activity.merchant}</p>
-              <p className="text-xs text-slate-500">{activity.date}</p>
+              <p className="text-xs text-slate-500">{formatDateShort(activity.date)}</p>
             </div>
-            <p className={`font-mono text-sm font-bold ${activity.amount > 0 ? "text-green-700" : "text-slate-950"}`}>
-              {activity.amount > 0 ? "+" : ""}
-              {formatCurrency(Math.abs(activity.amount))}
+            <p className="font-mono text-sm font-bold text-slate-950">
+              {formatCurrency(Number(activity.amount))}
             </p>
           </div>
         ))}
@@ -286,47 +233,46 @@ function RecentActivity() {
 
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
+  const { data: summary, isLoading, error } = useDashboard();
 
   return (
-    <main className="min-h-screen bg-app-background text-slate-950 lg:flex">
-      <DashboardSidebar name={name} onSignOut={onSignOut} />
-      <section className="min-w-0 flex-1 px-5 py-8 sm:px-8 lg:px-12">
-        <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Good morning, {name}</h1>
-            <p className="mt-1 text-slate-500">Saturday, June 28, 2025</p>
-          </div>
-          <button
-            type="button"
-            onClick={onSignOut}
-            className="inline-flex min-h-11 w-fit items-center rounded-full bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 lg:hidden"
-          >
-            Sign out
-          </button>
-        </header>
-
-        <SummaryCards />
+    <DashboardShell
+      activeLabel="Dashboard"
+      title={`Good morning, ${name}`}
+      subtitle="Saturday, June 28, 2025"
+      name={name}
+      onSignOut={onSignOut}
+      action={
+        <button
+          type="button"
+          onClick={onSignOut}
+          className="inline-flex min-h-11 w-fit items-center rounded-full bg-brand-primary px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 lg:hidden"
+        >
+          Sign out
+        </button>
+      }
+    >
+        {isLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading dashboard...</div> : null}
+        {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
+        {!isLoading && !error && !summary ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No dashboard data available yet.</div> : null}
+        {summary ? (
+          <>
+        <SummaryCards summary={summary} />
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[0.9fr_1.6fr]">
-          <HealthCard />
-          <AiInsightCard />
+          <HealthCard score={summary.health_score} />
+          <AiInsightCard message={summary.ai_insight.message} />
         </section>
 
-        <WeeklyBills />
+        <WeeklyBills bills={summary.weekly_bills} />
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[1.5fr_0.75fr]">
-          <SpendingChart />
-          <RecentActivity />
+          <SpendingChart monthlySpending={summary.monthly_spending} />
+          <RecentActivity recentActivity={summary.recent_activity} />
         </section>
-      </section>
+          </>
+        ) : null}
 
-      <button
-        type="button"
-        aria-label="Add new item"
-        className="fixed bottom-6 right-6 grid h-14 w-14 place-items-center rounded-full bg-brand-primary text-3xl text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-      >
-        +
-      </button>
-    </main>
+    </DashboardShell>
   );
 }
