@@ -242,7 +242,7 @@ export function HomePage() {
                 </aside>
                 <section className="space-y-3">
                   <div className="text-lg font-semibold text-slate-700">
-                    Good morning, Maria
+                    Good morning, Christian
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
