@@ -100,6 +100,7 @@ export function AuthPage({ mode }: AuthPageProps) {
   const isRegister = mode === "register";
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [authNotice, setAuthNotice] = useState("");
 
   const {
     register,
@@ -112,6 +113,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
   async function handleGoogleAuth() {
     setAuthError("");
+    setAuthNotice("");
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -121,7 +123,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: window.location.origin },
+      options: { redirectTo: `${window.location.origin}/app` },
     });
 
     if (error) {
@@ -131,6 +133,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
   async function onSubmit(values: AuthValues) {
     setAuthError("");
+    setAuthNotice("");
     const supabase = getSupabaseClient();
 
     if (!supabase) {
@@ -151,7 +154,15 @@ export function AuthPage({ mode }: AuthPageProps) {
 
     if (result.error) {
       setAuthError(isRegister ? result.error.message : "Incorrect email or password");
+      return;
     }
+
+    if (isRegister && !result.data.session) {
+      setAuthNotice("Account created. Check your email to confirm your signup before logging in.");
+      return;
+    }
+
+    window.location.assign("/app");
   }
 
   return (
@@ -229,6 +240,11 @@ export function AuthPage({ mode }: AuthPageProps) {
             {authError ? (
               <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
                 {authError}
+              </div>
+            ) : null}
+            {authNotice ? (
+              <div className="mb-5 rounded-2xl border border-brand-muted bg-brand-soft px-4 py-3 text-sm text-brand-dark" role="status">
+                {authNotice}
               </div>
             ) : null}
 
