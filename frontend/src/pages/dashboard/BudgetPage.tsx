@@ -1,5 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
+import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
 import { formatCurrency } from "../../utils/formatters";
 
@@ -19,7 +21,8 @@ function MonthPicker() {
 
 export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
-  const { data: budgetSummary, isLoading, error } = useBudget();
+  const editBudgetDialog = useActionDialog("edit-budget");
+  const { data: budgetSummary, isLoading, error, refetch } = useBudget();
 
   return (
     <DashboardShell
@@ -29,7 +32,16 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
       secondaryAction={<MonthPicker />}
-      action={<button type="button" className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>Edit budget</button>}
+      action={
+        <button
+          type="button"
+          onClick={editBudgetDialog.open}
+          disabled={isLoading || !budgetSummary}
+          className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>Edit budget
+        </button>
+      }
     >
       {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading budget...</div> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
@@ -109,6 +121,12 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
+      <BudgetFormPanel
+        open={editBudgetDialog.isOpen}
+        onClose={editBudgetDialog.close}
+        onSuccess={refetch}
+        categories={budgetSummary?.categories ?? []}
+      />
     </DashboardShell>
   );
 }

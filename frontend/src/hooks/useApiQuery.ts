@@ -8,6 +8,7 @@ export type ApiQueryState<T> = {
 };
 
 export function useApiQuery<T>(path: string) {
+  const [reloadToken, setReloadToken] = useState(0);
   const [state, setState] = useState<ApiQueryState<T>>({
     data: null,
     isLoading: true,
@@ -34,7 +35,10 @@ export function useApiQuery<T>(path: string) {
     return () => {
       isMounted = false;
     };
-  }, [path]);
+  }, [path, reloadToken]);
 
-  return state;
+  return {
+    ...state,
+    refetch: () => setReloadToken((current) => current + 1),
+  };
 }

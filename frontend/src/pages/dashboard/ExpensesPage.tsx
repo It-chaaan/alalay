@@ -1,11 +1,14 @@
 import type { Session } from "@supabase/supabase-js";
+import { ExpenseFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useExpenses } from "../../hooks/useExpenses";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
-  const { data: expenses, isLoading, error } = useExpenses();
+  const logExpenseDialog = useActionDialog("log-expense");
+  const { data: expenses, isLoading, error, refetch } = useExpenses();
   const items = expenses ?? [];
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
@@ -17,7 +20,15 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       name={name}
       onSignOut={onSignOut}
       secondaryAction={<button className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Scan receipt</button>}
-      action={<button className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><span className="text-lg leading-none">+</span> Log expense</button>}
+      action={
+        <button
+          type="button"
+          onClick={logExpenseDialog.open}
+          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          <span className="text-lg leading-none">+</span> Log expense
+        </button>
+      }
     >
       <div className="grid gap-4 md:grid-cols-3">
         <Stat label="Total spent" value={formatCurrency(total)} />
@@ -55,6 +66,11 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
           </div>
         ))}
       </div>
+      <ExpenseFormPanel
+        open={logExpenseDialog.isOpen}
+        onClose={logExpenseDialog.close}
+        onSuccess={refetch}
+      />
     </DashboardShell>
   );
 }

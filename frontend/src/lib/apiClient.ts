@@ -10,10 +10,20 @@ type ApiFailure = {
   error: {
     code: string;
     message: string;
+    details?: string;
   };
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:4000/api";
+const configuredApiUrl = import.meta.env.VITE_API_URL;
+const candidateApiBaseUrls = Array.from(
+  new Set(
+    [
+      configuredApiUrl,
+      "http://localhost:4000/api",
+      "http://localhost:3000/api",
+    ].filter((value): value is string => Boolean(value)),
+  ),
+);
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}) {
   const supabase = getSupabaseClient();
@@ -24,20 +34,44 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
     throw new Error("Please sign in again to load your data.");
   }
 
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
+  let lastNetworkError: unknown = null;
 
-  const payload = (await response.json()) as ApiSuccess<T> | ApiFailure;
+  for (const baseUrl of candidateApiBaseUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          ...options.headers,
+        },
+      });
 
-  if (!response.ok || !payload.success) {
-    throw new Error(payload.success ? "Request failed." : payload.error.message);
+      const payload = (await response.json()) as ApiSuccess<T> | ApiFailure;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.success
+            ? "Request failed."
+            : payload.error.details || payload.error.message,
+        );
+      }
+
+      return payload.data;
+    } catch (error: unknown) {
+      if (error instanceof TypeError) {
+        lastNetworkError = error;
+        continue;
+      }
+
+      throw error;
+    }
   }
 
-  return payload.data;
+  throw (
+    lastNetworkError ??
+    new Error(
+      "Unable to reach the backend API. Check VITE_API_URL or start the backend server.",
+    )
+  );
 }

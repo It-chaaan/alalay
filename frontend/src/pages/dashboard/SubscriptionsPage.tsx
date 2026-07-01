@@ -1,11 +1,14 @@
 import type { Session } from "@supabase/supabase-js";
+import { SubscriptionFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useSubscriptions } from "../../hooks/useSubscriptions";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 export function SubscriptionsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
-  const { data: subscriptions, isLoading, error } = useSubscriptions();
+  const addSubscriptionDialog = useActionDialog("add-subscription");
+  const { data: subscriptions, isLoading, error, refetch } = useSubscriptions();
   const cards = subscriptions ?? [];
 
   return (
@@ -14,7 +17,15 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
       title="Subscriptions"
       name={name}
       onSignOut={onSignOut}
-      action={<button className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><span className="text-lg leading-none">+</span> Add subscription</button>}
+      action={
+        <button
+          type="button"
+          onClick={addSubscriptionDialog.open}
+          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          <span className="text-lg leading-none">+</span> Add subscription
+        </button>
+      }
     >
       <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-emerald-900">AI Subscription Audit</div>
       {isLoading ? <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading subscriptions...</div> : null}
@@ -37,6 +48,11 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
           </article>
         ))}
       </div>
+      <SubscriptionFormPanel
+        open={addSubscriptionDialog.isOpen}
+        onClose={addSubscriptionDialog.close}
+        onSuccess={refetch}
+      />
     </DashboardShell>
   );
 }

@@ -14,11 +14,13 @@ export function errorHandler(error: unknown, _req: Request, res: Response, _next
   }
 
   console.error(error);
+  const details = error instanceof Error ? error.message : null;
+
   res.status(500).json({
     success: false,
     error: {
       code: "internal_error",
-      message: "Something went wrong.",
+      message: details || "Something went wrong.",
     },
   });
 }

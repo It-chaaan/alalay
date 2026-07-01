@@ -6,8 +6,8 @@ const envSchema = z.object({
   HTTPS_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   HTTPS_CERT_PATH: z.string().optional(),
   HTTPS_KEY_PATH: z.string().optional(),
-  SUPABASE_URL: z.string().url(),
-  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   GEMINI_API_KEY: z.string().optional(),
 });

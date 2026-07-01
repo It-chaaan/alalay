@@ -80,18 +80,18 @@ export function QuickActions() {
           isOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-          <button type="button" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          <a href="/app/bills?action=add-bill" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="bill" />
             Add bill
-          </button>
-          <button type="button" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          </a>
+          <a href="/app/expenses?action=log-expense" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="expense" />
             Log expense
-          </button>
-          <button type="button" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          </a>
+          <a href="/app/ocr-scanner" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="scan" />
             Scan receipt
-          </button>
+          </a>
       </div>
       <button
         type="button"

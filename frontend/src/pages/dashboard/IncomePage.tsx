@@ -1,5 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
+import { IncomeFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useIncome } from "../../hooks/useIncome";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
@@ -132,7 +134,8 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
 
 export function IncomePage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
-  const { data: entries, isLoading, error } = useIncome();
+  const addIncomeDialog = useActionDialog("add-income");
+  const { data: entries, isLoading, error, refetch } = useIncome();
   const rows = entries ?? [];
   const thisMonth = new Date().toISOString().slice(0, 7);
   const thisMonthTotal = rows.filter((entry) => entry.date.startsWith(thisMonth)).reduce((sum, entry) => sum + Number(entry.amount), 0);
@@ -152,7 +155,15 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       subtitle="All sources - June 2025"
       name={name}
       onSignOut={onSignOut}
-      action={<button type="button" className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Add income source</button>}
+      action={
+        <button
+          type="button"
+          onClick={addIncomeDialog.open}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"
+        >
+          <span className="text-xl leading-none">+</span>Add income source
+        </button>
+      }
     >
       {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading income...</div> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
@@ -220,6 +231,11 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
+      <IncomeFormPanel
+        open={addIncomeDialog.isOpen}
+        onClose={addIncomeDialog.close}
+        onSuccess={refetch}
+      />
     </DashboardShell>
   );
 }

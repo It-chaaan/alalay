@@ -1,5 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
+import { SavingsGoalFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import { formatCurrency, formatMonthYear } from "../../utils/formatters";
 
@@ -9,7 +11,8 @@ function getDisplayName(session: Session) {
 
 export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
-  const { data: savingsGoals, isLoading, error } = useSavingsGoals();
+  const createGoalDialog = useActionDialog("create-goal");
+  const { data: savingsGoals, isLoading, error, refetch } = useSavingsGoals();
   const goals = savingsGoals ?? [];
 
   return (
@@ -18,7 +21,15 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
       title="Savings Goals"
       name={name}
       onSignOut={onSignOut}
-      action={<button type="button" className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Create goal</button>}
+      action={
+        <button
+          type="button"
+          onClick={createGoalDialog.open}
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"
+        >
+          <span className="text-xl leading-none">+</span>Create goal
+        </button>
+      }
     >
       {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading savings goals...</div> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
@@ -54,6 +65,11 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
         })}
       </section>
       ) : null}
+      <SavingsGoalFormPanel
+        open={createGoalDialog.isOpen}
+        onClose={createGoalDialog.close}
+        onSuccess={refetch}
+      />
     </DashboardShell>
   );
 }

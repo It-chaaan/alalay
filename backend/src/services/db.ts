@@ -1,4 +1,4 @@
-import { supabase } from "../config/supabase.js";
+import { getSupabase } from "../config/supabase.js";
 import { AppError } from "../utils/api.js";
 
 export type TableName = "bills" | "expenses" | "income" | "subscriptions" | "savings_goals";
@@ -45,5 +45,5 @@ export function throwIfError(error: { message: string } | null) {
 }
 
 export function client() {
-  return supabase;
+  return getSupabase();
 }

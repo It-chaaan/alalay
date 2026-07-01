@@ -1,11 +1,14 @@
 import type { Session } from "@supabase/supabase-js";
+import { BillFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBills } from "../../hooks/useBills";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 export function BillsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
-  const { data: bills, isLoading, error } = useBills();
+  const addBillDialog = useActionDialog("add-bill");
+  const { data: bills, isLoading, error, refetch } = useBills();
   const rows = bills ?? [];
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
@@ -19,7 +22,15 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       title="Bills"
       name={name}
       onSignOut={onSignOut}
-      action={<button className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><span className="text-lg leading-none">+</span> Add bill</button>}
+      action={
+        <button
+          type="button"
+          onClick={addBillDialog.open}
+          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
+        >
+          <span className="text-lg leading-none">+</span> Add bill
+        </button>
+      }
     >
       <div className="grid gap-4 md:grid-cols-3">
         <Stat label="Total unpaid" value={formatCurrency(unpaid.reduce((sum, bill) => sum + Number(bill.amount), 0))} />
@@ -63,6 +74,11 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
           </table>
         ) : null}
       </div>
+      <BillFormPanel
+        open={addBillDialog.isOpen}
+        onClose={addBillDialog.close}
+        onSuccess={refetch}
+      />
     </DashboardShell>
   );
 }
