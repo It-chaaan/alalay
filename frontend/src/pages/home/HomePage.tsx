@@ -2,34 +2,41 @@ import alalayLogo from "../../assets/alalay.svg";
 import { Container } from "../../components/layout/Container";
 import { Navbar } from "../../components/navigation/Navbar";
 import { mobileDownloadCopy, qrPreviewCells } from "../../constants/mobileDownload";
+import { ReceiptText, Bot, PiggyBank, ChartNoAxesCombined, CreditCard, Scan  } from "lucide-react";
 
 const features = [
   {
+    icon: ReceiptText,
     title: "Bill tracking",
     description:
       "Never miss a due date again. Get reminders 3 days before, day-of, and instant overdue alerts.",
   },
   {
+    icon: Bot,
     title: "AI financial companion",
     description:
       "Ask Alalay anything in English or Filipino. Get personalized insights, spending analysis, and actionable tips.",
   },
   {
+    icon: PiggyBank,
     title: "Savings goals",
     description:
       "Set a target, track your progress, and let Alalay tell you exactly how much to save each month to hit your goal.",
   },
   {
+    icon: ChartNoAxesCombined,
     title: "Expense analytics",
     description:
       "Visualize where your money goes with clean charts. Spot patterns, find leaks, and build better habits month over month.",
   },
   {
+    icon: CreditCard,
     title: "Subscription audit",
     description:
-      "Alalay watches recurring charges and flags unused subscriptions. One tap to cancel what you no longer need.",
+      "Manage your credit cards with ease. Track spending, set budgets, and get alerts for unusual activity.",
   },
   {
+    icon: Scan,
     title: "OCR receipt scanning",
     description:
       "Point your camera at any receipt. Alalay reads it and logs the expense automatically with no manual entry.",
@@ -288,7 +295,7 @@ export function HomePage() {
                 className="rounded-[24px] border border-black/5 bg-white p-6 shadow-[0_1px_0_rgba(15,23,42,0.02)]"
               >
                 <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e3f6ef] text-[#0f8a6b]">
-                  ✦
+                  <feature.icon className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-semibold text-slate-950">
                   {feature.title}
@@ -300,7 +307,7 @@ export function HomePage() {
         </Container>
       </section>
 
-      <section id="how-it-works" className="bg-[#e8f6f0] py-24">
+      <section id="how-it-works" className="bg-[#e8f6f0] py-28">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
             <h2 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
@@ -328,7 +335,7 @@ export function HomePage() {
         </Container>
       </section>
 
-      <section id="signup" className="bg-[#0f6f57] py-24 text-white">
+      <section id="signup" className="bg-[#0f6f57] py-10 text-white">
         <Container className="flex flex-col items-center text-center">
           <div className="mb-6 grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-white/15 p-1 ring-1 ring-white/10">
             <img src={alalayLogo} alt="Alalay logo" className="h-full w-full object-cover" />

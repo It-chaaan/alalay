@@ -8,6 +8,8 @@ export type Bill = {
   frequency: string | null;
   status: "unpaid" | "paid" | "overdue";
   paid_at: string | null;
+  notes?: string | null;
+  attachment_url?: string | null;
   created_at: string;
 };
 

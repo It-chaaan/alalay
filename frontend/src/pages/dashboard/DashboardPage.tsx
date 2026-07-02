@@ -143,17 +143,30 @@ function AiInsightCard({ message }: { message: string }) {
 
 function WeeklyBills({ bills }: { bills: DashboardSummary["weekly_bills"] }) {
   const toneClass = {
-    today: "bg-orange-50 text-orange-700",
+    paid: "bg-emerald-50 text-emerald-700",
     upcoming: "bg-amber-50 text-amber-700",
     overdue: "bg-red-50 text-red-600",
   };
+  const today = new Date().toISOString().slice(0, 10);
+
+  function getBillDisplayStatus(bill: DashboardSummary["weekly_bills"][number]) {
+    if (bill.status === "paid") {
+      return "paid" as const;
+    }
+
+    if (bill.status === "overdue" || bill.due_date < today) {
+      return "overdue" as const;
+    }
+
+    return "upcoming" as const;
+  }
 
   return (
     <section className="mt-7">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-semibold text-slate-950">Mga bills ngayong linggo</h2>
         <a href="#" className="text-sm font-medium text-brand-primary hover:text-brand-dark">
-          Tingnan lahat →
+          Tingnan lahat {'->'}
         </a>
       </div>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
@@ -168,8 +181,8 @@ function WeeklyBills({ bills }: { bills: DashboardSummary["weekly_bills"] }) {
               <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-primary text-sm font-bold text-white">
                 {bill.title.charAt(0)}
               </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass[bill.status === "overdue" ? "overdue" : "upcoming"]}`}>
-                {bill.status}
+              <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass[getBillDisplayStatus(bill)]}`}>
+                {getBillDisplayStatus(bill)}
               </span>
             </div>
             <p className="mt-4 text-sm font-semibold text-slate-950">{bill.title}</p>
@@ -234,12 +247,18 @@ function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const { data: summary, isLoading, error } = useDashboard();
+  const formattedDate = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
+  month: "long",
+  day: "numeric",
+  year: "numeric",
+}).format(new Date());
 
   return (
     <DashboardShell
       activeLabel="Dashboard"
-      title={`Good morning, ${name}`}
-      subtitle="Saturday, June 28, 2025"
+      title={`Good morning, ${name.trim().split(" ")[0]}!`}
+      subtitle={formattedDate}
       name={name}
       onSignOut={onSignOut}
       action={

@@ -27,6 +27,28 @@ type FormDialogProps = {
   onSuccess: () => void;
 };
 
+type BillFormPanelProps = FormDialogProps & {
+  bill?: Bill | null;
+};
+
+const billCategoryOptions = [
+  "Utilities",
+  "Internet",
+  "Water",
+  "Electricity",
+  "Rent",
+  "Loans",
+  "Credit Card",
+  "Insurance",
+  "Subscriptions",
+  "Government",
+  "Other",
+] as const;
+
+function isPresetBillCategory(category: string | null | undefined) {
+  return billCategoryOptions.includes((category ?? "") as (typeof billCategoryOptions)[number]);
+}
+
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
 
 function toOptionalString(value: string | undefined) {
@@ -159,6 +181,7 @@ const billSchema = z
     title: z.string().trim().min(1, "Biller name is required"),
     amount: z.coerce.number().positive("Amount must be greater than zero"),
     category: z.string().trim().min(1, "Category is required"),
+    custom_category: z.string().optional(),
     due_date: z.string().date("Due date is required"),
     recurring: z.boolean(),
     frequency: z.enum(["monthly", "weekly", "yearly", "quarterly"]).optional(),
@@ -173,24 +196,36 @@ const billSchema = z
         message: "Choose how often this bill repeats",
       });
     }
+
+    if (values.category === "Other" && !values.custom_category?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["custom_category"],
+        message: "Enter a custom category",
+      });
+    }
   });
 
 type BillFormValues = z.infer<typeof billSchema>;
 
-function defaultBillValues(): BillFormValues {
+function defaultBillValues(bill?: Bill | null): BillFormValues {
+  const existingCategory = bill?.category ?? "";
+  const isPresetCategory = isPresetBillCategory(existingCategory);
+
   return {
-    title: "",
-    amount: 0,
-    category: "",
-    due_date: todayInputValue(),
-    recurring: false,
-    frequency: undefined,
-    notes: "",
-    attachment_url: "",
+    title: bill?.title ?? "",
+    amount: Number(bill?.amount ?? 0),
+    category: existingCategory ? (isPresetCategory ? existingCategory : "Other") : "",
+    custom_category: existingCategory && !isPresetCategory ? existingCategory : "",
+    due_date: bill?.due_date ?? todayInputValue(),
+    recurring: bill ? Boolean(bill.recurring) : false,
+    frequency: bill?.frequency ?? undefined,
+    notes: bill?.notes ?? "",
+    attachment_url: bill?.attachment_url ?? "",
   };
 }
 
-export function BillFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
+export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
   const {
@@ -201,27 +236,39 @@ export function BillFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
     formState: { errors },
   } = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
-    defaultValues: defaultBillValues(),
+    defaultValues: defaultBillValues(bill),
   });
   const recurring = watch("recurring");
+  const category = watch("category");
 
   useEffect(() => {
     if (open) {
-      reset(defaultBillValues());
+      reset(defaultBillValues(bill));
       resetMutation();
     }
-  }, [open, reset, resetMutation]);
+  }, [bill, open, reset, resetMutation]);
 
   async function onSubmit(values: BillFormValues) {
-    await mutate<Bill>("/bills", {
-      method: "POST",
-      body: JSON.stringify({
-        ...values,
-        frequency: values.recurring ? values.frequency : null,
-        notes: toOptionalString(values.notes),
-        attachment_url: toOptionalString(values.attachment_url),
-      }),
-    });
+    const { custom_category, ...restValues } = values;
+    const payload = {
+      ...restValues,
+      category: values.category === "Other" ? custom_category?.trim() ?? "Other" : values.category,
+      frequency: values.recurring ? values.frequency : null,
+      notes: toOptionalString(values.notes),
+      attachment_url: toOptionalString(values.attachment_url),
+    };
+
+    if (bill) {
+      await mutate<Bill>(`/bills/${bill.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await mutate<Bill>("/bills", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
     onSuccess();
     onClose();
   }
@@ -230,10 +277,15 @@ export function BillFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Add bill"
-      description="Track a due date and let the backend handle the saved bill record."
+      title={bill ? "Edit bill" : "Add bill"}
+      description="Keep the bill details clean, categorized, and easy to review later."
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save bill" />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={bill ? "Update bill" : "Save bill"}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -258,14 +310,30 @@ export function BillFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
             error={errors.amount?.message}
             {...register("amount")}
           />
-          <TextInput
+          <SelectField
             id="bill-category"
             label="Category"
-            placeholder="Utilities"
             error={errors.category?.message}
             {...register("category")}
-          />
+          >
+            <option value="">Select category</option>
+            {billCategoryOptions.map((category) => (
+              <option key={category} value={category}>
+                {category}
+              </option>
+            ))}
+          </SelectField>
         </div>
+
+        {category === "Other" ? (
+          <TextInput
+            id="bill-custom-category"
+            label="Custom category"
+            placeholder="Enter your category"
+            error={errors.custom_category?.message}
+            {...register("custom_category")}
+          />
+        ) : null}
 
         <TextInput
           id="bill-due-date"
@@ -296,14 +364,19 @@ export function BillFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
           <option value="yearly">Yearly</option>
         </SelectField>
 
-        <TextInput
-          id="bill-attachment-url"
-          label="Attachment URL"
-          type="url"
-          placeholder="https://..."
-          error={errors.attachment_url?.message}
-          {...register("attachment_url")}
-        />
+        <div>
+          <TextInput
+            id="bill-attachment-url"
+            label="Attachment URL"
+            type="url"
+            placeholder="https://..."
+            error={errors.attachment_url?.message}
+            {...register("attachment_url")}
+          />
+          <p className="mt-2 text-xs text-slate-500">
+            Optional. Add a receipt, billing portal, or statement link manually.
+          </p>
+        </div>
 
         <TextAreaField
           id="bill-notes"
