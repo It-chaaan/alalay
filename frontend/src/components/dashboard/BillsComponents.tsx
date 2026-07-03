@@ -4,11 +4,12 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
-  Edit3,
   MoreHorizontal,
   Search,
+  Pen,
   Trash2,
   Wallet,
+  Circle
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { ComponentType, InputHTMLAttributes } from "react";
@@ -71,7 +72,7 @@ function getStatusClasses(status: BillDisplayStatus) {
     return "border-slate-200 bg-slate-100 text-slate-600";
   }
 
-  return "border-sky-200 bg-sky-50 text-sky-700";
+  return "border-amber-100 bg-amber-50 text-amber-700";
 }
 
 export function StatusBadge({
@@ -138,19 +139,27 @@ export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
 type QuickActionsMenuProps = {
   bill: Bill;
   isOpen: boolean;
+  todayIso: string;
   onToggle: () => void;
   onEdit: () => void;
+  onMarkPaid: () => void;
+  onMarkUnpaid: () => void;
   onDelete: () => void;
 };
 
 export function QuickActionsMenu({
   bill,
   isOpen,
+  todayIso,
   onToggle,
   onEdit,
+  onMarkPaid,
+  onMarkUnpaid,
   onDelete,
 }: QuickActionsMenuProps) {
   const buttonRef = useRef<HTMLButtonElement | null>(null);
+  const displayStatus = getBillDisplayStatus(bill, todayIso);
+  const isPaid = displayStatus === "paid";
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; openAbove: boolean }>({
     top: 0,
     left: 0,
@@ -169,7 +178,7 @@ export function QuickActionsMenu({
 
       const rect = buttonRef.current.getBoundingClientRect();
       const menuWidth = 224;
-      const estimatedMenuHeight = 168;
+      const estimatedMenuHeight = 176;
       const viewportPadding = 16;
       const spaceBelow = window.innerHeight - rect.bottom;
       const openAbove = spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight;
@@ -200,7 +209,7 @@ export function QuickActionsMenu({
         ref={buttonRef}
         type="button"
         onClick={onToggle}
-        className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500 shadow-sm transition duration-150 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+        className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition duration-150 hover:bg-slate-200 hover:text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-label={`More actions for ${bill.title}`}
@@ -211,7 +220,7 @@ export function QuickActionsMenu({
       {createPortal(
         <div
           data-bill-menu
-          className={`fixed z-[80] w-56 rounded-[22px] border border-slate-200 bg-white p-2 shadow-[0_18px_40px_rgba(15,23,42,0.12)] transition duration-150 ${
+          className={`fixed z-[80] w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)] transition duration-150 ${
             isOpen
               ? "pointer-events-auto scale-100 opacity-100"
               : `pointer-events-none opacity-0 ${menuStyle.openAbove ? "translate-y-1 scale-95" : "-translate-y-1 scale-95"}`
@@ -220,8 +229,12 @@ export function QuickActionsMenu({
           role="menu"
           aria-hidden={!isOpen}
         >
-          <MenuAction icon={Edit3} label="Edit bill" tone="info" onClick={onEdit} />
-          <div className="mt-1 border-t border-slate-100 pt-1" />
+          <MenuAction icon={Pen} label="Edit bill" tone="info" onClick={onEdit} />
+          <MenuRadioAction
+            checked={isPaid}
+            label={isPaid ? "Mark as unpaid" : "Mark as paid"}
+            onClick={isPaid ? onMarkUnpaid : onMarkPaid}
+          />
           <MenuAction icon={Trash2} label="Delete bill" tone="danger" onClick={onDelete} />
         </div>,
         document.body,
@@ -245,30 +258,57 @@ function MenuAction({
     tone === "success"
       ? "text-emerald-700 hover:bg-emerald-50"
       : tone === "info"
-        ? "text-sky-700 hover:bg-sky-50"
+        ? "text-slate-950 hover:bg-slate-50"
         : tone === "danger"
-          ? "text-rose-700 hover:bg-rose-50"
+          ? "text-red-500 hover:bg-red-50"
           : "text-slate-700 hover:bg-slate-50";
 
   const iconClasses =
     tone === "success"
-      ? "bg-emerald-100 text-emerald-700"
+      ? "text-emerald-700"
       : tone === "info"
-        ? "bg-sky-100 text-sky-700"
+        ? "text-slate-700"
         : tone === "danger"
-          ? "bg-rose-100 text-rose-700"
-          : "bg-slate-100 text-slate-600";
+          ? "text-red-500"
+          : "text-slate-600";
 
   return (
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 py-2 text-left text-sm font-medium transition duration-150 focus:outline-none focus:ring-2 focus:ring-emerald-100 ${toneClasses}`}
+      className={`flex min-h-10 w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium transition duration-150 last:border-b-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-100 ${toneClasses}`}
       role="menuitem"
     >
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-xl ${iconClasses}`}>
+      <span className={`grid h-5 w-5 shrink-0 place-items-center ${iconClasses}`}>
         <Icon className="h-4 w-4" />
       </span>
+      <span>{label}</span>
+    </button>
+  );
+}
+
+function MenuRadioAction({
+  checked,
+  label,
+  onClick,
+}: {
+  checked: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex min-h-10 w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium text-emerald-700 transition duration-150 hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-100"
+      role="menuitemradio"
+      aria-checked={checked}
+    >
+      {checked ? (
+        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+      ) : (
+        <Circle className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
+      )}
       <span>{label}</span>
     </button>
   );
@@ -332,8 +372,9 @@ export function BillRow({
           <button
             type="button"
             onClick={onMarkUnpaid}
-            className="inline-flex min-h-11 items-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition duration-150 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            className="inline-flex min-h-11 items-center gap-3 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition duration-150 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
             Reopen
           </button>
         ) : (
@@ -342,9 +383,7 @@ export function BillRow({
             onClick={onPrimaryAction}
             className="inline-flex min-h-11 items-center gap-3 rounded-full px-2 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
-            <span className="grid h-5 w-5 place-items-center rounded-full border-2 border-emerald-500 transition duration-150">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
+            <Circle className="h-5 w-5 shrink-0 text-emerald-600 transition duration-150" aria-hidden="true" />
             Mark paid
           </button>
         )}
@@ -353,9 +392,12 @@ export function BillRow({
         <QuickActionsMenu
           bill={bill}
           isOpen={isMenuOpen}
+          todayIso={todayIso}
           onToggle={onToggleMenu}
           onEdit={onEdit}
           onDelete={onDelete}
+          onMarkPaid={onPrimaryAction}
+          onMarkUnpaid={onMarkUnpaid}
         />
       </td>
     </tr>
@@ -418,6 +460,7 @@ export function BillMobileCard({
             onClick={onMarkUnpaid}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition duration-150 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-700" aria-hidden="true" />
             Reopen bill
           </button>
         ) : (
@@ -426,9 +469,7 @@ export function BillMobileCard({
             onClick={onPrimaryAction}
             className="inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-full border border-emerald-200 bg-emerald-50 px-4 text-sm font-semibold text-emerald-700 transition duration-150 hover:border-emerald-300 hover:bg-emerald-100 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
-            <span className="grid h-5 w-5 place-items-center rounded-full border-2 border-emerald-500">
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-            </span>
+            <Circle className="h-5 w-5 shrink-0 text-emerald-600" aria-hidden="true" />
             Mark paid
           </button>
         )}

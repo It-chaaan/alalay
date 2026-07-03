@@ -124,6 +124,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       title="Bills"
       name={name}
       onSignOut={onSignOut}
+      contentMaxWidth="max-w-[1100px]"
       action={
         <button
           type="button"
@@ -182,9 +183,9 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
         />
       </div>
 
-      <div className="mt-4 overflow-visible rounded-2xl border border-slate-200 bg-white shadow-sm">
-        {isLoading ? <div className="p-5 text-sm text-slate-500">Loading bills...</div> : null}
-        {error ? <div className="p-5 text-sm text-red-700">{error}</div> : null}
+      <div className="mt-4 overflow-visible rounded-[14px] border border-slate-200 bg-white shadow-sm">
+        {isLoading ? <div className="p-6 text-sm text-slate-500">Loading bills...</div> : null}
+        {error ? <div className="p-6 text-sm text-red-700">{error}</div> : null}
         {!isLoading && !error && rows.length === 0 ? (
           <BillsEmptyState onAddBill={addBillDialog.open} hasFilters={false} />
         ) : null}
@@ -195,31 +196,40 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
         {!isLoading && !error && filteredRows.length > 0 ? (
           <div className="overflow-visible">
             <table className="w-full table-fixed text-sm">
-              <thead className="text-left text-slate-500">
+              <thead className="text-left text-[13px] text-slate-500">
                 <tr className="border-b border-slate-200">
-                  <th className="w-[20%] px-4 py-3 font-medium">Biller</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Category</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Amount</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Due date</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Frequency</th>
-                  <th className="w-[12%] px-4 py-3 font-medium">Status</th>
-                  <th className="w-[14%] px-4 py-3 font-medium">Action</th>
-                  <th className="w-[6%] px-4 py-3 font-medium" />
+                  <th className="w-[25%] px-4 py-4 font-medium">Biller</th>
+                  <th className="w-[15%] px-4 py-4 font-medium">Category</th>
+                  <th className="w-[14%] px-4 py-4 font-medium">Amount</th>
+                  <th className="w-[13%] px-4 py-4 font-medium">Due date</th>
+                  <th className="w-[14%] px-4 py-4 font-medium">Frequency</th>
+                  <th className="w-[14%] px-4 py-4 font-medium">Status</th>
+                  <th className="w-[5%] px-3 py-4 font-medium" />
                 </tr>
               </thead>
               <tbody>
                 {filteredRows.map((row) => {
                   const displayStatus = getBillDisplayStatus(row, today);
-                  const isPaid = displayStatus === "paid";
 
                   return (
                     <tr
                       key={row.id}
-                      className="border-b border-slate-100 transition hover:bg-slate-50 last:border-0"
+                      className="h-16 border-b border-slate-100 transition hover:bg-slate-50 last:border-0"
                     >
-                      <td className="truncate px-4 py-4 font-medium">{row.title}</td>
+                      <td className="px-4 py-4 font-medium">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">
+                            {row.title.charAt(0).toUpperCase()}
+                          </span>
+                          <span className="truncate">{row.title}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-4">
-                        <span className="inline-flex max-w-full truncate rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                        <span
+                          className={`inline-flex max-w-full truncate rounded-md px-2 py-0.5 text-xs font-medium ${getCategoryBadgeClasses(
+                            row.category,
+                          )}`}
+                        >
                           {row.category}
                         </span>
                       </td>
@@ -233,33 +243,17 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                       <td className="px-4 py-4">
                         <StatusBadge status={displayStatus} />
                       </td>
-                      <td className="px-4 py-4">
-                        {isPaid ? (
-                          <button
-                            type="button"
-                            onClick={() => void markBillUnpaid(row.id)}
-                            className="inline-flex min-h-10 items-center rounded-full border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                          >
-                            Reopen
-                          </button>
-                        ) : (
-                          <button
-                            type="button"
-                            onClick={() => void markBillPaid(row.id)}
-                            className="inline-flex min-h-10 items-center gap-2 rounded-full bg-emerald-600 px-3 text-sm font-semibold text-white transition hover:bg-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100"
-                          >
-                            Mark paid
-                          </button>
-                        )}
-                      </td>
-                      <td className="relative px-4 py-4 text-right">
+                      <td className="relative px-3 py-4 text-right">
                         <QuickActionsMenu
                           bill={row}
                           isOpen={openMenuId === row.id}
+                          todayIso={today}
                           onToggle={() =>
                             setOpenMenuId((current) => (current === row.id ? null : row.id))
                           }
                           onEdit={() => openEditBill(row)}
+                          onMarkPaid={() => void markBillPaid(row.id)}
+                          onMarkUnpaid={() => void markBillUnpaid(row.id)}
                           onDelete={() => {
                             const confirmed = window.confirm(
                               `Delete ${row.title}? This cannot be undone.`,
@@ -304,4 +298,18 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
       <div className={`mt-2 text-2xl font-bold ${accent || ""}`}>{value}</div>
     </div>
   );
+}
+
+function getCategoryBadgeClasses(category: string) {
+  const normalizedCategory = category.toLowerCase();
+
+  if (normalizedCategory.includes("utilit")) {
+    return "bg-emerald-50 text-emerald-700";
+  }
+
+  if (normalizedCategory.includes("government")) {
+    return "bg-blue-50 text-blue-700";
+  }
+
+  return "bg-slate-100 text-slate-500";
 }
