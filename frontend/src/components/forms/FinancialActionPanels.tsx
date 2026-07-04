@@ -31,6 +31,10 @@ type BillFormPanelProps = FormDialogProps & {
   bill?: Bill | null;
 };
 
+type SubscriptionFormPanelProps = FormDialogProps & {
+  subscription?: Subscription | null;
+};
+
 const billCategoryOptions = [
   "Utilities",
   "Internet",
@@ -367,14 +371,14 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
         <div>
           <TextInput
             id="bill-attachment-url"
-            label="Attachment URL"
+            label="Bill link"
             type="url"
             placeholder="https://..."
             error={errors.attachment_url?.message}
             {...register("attachment_url")}
           />
           <p className="mt-2 text-xs text-slate-500">
-            Optional. Add a receipt, billing portal, or statement link manually.
+            Optional. Add a billing portal or statement link. Alalay will use the site's logo when available.
           </p>
         </div>
 
@@ -396,19 +400,25 @@ const subscriptionSchema = z.object({
   renewal_date: z.string().date("Renewal date is required"),
   billing_cycle: z.enum(["monthly", "yearly"]),
   auto_renew: z.boolean(),
+  last_used_at: z.string().optional(),
   logo_url: z.union([z.string().url("Enter a valid URL"), z.literal("")]).optional(),
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 
-function defaultSubscriptionValues(): SubscriptionFormValues {
+function dateInputValue(value: string | null | undefined) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormValues {
   return {
-    name: "",
-    amount: 0,
-    renewal_date: todayInputValue(),
-    billing_cycle: "monthly",
-    auto_renew: true,
-    logo_url: "",
+    name: subscription?.name ?? "",
+    amount: Number(subscription?.amount ?? 0),
+    renewal_date: subscription?.renewal_date ?? todayInputValue(),
+    billing_cycle: subscription?.billing_cycle ?? "monthly",
+    auto_renew: subscription ? Boolean(subscription.auto_renew) : true,
+    last_used_at: dateInputValue(subscription?.last_used_at),
+    logo_url: subscription?.logo_url ?? "",
   };
 }
 
@@ -416,7 +426,8 @@ export function SubscriptionFormPanel({
   open,
   onClose,
   onSuccess,
-}: FormDialogProps) {
+  subscription,
+}: SubscriptionFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
   const {
@@ -426,24 +437,34 @@ export function SubscriptionFormPanel({
     formState: { errors },
   } = useForm<SubscriptionFormValues>({
     resolver: zodResolver(subscriptionSchema),
-    defaultValues: defaultSubscriptionValues(),
+    defaultValues: defaultSubscriptionValues(subscription),
   });
 
   useEffect(() => {
     if (open) {
-      reset(defaultSubscriptionValues());
+      reset(defaultSubscriptionValues(subscription));
       resetMutation();
     }
-  }, [open, reset, resetMutation]);
+  }, [open, reset, resetMutation, subscription]);
 
   async function onSubmit(values: SubscriptionFormValues) {
-    await mutate<Subscription>("/subscriptions", {
-      method: "POST",
-      body: JSON.stringify({
-        ...values,
-        logo_url: toOptionalString(values.logo_url),
-      }),
-    });
+    const payload = {
+      ...values,
+      logo_url: toOptionalString(values.logo_url),
+      last_used_at: values.last_used_at ? new Date(`${values.last_used_at}T00:00:00`).toISOString() : null,
+    };
+
+    if (subscription) {
+      await mutate<Subscription>(`/subscriptions/${subscription.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await mutate<Subscription>("/subscriptions", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    }
     onSuccess();
     onClose();
   }
@@ -452,10 +473,10 @@ export function SubscriptionFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Add subscription"
-      description="Send a new recurring subscription to the backend subscription tracker."
+      title={subscription ? "Edit subscription" : "Add subscription"}
+      description="Save the details you know so Alalay can review renewals locally."
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save subscription" />
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={subscription ? "Update subscription" : "Save subscription"} />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -501,17 +522,31 @@ export function SubscriptionFormPanel({
 
         <TextInput
           id="subscription-logo-url"
-          label="Logo URL"
+          label="Subscription link"
           type="url"
           placeholder="https://..."
           error={errors.logo_url?.message}
           {...register("logo_url")}
         />
+        <p className="-mt-3 text-xs text-slate-500">
+          Optional. Add the service website so the card can show its logo and open the link.
+        </p>
+
+        <TextInput
+          id="subscription-last-used"
+          label="Last used"
+          type="date"
+          error={errors.last_used_at?.message}
+          {...register("last_used_at")}
+        />
+        <p className="-mt-3 text-xs text-slate-500">
+          Optional manual date. Alalay does not check provider activity or app usage.
+        </p>
 
         <CheckboxField
           id="subscription-auto-renew"
-          label="Auto renew"
-          description="Keep this on if the subscription renews automatically."
+          label="Renewal reminder"
+          description="Local tracking only. This does not change renewal, billing, or cancellation settings with the provider."
           {...register("auto_renew")}
         />
       </form>

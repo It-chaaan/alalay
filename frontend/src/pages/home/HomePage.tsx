@@ -31,9 +31,9 @@ const features = [
   },
   {
     icon: CreditCard,
-    title: "Subscription audit",
+    title: "Subscription review",
     description:
-      "Manage your credit cards with ease. Track spending, set budgets, and get alerts for unusual activity.",
+      "Track renewal dates, local reminder preferences, and monthly subscription costs from the details you save.",
   },
   {
     icon: Scan,
@@ -182,7 +182,7 @@ export function HomePage() {
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
               Alalay is an AI-powered finance app built for Filipinos. Track bills,
-              manage subscriptions, hit savings goals, all in one calm, intelligent
+              track subscriptions, hit savings goals, all in one calm, intelligent
               dashboard.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">

@@ -16,7 +16,7 @@ Alalay is a Filipino-first personal finance app for tracking bills, subscription
 - Brand navigation, hero CTA, feature sections, and footer
 - Backend health endpoint at `/health`
 - TODO: bill tracking with recurring schedules and reminders
-- TODO: subscription management and usage audits
+- TODO: local subscription tracking and renewal reviews
 - TODO: expense tracking with OCR receipt scanning
 - TODO: savings goals with monthly target calculation
 - TODO: AI financial assistant powered by Gemini 2.5 Flash

@@ -10,11 +10,13 @@ import {
 } from "../../components/dashboard/BillsComponents";
 import { BillFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { LinkLogo } from "../../components/ui/LinkLogo";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useBills } from "../../hooks/useBills";
 import type { Bill } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { normalizeExternalUrl, openExternalLink } from "../../utils/linkPreview";
 
 type BillFilter = "all" | "upcoming" | "overdue" | "paid";
 
@@ -210,6 +212,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
               <tbody>
                 {filteredRows.map((row) => {
                   const displayStatus = getBillDisplayStatus(row, today);
+                  const billLink = normalizeExternalUrl(row.attachment_url);
 
                   return (
                     <tr
@@ -218,9 +221,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                     >
                       <td className="px-4 py-4 font-medium">
                         <div className="flex min-w-0 items-center gap-3">
-                          <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">
-                            {row.title.charAt(0).toUpperCase()}
-                          </span>
+                          <LinkLogo
+                            label={row.title}
+                            link={row.attachment_url}
+                            className="grid h-8 w-8 place-items-center rounded-xl border border-slate-200 bg-slate-50 p-1"
+                            textClassName="text-[11px] font-semibold text-slate-500"
+                          />
                           <span className="truncate">{row.title}</span>
                         </div>
                       </td>
@@ -243,11 +249,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                       <td className="px-4 py-4">
                         <StatusBadge status={displayStatus} />
                       </td>
-                      <td className="relative px-3 py-4 text-right">
+                      <td className="relative px-3 py-4 text-right" onClick={(event) => event.stopPropagation()}>
                         <QuickActionsMenu
                           bill={row}
                           isOpen={openMenuId === row.id}
                           todayIso={today}
+                          onOpenLink={billLink ? () => openExternalLink(row.attachment_url) : undefined}
                           onToggle={() =>
                             setOpenMenuId((current) => (current === row.id ? null : row.id))
                           }

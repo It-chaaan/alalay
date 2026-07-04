@@ -16,6 +16,11 @@ async function rowsFor(table: string, userId: string, dateColumn: string, from: 
   return data ?? [];
 }
 
+function monthlySubscriptionAmount(subscription: { amount: unknown; billing_cycle?: unknown }) {
+  const amount = asNumber(subscription.amount);
+  return subscription.billing_cycle === "yearly" ? amount / 12 : amount;
+}
+
 export async function getBudgetSummary(userId: string) {
   const range = monthRange();
   const expenses = await rowsFor("expenses", userId, "date", range.start, range.end);
@@ -85,7 +90,8 @@ export async function getDashboardSummary(userId: string) {
   const onTimeBills = bills.filter((bill) => bill.status === "paid" || bill.due_date >= todayIso()).length;
   const billScore = bills.length ? (onTimeBills / bills.length) * 35 : 35;
   const savingsRateScore = savingsTarget ? Math.min(25, (savingsCurrent / savingsTarget) * 25) : 10;
-  const subscriptionRatio = monthlyExpenses ? subscriptionsData.reduce((sum, item) => sum + asNumber(item.amount), 0) / monthlyExpenses : 0;
+  const localMonthlySubscriptionCost = subscriptionsData.reduce((sum, item) => sum + monthlySubscriptionAmount(item), 0);
+  const subscriptionRatio = monthlyExpenses ? localMonthlySubscriptionCost / monthlyExpenses : 0;
   const subscriptionScore = Math.max(0, 20 - subscriptionRatio * 20);
   const budget = await getBudgetSummary(userId);
   const budgetScore = Math.max(0, 20 - Math.max(0, budget.used_percent - 100));

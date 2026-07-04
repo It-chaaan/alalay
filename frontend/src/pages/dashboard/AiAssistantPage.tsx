@@ -6,7 +6,7 @@ const aiPromptSuggestions = [
   "How much did I spend this month?",
   "Which bills are due this week?",
   "How's my Laptop Fund going?",
-  "Any subscriptions should I cancel?",
+  "Which subscriptions should I review before renewal?",
   "What's my financial health score?",
   "Tulungan mo akong mag-budget",
 ];

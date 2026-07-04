@@ -4,6 +4,7 @@ import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useExpenses } from "../../hooks/useExpenses";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { Scan } from "lucide-react";
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
@@ -19,7 +20,10 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       title="Expenses"
       name={name}
       onSignOut={onSignOut}
-      secondaryAction={<button className="rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium">Scan receipt</button>}
+      secondaryAction=
+      {<button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium min-w-20" onClick={logExpenseDialog.open}>
+        <Scan className="h-4 w-4" /> Scan receipt
+      </button>}
       action={
         <button
           type="button"

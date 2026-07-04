@@ -288,7 +288,7 @@ for each row execute function public.soft_delete_bills();
 
 create index subscriptions_renewal_date_idx on public.subscriptions (renewal_date);
 
-comment on table public.subscriptions is 'Subscription accounts, renewal dates, and auto-renew settings.';
+comment on table public.subscriptions is 'Locally tracked subscription names, amounts, renewal dates, reminder preferences, and optional manual last-used dates.';
 
 create table public.savings_goals (
   id uuid primary key default gen_random_uuid(),
@@ -367,7 +367,7 @@ create table public.ai_insights (
   action_route text,
   read boolean not null default false,
   created_at timestamptz not null default now(),
-  constraint ai_insights_type_check check (type in ('spending_anomaly', 'upcoming_bills', 'overdue', 'subscription_audit', 'savings_nudge', 'budget_warning'))
+  constraint ai_insights_type_check check (type in ('spending_anomaly', 'upcoming_bills', 'overdue', 'subscription_review', 'savings_nudge', 'budget_warning'))
 );
 
 alter table public.ai_insights enable row level security;

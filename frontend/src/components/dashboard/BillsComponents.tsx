@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock3,
   CreditCard,
+  ExternalLink,
   MoreHorizontal,
   Search,
   Pen,
@@ -140,6 +141,7 @@ type QuickActionsMenuProps = {
   bill: Bill;
   isOpen: boolean;
   todayIso: string;
+  onOpenLink?: () => void;
   onToggle: () => void;
   onEdit: () => void;
   onMarkPaid: () => void;
@@ -151,6 +153,7 @@ export function QuickActionsMenu({
   bill,
   isOpen,
   todayIso,
+  onOpenLink,
   onToggle,
   onEdit,
   onMarkPaid,
@@ -229,6 +232,7 @@ export function QuickActionsMenu({
           role="menu"
           aria-hidden={!isOpen}
         >
+          {onOpenLink ? <MenuAction icon={ExternalLink} label="Open link" tone="info" onClick={onOpenLink} /> : null}
           <MenuAction icon={Pen} label="Edit bill" tone="info" onClick={onEdit} />
           <MenuRadioAction
             checked={isPaid}
