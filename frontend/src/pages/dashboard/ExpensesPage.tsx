@@ -21,9 +21,13 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       name={name}
       onSignOut={onSignOut}
       secondaryAction=
-      {<button className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium min-w-20" onClick={logExpenseDialog.open}>
-        <Scan className="h-4 w-4" /> Scan receipt
-      </button>}
+      {<button
+          type="button"
+          onClick={() => window.location.assign("/app/ocr-scanner")}
+          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium min-w-20"
+        >
+          <Scan className="h-4 w-4" /> Scan receipt
+        </button>}
       action={
         <button
           type="button"

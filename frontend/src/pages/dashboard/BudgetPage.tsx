@@ -9,11 +9,27 @@ function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
 }
 
-function MonthPicker() {
+function getMonthLabel(month?: string) {
+  if (!month) {
+    return new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date());
+  }
+
+  const [year, monthIndex] = month.split("-");
+  const parsedYear = Number(year);
+  const parsedMonth = Number(monthIndex);
+
+  if (!parsedYear || !parsedMonth) {
+    return month;
+  }
+
+  return new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date(parsedYear, parsedMonth - 1, 1));
+}
+
+function MonthPicker({ label }: { label: string }) {
   return (
     <div className="inline-flex h-9 items-center gap-4 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-950 shadow-sm">
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
-      <span>June 2025</span>
+      <span>{label}</span>
       <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4 text-slate-500" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
     </div>
   );
@@ -21,31 +37,33 @@ function MonthPicker() {
 
 export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
-  const editBudgetDialog = useActionDialog("edit-budget");
+  const budgetDialog = useActionDialog("budget");
   const { data: budgetSummary, isLoading, error, refetch } = useBudget();
+  const hasBudget = Boolean(budgetSummary);
+  const monthLabel = getMonthLabel(budgetSummary?.month);
 
   return (
     <DashboardShell
       activeLabel="Budget"
       title="Budget"
-      subtitle="Monthly plan - June 2025"
+      subtitle={`Monthly plan - ${monthLabel}`}
       name={name}
       onSignOut={onSignOut}
-      secondaryAction={<MonthPicker />}
+      secondaryAction={<MonthPicker label={monthLabel} />}
       action={
         <button
           type="button"
-          onClick={editBudgetDialog.open}
-          disabled={isLoading || !budgetSummary}
+          onClick={budgetDialog.open}
+          disabled={isLoading}
           className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>Edit budget
+          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>{hasBudget ? "Edit Budget" : "Create Budget"}
         </button>
       }
     >
       {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading budget...</div> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
-      {!isLoading && !error && !budgetSummary ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget data available yet.</div> : null}
+      {!isLoading && !error && !budgetSummary ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div> : null}
       {budgetSummary ? (
         <>
       <section className="rounded-[14px] border border-emerald-200 bg-[#dff4ed] p-4 text-sm text-brand-dark">
@@ -57,6 +75,9 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
             <h2 className="font-semibold">Alalay budget tip</h2>
             <p className="mt-1 text-xs leading-5 text-slate-700">
               You are on track for your lower-spend categories this month. Consider moving {formatCurrency(budgetSummary.suggested_savings_move)} from unused budget to savings - mabuting ugali yan!
+            </p>
+            <p className="mt-2 text-xs leading-5 text-slate-600">
+              Bills and subscriptions due this month are counted in category spending, so paid obligations will reflect in your budget.
             </p>
           </div>
         </div>
@@ -103,6 +124,8 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
         <div className="space-y-4">
           {budgetSummary.categories.map((category) => {
             const percent = category.goal ? 76 : category.percent;
+            const deficit = Math.max(0, category.spent - category.budget);
+            const needsReview = !category.goal && deficit > 0;
 
             return (
               <div key={category.id}>
@@ -114,6 +137,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
                 <div className="h-1.5 rounded-full bg-slate-100">
                   <div className="h-1.5 rounded-full" style={{ width: `${percent}%`, backgroundColor: category.id === "savings" ? "#0f8a6b" : "#c57a12" }} />
                 </div>
+                {needsReview ? <p className="mt-2 text-[11px] font-medium text-red-600">This category is short by {formatCurrency(deficit)} this month.</p> : null}
               </div>
             );
           })}
@@ -121,12 +145,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
-      <BudgetFormPanel
-        open={editBudgetDialog.isOpen}
-        onClose={editBudgetDialog.close}
-        onSuccess={refetch}
-        categories={budgetSummary?.categories ?? []}
-      />
+      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetch} budgetSummary={budgetSummary} />
     </DashboardShell>
   );
 }

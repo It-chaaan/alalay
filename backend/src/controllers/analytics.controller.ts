@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { getBudgetSummary, getDashboardSummary, getReports } from "../services/analytics.service.js";
+import { getBudgetSummary, getDashboardSummary, getReports, saveBudgetPlan } from "../services/analytics.service.js";
 import { sendSuccess } from "../utils/api.js";
 
 export async function dashboardSummary(req: Request, res: Response) {
@@ -8,6 +8,12 @@ export async function dashboardSummary(req: Request, res: Response) {
 
 export async function budgetSummary(req: Request, res: Response) {
   return sendSuccess(res, await getBudgetSummary(req.user!.id));
+}
+
+export async function saveBudget(req: Request, res: Response) {
+  const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
+
+  return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories));
 }
 
 export async function reportsSummary(req: Request, res: Response) {

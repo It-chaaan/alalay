@@ -6,7 +6,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { useEffect, useId } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import type {
@@ -17,6 +17,7 @@ import type {
   SavingsGoal,
   Subscription,
 } from "../../hooks/types";
+import { formatCurrency } from "../../utils/formatters";
 import { Button } from "../ui/Button";
 import { SlideOver } from "../ui/SlideOver";
 import { TextInput } from "../ui/TextInput";
@@ -931,7 +932,7 @@ export function SavingsGoalFormPanel({
 
 const budgetCategorySchema = z.object({
   id: z.string().min(1),
-  name: z.string().min(1),
+  name: z.string().trim().min(1, "Category name is required"),
   budget: z.coerce.number().nonnegative("Budget cannot be negative"),
 });
 
@@ -941,27 +942,43 @@ const budgetSchema = z.object({
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
 
-function buildBudgetDefaults(
-  categories: BudgetSummary["categories"],
-): BudgetFormValues {
+const starterBudgetCategories = [
+  { id: "food", name: "Food", budget: 0 },
+  { id: "transport", name: "Transport", budget: 0 },
+  { id: "utilities", name: "Utilities", budget: 0 },
+  { id: "subscriptions", name: "Subscriptions", budget: 0 },
+  { id: "savings", name: "Savings allocation", budget: 0 },
+];
+
+const budgetSliderMax = 50000;
+const budgetSliderStep = 100;
+const budgetSliderColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
+
+function createBudgetCategoryId() {
+  return globalThis.crypto?.randomUUID?.() ?? `budget-category-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormValues {
   return {
-    categories: categories.map((category) => ({
-      id: category.id,
-      name: category.name,
-      budget: category.budget,
-    })),
+    categories: budgetSummary?.categories?.length
+      ? budgetSummary.categories.map((category) => ({
+          id: category.id,
+          name: category.name,
+          budget: category.budget,
+        }))
+      : starterBudgetCategories,
   };
 }
 
 type BudgetFormPanelProps = FormDialogProps & {
-  categories: BudgetSummary["categories"];
+  budgetSummary: BudgetSummary | null;
 };
 
 export function BudgetFormPanel({
   open,
   onClose,
   onSuccess,
-  categories,
+  budgetSummary,
 }: BudgetFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
@@ -973,19 +990,21 @@ export function BudgetFormPanel({
     formState: { errors },
   } = useForm<BudgetFormValues>({
     resolver: zodResolver(budgetSchema),
-    defaultValues: buildBudgetDefaults(categories),
+    defaultValues: buildBudgetDefaults(budgetSummary),
   });
-  const { fields } = useFieldArray({
+  const { fields, append, remove } = useFieldArray({
     control,
     name: "categories",
   });
+  const watchedCategories = useWatch({ control, name: "categories" });
+  const isEditing = Boolean(budgetSummary);
 
   useEffect(() => {
     if (open) {
-      reset(buildBudgetDefaults(categories));
+      reset(buildBudgetDefaults(budgetSummary));
       resetMutation();
     }
-  }, [open, categories, reset, resetMutation]);
+  }, [budgetSummary, open, reset, resetMutation]);
 
   async function onSubmit(values: BudgetFormValues) {
     await mutate<BudgetSummary>("/budget", {
@@ -993,6 +1012,7 @@ export function BudgetFormPanel({
       body: JSON.stringify({
         categories: values.categories.map((category) => ({
           id: category.id,
+          name: category.name,
           budget: category.budget,
         })),
       }),
@@ -1005,10 +1025,10 @@ export function BudgetFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Edit monthly budget"
-      description="Adjust the category targets here and send the new budget plan to the backend."
+      title={isEditing ? "Edit budget" : "Create budget"}
+      description={isEditing ? "Adjust your category targets and keep the current plan in sync." : "Set up your first budget by category, then add more rows if you need them."}
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save budget" />
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Save budget" : "Create budget"} />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -1016,33 +1036,92 @@ export function BudgetFormPanel({
 
         <div className="space-y-4">
           {fields.map((field, index) => (
-            <div
-              key={field.id}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
-            >
-              <div className="grid gap-4 sm:grid-cols-[1fr_180px] sm:items-end">
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">
-                    {field.name}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    Backend budget amount for this category
-                  </p>
+            (() => {
+              const categoryValue = watchedCategories?.[index];
+              const currentBudget = Number(categoryValue?.budget ?? 0);
+              const currentSpent = Number(
+                budgetSummary?.categories.find((category) => category.id === categoryValue?.id)?.spent ?? 0,
+              );
+              const deficit = Math.max(0, currentSpent - currentBudget);
+              const maxBudget = Math.max(budgetSliderMax, currentBudget + 5000, currentSpent + 5000);
+              const progress = maxBudget ? Math.max(0, Math.min(100, (currentBudget / maxBudget) * 100)) : 0;
+              const color = budgetSliderColors[index % budgetSliderColors.length];
+
+              return (
+                <div key={field.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                  <div className="grid gap-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
+                    <div>
+                      <TextInput
+                        id={`budget-category-name-${field.id}`}
+                        label="Category"
+                        placeholder="Groceries"
+                        error={errors.categories?.[index]?.name?.message}
+                        {...register(`categories.${index}.name`)}
+                      />
+                    </div>
+
+                    <div className="space-y-3">
+                      <div>
+                        <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
+                          <span>Slide to adjust</span>
+                          <span className="font-mono text-slate-700">{formatCurrency(currentBudget)}</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max={maxBudget}
+                          step={budgetSliderStep}
+                          {...register(`categories.${index}.budget`)}
+                          className="h-2 w-full cursor-pointer appearance-none rounded-full"
+                          style={{
+                            background: `linear-gradient(90deg, ${color} 0%, ${color} ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
+                            accentColor: color,
+                          }}
+                        />
+                      </div>
+
+                      <TextInput
+                        id={`budget-category-${field.id}`}
+                        label="Budget amount"
+                        type="number"
+                        min="0"
+                        step={budgetSliderStep}
+                        error={errors.categories?.[index]?.budget?.message}
+                        {...register(`categories.${index}.budget`)}
+                      />
+
+                      {deficit > 0 ? (
+                        <p className="text-xs font-medium text-red-600">
+                          This category is short by {formatCurrency(deficit)} this month.
+                        </p>
+                      ) : null}
+                    </div>
+
+                    <div className="flex justify-end">
+                      <button
+                        type="button"
+                        onClick={() => remove(index)}
+                        disabled={fields.length === 1}
+                        className="inline-flex min-h-11 items-center justify-center rounded-full border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                  <input type="hidden" {...register(`categories.${index}.id`)} />
                 </div>
-                <TextInput
-                  id={`budget-category-${field.id}`}
-                  label="Budget"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  error={errors.categories?.[index]?.budget?.message}
-                  {...register(`categories.${index}.budget`)}
-                />
-              </div>
-              <input type="hidden" {...register(`categories.${index}.id`)} />
-              <input type="hidden" {...register(`categories.${index}.name`)} />
-            </div>
+              );
+            })()
           ))}
+
+          <button
+            type="button"
+            onClick={() => append({ id: createBudgetCategoryId(), name: "", budget: 0 })}
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-dashed border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-brand-primary hover:text-brand-primary"
+          >
+            <span className="text-lg leading-none">+</span>
+            Add category
+          </button>
         </div>
       </form>
     </SlideOver>
