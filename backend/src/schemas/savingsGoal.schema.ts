@@ -5,6 +5,7 @@ export const createSavingsGoalSchema = z.object({
   emoji: z.string().optional(),
   target_amount: z.coerce.number().nonnegative(),
   current_amount: z.coerce.number().nonnegative().optional(),
+  monthly_target: z.coerce.number().nonnegative().optional(),
   deadline: z.string().date(),
   completed_at: z.string().datetime().nullable().optional(),
 });

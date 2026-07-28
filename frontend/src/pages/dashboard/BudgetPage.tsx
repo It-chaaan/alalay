@@ -1,8 +1,11 @@
 import type { Session } from "@supabase/supabase-js";
+import { useEffect, useState } from "react";
 import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
+import { useSavingsGoals } from "../../hooks/useSavingsGoals";
+import type { BudgetSummary } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
 
 function getDisplayName(session: Session) {
@@ -25,6 +28,13 @@ function getMonthLabel(month?: string) {
   return new Intl.DateTimeFormat("en", { month: "long", year: "numeric" }).format(new Date(parsedYear, parsedMonth - 1, 1));
 }
 
+function getCurrentMonthKey() {
+  const today = new Date();
+  const month = String(today.getMonth() + 1).padStart(2, "0");
+
+  return `${today.getFullYear()}-${month}`;
+}
+
 function MonthPicker({ label }: { label: string }) {
   return (
     <div className="inline-flex h-9 items-center gap-4 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-950 shadow-sm">
@@ -38,9 +48,35 @@ function MonthPicker({ label }: { label: string }) {
 export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
   const budgetDialog = useActionDialog("budget");
-  const { data: budgetSummary, isLoading, error, refetch } = useBudget();
+  const { data: fetchedBudgetSummary, isLoading, error, refetch } = useBudget();
+  const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
+  const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
+  const budgetSummary = optimisticBudgetSummary ?? fetchedBudgetSummary;
+  const currentMonth = getCurrentMonthKey();
   const hasBudget = Boolean(budgetSummary);
-  const monthLabel = getMonthLabel(budgetSummary?.month);
+  const monthLabel = getMonthLabel(currentMonth);
+  const goals = savingsGoals ?? [];
+  const activeGoals = goals.filter((goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount));
+  const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
+  const savingsAllocation = Number(budgetSummary?.savings_allocation ?? savingsCategory?.budget ?? 0);
+  const savingsAutoDistribute = Boolean(budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute);
+  const savingsDistributedThisMonth = budgetSummary?.savings_last_distributed_month === currentMonth || Boolean(budgetSummary?.savings_distributed_this_month);
+  const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
+
+  useEffect(() => {
+    if (fetchedBudgetSummary && fetchedBudgetSummary.month === currentMonth) {
+      setOptimisticBudgetSummary(null);
+    }
+  }, [currentMonth, fetchedBudgetSummary]);
+
+  function refetchBudgetAndGoals(result?: unknown) {
+    if (result && typeof result === "object" && "month" in result) {
+      setOptimisticBudgetSummary(result as BudgetSummary);
+    }
+
+    refetch();
+    refetchSavingsGoals();
+  }
 
   return (
     <DashboardShell
@@ -116,26 +152,85 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
         </div>
       </section>
 
+      <section className="mt-5 rounded-[14px] border border-emerald-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-950">Savings allocation</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">
+              Budget controls the monthly savings plan. Goal progress stays on each savings goal card.
+            </p>
+          </div>
+          <div className="text-left sm:text-right">
+            <p className="font-mono text-xl font-bold text-brand-primary">{formatCurrency(savingsAllocation)}</p>
+            <p className="text-xs text-slate-500">planned for {monthLabel}</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <div>
+            <p className="text-[11px] uppercase text-slate-400">Auto-distribute</p>
+            <p className="mt-1 text-sm font-semibold text-slate-950">{savingsAutoDistribute ? "On" : "Off"}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase text-slate-400">This month</p>
+            <p className="mt-1 text-sm font-semibold text-slate-950">{savingsDistributedThisMonth ? "Applied" : "Not applied"}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase text-slate-400">Active goals</p>
+            <p className="mt-1 text-sm font-semibold text-slate-950">{activeGoals.length}</p>
+          </div>
+        </div>
+
+        {activeGoals.length > 0 ? (
+          <div className="mt-5 space-y-3">
+            {activeGoals.slice(0, 3).map((goal) => {
+              const currentAmount = Number(goal.current_amount);
+              const targetAmount = Number(goal.target_amount);
+              const percent = targetAmount ? Math.min(100, Math.round((currentAmount / targetAmount) * 100)) : 0;
+
+              return (
+                <div key={goal.id}>
+                  <div className="mb-2 flex items-center justify-between gap-4 text-xs">
+                    <span className="font-semibold text-slate-700">{goal.title}</span>
+                    <span className="font-mono text-slate-500">{percent}%</span>
+                  </div>
+                  <div className="h-1.5 rounded-full bg-slate-100">
+                    <div className="h-1.5 rounded-full bg-brand-primary" style={{ width: `${percent}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
+            No active savings goals to receive an automatic distribution.
+          </p>
+        )}
+      </section>
+
       <section className="mt-5 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold">Category budgets</h2>
-          <p className="text-xs text-slate-500">Click a row to adjust</p>
+          <p className="text-xs text-slate-500">Use Edit Budget to adjust</p>
         </div>
         <div className="space-y-4">
-          {budgetSummary.categories.map((category) => {
-            const percent = category.goal ? 76 : category.percent;
+          {spendingCategories.length === 0 ? (
+            <p className="text-sm text-slate-500">No spending categories yet. Add category budgets from Edit Budget.</p>
+          ) : null}
+          {spendingCategories.map((category) => {
+            const percent = category.percent;
             const deficit = Math.max(0, category.spent - category.budget);
-            const needsReview = !category.goal && deficit > 0;
+            const needsReview = deficit > 0;
 
             return (
               <div key={category.id}>
                 <div className="mb-2 grid grid-cols-[1fr_auto_auto] items-center gap-4 text-xs">
                   <span className="inline-flex items-center gap-3 font-semibold"><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category.color }} />{category.name}</span>
-                  <span className="font-mono text-slate-500">{category.goal ? `- / ${formatCurrency(0)}` : `${formatCurrency(category.spent)} / ${formatCurrency(category.budget)}`}</span>
-                  <span className={`font-mono ${category.goal ? "text-brand-primary" : "text-[#3f7d16]"}`}>{category.goal ? "Goal" : `${percent}%`}</span>
+                  <span className="font-mono text-slate-500">{formatCurrency(category.spent)} / {formatCurrency(category.budget)}</span>
+                  <span className="font-mono text-[#3f7d16]">{percent}%</span>
                 </div>
                 <div className="h-1.5 rounded-full bg-slate-100">
-                  <div className="h-1.5 rounded-full" style={{ width: `${percent}%`, backgroundColor: category.id === "savings" ? "#0f8a6b" : "#c57a12" }} />
+                  <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, percent)}%`, backgroundColor: "#c57a12" }} />
                 </div>
                 {needsReview ? <p className="mt-2 text-[11px] font-medium text-red-600">This category is short by {formatCurrency(deficit)} this month.</p> : null}
               </div>
@@ -145,7 +240,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
-      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetch} budgetSummary={budgetSummary} />
+      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetchBudgetAndGoals} budgetSummary={budgetSummary} />
     </DashboardShell>
   );
 }

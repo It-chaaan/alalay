@@ -1,9 +1,20 @@
 import { createServer } from "./server.js";
 import { env } from "./config/env.js";
 
-const server = createServer();
+const app = createServer();
 const protocol = env.HTTPS_ENABLED ? "https" : "http";
+const address = `${protocol}://localhost:${env.PORT}`;
 
-server.listen(env.PORT, () => {
-  console.log(`Server listening on ${protocol}://localhost:${env.PORT}`);
+const server = app.listen(env.PORT, () => {
+  console.log(`Server listening on ${address}`);
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${env.PORT} is already in use. Stop the existing backend or choose a different PORT.`);
+    process.exit(1);
+  }
+
+  console.error("Backend failed to start:", error);
+  process.exit(1);
 });

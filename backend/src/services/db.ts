@@ -15,21 +15,21 @@ export function requireUserId(userId: string | undefined) {
 }
 
 export function todayIso() {
-  return new Date().toISOString().slice(0, 10);
+  return toDateOnlyIso(new Date());
 }
 
 export function addDaysIso(days: number) {
   const date = new Date();
   date.setDate(date.getDate() + days);
-  return date.toISOString().slice(0, 10);
+  return toDateOnlyIso(date);
 }
 
 export function monthRange(date = new Date()) {
   const start = new Date(date.getFullYear(), date.getMonth(), 1);
   const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
   return {
-    start: start.toISOString().slice(0, 10),
-    end: end.toISOString().slice(0, 10),
+    start: toDateOnlyIso(start),
+    end: toDateOnlyIso(end),
   };
 }
 
@@ -42,6 +42,14 @@ export function throwIfError(error: { message: string } | null) {
   if (error) {
     throw new AppError(500, "database_error", error.message);
   }
+}
+
+function toDateOnlyIso(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
 }
 
 export function client() {

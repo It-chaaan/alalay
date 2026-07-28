@@ -12,8 +12,9 @@ export async function budgetSummary(req: Request, res: Response) {
 
 export async function saveBudget(req: Request, res: Response) {
   const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
+  const autoDistributeSavings = Boolean(req.body?.auto_distribute_savings);
 
-  return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories));
+  return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories, { autoDistributeSavings }));
 }
 
 export async function reportsSummary(req: Request, res: Response) {

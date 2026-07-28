@@ -13,12 +13,22 @@ export function formatDateShort(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-  }).format(new Date(value));
+  }).format(parseDateOnly(value));
 }
 
 export function formatMonthYear(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "short",
     year: "numeric",
-  }).format(new Date(value));
+  }).format(parseDateOnly(value));
+}
+
+function parseDateOnly(value: string) {
+  const [year, month, day] = value.split("-").map(Number);
+
+  if (!year || !month || !day) {
+    return new Date(value);
+  }
+
+  return new Date(year, month - 1, day);
 }

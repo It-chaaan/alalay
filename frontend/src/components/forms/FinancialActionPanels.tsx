@@ -5,8 +5,8 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from "react";
-import { useEffect, useId } from "react";
-import { useFieldArray, useForm, useWatch } from "react-hook-form";
+import { useEffect, useId, useRef } from "react";
+import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
 import { z } from "zod";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import type {
@@ -25,7 +25,7 @@ import { TextInput } from "../ui/TextInput";
 type FormDialogProps = {
   open: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (result?: unknown) => void | Promise<void>;
 };
 
 type BillFormPanelProps = FormDialogProps & {
@@ -34,6 +34,14 @@ type BillFormPanelProps = FormDialogProps & {
 
 type SubscriptionFormPanelProps = FormDialogProps & {
   subscription?: Subscription | null;
+};
+
+type SavingsGoalFormPanelProps = FormDialogProps & {
+  goal?: SavingsGoal | null;
+};
+
+type SavingsGoalProgressPanelProps = FormDialogProps & {
+  goal: SavingsGoal | null;
 };
 
 const billCategoryOptions = [
@@ -813,19 +821,21 @@ const savingsGoalSchema = z.object({
   title: z.string().trim().min(1, "Goal title is required"),
   emoji: z.string().max(8, "Keep the emoji short").optional(),
   target_amount: z.coerce.number().positive("Target amount must be greater than zero"),
-  current_amount: z.coerce.number().nonnegative("Current amount cannot be negative"),
+  current_amount: z.coerce.number().nonnegative("Current amount cannot be negative").optional(),
+  monthly_target: z.coerce.number().nonnegative("Monthly contribution cannot be negative"),
   deadline: z.string().date("Deadline is required"),
 });
 
 type SavingsGoalFormValues = z.infer<typeof savingsGoalSchema>;
 
-function defaultSavingsGoalValues(): SavingsGoalFormValues {
+function defaultSavingsGoalValues(goal?: SavingsGoal | null): SavingsGoalFormValues {
   return {
-    title: "",
-    emoji: "",
-    target_amount: 0,
-    current_amount: 0,
-    deadline: todayInputValue(),
+    title: goal?.title ?? "",
+    emoji: goal?.emoji ?? "",
+    target_amount: Number(goal?.target_amount ?? 0),
+    current_amount: Number(goal?.current_amount ?? 0),
+    monthly_target: Number(goal?.monthly_target ?? 0),
+    deadline: goal?.deadline ?? todayInputValue(),
   };
 }
 
@@ -833,7 +843,8 @@ export function SavingsGoalFormPanel({
   open,
   onClose,
   onSuccess,
-}: FormDialogProps) {
+  goal,
+}: SavingsGoalFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
   const {
@@ -843,25 +854,42 @@ export function SavingsGoalFormPanel({
     formState: { errors },
   } = useForm<SavingsGoalFormValues>({
     resolver: zodResolver(savingsGoalSchema),
-    defaultValues: defaultSavingsGoalValues(),
+    defaultValues: defaultSavingsGoalValues(goal),
   });
+  const isEditing = Boolean(goal);
 
   useEffect(() => {
     if (open) {
-      reset(defaultSavingsGoalValues());
+      reset(defaultSavingsGoalValues(goal));
       resetMutation();
     }
-  }, [open, reset, resetMutation]);
+  }, [goal, open, reset, resetMutation]);
 
   async function onSubmit(values: SavingsGoalFormValues) {
-    await mutate<SavingsGoal>("/savings-goals", {
-      method: "POST",
-      body: JSON.stringify({
-        ...values,
-        emoji: toOptionalString(values.emoji),
-      }),
-    });
-    onSuccess();
+    const payload = {
+      title: values.title,
+      emoji: toOptionalString(values.emoji),
+      target_amount: values.target_amount,
+      deadline: values.deadline,
+      monthly_target: values.monthly_target,
+    };
+
+    if (goal) {
+      await mutate<SavingsGoal>(`/savings-goals/${goal.id}`, {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      });
+    } else {
+      await mutate<SavingsGoal>("/savings-goals", {
+        method: "POST",
+        body: JSON.stringify({
+          ...payload,
+          current_amount: values.current_amount ?? 0,
+        }),
+      });
+    }
+
+    await onSuccess();
     onClose();
   }
 
@@ -869,10 +897,10 @@ export function SavingsGoalFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Create savings goal"
-      description="Set the target and starting amount here, then let the backend calculate the saved record."
+      title={isEditing ? "Edit savings goal" : "Create savings goal"}
+      description={isEditing ? "Update the goal details here. Progress is handled from the goal card." : "Set the target, starting amount, and monthly contribution for this goal."}
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save goal" />
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Update goal" : "Save goal"} />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -915,8 +943,21 @@ export function SavingsGoalFormPanel({
             {...register("target_amount")}
           />
           <TextInput
+            id="goal-monthly-target"
+            label="Monthly contribution"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="5000"
+            error={errors.monthly_target?.message}
+            {...register("monthly_target")}
+          />
+        </div>
+
+        {!isEditing ? (
+          <TextInput
             id="goal-current-amount"
-            label="Current amount"
+            label="Starting saved amount"
             type="number"
             min="0"
             step="0.01"
@@ -924,7 +965,110 @@ export function SavingsGoalFormPanel({
             error={errors.current_amount?.message}
             {...register("current_amount")}
           />
-        </div>
+        ) : null}
+      </form>
+    </SlideOver>
+  );
+}
+
+const savingsGoalProgressSchema = z.object({
+  amount: z.coerce.number().positive("Amount must be greater than zero"),
+});
+
+type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
+
+function defaultSavingsGoalProgressValues(): SavingsGoalProgressValues {
+  return {
+    amount: 0,
+  };
+}
+
+export function SavingsGoalProgressPanel({
+  open,
+  onClose,
+  onSuccess,
+  goal,
+}: SavingsGoalProgressPanelProps) {
+  const formId = useId();
+  const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<SavingsGoalProgressValues>({
+    resolver: zodResolver(savingsGoalProgressSchema),
+    defaultValues: defaultSavingsGoalProgressValues(),
+  });
+  const currentAmount = Number(goal?.current_amount ?? 0);
+  const targetAmount = Number(goal?.target_amount ?? 0);
+  const remaining = Math.max(0, targetAmount - currentAmount);
+
+  useEffect(() => {
+    if (open) {
+      reset(defaultSavingsGoalProgressValues());
+      resetMutation();
+    }
+  }, [open, reset, resetMutation]);
+
+  async function onSubmit(values: SavingsGoalProgressValues) {
+    if (!goal) {
+      return;
+    }
+
+    const nextAmount = Math.min(targetAmount, currentAmount + values.amount);
+
+    await mutate<SavingsGoal>(`/savings-goals/${goal.id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        current_amount: nextAmount,
+        completed_at: nextAmount >= targetAmount ? new Date().toISOString() : null,
+      }),
+    });
+
+    await onSuccess();
+    onClose();
+  }
+
+  return (
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      title="Add money"
+      description={goal ? `Update progress for ${goal.title}.` : "Update goal progress."}
+      footer={
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Update progress" />
+      }
+    >
+      <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+        <FormError message={error} />
+
+        {goal ? (
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <p className="text-xs text-slate-500">Current progress</p>
+            <p className="mt-1 font-mono text-lg font-bold text-slate-950">
+              {formatCurrency(currentAmount)} <span className="font-sans text-sm font-normal text-slate-500">of</span> {formatCurrency(targetAmount)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">{formatCurrency(remaining)} remaining</p>
+          </div>
+        ) : null}
+
+        <TextInput
+          id="goal-add-amount"
+          label="Amount to add"
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder="1000"
+          error={errors.amount?.message}
+          {...register("amount")}
+        />
+
+        {remaining > 0 ? (
+          <p className="text-xs text-slate-500">
+            Amounts above the remaining balance will mark the goal complete at {formatCurrency(targetAmount)}.
+          </p>
+        ) : null}
       </form>
     </SlideOver>
   );
@@ -938,6 +1082,8 @@ const budgetCategorySchema = z.object({
 
 const budgetSchema = z.object({
   categories: z.array(budgetCategorySchema).min(1, "At least one category is required"),
+  savings_allocation: z.coerce.number().nonnegative("Savings allocation cannot be negative"),
+  auto_distribute_savings: z.boolean(),
 });
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
@@ -947,7 +1093,6 @@ const starterBudgetCategories = [
   { id: "transport", name: "Transport", budget: 0 },
   { id: "utilities", name: "Utilities", budget: 0 },
   { id: "subscriptions", name: "Subscriptions", budget: 0 },
-  { id: "savings", name: "Savings allocation", budget: 0 },
 ];
 
 const budgetSliderMax = 50000;
@@ -959,14 +1104,19 @@ function createBudgetCategoryId() {
 }
 
 function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormValues {
+  const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
+  const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
+
   return {
-    categories: budgetSummary?.categories?.length
-      ? budgetSummary.categories.map((category) => ({
+    categories: spendingCategories.length
+      ? spendingCategories.map((category) => ({
           id: category.id,
           name: category.name,
           budget: category.budget,
         }))
       : starterBudgetCategories,
+    savings_allocation: Number(budgetSummary?.savings_allocation ?? savingsCategory?.budget ?? 0),
+    auto_distribute_savings: Boolean(budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute),
   };
 }
 
@@ -997,27 +1147,45 @@ export function BudgetFormPanel({
     name: "categories",
   });
   const watchedCategories = useWatch({ control, name: "categories" });
+  const savingsAllocation = Number(useWatch({ control, name: "savings_allocation" }) ?? 0);
+  const autoDistributeSavings = Boolean(useWatch({ control, name: "auto_distribute_savings" }));
   const isEditing = Boolean(budgetSummary);
+  const wasOpen = useRef(false);
 
   useEffect(() => {
-    if (open) {
+    if (open && !wasOpen.current) {
       reset(buildBudgetDefaults(budgetSummary));
       resetMutation();
     }
+
+    wasOpen.current = open;
   }, [budgetSummary, open, reset, resetMutation]);
 
   async function onSubmit(values: BudgetFormValues) {
-    await mutate<BudgetSummary>("/budget", {
+    const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
+
+    const savedBudget = await mutate<BudgetSummary>("/budget", {
       method: "PATCH",
       body: JSON.stringify({
-        categories: values.categories.map((category) => ({
-          id: category.id,
-          name: category.name,
-          budget: category.budget,
-        })),
+        auto_distribute_savings: values.auto_distribute_savings,
+        categories: [
+          ...values.categories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            budget: category.budget,
+          })),
+          {
+            id: savingsCategory?.id ?? "savings",
+            name: savingsCategory?.name ?? "Savings allocation",
+            budget: values.savings_allocation,
+            auto_distribute: values.auto_distribute_savings,
+            last_distributed_month: savingsCategory?.last_distributed_month ?? budgetSummary?.savings_last_distributed_month ?? null,
+            last_distributed_amount: savingsCategory?.last_distributed_amount ?? budgetSummary?.savings_last_distributed_amount ?? 0,
+          },
+        ],
       }),
     });
-    onSuccess();
+    await onSuccess(savedBudget);
     onClose();
   }
 
@@ -1033,6 +1201,69 @@ export function BudgetFormPanel({
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
         <FormError message={error} />
+
+        <section className="rounded-2xl border border-emerald-200 bg-[#f0faf6] px-4 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-950">Savings allocation</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-600">
+                Set the monthly savings amount here. Individual goal details stay on the Savings Goals page.
+              </p>
+            </div>
+            <span className="rounded-full bg-brand-primary/10 px-3 py-1 font-mono text-xs font-semibold text-brand-primary">
+              {formatCurrency(savingsAllocation)}
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
+            <TextInput
+              id="budget-savings-allocation"
+              label="Monthly savings amount"
+              type="number"
+              min="0"
+              step={budgetSliderStep}
+              placeholder="5000"
+              error={errors.savings_allocation?.message}
+              {...register("savings_allocation")}
+            />
+
+            <Controller
+              control={control}
+              name="auto_distribute_savings"
+              render={({ field }) => {
+                const isEnabled = Boolean(field.value);
+
+                return (
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isEnabled}
+                    onClick={() => field.onChange(!isEnabled)}
+                    className={`flex min-h-11 items-center gap-3 rounded-full border px-4 py-3 text-left transition ${
+                      isEnabled
+                        ? "border-brand-primary bg-brand-primary text-white"
+                        : "border-emerald-200 bg-white text-slate-900 hover:border-brand-primary"
+                    }`}
+                  >
+                    <span className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${isEnabled ? "bg-white/25" : "bg-slate-200"}`}>
+                      <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition ${isEnabled ? "translate-x-4" : ""}`} />
+                    </span>
+                    <span>
+                      <span className="block text-sm font-semibold">{isEnabled ? "Auto-distribute On" : "Auto-distribute Off"}</span>
+                      <span className={`block text-xs ${isEnabled ? "text-white/80" : "text-slate-500"}`}>Apply to active goals</span>
+                    </span>
+                  </button>
+                );
+              }}
+            />
+          </div>
+
+          {autoDistributeSavings ? (
+            <p className="mt-3 text-xs text-slate-600">
+              Only the amount not yet applied for this month will be added, so editing the budget again will not duplicate progress.
+            </p>
+          ) : null}
+        </section>
 
         <div className="space-y-4">
           {fields.map((field, index) => (

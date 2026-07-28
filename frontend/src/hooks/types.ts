@@ -62,7 +62,23 @@ export type BudgetSummary = {
   remaining: number;
   used_percent: number;
   suggested_savings_move: number;
-  categories: Array<{ id: string; name: string; budget: number; spent: number; percent: number; color: string; goal?: boolean }>;
+  savings_allocation: number;
+  savings_auto_distribute: boolean;
+  savings_last_distributed_month: string | null;
+  savings_last_distributed_amount: number;
+  savings_distributed_this_month: boolean;
+  categories: Array<{
+    id: string;
+    name: string;
+    budget: number;
+    spent: number;
+    percent: number;
+    color: string;
+    goal?: boolean;
+    auto_distribute?: boolean;
+    last_distributed_month?: string | null;
+    last_distributed_amount?: number;
+  }>;
 };
 
 export type ReportsSummary = {
