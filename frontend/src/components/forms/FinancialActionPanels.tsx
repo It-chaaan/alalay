@@ -1082,8 +1082,9 @@ const budgetCategorySchema = z.object({
 
 const budgetSchema = z.object({
   categories: z.array(budgetCategorySchema).min(1, "At least one category is required"),
-  savings_allocation: z.coerce.number().nonnegative("Savings allocation cannot be negative"),
+  savings_allocation: z.coerce.number().nonnegative("Monthly savings budget cannot be negative"),
   auto_distribute_savings: z.boolean(),
+  remaining_savings_behavior: z.enum(["auto_general", "leave_unallocated", "ask_monthly"]),
 });
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
@@ -1117,6 +1118,7 @@ function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormVal
       : starterBudgetCategories,
     savings_allocation: Number(budgetSummary?.savings_allocation ?? savingsCategory?.budget ?? 0),
     auto_distribute_savings: Boolean(budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute),
+    remaining_savings_behavior: budgetSummary?.remaining_savings_behavior ?? "auto_general",
   };
 }
 
@@ -1149,6 +1151,7 @@ export function BudgetFormPanel({
   const watchedCategories = useWatch({ control, name: "categories" });
   const savingsAllocation = Number(useWatch({ control, name: "savings_allocation" }) ?? 0);
   const autoDistributeSavings = Boolean(useWatch({ control, name: "auto_distribute_savings" }));
+  const remainingSavingsBehavior = useWatch({ control, name: "remaining_savings_behavior" }) ?? "auto_general";
   const isEditing = Boolean(budgetSummary);
   const wasOpen = useRef(false);
 
@@ -1168,6 +1171,7 @@ export function BudgetFormPanel({
       method: "PATCH",
       body: JSON.stringify({
         auto_distribute_savings: values.auto_distribute_savings,
+        remaining_savings_behavior: values.remaining_savings_behavior,
         categories: [
           ...values.categories.map((category) => ({
             id: category.id,
@@ -1176,7 +1180,7 @@ export function BudgetFormPanel({
           })),
           {
             id: savingsCategory?.id ?? "savings",
-            name: savingsCategory?.name ?? "Savings allocation",
+            name: savingsCategory?.name ?? "Monthly Savings Budget",
             budget: values.savings_allocation,
             auto_distribute: values.auto_distribute_savings,
             last_distributed_month: savingsCategory?.last_distributed_month ?? budgetSummary?.savings_last_distributed_month ?? null,
@@ -1207,7 +1211,7 @@ export function BudgetFormPanel({
             <div>
               <h3 className="text-sm font-semibold text-slate-950">Savings allocation</h3>
               <p className="mt-1 text-xs leading-5 text-slate-600">
-                Set the monthly savings amount here. Individual goal details stay on the Savings Goals page.
+                Plan how much to save this month. Goal progress still belongs on the Savings Goals page.
               </p>
             </div>
             <span className="rounded-full bg-brand-primary/10 px-3 py-1 font-mono text-xs font-semibold text-brand-primary">
@@ -1218,7 +1222,7 @@ export function BudgetFormPanel({
           <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
             <TextInput
               id="budget-savings-allocation"
-              label="Monthly savings amount"
+              label="Monthly Savings Budget"
               type="number"
               min="0"
               step={budgetSliderStep}
@@ -1250,7 +1254,7 @@ export function BudgetFormPanel({
                     </span>
                     <span>
                       <span className="block text-sm font-semibold">{isEnabled ? "Auto-distribute On" : "Auto-distribute Off"}</span>
-                      <span className={`block text-xs ${isEnabled ? "text-white/80" : "text-slate-500"}`}>Apply to active goals</span>
+                      <span className={`block text-xs ${isEnabled ? "text-white/80" : "text-slate-500"}`}>Plan goal allocations</span>
                     </span>
                   </button>
                 );
@@ -1258,11 +1262,24 @@ export function BudgetFormPanel({
             />
           </div>
 
-          {autoDistributeSavings ? (
-            <p className="mt-3 text-xs text-slate-600">
-              Only the amount not yet applied for this month will be added, so editing the budget again will not duplicate progress.
-            </p>
-          ) : null}
+          <SelectField
+            id="budget-savings-preference"
+            label="Remaining savings preference"
+            className="mt-4"
+            error={errors.remaining_savings_behavior?.message}
+            {...register("remaining_savings_behavior")}
+          >
+            <option value="auto_general">Automatically move remaining savings into General Savings</option>
+            <option value="leave_unallocated">Leave remaining savings unallocated</option>
+            <option value="ask_monthly">Ask every month</option>
+          </SelectField>
+
+          <div className="mt-3 rounded-xl bg-white/70 px-4 py-3 text-xs leading-5 text-slate-600">
+            {autoDistributeSavings
+              ? "Auto-distribute creates a goal allocation plan from active savings goals. Any savings budget left after goal allocation follows your preference below."
+              : "With auto-distribute off, the Monthly Savings Budget stays outside goal allocation and follows your remaining savings preference."}
+            {remainingSavingsBehavior === "auto_general" ? " Remaining savings will be labeled General Savings." : null}
+          </div>
         </section>
 
         <div className="space-y-4">

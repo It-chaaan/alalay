@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { makeResourceController } from "../controllers/resource.controller.js";
+import { makeResourceController, savingsDashboard } from "../controllers/resource.controller.js";
 import type { TableName } from "../services/db.js";
 import { idParamSchema } from "../schemas/common.schema.js";
 import { createExpenseSchema, expenseQuerySchema, updateExpenseSchema } from "../schemas/expense.schema.js";
@@ -20,6 +20,10 @@ export function resourceRouter(table: TableName) {
     bills: { query: undefined, create: createExpenseSchema, update: updateExpenseSchema },
   } as const;
   const schemas = schemaMap[table];
+
+  if (table === "savings_goals") {
+    router.get("/summary", asyncHandler(savingsDashboard));
+  }
 
   router.get("/", validateRequest({ query: schemas.query }), asyncHandler(controller.list));
   router.get("/:id", validateRequest({ params: idParamSchema }), asyncHandler(controller.get));

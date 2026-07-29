@@ -1,7 +1,12 @@
 import type { Request, Response } from "express";
 import { makeResourceService } from "../services/resource.service.js";
+import { getSavingsDashboard } from "../services/analytics.service.js";
 import type { TableName } from "../services/db.js";
 import { sendSuccess } from "../utils/api.js";
+
+export async function savingsDashboard(req: Request, res: Response) {
+  return sendSuccess(res, await getSavingsDashboard(req.user!.id));
+}
 
 export function makeResourceController(table: TableName) {
   const service = makeResourceService(table);

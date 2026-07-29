@@ -4,7 +4,19 @@ import { AppError } from "../utils/api.js";
 export type TableName = "bills" | "expenses" | "income" | "subscriptions" | "savings_goals";
 
 export function asNumber(value: unknown) {
-  return typeof value === "number" ? value : Number(value || 0);
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : 0;
+  }
+
+  if (typeof value === "string") {
+    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  const parsed = Number(value || 0);
+
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 export function requireUserId(userId: string | undefined) {
