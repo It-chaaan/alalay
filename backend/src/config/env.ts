@@ -10,6 +10,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1).optional(),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
 });
 
 export const env = envSchema.parse(process.env);

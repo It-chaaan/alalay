@@ -36,6 +36,10 @@ type SubscriptionFormPanelProps = FormDialogProps & {
   subscription?: Subscription | null;
 };
 
+type ExpenseFormPanelProps = FormDialogProps & {
+  expense?: Expense | null;
+};
+
 type SavingsGoalFormPanelProps = FormDialogProps & {
   goal?: SavingsGoal | null;
 };
@@ -575,21 +579,22 @@ const expenseSchema = z.object({
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
-function defaultExpenseValues(): ExpenseFormValues {
+function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
   return {
-    merchant: "",
-    amount: 0,
-    category: "",
-    date: todayInputValue(),
-    payment_method: "cash",
-    receipt_url: "",
-    is_split: false,
+    merchant: expense?.merchant ?? "",
+    amount: Number(expense?.amount ?? 0),
+    category: expense?.category ?? "",
+    date: expense?.date ?? todayInputValue(),
+    payment_method: (expense?.payment_method as ExpenseFormValues["payment_method"] | undefined) ?? "cash",
+    receipt_url: expense?.receipt_url ?? "",
+    is_split: Boolean(expense?.is_split),
   };
 }
 
-export function ExpenseFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
+export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
+  const isEditing = Boolean(expense);
   const {
     register,
     handleSubmit,
@@ -597,25 +602,25 @@ export function ExpenseFormPanel({ open, onClose, onSuccess }: FormDialogProps) 
     formState: { errors },
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
-    defaultValues: defaultExpenseValues(),
+    defaultValues: defaultExpenseValues(expense),
   });
 
   useEffect(() => {
     if (open) {
-      reset(defaultExpenseValues());
+      reset(defaultExpenseValues(expense));
       resetMutation();
     }
-  }, [open, reset, resetMutation]);
+  }, [expense, open, reset, resetMutation]);
 
   async function onSubmit(values: ExpenseFormValues) {
-    await mutate<Expense>("/expenses", {
-      method: "POST",
+    const result = await mutate<Expense>(isEditing ? `/expenses/${expense!.id}` : "/expenses", {
+      method: isEditing ? "PATCH" : "POST",
       body: JSON.stringify({
         ...values,
         receipt_url: toOptionalString(values.receipt_url),
       }),
     });
-    onSuccess();
+    onSuccess(result);
     onClose();
   }
 
@@ -623,10 +628,10 @@ export function ExpenseFormPanel({ open, onClose, onSuccess }: FormDialogProps) 
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Log expense"
-      description="Capture the purchase details and let the backend store the final expense record."
+      title={isEditing ? "Edit expense" : "Log expense"}
+      description={isEditing ? "Correct merchant, amount, date, category, or payment method for this expense." : "Capture the purchase details and let the backend store the final expense record."}
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save expense" />
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Update expense" : "Save expense"} />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>

@@ -1,18 +1,32 @@
 import type { Session } from "@supabase/supabase-js";
+import { useState } from "react";
 import { ExpenseFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useExpenses } from "../../hooks/useExpenses";
+import type { Expense } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { Scan } from "lucide-react";
+import { Pencil, Scan } from "lucide-react";
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
   const logExpenseDialog = useActionDialog("log-expense");
+  const editExpenseDialog = useActionDialog("edit-expense");
+  const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const { data: expenses, isLoading, error, refetch } = useExpenses();
   const items = expenses ?? [];
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
+
+  function openEditExpense(expense: Expense) {
+    setSelectedExpense(expense);
+    editExpenseDialog.open();
+  }
+
+  function closeEditExpense() {
+    editExpenseDialog.close();
+    setSelectedExpense(null);
+  }
 
   return (
     <DashboardShell
@@ -31,7 +45,10 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       action={
         <button
           type="button"
-          onClick={logExpenseDialog.open}
+          onClick={() => {
+            setSelectedExpense(null);
+            logExpenseDialog.open();
+          }}
           className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
         >
           <span className="text-lg leading-none">+</span> Log expense
@@ -64,11 +81,22 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
             <div className="mb-2 text-sm text-slate-500">{formatDateShort(item.date)}</div>
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
-                <div>
+                <div className="min-w-0">
                   <div className="font-medium">{item.merchant}</div>
                   <div className="mt-1 flex gap-2 text-xs"><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.category}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
                 </div>
-                <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
+                <div className="flex items-center gap-3">
+                  <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
+                  <button
+                    type="button"
+                    onClick={() => openEditExpense(item)}
+                    className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-brand-primary hover:bg-brand-muted hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
+                    aria-label={`Edit ${item.merchant} expense`}
+                    title="Edit expense"
+                  >
+                    <Pencil className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -78,6 +106,12 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
         open={logExpenseDialog.isOpen}
         onClose={logExpenseDialog.close}
         onSuccess={refetch}
+      />
+      <ExpenseFormPanel
+        open={editExpenseDialog.isOpen}
+        onClose={closeEditExpense}
+        onSuccess={refetch}
+        expense={selectedExpense}
       />
     </DashboardShell>
   );

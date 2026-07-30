@@ -26,13 +26,7 @@ const candidateApiBaseUrls = Array.from(
 );
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}) {
-  const supabase = getSupabaseClient();
-  const session = supabase ? (await supabase.auth.getSession()).data.session : null;
-  const token = session?.access_token;
-
-  if (!token) {
-    throw new Error("Please sign in again to load your data.");
-  }
+  const { token } = await getAuthToken();
 
   let lastNetworkError: unknown = null;
 
@@ -74,4 +68,92 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
       "Unable to reach the backend API. Check VITE_API_URL or start the backend server.",
     )
   );
+}
+
+export async function apiStreamRequest(
+  path: string,
+  options: RequestInit,
+  onEvent: (event: { event: string; data: unknown }) => void,
+) {
+  const { token } = await getAuthToken();
+  let lastNetworkError: unknown = null;
+
+  for (const baseUrl of candidateApiBaseUrls) {
+    try {
+      const response = await fetch(`${baseUrl}${path}`, {
+        ...options,
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "text/event-stream",
+          Authorization: `Bearer ${token}`,
+          ...options.headers,
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("Unable to read the AI response stream.");
+      }
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
+        for (const eventBlock of events) {
+          const eventName = eventBlock.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
+          const data = eventBlock
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice("data:".length).trim())
+            .join("\n");
+
+          if (data) {
+            onEvent({ event: eventName, data: JSON.parse(data) });
+          }
+        }
+      }
+
+      return;
+    } catch (error: unknown) {
+      if (error instanceof TypeError) {
+        lastNetworkError = error;
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw (
+    lastNetworkError ??
+    new Error(
+      "Unable to reach the backend API. Check VITE_API_URL or start the backend server.",
+    )
+  );
+}
+
+async function getAuthToken() {
+  const supabase = getSupabaseClient();
+  const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+  const token = session?.access_token;
+
+  if (!token) {
+    throw new Error("Please sign in again to load your data.");
+  }
+
+  return { token };
 }

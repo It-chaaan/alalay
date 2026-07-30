@@ -20,6 +20,10 @@ export type Expense = {
   merchant: string;
   date: string;
   payment_method: string;
+  receipt_url?: string | null;
+  ocr_raw?: Record<string, unknown> | null;
+  is_split?: boolean;
+  split_with?: string[];
   created_at: string;
 };
 
