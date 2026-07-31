@@ -29,6 +29,182 @@ body {
     "Segoe UI", sans-serif;
 }
 
+.dark body {
+  background: #111a17;
+  color: #e5eee9;
+}
+
+.dark .bg-white,
+.dark .bg-app-surface,
+.dark .bg-\[\#fbfbf8\],
+.dark .bg-\[\#f8f8f5\] {
+  background-color: #17231f;
+}
+
+.dark .text-slate-950,
+.dark .text-slate-900 {
+  color: #e5eee9;
+}
+
+.dark .text-slate-600,
+.dark .text-slate-500,
+.dark .text-slate-400 {
+  color: #9fb1a9;
+}
+
+.dark .border-slate-200,
+.dark .border-slate-100,
+.dark .border-slate-200\/80 {
+  border-color: #2a3a34;
+}
+
+.dark input,
+.dark select,
+.dark textarea {
+  background-color: #17231f;
+  color: #e5eee9;
+  border-color: #385047;
+}
+
 a {
   text-decoration: none;
+}
+
+.assistant-message {
+  color: inherit;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.assistant-message p {
+  margin: 0.5rem 0;
+}
+
+.assistant-message p:first-child {
+  margin-top: 0;
+}
+
+.assistant-message p:last-child {
+  margin-bottom: 0;
+}
+
+.assistant-message ul,
+.assistant-message ol {
+  margin: 0.5rem 0;
+  padding-left: 1.25rem;
+}
+
+.assistant-message ul ul,
+.assistant-message ul ol,
+.assistant-message ol ul,
+.assistant-message ol ol {
+  margin: 0.25rem 0 0;
+}
+
+.assistant-message ul {
+  list-style-type: disc;
+}
+
+.assistant-message ol {
+  list-style-type: decimal;
+}
+
+.assistant-message li {
+  margin-bottom: 0.25rem;
+}
+
+.assistant-message li > p {
+  margin: 0.2rem 0;
+}
+
+.assistant-message strong {
+  color: inherit;
+  font-weight: 600;
+}
+
+.assistant-message a {
+  color: #0f8a6b;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.assistant-message blockquote {
+  margin: 0.5rem 0;
+  border-left: 3px solid rgba(15, 138, 107, 0.35);
+  padding-left: 0.75rem;
+  color: #475569;
+}
+
+.assistant-message table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 0.5rem 0;
+  border-collapse: collapse;
+  white-space: nowrap;
+}
+
+.assistant-message th,
+.assistant-message td {
+  border: 1px solid #e2e8f0;
+  padding: 0.45rem 0.65rem;
+  text-align: left;
+}
+
+.assistant-message th {
+  background: #f8fafc;
+  font-weight: 600;
+}
+
+.assistant-message code {
+  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.06);
+  padding: 0.1rem 0.3rem;
+  font-size: 0.9em;
+}
+
+.assistant-message pre {
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: #f8fafc;
+  padding: 0.75rem 0.875rem;
+}
+
+.assistant-message pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.assistant-message hr {
+  margin: 0.75rem 0;
+  border: 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.dark .assistant-message a {
+  color: #5fd0b0;
+}
+
+.dark .assistant-message blockquote {
+  border-left-color: rgba(95, 208, 176, 0.4);
+  color: #9fb1a9;
+}
+
+.dark .assistant-message th,
+.dark .assistant-message td,
+.dark .assistant-message hr {
+  border-color: #2a3a34;
+}
+
+.dark .assistant-message th {
+  background: #17231f;
+}
+
+.dark .assistant-message code {
+  background: rgba(229, 238, 233, 0.08);
+}
+
+.dark .assistant-message pre {
+  background: #111a17;
 }

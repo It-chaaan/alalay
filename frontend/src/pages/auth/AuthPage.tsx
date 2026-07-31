@@ -1,17 +1,31 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { Button } from "../../components/ui/Button";
+import { TextInput } from "../../components/ui/TextInput";
 import alalayLogo from "../../assets/alalay.svg";
 import { authCopy, authStats } from "../../constants/auth";
 import { getSupabaseClient } from "../../lib/supabase";
-import { Button } from "../../components/ui/Button";
-import { TextInput } from "../../components/ui/TextInput";
 
-type AuthMode = "login" | "register";
+type AuthMode = "login" | "register" | "forgot" | "reset";
 
 type AuthPageProps = {
   mode: AuthMode;
+};
+
+type AuthValues = {
+  name: string;
+  email: string;
+  password: string;
+  confirmPassword: string;
+};
+
+type LoginStep = "credentials" | "mfa";
+
+type TOTPFactor = {
+  id: string;
+  friendly_name?: string;
 };
 
 const loginSchema = z.object({
@@ -19,17 +33,31 @@ const loginSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
-const registerSchema = loginSchema.extend({
-  name: z.string().min(2, "Name is required"),
+const registerSchema = z
+  .object({
+    name: z.string().min(2, "Name is required"),
+    email: z.string().min(1, "Email address is required").email("Enter a valid email address"),
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(1, "Confirm your password"),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
+
+const forgotPasswordSchema = z.object({
+  email: z.string().min(1, "Email address is required").email("Enter a valid email address"),
 });
 
-type LoginValues = z.infer<typeof loginSchema>;
-type RegisterValues = z.infer<typeof registerSchema>;
-type AuthValues = LoginValues | RegisterValues;
-
-function isRegisterValues(values: AuthValues): values is RegisterValues {
-  return "name" in values;
-}
+const resetPasswordSchema = z
+  .object({
+    password: z.string().min(8, "Password must be at least 8 characters"),
+    confirmPassword: z.string().min(1, "Confirm your new password"),
+  })
+  .refine((values) => values.password === values.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  });
 
 function GoogleIcon() {
   return (
@@ -97,19 +125,145 @@ function AuthBrandPanel() {
 }
 
 export function AuthPage({ mode }: AuthPageProps) {
+  const isLogin = mode === "login";
   const isRegister = mode === "register";
+  const isForgotPassword = mode === "forgot";
+  const isResetPassword = mode === "reset";
+
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [authError, setAuthError] = useState("");
   const [authNotice, setAuthNotice] = useState("");
+  const [isRecoveryReady, setIsRecoveryReady] = useState(!isResetPassword);
+  const [hasRecoverySession, setHasRecoverySession] = useState(false);
+  const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaFactor, setMfaFactor] = useState<TOTPFactor | null>(null);
+  const [isMfaStateLoading, setIsMfaStateLoading] = useState(isLogin);
+  const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
+
+  const resolverSchema =
+    mode === "register"
+      ? registerSchema
+      : mode === "forgot"
+        ? forgotPasswordSchema
+        : mode === "reset"
+          ? resetPasswordSchema
+          : loginSchema;
 
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
   } = useForm<AuthValues>({
-    resolver: zodResolver(isRegister ? registerSchema : loginSchema),
-    defaultValues: isRegister ? { name: "", email: "", password: "" } : { email: "", password: "" },
+    resolver: zodResolver(resolverSchema),
+    defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
   });
+
+  async function resolvePendingMfaSession() {
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setLoginStep("credentials");
+      setMfaFactor(null);
+      setIsMfaStateLoading(false);
+      return false;
+    }
+
+    const { data: sessionData } = await supabase.auth.getSession();
+
+    if (!sessionData.session) {
+      setLoginStep("credentials");
+      setMfaFactor(null);
+      setIsMfaStateLoading(false);
+      return false;
+    }
+
+    const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (aalError || aalData?.nextLevel !== "aal2" || aalData.currentLevel === "aal2") {
+      setLoginStep("credentials");
+      setMfaFactor(null);
+      setIsMfaStateLoading(false);
+      return false;
+    }
+
+    const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors();
+
+    if (factorError || !factorData.totp.length) {
+      setAuthError("Two-factor authentication is enabled, but no verified authenticator was found.");
+      setLoginStep("credentials");
+      setMfaFactor(null);
+      setIsMfaStateLoading(false);
+      return false;
+    }
+
+    const factor = factorData.totp[0];
+    setMfaFactor({ id: factor.id, friendly_name: factor.friendly_name });
+    setLoginStep("mfa");
+    setIsMfaStateLoading(false);
+    return true;
+  }
+
+  useEffect(() => {
+    if (!isLogin) {
+      return;
+    }
+
+    let active = true;
+
+    async function hydrateLoginState() {
+      setIsMfaStateLoading(true);
+      const resolved = await resolvePendingMfaSession();
+      if (!active) return;
+      if (!resolved) {
+        setLoginStep("credentials");
+      }
+    }
+
+    void hydrateLoginState();
+
+    return () => {
+      active = false;
+    };
+  }, [isLogin]);
+
+  useEffect(() => {
+    if (!isResetPassword) {
+      return;
+    }
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase) {
+      setHasRecoverySession(false);
+      setIsRecoveryReady(true);
+      return;
+    }
+
+    let active = true;
+
+    function syncRecoveryState(sessionExists: boolean) {
+      if (!active) return;
+      setHasRecoverySession(sessionExists);
+      setIsRecoveryReady(true);
+    }
+
+    supabase.auth.getSession().then(({ data }) => {
+      syncRecoveryState(Boolean(data.session));
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+        syncRecoveryState(Boolean(session));
+      }
+    });
+
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
+  }, [isResetPassword]);
 
   async function handleGoogleAuth() {
     setAuthError("");
@@ -131,6 +285,55 @@ export function AuthPage({ mode }: AuthPageProps) {
     }
   }
 
+  async function handleMfaVerification() {
+    setAuthError("");
+    setAuthNotice("");
+
+    const supabase = getSupabaseClient();
+
+    if (!supabase || !mfaFactor) {
+      setAuthError("Two-factor verification is unavailable right now.");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(mfaCode)) {
+      setAuthError("Enter the 6-digit code from your authenticator app.");
+      return;
+    }
+
+    setIsVerifyingMfa(true);
+
+    try {
+      const { error } = await supabase.auth.mfa.challengeAndVerify({
+        factorId: mfaFactor.id,
+        code: mfaCode,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      window.location.assign("/app");
+    } catch (verifyError) {
+      setAuthError(verifyError instanceof Error ? verifyError.message : "Invalid authenticator code.");
+    } finally {
+      setIsVerifyingMfa(false);
+    }
+  }
+
+  async function handleUseDifferentAccount() {
+    const supabase = getSupabaseClient();
+    setAuthError("");
+    setAuthNotice("");
+    setMfaCode("");
+    setLoginStep("credentials");
+    setMfaFactor(null);
+
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+  }
+
   async function onSubmit(values: AuthValues) {
     setAuthError("");
     setAuthNotice("");
@@ -141,7 +344,42 @@ export function AuthPage({ mode }: AuthPageProps) {
       return;
     }
 
-    const result = isRegisterValues(values)
+    if (isForgotPassword) {
+      const { error } = await supabase.auth.resetPasswordForEmail(values.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      setAuthNotice("If that email is registered, we sent a password reset link.");
+      return;
+    }
+
+    if (isResetPassword) {
+      if (!hasRecoverySession) {
+        setAuthError("This password reset link is invalid or has expired. Request a new one.");
+        return;
+      }
+
+      const { error } = await supabase.auth.updateUser({ password: values.password });
+
+      if (error) {
+        setAuthError(error.message);
+        return;
+      }
+
+      await supabase.auth.signOut();
+      setAuthNotice("Password updated. Log in with your new password.");
+      window.setTimeout(() => {
+        window.location.assign("/login");
+      }, 1200);
+      return;
+    }
+
+    const result = isRegister
       ? await supabase.auth.signUp({
           email: values.email,
           password: values.password,
@@ -162,8 +400,19 @@ export function AuthPage({ mode }: AuthPageProps) {
       return;
     }
 
+    if (isLogin) {
+      setIsMfaStateLoading(true);
+      const requiresMfa = await resolvePendingMfaSession();
+      if (requiresMfa) {
+        setMfaCode("");
+        return;
+      }
+    }
+
     window.location.assign("/app");
   }
+
+  const showingMfaStep = isLogin && loginStep === "mfa";
 
   return (
     <main className="min-h-screen bg-app-background text-app-ink lg:flex lg:h-screen lg:overflow-hidden">
@@ -175,16 +424,16 @@ export function AuthPage({ mode }: AuthPageProps) {
             href="/"
             className="inline-flex min-h-11 items-center rounded-full px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary"
           >
-            <span aria-hidden="true" className="mr-2">‹</span>
+            <span aria-hidden="true" className="mr-2">&lsaquo;</span>
             Back to home
           </a>
           <p className="text-sm text-slate-500">
-            {isRegister ? "Already joined?" : "New here?"}{" "}
+            {isRegister ? "Already joined?" : isLogin ? "New here?" : "Remembered your details?"}{" "}
             <a
-              href={isRegister ? "/login" : "/register"}
+              href={isRegister ? "/login" : isLogin ? "/register" : "/login"}
               className="font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
             >
-              {isRegister ? "Log in" : "Create account"}
+              {isRegister ? "Log in" : isLogin ? "Create account" : "Log in"}
             </a>
           </p>
         </header>
@@ -197,45 +446,105 @@ export function AuthPage({ mode }: AuthPageProps) {
             </div>
 
             <h1 id="auth-heading" className="text-4xl font-bold text-slate-950">
-              {isRegister ? "Create account" : "Welcome back"}
+              {isRegister
+                ? "Create account"
+                : isForgotPassword
+                  ? "Forgot password?"
+                  : isResetPassword
+                    ? "Set a new password"
+                    : showingMfaStep
+                      ? "Enter your authenticator code"
+                      : "Welcome back"}
             </h1>
             <p className="mt-3 text-slate-500">
-              {isRegister ? "Start your Alalay account" : "Log in to your Alalay account"}
+              {isRegister
+                ? "Start your Alalay account"
+                : isForgotPassword
+                  ? "Enter your email and we’ll send a reset link."
+                  : isResetPassword
+                    ? "Choose a new password for your Alalay account."
+                    : showingMfaStep
+                      ? "Two-factor authentication is enabled for this account."
+                      : "Log in to your Alalay account"}
             </p>
 
-            <div className="mt-8 grid min-h-11 grid-cols-2 rounded-full bg-slate-100 p-1">
-              <a
-                href="/login"
-                className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
-                  !isRegister ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
-                }`}
-              >
-                Log In
-              </a>
-              <a
-                href="/register"
-                className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
-                  isRegister ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
-                }`}
-              >
-                Sign Up
-              </a>
-            </div>
+            {isLogin && !showingMfaStep ? (
+              <>
+                <div className="mt-8 grid min-h-11 grid-cols-2 rounded-full bg-slate-100 p-1">
+                  <a
+                    href="/login"
+                    className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
+                      isLogin ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                    }`}
+                  >
+                    Log In
+                  </a>
+                  <a
+                    href="/register"
+                    className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
+                      isRegister ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                    }`}
+                  >
+                    Sign Up
+                  </a>
+                </div>
 
-            <button
-              type="button"
-              onClick={handleGoogleAuth}
-              className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            >
-              <GoogleIcon />
-              Continue with Google
-            </button>
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </button>
 
-            <div className="my-7 flex items-center gap-4 text-sm text-slate-400">
-              <div className="h-px flex-1 bg-slate-200" />
-              or
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
+                <div className="my-7 flex items-center gap-4 text-sm text-slate-400">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              </>
+            ) : isRegister ? (
+              <>
+                <div className="mt-8 grid min-h-11 grid-cols-2 rounded-full bg-slate-100 p-1">
+                  <a
+                    href="/login"
+                    className="grid min-h-11 place-items-center rounded-full text-sm font-semibold text-slate-500 transition focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  >
+                    Log In
+                  </a>
+                  <a
+                    href="/register"
+                    className="grid min-h-11 place-items-center rounded-full bg-white text-sm font-semibold text-slate-950 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                  >
+                    Sign Up
+                  </a>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  className="mt-6 inline-flex min-h-11 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 font-semibold text-slate-800 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                >
+                  <GoogleIcon />
+                  Continue with Google
+                </button>
+
+                <div className="my-7 flex items-center gap-4 text-sm text-slate-400">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  or
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+              </>
+            ) : (
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-500">
+                {isForgotPassword
+                  ? "We’ll send the reset link to your email address."
+                  : isResetPassword
+                    ? "Open the reset link from your email, then enter your new password here."
+                    : `Enter the 6-digit code from${mfaFactor?.friendly_name ? ` ${mfaFactor.friendly_name}` : " your"} authenticator app.`}
+              </div>
+            )}
 
             {authError ? (
               <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
@@ -248,66 +557,161 @@ export function AuthPage({ mode }: AuthPageProps) {
               </div>
             ) : null}
 
-            <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
-              {isRegister ? (
+            {showingMfaStep ? (
+              <div className="space-y-5">
                 <TextInput
-                  id="name"
-                  label="Full name"
-                  placeholder="Juan Dela Cruz"
-                  autoComplete="name"
-                  error={isRegister && "name" in errors ? errors.name?.message : undefined}
-                  {...register("name")}
+                  id="mfaCode"
+                  label="Authenticator code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123456"
+                  value={mfaCode}
+                  onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
                 />
-              ) : null}
-
-              <TextInput
-                id="email"
-                label="Email address"
-                type="email"
-                placeholder="juan@email.com"
-                autoComplete="email"
-                error={errors.email?.message}
-                {...register("email")}
-              />
-
-              <div>
-                <div className="mb-2 flex items-center justify-between">
-                  <label htmlFor="password" className="text-sm font-semibold text-slate-800">
-                    Password
-                  </label>
-                  <a
-                    href="/forgot-password"
-                    className="text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                  >
-                    Forgot password?
-                  </a>
-                </div>
-                <TextInput
-                  id="password"
-                  label="Password"
-                  labelClassName="sr-only"
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  autoComplete={isRegister ? "new-password" : "current-password"}
-                  error={errors.password?.message}
-                  rightSlot={
-                    <button
-                      type="button"
-                      aria-label={showPassword ? "Hide password" : "Show password"}
-                      onClick={() => setShowPassword((value) => !value)}
-                      className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
-                    >
-                      {showPassword ? "Hide" : "Show"}
-                    </button>
-                  }
-                  {...register("password")}
-                />
+                <Button
+                  type="button"
+                  className="w-full"
+                  isLoading={isVerifyingMfa}
+                  onClick={handleMfaVerification}
+                  disabled={mfaCode.length !== 6}
+                >
+                  Verify and continue
+                </Button>
+                <button
+                  type="button"
+                  onClick={() => void handleUseDifferentAccount()}
+                  className="w-full text-sm font-semibold text-slate-500 transition hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                >
+                  Use a different account
+                </button>
               </div>
+            ) : (
+              <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
+                {isRegister ? (
+                  <TextInput
+                    id="name"
+                    label="Full name"
+                    placeholder="Juan Dela Cruz"
+                    autoComplete="name"
+                    error={errors.name?.message}
+                    {...register("name")}
+                  />
+                ) : null}
 
-              <Button type="submit" className="w-full" isLoading={isSubmitting}>
-                {isRegister ? "Create Alalay account" : "Log in to Alalay"}
-              </Button>
-            </form>
+                {!isResetPassword ? (
+                  <TextInput
+                    id="email"
+                    label="Email address"
+                    type="email"
+                    placeholder="juan@email.com"
+                    autoComplete="email"
+                    error={errors.email?.message}
+                    {...register("email")}
+                  />
+                ) : null}
+
+                {!isForgotPassword ? (
+                  <div>
+                    <div className="mb-2 flex items-center justify-between">
+                      <label htmlFor="password" className="text-sm font-semibold text-slate-800">
+                        {isResetPassword ? "New password" : "Password"}
+                      </label>
+                      {isLogin ? (
+                        <a
+                          href="/forgot-password"
+                          className="text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
+                          Forgot password?
+                        </a>
+                      ) : null}
+                    </div>
+                    <TextInput
+                      id="password"
+                      label={isResetPassword ? "New password" : "Password"}
+                      labelClassName="sr-only"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={isResetPassword ? "Enter your new password" : "Enter your password"}
+                      autoComplete={isRegister || isResetPassword ? "new-password" : "current-password"}
+                      error={errors.password?.message}
+                      rightSlot={
+                        <button
+                          type="button"
+                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          onClick={() => setShowPassword((value) => !value)}
+                          className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                        >
+                          {showPassword ? "Hide" : "Show"}
+                        </button>
+                      }
+                      {...register("password")}
+                    />
+                  </div>
+                ) : null}
+
+                {isRegister || isResetPassword ? (
+                  <TextInput
+                    id="confirmPassword"
+                    label={isResetPassword ? "Confirm new password" : "Confirm password"}
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder={isResetPassword ? "Confirm your new password" : "Confirm your password"}
+                    autoComplete="new-password"
+                    error={errors.confirmPassword?.message}
+                    rightSlot={
+                      <button
+                        type="button"
+                        aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                        onClick={() => setShowConfirmPassword((value) => !value)}
+                        className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      >
+                        {showConfirmPassword ? "Hide" : "Show"}
+                      </button>
+                    }
+                    {...register("confirmPassword")}
+                  />
+                ) : null}
+
+                {isLogin && isMfaStateLoading ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    Checking sign-in status...
+                  </div>
+                ) : null}
+
+                {isResetPassword && !isRecoveryReady ? (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    Validating your reset link...
+                  </div>
+                ) : null}
+
+                {isResetPassword && isRecoveryReady && !hasRecoverySession ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                    This reset link is invalid or expired.
+                    <div className="mt-3">
+                      <a
+                        href="/forgot-password"
+                        className="font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
+                      >
+                        Request a new reset link
+                      </a>
+                    </div>
+                  </div>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  className="w-full"
+                  isLoading={isSubmitting}
+                  disabled={(isResetPassword && (!isRecoveryReady || !hasRecoverySession)) || isMfaStateLoading}
+                >
+                  {isRegister
+                    ? "Create Alalay account"
+                    : isForgotPassword
+                      ? "Send reset link"
+                      : isResetPassword
+                        ? "Update password"
+                        : "Log in to Alalay"}
+                </Button>
+              </form>
+            )}
           </section>
         </div>
       </section>

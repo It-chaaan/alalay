@@ -1,110 +1,192 @@
 # Alalay
 
-> Your financial companion. AI-powered bill management and budgeting, built for Filipinos.
+Alalay is a Filipino-first personal finance web application for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights.
 
-![Build](https://img.shields.io/badge/build-TODO-lightgrey)
-![Version](https://img.shields.io/badge/version-0.0.0-lightgrey)
-![License](https://img.shields.io/badge/license-TBD-lightgrey)
+## Current implementation status
 
-## What Is Alalay?
+This repository already contains:
 
-Alalay is a Filipino-first personal finance app for tracking bills, subscriptions, expenses, and savings goals with a calm AI companion experience. The current workspace contains a Vite React web frontend and a small TypeScript Node backend; Supabase, Gemini, and mobile support are planned but not implemented yet.
+- a React frontend
+- an Express backend
+- Supabase-backed auth and data storage
+- a working Gemini-backed AI assistant
+- a browser-side OCR flow using `tesseract.js`
 
-## Features
+## Architecture
 
-- Landing page for the Alalay web experience
-- Brand navigation, hero CTA, feature sections, and footer
-- Backend health endpoint at `/health`
-- TODO: bill tracking with recurring schedules and reminders
-- TODO: local subscription tracking and renewal reviews
-- TODO: expense tracking with OCR receipt scanning
-- TODO: savings goals with monthly target calculation
-- TODO: AI financial assistant powered by Gemini 2.5 Flash
-- TODO: offline-first mobile experience
+### Frontend
 
-## Tech Stack
+- React 19
+- TypeScript
+- Vite
+- Tailwind CSS plus shared app CSS
+- manual routing in `frontend/src/App.tsx`
 
-| Area | Current | Planned / TODO |
-| --- | --- | --- |
-| Web | React 19, TypeScript, Vite, Tailwind CSS | Router, data fetching, forms, charts as needed |
-| Backend | Node.js HTTP server, TypeScript, `tsx` | Supabase Edge Functions |
-| Data | None yet | Supabase Postgres, Auth, Storage, RLS |
-| AI | None yet | Gemini 2.5 Flash |
-| Mobile | None yet | React Native, Expo, NativeWind, Expo Router, SQLite |
+### Backend
 
-## Project Structure
+- Express
+- TypeScript
+- Zod validation
+- Supabase integration
 
-```text
-backend/   TypeScript Node server with /health
-frontend/  Vite React web app
-```
+### Database
 
-See [AGENT.md](./AGENT.md) for the full agent-facing structure map and planned monorepo layout.
+- Supabase Postgres
+- migrations under `supabase/migrations/`
+- RLS-enabled application tables
 
-## Getting Started
+### AI
+
+- Google Gemini Flash 2.5
+- backend routes for status, chat, and streaming chat
+
+### OCR
+
+- frontend-side OCR implemented with `tesseract.js`
+
+## Current routes
+
+Frontend routes currently implemented:
+
+- `/`
+- `/login`
+- `/register`
+- `/app`
+- `/app/bills`
+- `/app/subscriptions`
+- `/app/expenses`
+- `/app/income`
+- `/app/savings-goals`
+- `/app/budget`
+- `/app/reports`
+- `/app/ai-assistant`
+- `/app/ocr-scanner`
+- `/app/settings`
+
+There is no active `/forgot-password` route in the current app.
+
+## Current feature set
+
+- authentication and protected app shell
+- dashboard summaries
+- bills management
+- subscriptions management
+- expenses tracking
+- income tracking
+- savings goals
+- budget planning
+- reports and analytics
+- AI assistant
+- OCR scanner
+- settings and profile management
+
+## Backend API summary
+
+The backend exposes authenticated `/api/*` routes plus supporting endpoints. Notable implemented areas include:
+
+- auth and user profile APIs
+- bills
+- subscriptions
+- expenses
+- income
+- savings goals
+- budget
+- reports and analytics
+- AI assistant:
+  - `GET /api/ai/status`
+  - `POST /api/ai/chat`
+  - `POST /api/ai/chat/stream`
+- OCR capability and demo endpoints
+
+## Database tables currently present
+
+- `users`
+- `families`
+- `bills`
+- `expenses`
+- `income`
+- `subscriptions`
+- `savings_goals`
+- `notifications`
+- `ai_insights`
+- `gmail_connections`
+- `bill_suggestions`
+- `budget_plans`
+- `savings_preferences`
+
+The current schema includes `users.phone`.
+
+## Setup
 
 ### Prerequisites
 
 - Node.js 20+
 - npm
 
-### Setup
-
-Install and run each app from its folder:
+### Install
 
 ```bash
 cd frontend
 npm install
-npm run dev
 ```
 
 ```bash
 cd backend
 npm install
+```
+
+### Run the frontend
+
+```bash
+cd frontend
 npm run dev
 ```
 
-The frontend defaults to Vite's local dev URL, usually `http://localhost:5173`. The backend defaults to `http://localhost:3000`.
-
-To run the backend over HTTPS, set these environment variables before starting it:
+### Run the backend
 
 ```bash
-HTTPS_ENABLED=true
-HTTPS_CERT_PATH=./certs/server-cert.pem
-HTTPS_KEY_PATH=./certs/server-key.pem
+cd backend
+npm run dev
 ```
 
-When HTTPS is enabled, the backend will listen with a TLS certificate instead of plain HTTP. For local development, `supabase/config.toml` can also enable self-signed TLS for Supabase's API endpoints if you provide the certificate paths.
+The frontend runs on the Vite dev server. The backend currently defaults to port `4000` in active project usage unless overridden by `PORT`.
 
-## Environment Variables
+## Environment variables
 
-| Variable | Required? | Used By | Description |
-| --- | --- | --- | --- |
-| `PORT` | No | Backend | Server port. Defaults to `3000`. |
-| `SUPABASE_URL` | TODO | Planned | Supabase project URL. |
-| `SUPABASE_ANON_KEY` | TODO | Planned | Public Supabase anon key. |
-| `SUPABASE_SERVICE_ROLE_KEY` | TODO | Planned | Server-only Supabase key. Never expose in client code. |
-| `GEMINI_API_KEY` | TODO | Planned | Google AI Studio API key for Gemini. |
+### Frontend
+
+- `VITE_API_URL` - backend base URL used by the frontend API client
+
+### Backend
+
+- `PORT`
+- `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `GEMINI_API_KEY`
+- `HTTPS_ENABLED`
+- `HTTPS_CERT_PATH`
+- `HTTPS_KEY_PATH`
+
+`frontend/.env.example` currently does not document `VITE_API_URL`, and `backend/.env.example` is missing the HTTPS certificate path variables used by the server.
+
+## Supabase notes
+
+- schema changes must go through `supabase/migrations/`
+- RLS is enabled on the current application tables
+- `supabase/config.toml` references `seed.sql`, but that file is currently missing
+
+## AI and OCR notes
+
+- AI assistant is implemented and uses Google Gemini Flash through the backend
+- assistant responses are rendered as markdown in the chat UI
+- OCR is currently executed in the browser via `tesseract.js`, not through a backend extraction pipeline
 
 ## Documentation
 
-- [AGENT.md](./AGENT.md) - rules for AI coding agents working in this repo
-- [SKILL.md](./SKILL.md) - Philippine biller and finance formatting reference
-- `docs/database-schema.md` - TODO
-- `docs/api-contracts.md` - TODO
-- `docs/design-system.md` - TODO
+Implementation-facing AI documentation lives here:
 
-## Roadmap
+- [.agents/Agents.md](./.agents/Agents.md)
+- [.agents/SKILL.md](./.agents/SKILL.md)
 
-- v1.0: web app foundation, manual finance tracking, bill reminders, OCR-assisted expense capture
-- v1.1: Gmail bill detection, improved Filipino language support, Cebuano exploration
-- v1.2: family plan and shared household insights
-- v2.0: Open Finance Philippines bank sync when viable
-
-## Contributing
-
-This project follows conventional commits. See [AGENT.md](./AGENT.md) for AI agent contribution rules.
-
-## License
-
-TBD. The backend package currently declares `ISC`; confirm the project-level license before publishing.
+These files must be updated whenever architecture, schema, AI flows, OCR flows, or financial logic changes.

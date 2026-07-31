@@ -29,7 +29,15 @@ type GeminiResponse = {
     content?: {
       parts?: GeminiPart[];
     };
+    finishReason?: string;
   }>;
+  promptFeedback?: {
+    blockReason?: string;
+  };
+  usageMetadata?: {
+    candidatesTokenCount?: number;
+    totalTokenCount?: number;
+  };
   error?: {
     message?: string;
   };
@@ -59,6 +67,7 @@ function toGeminiContents(request: AiProviderRequest): GeminiContent[] {
   }));
 
   return [
+    ...history,
     {
       role: "user",
       parts: [
@@ -72,16 +81,29 @@ function toGeminiContents(request: AiProviderRequest): GeminiContent[] {
         },
       ],
     },
-    ...history,
-    {
-      role: "user",
-      parts: [{ text: request.message }],
-    },
   ];
 }
 
 function extractText(payload: GeminiResponse) {
   return payload.candidates?.flatMap((candidate) => candidate.content?.parts?.map((part) => part.text ?? "") ?? []).join("") ?? "";
+}
+
+function getEmptyResponseReason(payload: GeminiResponse) {
+  const finishReason = payload.candidates?.find((candidate) => candidate.finishReason)?.finishReason;
+
+  if (payload.promptFeedback?.blockReason) {
+    return `Gemini blocked the response: ${payload.promptFeedback.blockReason}.`;
+  }
+
+  if (finishReason === "MAX_TOKENS") {
+    return "Gemini used the output token budget before producing visible text. Try again or increase the output budget.";
+  }
+
+  if (finishReason) {
+    return `Gemini finished without visible text. Finish reason: ${finishReason}.`;
+  }
+
+  return "Gemini returned no visible text for this request.";
 }
 
 function getGeminiError(payload: unknown) {
@@ -106,6 +128,27 @@ async function parseGeminiSse(response: Response, onToken: (token: string) => vo
   let buffer = "";
   let fullText = "";
 
+  async function handleEvent(event: string) {
+    const dataLines = event
+      .split("\n")
+      .filter((line) => line.startsWith("data:"))
+      .map((line) => line.slice("data:".length).trim());
+
+    for (const dataLine of dataLines) {
+      if (!dataLine || dataLine === "[DONE]") {
+        continue;
+      }
+
+      const payload = JSON.parse(dataLine) as GeminiResponse;
+      const text = extractText(payload);
+
+      if (text) {
+        fullText += text;
+        await onToken(text);
+      }
+    }
+  }
+
   while (true) {
     const { value, done } = await reader.read();
 
@@ -118,25 +161,12 @@ async function parseGeminiSse(response: Response, onToken: (token: string) => vo
     buffer = events.pop() ?? "";
 
     for (const event of events) {
-      const dataLines = event
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice("data:".length).trim());
-
-      for (const dataLine of dataLines) {
-        if (!dataLine || dataLine === "[DONE]") {
-          continue;
-        }
-
-        const payload = JSON.parse(dataLine) as GeminiResponse;
-        const text = extractText(payload);
-
-        if (text) {
-          fullText += text;
-          await onToken(text);
-        }
-      }
+      await handleEvent(event);
     }
+  }
+
+  if (buffer.trim()) {
+    await handleEvent(buffer);
   }
 
   return fullText;
@@ -145,19 +175,59 @@ async function parseGeminiSse(response: Response, onToken: (token: string) => vo
 export function createGeminiProvider(): AiProvider {
   const model = env.GEMINI_MODEL || "gemini-2.5-flash";
   const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}`;
+  const supportsThinkingBudget = /^gemini-2\.5/i.test(model);
 
   function requestBody(request: AiProviderRequest) {
+    const generationConfig: {
+      temperature: number;
+      topP: number;
+      maxOutputTokens: number;
+      thinkingConfig?: {
+        thinkingBudget: number;
+      };
+    } = {
+      temperature: 0.35,
+      topP: 0.9,
+      maxOutputTokens: 2048,
+    };
+
+    if (supportsThinkingBudget) {
+      generationConfig.thinkingConfig = {
+        thinkingBudget: env.GEMINI_THINKING_BUDGET,
+      };
+    }
+
     return {
       systemInstruction: {
         parts: [{ text: systemInstruction(request.language) }],
       },
       contents: toGeminiContents(request),
-      generationConfig: {
-        temperature: 0.35,
-        topP: 0.9,
-        maxOutputTokens: 900,
-      },
+      generationConfig,
     };
+  }
+
+  async function generateText(request: AiProviderRequest) {
+    const response = await fetch(`${baseUrl}:generateContent`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": env.GEMINI_API_KEY!,
+      },
+      body: JSON.stringify(requestBody(request)),
+    });
+    const payload = await response.json() as GeminiResponse;
+
+    if (!response.ok) {
+      throw new AppError(response.status, "ai_provider_error", getGeminiError(payload));
+    }
+
+    const text = extractText(payload).trim();
+
+    if (!text) {
+      throw new AppError(502, "ai_empty_response", getEmptyResponseReason(payload));
+    }
+
+    return text;
   }
 
   return {
@@ -168,21 +238,7 @@ export function createGeminiProvider(): AiProvider {
         throw new AppError(503, "ai_not_configured", "Gemini is not configured. Add GEMINI_API_KEY in backend/.env.");
       }
 
-      const response = await fetch(`${baseUrl}:generateContent`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": env.GEMINI_API_KEY,
-        },
-        body: JSON.stringify(requestBody(request)),
-      });
-      const payload = await response.json() as GeminiResponse;
-
-      if (!response.ok) {
-        throw new AppError(response.status, "ai_provider_error", getGeminiError(payload));
-      }
-
-      return extractText(payload).trim() || "I could not generate a response from the available financial data.";
+      return generateText(request);
     },
     stream: async (request, onToken) => {
       if (!env.GEMINI_API_KEY) {
@@ -204,7 +260,15 @@ export function createGeminiProvider(): AiProvider {
       }
 
       const text = await parseGeminiSse(response, onToken);
-      return text.trim() || "I could not generate a response from the available financial data.";
+      const trimmed = text.trim();
+
+      if (trimmed) {
+        return trimmed;
+      }
+
+      const fallbackText = await generateText(request);
+      await onToken(fallbackText);
+      return fallbackText;
     },
   };
 }

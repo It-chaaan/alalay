@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { IncomeFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
@@ -10,6 +11,14 @@ type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "ot
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
+}
+
+function getMonthKey(date: Date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function getMonthLabel(date: Date, options: Intl.DateTimeFormatOptions) {
+  return new Intl.DateTimeFormat("en-US", options).format(date);
 }
 
 function TrendIcon({ tone }: { tone: IncomeSourceType }) {
@@ -42,12 +51,12 @@ function SourcePill({ type }: { type: IncomeSourceType }) {
   return <span className={`rounded px-1.5 py-0.5 text-[10px] ${classes[type]}`}>{type[0].toUpperCase() + type.slice(1)}</span>;
 }
 
-function IncomeChart({ entries }: { entries: IncomeEntry[] }) {
+function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }) {
   const chartHeight = 160;
   const monthly = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date();
+    const date = new Date(today);
     date.setMonth(date.getMonth() - (5 - index));
-    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const key = getMonthKey(date);
     const total = entries
       .filter((entry) => entry.date.startsWith(key))
       .reduce((sum, entry) => sum + Number(entry.amount), 0);
@@ -63,7 +72,7 @@ function IncomeChart({ entries }: { entries: IncomeEntry[] }) {
   return (
     <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-1 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-slate-950">Income by source - 2025</h2>
+        <h2 className="text-sm font-semibold text-slate-950">Income by source - {today.getFullYear()}</h2>
         <div className="flex items-center gap-5 text-xs text-slate-500">
           <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#3f7d16]" />Salary</span>
           <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#6fa3d2]" />Freelance</span>
@@ -133,13 +142,15 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
 }
 
 export function IncomePage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
+  const [today, setToday] = useState(() => new Date());
   const name = getDisplayName(session);
   const addIncomeDialog = useActionDialog("add-income");
   const { data: entries, isLoading, error, refetch } = useIncome();
   const rows = entries ?? [];
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const thisMonthTotal = rows.filter((entry) => entry.date.startsWith(thisMonth)).reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const ytd = rows.filter((entry) => entry.date.startsWith(String(new Date().getFullYear()))).reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const thisMonth = getMonthKey(today);
+  const thisMonthRows = rows.filter((entry) => entry.date.startsWith(thisMonth));
+  const thisMonthTotal = thisMonthRows.reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const ytd = rows.filter((entry) => entry.date.startsWith(String(today.getFullYear()))).reduce((sum, entry) => sum + Number(entry.amount), 0);
   const bySource = Array.from(rows.reduce((map, entry) => {
     const key = `${entry.source}-${entry.type}`;
     const current = map.get(key) ?? { ...entry, amount: 0 };
@@ -148,11 +159,18 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     return map;
   }, new Map<string, IncomeEntry>()).values());
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setToday(new Date()), 60_000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const monthLabel = getMonthLabel(today, { month: "long", year: "numeric" });
+
   return (
     <DashboardShell
       activeLabel="Income"
       title="Income"
-      subtitle="All sources - June 2025"
+      subtitle={`All sources - ${monthLabel}`}
       name={name}
       onSignOut={onSignOut}
       action={
@@ -186,7 +204,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       </section>
 
       <section className="mt-5">
-        <IncomeChart entries={rows} />
+        <IncomeChart entries={rows} today={today} />
       </section>
 
       <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
@@ -207,7 +225,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
               </div>
             ))}
           </div>
-          <BreakdownDonut entries={rows} />
+          <BreakdownDonut entries={thisMonthRows} />
         </article>
 
         <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">

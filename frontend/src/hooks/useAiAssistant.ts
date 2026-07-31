@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiStreamRequest } from "../lib/apiClient";
 import { useApiQuery } from "./useApiQuery";
 
-export type AiLanguage = "en" | "fil";
+export type AiLanguage = "auto" | "en" | "fil";
 
 export type AiChatMessage = {
   id: string;
@@ -86,7 +86,7 @@ export function useAiChat(userId: string, language: AiLanguage) {
           method: "POST",
           body: JSON.stringify({
             message: trimmed,
-            language,
+            language: language === "auto" ? undefined : language,
             history,
           }),
         },

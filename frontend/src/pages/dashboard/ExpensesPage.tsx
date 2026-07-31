@@ -1,31 +1,73 @@
 import type { Session } from "@supabase/supabase-js";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { ExpenseFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
+import { useApiMutation } from "../../hooks/useApiMutation";
 import { useExpenses } from "../../hooks/useExpenses";
 import type { Expense } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { Pencil, Scan } from "lucide-react";
+import { Pen, Scan, Trash2 } from "lucide-react";
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
   const logExpenseDialog = useActionDialog("log-expense");
   const editExpenseDialog = useActionDialog("edit-expense");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { data: expenses, isLoading, error, refetch } = useExpenses();
+  const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const items = expenses ?? [];
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
 
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenMenuId(null);
+      }
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && !target.closest("[data-actions-menu]")) {
+        setOpenMenuId(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("click", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("click", handleClickOutside);
+    };
+  }, []);
+
   function openEditExpense(expense: Expense) {
     setSelectedExpense(expense);
     editExpenseDialog.open();
+    setOpenMenuId(null);
   }
 
   function closeEditExpense() {
     editExpenseDialog.close();
     setSelectedExpense(null);
+  }
+
+  async function deleteExpense(expense: Expense) {
+    const confirmed = window.confirm(`Delete ${expense.merchant}? This cannot be undone.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await mutate(`/expenses/${expense.id}`, { method: "DELETE" });
+      setOpenMenuId(null);
+      refetch();
+    } catch {
+      // useApiMutation exposes the delete error for the page alert.
+    }
   }
 
   return (
@@ -75,6 +117,7 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       <div className="mt-6 space-y-5">
         {isLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading expenses...</div> : null}
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
+        {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
         {!isLoading && !error && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No expenses yet. Log an expense to start seeing your spending.</div> : null}
         {items.map((item) => (
           <div key={item.id}>
@@ -87,15 +130,28 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
-                  <button
-                    type="button"
-                    onClick={() => openEditExpense(item)}
-                    className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition hover:border-brand-primary hover:bg-brand-muted hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-                    aria-label={`Edit ${item.merchant} expense`}
-                    title="Edit expense"
+                  <MoreActionsMenu
+                    isOpen={openMenuId === item.id}
+                    onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
+                    ariaLabel={`More actions for ${item.merchant} expense`}
+                    estimatedMenuHeight={96}
                   >
-                    <Pencil className="h-4 w-4" aria-hidden="true" />
-                  </button>
+                    <MenuAction
+                      icon={Pen}
+                      label="Edit expense"
+                      tone="info"
+                      onClick={() => openEditExpense(item)}
+                    />
+                    <MenuAction
+                      icon={Trash2}
+                      label="Delete expense"
+                      tone="danger"
+                      disabled={isSubmitting}
+                      onClick={() => {
+                        void deleteExpense(item);
+                      }}
+                    />
+                  </MoreActionsMenu>
                 </div>
               </div>
             </div>

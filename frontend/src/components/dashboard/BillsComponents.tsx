@@ -13,7 +13,7 @@ import {
   Circle
 } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ComponentType, InputHTMLAttributes } from "react";
+import type { ComponentType, InputHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Bill } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
@@ -160,14 +160,51 @@ export function QuickActionsMenu({
   onMarkUnpaid,
   onDelete,
 }: QuickActionsMenuProps) {
-  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const displayStatus = getBillDisplayStatus(bill, todayIso);
   const isPaid = displayStatus === "paid";
+
+  return (
+    <MoreActionsMenu
+      isOpen={isOpen}
+      onToggle={onToggle}
+      ariaLabel={`More actions for ${bill.title}`}
+      dataAttribute="data-bill-menu"
+      estimatedMenuHeight={176}
+    >
+      {onOpenLink ? <MenuAction icon={ExternalLink} label="Open link" tone="info" onClick={onOpenLink} /> : null}
+      <MenuAction icon={Pen} label="Edit bill" tone="info" onClick={onEdit} />
+      <MenuRadioAction
+        checked={isPaid}
+        label={isPaid ? "Mark as unpaid" : "Mark as paid"}
+        onClick={isPaid ? onMarkUnpaid : onMarkPaid}
+      />
+      <MenuAction icon={Trash2} label="Delete bill" tone="danger" onClick={onDelete} />
+    </MoreActionsMenu>
+  );
+}
+
+export function MoreActionsMenu({
+  isOpen,
+  onToggle,
+  ariaLabel,
+  children,
+  dataAttribute = "data-actions-menu",
+  estimatedMenuHeight = 136,
+}: {
+  isOpen: boolean;
+  onToggle: () => void;
+  ariaLabel: string;
+  children: ReactNode;
+  dataAttribute?: string;
+  estimatedMenuHeight?: number;
+}) {
+  const buttonRef = useRef<HTMLButtonElement | null>(null);
   const [menuStyle, setMenuStyle] = useState<{ top: number; left: number; openAbove: boolean }>({
     top: 0,
     left: 0,
     openAbove: true,
   });
+  const dataProps = { [dataAttribute]: "" };
 
   useLayoutEffect(() => {
     if (!isOpen || !buttonRef.current) {
@@ -181,7 +218,6 @@ export function QuickActionsMenu({
 
       const rect = buttonRef.current.getBoundingClientRect();
       const menuWidth = 224;
-      const estimatedMenuHeight = 176;
       const viewportPadding = 16;
       const spaceBelow = window.innerHeight - rect.bottom;
       const openAbove = spaceBelow < estimatedMenuHeight && rect.top > estimatedMenuHeight;
@@ -204,10 +240,10 @@ export function QuickActionsMenu({
       window.removeEventListener("resize", updateMenuPosition);
       window.removeEventListener("scroll", updateMenuPosition, true);
     };
-  }, [isOpen]);
+  }, [estimatedMenuHeight, isOpen]);
 
   return (
-    <div className="relative" data-bill-menu>
+    <div className="relative" {...dataProps}>
       <button
         ref={buttonRef}
         type="button"
@@ -215,14 +251,14 @@ export function QuickActionsMenu({
         className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition duration-150 hover:bg-slate-200 hover:text-slate-800 focus:outline-none focus:ring-4 focus:ring-emerald-100"
         aria-haspopup="menu"
         aria-expanded={isOpen}
-        aria-label={`More actions for ${bill.title}`}
+        aria-label={ariaLabel}
       >
         <MoreHorizontal className="h-4 w-4" />
       </button>
 
       {createPortal(
         <div
-          data-bill-menu
+          {...dataProps}
           className={`fixed z-[80] w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)] transition duration-150 ${
             isOpen
               ? "pointer-events-auto scale-100 opacity-100"
@@ -232,14 +268,7 @@ export function QuickActionsMenu({
           role="menu"
           aria-hidden={!isOpen}
         >
-          {onOpenLink ? <MenuAction icon={ExternalLink} label="Open link" tone="info" onClick={onOpenLink} /> : null}
-          <MenuAction icon={Pen} label="Edit bill" tone="info" onClick={onEdit} />
-          <MenuRadioAction
-            checked={isPaid}
-            label={isPaid ? "Mark as unpaid" : "Mark as paid"}
-            onClick={isPaid ? onMarkUnpaid : onMarkPaid}
-          />
-          <MenuAction icon={Trash2} label="Delete bill" tone="danger" onClick={onDelete} />
+          {children}
         </div>,
         document.body,
       )}
@@ -247,16 +276,18 @@ export function QuickActionsMenu({
   );
 }
 
-function MenuAction({
+export function MenuAction({
   icon: Icon,
   label,
   tone,
   onClick,
+  disabled = false,
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
   tone: "success" | "info" | "danger" | "neutral";
   onClick: () => void;
+  disabled?: boolean;
 }) {
   const toneClasses =
     tone === "success"
@@ -280,7 +311,8 @@ function MenuAction({
     <button
       type="button"
       onClick={onClick}
-      className={`flex min-h-10 w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium transition duration-150 last:border-b-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-100 ${toneClasses}`}
+      disabled={disabled}
+      className={`flex min-h-10 w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left text-sm font-medium transition duration-150 last:border-b-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-emerald-100 disabled:cursor-not-allowed disabled:opacity-60 ${toneClasses}`}
       role="menuitem"
     >
       <span className={`grid h-5 w-5 shrink-0 place-items-center ${iconClasses}`}>

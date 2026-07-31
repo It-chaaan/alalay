@@ -102,6 +102,19 @@ export async function apiStreamRequest(
       const decoder = new TextDecoder();
       let buffer = "";
 
+      function handleEventBlock(eventBlock: string) {
+        const eventName = eventBlock.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
+        const data = eventBlock
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice("data:".length).trim())
+          .join("\n");
+
+        if (data) {
+          onEvent({ event: eventName, data: JSON.parse(data) });
+        }
+      }
+
       while (true) {
         const { value, done } = await reader.read();
 
@@ -114,17 +127,12 @@ export async function apiStreamRequest(
         buffer = events.pop() ?? "";
 
         for (const eventBlock of events) {
-          const eventName = eventBlock.match(/^event:\s*(.+)$/m)?.[1]?.trim() ?? "message";
-          const data = eventBlock
-            .split("\n")
-            .filter((line) => line.startsWith("data:"))
-            .map((line) => line.slice("data:".length).trim())
-            .join("\n");
-
-          if (data) {
-            onEvent({ event: eventName, data: JSON.parse(data) });
-          }
+          handleEventBlock(eventBlock);
         }
+      }
+
+      if (buffer.trim()) {
+        handleEventBlock(buffer);
       }
 
       return;

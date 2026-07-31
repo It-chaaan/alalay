@@ -5,6 +5,7 @@ create table public.users (
   name text,
   email text unique,
   avatar_url text,
+  phone text,
   currency text not null default 'PHP',
   language text not null default 'en',
   plan text not null default 'free',

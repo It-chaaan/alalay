@@ -48,37 +48,24 @@ const paymentMethods = [
 ] as const;
 
 const fallbackScanResult: OcrScanResult = {
-  status: "scanned",
-  confidence: 97,
-  merchant: "SM Hypermarket Cubao",
-  date: "2025-06-28",
-  time: "2:47 PM",
-  cashier: "Cashier #04 - Ana R.",
-  payment_method: "gcash",
-  suggested_category: "Food",
-  items: [
-    { id: "milk", name: "Magnolia Fresh Milk 1L", quantity: 2, unit_price: 74, total: 148 },
-    { id: "tuna", name: "Century Tuna (3-pack)", quantity: 1, unit_price: 99, total: 99 },
-    { id: "detergent", name: "Ariel Detergent Powder 2kg", quantity: 1, unit_price: 229, total: 229 },
-    { id: "shampoo", name: "Palmolive Shampoo 200ml", quantity: 1, unit_price: 89, total: 89 },
-    { id: "chips", name: "Lay's Original 68g", quantity: 2, unit_price: 39, total: 78 },
-    { id: "coffee", name: "Kopiko Brown Coffee 30s", quantity: 1, unit_price: 119, total: 119 },
-  ],
+  status: "needs_review",
+  confidence: 0,
+  merchant: "Uploaded receipt",
+  date: getTodayInputValue(),
+  time: "",
+  cashier: "Not detected",
+  payment_method: "other",
+  suggested_category: "Others",
+  items: [],
   totals: {
-    subtotal: 762,
-    vat: 87,
-    total: 849,
+    subtotal: 0,
+    vat: 0,
+    total: 0,
   },
 };
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
-}
-
-function delay(ms: number) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
 }
 
 function formatReceiptDate(value: string) {
@@ -230,7 +217,6 @@ function stopCameraStream(stream: MediaStream | null) {
 export function OcrScannerPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
   const { error } = useOcrScanner();
-  const scanMutation = useApiMutation();
   const expenseMutation = useApiMutation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -303,11 +289,10 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
     }
   }
 
-  async function startScan(file: File | null) {
+  async function startScan(file: File) {
     setStage("scanning");
     setProgress(6);
     setNotice(null);
-    scanMutation.reset();
     expenseMutation.reset();
 
     const progressTimer = window.setInterval(() => {
@@ -340,21 +325,6 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
           raw_text: "",
         });
         setNotice("PDF upload is accepted, but live OCR currently works best with JPG or PNG receipts.");
-      } else {
-        const [result] = await Promise.all([
-          scanMutation.mutate<unknown>("/ocr/demo", {
-            method: "POST",
-            body: JSON.stringify({
-              file_name: "demo-receipt.jpg",
-              file_type: "image/jpeg",
-              file_size: 0,
-            }),
-          }),
-          delay(1200),
-        ]);
-
-        applyScanResult(result);
-        setNotice("Showing demo receipt data. Upload a JPG or PNG to scan your actual receipt.");
       }
     } catch (scanError: unknown) {
       applyScanResult({
@@ -494,7 +464,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
           notes,
           receipt_date: scanResult.date,
           expense_date: date,
-          source: uploadFile?.name ?? "demo-receipt",
+          source: uploadFile?.name ?? "uploaded-receipt",
         },
       }),
     });
@@ -520,7 +490,6 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
     setNotes("");
     setNotice(null);
     setCameraError(null);
-    scanMutation.reset();
     expenseMutation.reset();
   }
 
@@ -588,7 +557,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
               </label>
             )}
             {cameraError ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{cameraError}</p> : null}
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2">
               <button
                 type="button"
                 onClick={() => void openCamera()}
@@ -596,13 +565,6 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
                 className="inline-flex h-9 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-primary hover:text-brand-primary disabled:cursor-not-allowed disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
               >
                 <Camera className="h-4 w-4" aria-hidden="true" /> Open camera
-              </button>
-              <button
-                type="button"
-                onClick={() => void startScan(null)}
-                className="h-9 rounded-full border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-              >
-                Try sample
               </button>
             </div>
           </div>

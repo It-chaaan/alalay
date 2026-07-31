@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { dashboardSidebarSections } from "../../constants/dashboard";
 import alalayLogo from "../../assets/alalay.svg";
-import {LayoutDashboard, ReceiptText, CreditCard, BanknoteArrowDown, BanknoteArrowUp, HandCoins, Wallet, Summary, Bot, Scan, Settings } from "lucide-react";
+import {LayoutDashboard, ReceiptText, CreditCard, BanknoteArrowDown, BanknoteArrowUp, HandCoins, Wallet, Summary, Bot, Scan, Settings, TrendingUp } from "lucide-react";
 
 type DashboardSidebarProps = {
   activeLabel: string;
@@ -24,7 +24,7 @@ function SidebarIcon({ type }: { type: string }) {
     case "expenses":
       return <BanknoteArrowDown {...props} />;
     case "income":
-      return <BanknoteArrowUp {...props} />;
+      return <TrendingUp {...props} />;
     case "goals":
       return <HandCoins {...props} />;
     case "budget":
@@ -42,7 +42,7 @@ function SidebarIcon({ type }: { type: string }) {
 
 export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: DashboardSidebarProps) {
   return (
-    <aside className="hidden min-h-screen w-[228px] shrink-0 border-r border-slate-200 bg-[#fbfbf8] lg:flex lg:flex-col">
+    <aside className="hidden h-screen w-[228px] shrink-0 overflow-hidden border-r border-slate-200 bg-[#fbfbf8] lg:sticky lg:top-0 lg:flex lg:flex-col">
       <div className="flex h-[68px] items-center gap-3 border-b border-slate-200/80 px-5">
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-primary text-white shadow-sm">
           <img src={alalayLogo} alt="Alalay logo" className="h-7 w-7 object-contain" />
@@ -50,7 +50,7 @@ export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: D
         <span className="text-sm font-semibold text-slate-950">Alalay</span>
       </div>
 
-      <nav className="flex-1 px-4 py-4">
+      <nav className="flex-1 overflow-hidden px-4 py-4">
         <div className="space-y-3">
           {dashboardSidebarSections.map((section, sectionIndex) => (
             <div key={sectionIndex} className={sectionIndex > 0 ? "border-t border-slate-200/80 pt-3" : ""}>
@@ -81,7 +81,7 @@ export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: D
         </div>
       </nav>
 
-      <div className="border-t border-slate-200/80 p-4">
+      <div className="shrink-0 border-t border-slate-200/80 p-4">
         <div className="p-1">
           <div className="flex items-center gap-3">
             <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">

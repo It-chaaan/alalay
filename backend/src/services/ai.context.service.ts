@@ -4,6 +4,20 @@ import { getProfile } from "./settings.service.js";
 
 type ContextTopic = "overview" | "spending" | "bills" | "subscriptions" | "budget" | "savings" | "reports";
 
+type AiReportSummary = {
+  total_income: number;
+  total_expenses: number;
+  net_savings: number;
+  savings_rate: number;
+  budget_utilization: number;
+  remaining_budget: number;
+  average_daily_spending: number;
+  categories: Array<{ name: string; amount: number; percent: number }>;
+  savings: {
+    monthly_savings_budget: number;
+  };
+};
+
 function normalizeCategoryKey(value: string) {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
@@ -79,7 +93,7 @@ function buildRiskAlerts(input: {
   bills: Array<Record<string, unknown>>;
   subscriptions: Array<Record<string, unknown>>;
   currentExpenses: Array<Record<string, unknown>>;
-  report: Awaited<ReturnType<typeof getReports>>;
+  report: AiReportSummary;
 }) {
   const alerts: string[] = [];
   const today = todayIso();
@@ -119,8 +133,8 @@ export async function buildFinancialContext(userId: string, message: string) {
     profile,
     dashboard,
     budget,
-    report,
-    previousReport,
+    rawReport,
+    rawPreviousReport,
     currentIncome,
     currentExpenses,
     currentBills,
@@ -140,6 +154,8 @@ export async function buildFinancialContext(userId: string, message: string) {
     recentRows("subscriptions", userId, 12),
     recentRows("savings_goals", userId, 12),
   ]);
+  const report = rawReport as AiReportSummary;
+  const previousReport = rawPreviousReport as AiReportSummary;
 
   const categories = categoryTotals(currentExpenses);
   const subscriptionMonthlyTotal = Number(subscriptions.reduce((sum, item) => sum + subscriptionMonthlyAmount(item), 0).toFixed(2));

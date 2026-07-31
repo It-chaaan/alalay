@@ -267,6 +267,7 @@ export type Profile = {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
+  phone?: string | null;
   currency: string;
   language: "en" | "fil";
   plan: string;

@@ -18,6 +18,7 @@ import type {
   Subscription,
 } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
+import { getCategories } from "../../lib/appSettings";
 import { Button } from "../ui/Button";
 import { SlideOver } from "../ui/SlideOver";
 import { TextInput } from "../ui/TextInput";
@@ -48,19 +49,7 @@ type SavingsGoalProgressPanelProps = FormDialogProps & {
   goal: SavingsGoal | null;
 };
 
-const billCategoryOptions = [
-  "Utilities",
-  "Internet",
-  "Water",
-  "Electricity",
-  "Rent",
-  "Loans",
-  "Credit Card",
-  "Insurance",
-  "Subscriptions",
-  "Government",
-  "Other",
-] as const;
+const billCategoryOptions = getCategories("expense").map((category) => category.name);
 
 function isPresetBillCategory(category: string | null | undefined) {
   return billCategoryOptions.includes((category ?? "") as (typeof billCategoryOptions)[number]);
@@ -666,13 +655,15 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
+          <SelectField
             id="expense-category"
             label="Category"
-            placeholder="Health"
             error={errors.category?.message}
             {...register("category")}
-          />
+          >
+            <option value="">Select category</option>
+            {getCategories("expense").map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
+          </SelectField>
           <SelectField
             id="expense-payment-method"
             label="Payment method"
@@ -1094,12 +1085,7 @@ const budgetSchema = z.object({
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
 
-const starterBudgetCategories = [
-  { id: "food", name: "Food", budget: 0 },
-  { id: "transport", name: "Transport", budget: 0 },
-  { id: "utilities", name: "Utilities", budget: 0 },
-  { id: "subscriptions", name: "Subscriptions", budget: 0 },
-];
+const starterBudgetCategories = getCategories("expense").slice(0, 4).map((category) => ({ id: category.id, name: category.name, budget: 0 }));
 
 const budgetSliderMax = 50000;
 const budgetSliderStep = 100;

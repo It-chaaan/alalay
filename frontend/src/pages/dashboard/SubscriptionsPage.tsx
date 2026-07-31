@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
-import { ExternalLink, Pencil, Plus, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { ExternalLink, Pen, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { SubscriptionFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { LinkLogo } from "../../components/ui/LinkLogo";
@@ -60,11 +61,34 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const cards = subscriptions ?? [];
   const monthlyTracked = cards.reduce((sum, subscription) => sum + monthlyAmount(subscription), 0);
   const yearlyTracked = monthlyTracked * 12;
   const monthlyIncome = Number(profile?.income ?? 0);
   const incomePercent = monthlyIncome > 0 ? (monthlyTracked / monthlyIncome) * 100 : null;
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenMenuId(null);
+      }
+    }
+
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && !target.closest("[data-actions-menu]")) {
+        setOpenMenuId(null);
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("click", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("click", handleClickOutside);
+    };
+  }, []);
 
   async function toggleRenewalReminder(subscription: Subscription) {
     try {
@@ -95,6 +119,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
   function openEditSubscription(subscription: Subscription) {
     setEditingSubscription(subscription);
     setIsEditOpen(true);
+    setOpenMenuId(null);
   }
 
   function closeEditSubscription() {
@@ -170,43 +195,40 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
               />
             </div>
             <div className="mt-5 flex items-center justify-end gap-2 border-t border-slate-100 pt-4">
-              {subscriptionLink ? (
-              <button
-                type="button"
-                onClick={() => openExternalLink(card.logo_url)}
-                className="mr-auto inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:border-brand-primary hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-                aria-label={`Open ${card.name} link`}
-                title="Open link"
+              <MoreActionsMenu
+                isOpen={openMenuId === card.id}
+                onToggle={() => setOpenMenuId((current) => (current === card.id ? null : card.id))}
+                ariaLabel={`More actions for ${card.name}`}
+                estimatedMenuHeight={subscriptionLink ? 136 : 96}
               >
-                <ExternalLink aria-hidden="true" className="h-3.5 w-3.5" />
-                Open link
-              </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  openEditSubscription(card);
-                }}
-                className="grid h-8 w-8 place-items-center rounded-full text-slate-500 transition hover:bg-slate-100 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
-                aria-label={`Edit ${card.name}`}
-                title="Edit subscription"
-              >
-                <Pencil aria-hidden="true" className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void deleteSubscription(card);
-                }}
-                disabled={isSubmitting}
-                className="grid h-8 w-8 place-items-center rounded-full text-red-400 transition hover:bg-red-50 hover:text-red-600 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                aria-label={`Delete ${card.name}`}
-                title="Delete subscription"
-              >
-                <Trash2 aria-hidden="true" className="h-4 w-4" />
-              </button>
+                {subscriptionLink ? (
+                  <MenuAction
+                    icon={ExternalLink}
+                    label="Open link"
+                    tone="info"
+                    onClick={() => {
+                      setOpenMenuId(null);
+                      openExternalLink(card.logo_url);
+                    }}
+                  />
+                ) : null}
+                <MenuAction
+                  icon={Pen}
+                  label="Edit subscription"
+                  tone="info"
+                  onClick={() => openEditSubscription(card)}
+                />
+                <MenuAction
+                  icon={Trash2}
+                  label="Delete subscription"
+                  tone="danger"
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    setOpenMenuId(null);
+                    void deleteSubscription(card);
+                  }}
+                />
+              </MoreActionsMenu>
             </div>
           </article>
           );

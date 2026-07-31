@@ -10,7 +10,7 @@ export const dashboardSidebarSections = [
   {
     items: [
       { label: "Income", icon: "income", path: "/app/income" },
-      { label: "Savings Goals", icon: "goals", path: "/app/savings-goals" },
+      { label: "Savings", icon: "goals", path: "/app/savings-goals" },
       { label: "Budget", icon: "budget", path: "/app/budget" },
       { label: "Reports", icon: "reports", path: "/app/reports" },
     ],
