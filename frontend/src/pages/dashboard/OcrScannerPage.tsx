@@ -7,6 +7,7 @@ import { useApiMutation } from "../../hooks/useApiMutation";
 import { useOcrScanner } from "../../hooks/useOcrScanner";
 import type { Expense } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
+import { isLowConfidenceOcr, shouldBlockOcrLogging } from "../../utils/ocrReview";
 
 type OcrStage = "upload" | "scanning" | "review" | "logged";
 
@@ -236,6 +237,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
   const [paymentMethod, setPaymentMethod] = useState<OcrScanResult["payment_method"]>("gcash");
   const [notes, setNotes] = useState("");
   const [notice, setNotice] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
@@ -271,6 +273,8 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
   const subtotal = useMemo(() => items.reduce((sum, item) => sum + item.total, 0), [items]);
   const vat = scanResult?.totals.vat ?? 0;
   const total = subtotal + vat;
+  const isLowConfidence = Boolean(scanResult && isLowConfidenceOcr(scanResult.confidence));
+  const isBlockedScan = Boolean(scanResult && shouldBlockOcrLogging(scanResult.confidence, total));
   const activeStep = stage === "upload" ? 1 : stage === "scanning" ? 2 : 3;
 
   function applyScanResult(result: unknown) {
@@ -279,6 +283,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
     const expenseDate = isCurrentMonth(detectedDate) ? detectedDate : getTodayInputValue();
 
     setScanResult(normalizedResult);
+    setValidationError(null);
     setItems(normalizedResult.items);
     setCategory(normalizedResult.suggested_category);
     setDate(expenseDate);
@@ -449,6 +454,13 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
   async function logExpense() {
     if (!scanResult) return;
 
+    if (total <= 0) {
+      setValidationError("Please enter an amount greater than 0");
+      return;
+    }
+
+    setValidationError(null);
+
     await expenseMutation.mutate<Expense>("/expenses", {
       method: "POST",
       body: JSON.stringify({
@@ -476,6 +488,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
   function resetScanner() {
     closeCamera();
     setStage("upload");
+    setValidationError(null);
     setProgress(0);
     setUploadFile(null);
     setPreviewUrl((current) => {
@@ -643,6 +656,16 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
               </div>
             </article>
 
+            {isLowConfidence ? (
+              <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900" role="alert">
+                <p className="font-semibold">We had trouble reading this receipt.</p>
+                <p className="mt-1">Please review all fields carefully before logging.</p>
+                {isBlockedScan ? (
+                  <p className="mt-1 font-medium">Logging is disabled until a total greater than ₱0 is available.</p>
+                ) : null}
+              </div>
+            ) : null}
+
             <article className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
               <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                 <h2 className="text-sm font-semibold text-slate-950">Items ({items.length})</h2>
@@ -772,16 +795,17 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
               </div>
 
               {notice ? <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-700">{notice}</p> : null}
+              {validationError ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700" role="alert">{validationError}</p> : null}
               {expenseMutation.error ? <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{expenseMutation.error}</p> : null}
 
               <button
                 type="button"
                 onClick={() => void logExpense()}
-                disabled={expenseMutation.isSubmitting || stage === "logged"}
+                disabled={expenseMutation.isSubmitting || stage === "logged" || isBlockedScan}
                 className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-brand-primary px-4 text-sm font-semibold text-white transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:bg-slate-300"
               >
                 {expenseMutation.isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-                {stage === "logged" ? "Expense logged" : "Log expense"}
+                {isBlockedScan ? "Review receipt before logging" : stage === "logged" ? "Expense logged" : "Log expense"}
               </button>
 
               <button

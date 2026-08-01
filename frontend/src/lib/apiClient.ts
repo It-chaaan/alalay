@@ -34,6 +34,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
     try {
       const response = await fetch(`${baseUrl}${path}`, {
         ...options,
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -82,6 +83,7 @@ export async function apiStreamRequest(
     try {
       const response = await fetch(`${baseUrl}${path}`, {
         ...options,
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           Accept: "text/event-stream",

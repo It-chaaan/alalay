@@ -2,6 +2,7 @@ import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { AppPreferencesProvider } from "./context/AppPreferencesContext";
 import { getSupabaseClient } from "./lib/supabase";
+import { apiRequest } from "./lib/apiClient";
 import { AuthPage } from "./pages/auth/AuthPage";
 import { AiAssistantPage } from "./pages/dashboard/AiAssistantPage";
 import { BillsPage } from "./pages/dashboard/BillsPage";
@@ -22,6 +23,36 @@ function AppLoading() {
       <div className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
         Loading Alalay...
       </div>
+    </main>
+  );
+}
+
+function getOAuthCallbackError() {
+  const searchParams = new URLSearchParams(window.location.search);
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const error = searchParams.get("error") || hashParams.get("error");
+  const description = searchParams.get("error_description") || hashParams.get("error_description");
+
+  if (!error && !description) return "";
+  if (error === "access_denied" || description?.toLowerCase().includes("cancel")) {
+    return "Google sign-in was cancelled. You can try again whenever you're ready.";
+  }
+  return description || "Google sign-in could not be completed. Please try again.";
+}
+
+function OAuthCallbackError({ message }: { message: string }) {
+  return (
+    <main className="grid min-h-screen place-items-center bg-app-background px-5 text-app-ink">
+      <section className="w-full max-w-md rounded-3xl border border-red-200 bg-white p-8 text-center shadow-sm">
+        <h1 className="text-2xl font-bold text-slate-950">Unable to sign you in</h1>
+        <p className="mt-3 text-slate-500">{message}</p>
+        <a
+          href="/login"
+          className="mt-6 inline-flex min-h-11 items-center justify-center rounded-full bg-brand-primary px-6 py-3 font-semibold text-white transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2"
+        >
+          Back to login
+        </a>
+      </section>
     </main>
   );
 }
@@ -57,7 +88,18 @@ function AppContent() {
 
       if (!isMounted) return;
 
-      const pendingSecondFactor = !error && data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+      let pendingSecondFactor = !error && data?.nextLevel === "aal2" && data.currentLevel !== "aal2";
+
+      if (pendingSecondFactor) {
+        try {
+          const trustedDevice = await apiRequest<{ trusted: boolean }>("/trusted-device");
+          if (trustedDevice.trusted) {
+            pendingSecondFactor = false;
+          }
+        } catch {
+          // A failed trusted-device lookup must fail closed and keep MFA required.
+        }
+      }
 
       setIsMfaPending(Boolean(pendingSecondFactor));
       setIsSessionLoading(false);
@@ -96,6 +138,25 @@ function AppContent() {
     }
 
     return <AuthPage mode="login" />;
+  }
+
+  if (pathname === "/auth/callback") {
+    const callbackError = getOAuthCallbackError();
+
+    if (isSessionLoading) {
+      return <AppLoading />;
+    }
+
+    if (callbackError) {
+      return <OAuthCallbackError message={callbackError} />;
+    }
+
+    if (session) {
+      window.location.replace("/app");
+      return <AppLoading />;
+    }
+
+    return <OAuthCallbackError message="Google sign-in did not return an active session. Please try again." />;
   }
 
   if (pathname === "/register") {

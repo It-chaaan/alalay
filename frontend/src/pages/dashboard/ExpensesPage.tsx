@@ -8,6 +8,7 @@ import { useApiMutation } from "../../hooks/useApiMutation";
 import { useExpenses } from "../../hooks/useExpenses";
 import type { Expense } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { getCategoryColor } from "../../utils/categoryColors";
 import { Pen, Scan, Trash2 } from "lucide-react";
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
@@ -21,6 +22,10 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
   const items = expenses ?? [];
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
+  const categoryBreakdown = categories.map((category, index) => {
+    const amount = items.filter((item) => item.category === category).reduce((sum, item) => sum + Number(item.amount), 0);
+    return { category, amount, percent: total ? (amount / total) * 100 : 0, color: getCategoryColor(category, index) };
+  });
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -106,12 +111,21 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-semibold">Spending by category</h2>
         <div className="mt-4 flex h-8 overflow-hidden rounded-full">
-          {categories.length ? categories.map((category, index) => {
-            const amount = items.filter((item) => item.category === category).reduce((sum, item) => sum + Number(item.amount), 0);
-            const colors = ["bg-[#e77c5e]", "bg-[#7aa2cc]", "bg-[#8ab39c]", "bg-[#f2c87c]", "bg-[#a38eb8]", "bg-[#c9b8a3]"];
-            return <div key={category} className={colors[index % colors.length]} style={{ width: `${total ? (amount / total) * 100 : 0}%` }} />;
-          }) : <div className="w-full bg-slate-100" />}
+          {categoryBreakdown.length ? categoryBreakdown.map((item) => (
+            <div key={item.category} style={{ width: `${item.percent}%`, backgroundColor: item.color }} title={`${item.category}: ${formatCurrency(item.amount)}`} />
+          )) : <div className="w-full bg-slate-100" />}
         </div>
+        {categoryBreakdown.length ? (
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600" aria-label="Spending by category legend">
+            {categoryBreakdown.map((item) => (
+              <span key={item.category} className="inline-flex items-center gap-2">
+                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden="true" />
+                <span>{item.category}</span>
+                <span className="font-mono text-slate-500">{formatCurrency(item.amount)} ({item.percent.toFixed(1)}%)</span>
+              </span>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <div className="mt-6 space-y-5">

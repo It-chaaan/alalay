@@ -28,15 +28,15 @@ export function DashboardShell({
   hideHeader?: boolean;
 }) {
   return (
-    <main className="min-h-screen bg-app-background text-slate-950 lg:flex lg:h-screen lg:overflow-hidden">
+      <main className="min-h-screen bg-app-background text-slate-950 dark:text-white lg:flex lg:h-screen lg:overflow-hidden">
       <DashboardSidebar activeLabel={activeLabel} name={name} onSignOut={onSignOut} footerNote={footerNote} />
       <section className="mx-auto min-w-0 flex-1 px-5 py-8 sm:px-8 lg:overflow-y-auto lg:px-12">
         <div className={`mx-auto w-full ${contentMaxWidth}`}>
         {!hideHeader ? (
           <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-normal">{title}</h1>
-              {subtitle ? <div className="mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
+              <h1 className="text-2xl font-bold tracking-normal dark:!text-white">{title}</h1>
+              {subtitle ? <div className="mt-0.5 text-xs text-slate-500 dark:!text-slate-200">{subtitle}</div> : null}
             </div>
             <div className="flex items-center gap-3">{secondaryAction}{action}</div>
           </header>

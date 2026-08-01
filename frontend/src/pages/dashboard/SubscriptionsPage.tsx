@@ -12,6 +12,7 @@ import type { Subscription } from "../../hooks/types";
 import { useSubscriptions } from "../../hooks/useSubscriptions";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { normalizeExternalUrl, openExternalLink } from "../../utils/linkPreview";
+import { getNextSubscriptionRenewalDate } from "../../utils/subscriptionRenewal";
 
 function monthlyAmount(subscription: Subscription) {
   const amount = Number(subscription.amount);
@@ -179,7 +180,9 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
             </div>
             <h3 className="mt-4 font-medium">{card.name}</h3>
             <div className="mt-1 text-xl font-bold">{formatCurrency(Number(card.amount))}<span className="text-sm font-normal text-slate-500">/{card.billing_cycle === "yearly" ? "yr" : "mo"}</span></div>
-            <p className="mt-1 text-sm text-slate-500">Renews {formatDateShort(card.renewal_date)}</p>
+            <p className="mt-1 text-sm text-slate-500">
+              Renews {formatDateShort(getNextSubscriptionRenewalDate(card.renewal_date, card.billing_cycle))}
+            </p>
             {card.last_used_at ? <p className="mt-1 text-sm text-slate-500">Manual last used {formatDateShort(card.last_used_at)}</p> : null}
             <div className="mt-5 flex items-center justify-between gap-3 text-sm text-slate-500">
               <div>

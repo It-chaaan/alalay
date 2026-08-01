@@ -225,19 +225,19 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       {!isLoading && !error && !budgetSummary ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div> : null}
       {budgetSummary ? (
         <>
-      <section className="rounded-[14px] border border-emerald-200 bg-[#dff4ed] p-4 text-sm text-brand-dark">
+      <section className="rounded-[14px] border border-emerald-200 bg-[#dff4ed] p-4 text-sm text-brand-dark dark:border-emerald-700 dark:bg-[#1d3a30] dark:text-brand-muted">
         <div className="flex gap-3">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-primary text-white">
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v18M3 12h18M6 6l12 12M18 6 6 18" /></svg>
           </span>
           <div>
             <h2 className="font-semibold">Alalay budget tip</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-700">
+            <p className="mt-1 text-xs leading-5 text-slate-700 dark:text-slate-200">
               {unallocatedIncome >= 0
                 ? `${formatCurrency(unallocatedIncome)} of this month's income has not been assigned to the budget yet.`
                 : `Your budget is ${formatCurrency(Math.abs(unallocatedIncome))} above recorded income for this month.`}
             </p>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
+            <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
               Bills and subscriptions due this month are counted in category spending, so paid obligations will reflect in your budget.
             </p>
           </div>

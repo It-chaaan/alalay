@@ -7,6 +7,8 @@ import {
   SearchField,
   StatusBadge,
   getBillDisplayStatus,
+  isOverdueBill,
+  isUpcomingBill,
 } from "../../components/dashboard/BillsComponents";
 import { BillFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
@@ -36,13 +38,13 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
   const unpaid = rows.filter((bill) => bill.status !== "paid");
   const dueThisWeek = unpaid.filter((bill) => bill.due_date >= today && bill.due_date <= weekEnd);
-  const overdue = unpaid.filter((bill) => bill.status === "overdue" || bill.due_date < today);
+  const overdue = unpaid.filter((bill) => isOverdueBill(bill, today));
 
   const counts = useMemo(
     () => ({
       all: rows.length,
-      upcoming: rows.filter((bill) => bill.status === "unpaid" && bill.due_date >= today).length,
-      overdue: rows.filter((bill) => bill.status === "overdue" || bill.due_date < today).length,
+      upcoming: rows.filter((bill) => isUpcomingBill(bill, today)).length,
+      overdue: rows.filter((bill) => isOverdueBill(bill, today)).length,
       paid: rows.filter((bill) => bill.status === "paid").length,
     }),
     [rows, today],
@@ -52,9 +54,9 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     let nextRows = rows;
 
     if (activeFilter === "upcoming") {
-      nextRows = rows.filter((bill) => bill.status === "unpaid" && bill.due_date >= today);
+      nextRows = rows.filter((bill) => isUpcomingBill(bill, today));
     } else if (activeFilter === "overdue") {
-      nextRows = rows.filter((bill) => bill.status === "overdue" || bill.due_date < today);
+      nextRows = rows.filter((bill) => isOverdueBill(bill, today));
     } else if (activeFilter === "paid") {
       nextRows = rows.filter((bill) => bill.status === "paid");
     }

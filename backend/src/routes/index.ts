@@ -7,6 +7,7 @@ import { ocrRouter } from "./ocr.routes.js";
 import { incomeRouter } from "./income.routes.js";
 import { resourceRouter } from "./resource.routes.js";
 import { settingsRouter } from "./settings.routes.js";
+import { trustedDeviceRouter } from "./trusted-device.routes.js";
 
 export const apiRouter = Router();
 
@@ -22,3 +23,4 @@ apiRouter.use("/reports", reportsRouter);
 apiRouter.use("/users", settingsRouter);
 apiRouter.use("/ai", aiRouter);
 apiRouter.use("/ocr", ocrRouter);
+apiRouter.use("/trusted-device", trustedDeviceRouter);

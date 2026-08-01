@@ -185,7 +185,7 @@ function DialogActions({
 const billSchema = z
   .object({
     title: z.string().trim().min(1, "Biller name is required"),
-    amount: z.coerce.number().positive("Amount must be greater than zero"),
+    amount: z.coerce.number().positive("Please enter an amount greater than 0"),
     category: z.string().trim().min(1, "Category is required"),
     custom_category: z.string().optional(),
     due_date: z.string().date("Due date is required"),
@@ -220,7 +220,7 @@ function defaultBillValues(bill?: Bill | null): BillFormValues {
 
   return {
     title: bill?.title ?? "",
-    amount: Number(bill?.amount ?? 0),
+    amount: bill ? Number(bill.amount) : undefined,
     category: existingCategory ? (isPresetCategory ? existingCategory : "Other") : "",
     custom_category: existingCategory && !isPresetCategory ? existingCategory : "",
     due_date: bill?.due_date ?? todayInputValue(),
@@ -310,9 +310,9 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
             id="bill-amount"
             label="Amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
-            placeholder="2500"
+            placeholder="0.00"
             error={errors.amount?.message}
             {...register("amount")}
           />
@@ -398,7 +398,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
 
 const subscriptionSchema = z.object({
   name: z.string().trim().min(1, "Subscription name is required"),
-  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
   renewal_date: z.string().date("Renewal date is required"),
   billing_cycle: z.enum(["monthly", "yearly"]),
   auto_renew: z.boolean(),
@@ -415,7 +415,7 @@ function dateInputValue(value: string | null | undefined) {
 function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormValues {
   return {
     name: subscription?.name ?? "",
-    amount: Number(subscription?.amount ?? 0),
+    amount: subscription ? Number(subscription.amount) : undefined,
     renewal_date: subscription?.renewal_date ?? todayInputValue(),
     billing_cycle: subscription?.billing_cycle ?? "monthly",
     auto_renew: subscription ? Boolean(subscription.auto_renew) : true,
@@ -497,9 +497,9 @@ export function SubscriptionFormPanel({
             id="subscription-amount"
             label="Amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
-            placeholder="549"
+            placeholder="0.00"
             error={errors.amount?.message}
             {...register("amount")}
           />
@@ -558,7 +558,7 @@ export function SubscriptionFormPanel({
 
 const expenseSchema = z.object({
   merchant: z.string().trim().min(1, "Merchant is required"),
-  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
   category: z.string().trim().min(1, "Category is required"),
   date: z.string().date("Date is required"),
   payment_method: z.enum(["cash", "card", "gcash", "maya", "bank_transfer", "other"]),
@@ -571,7 +571,7 @@ type ExpenseFormValues = z.infer<typeof expenseSchema>;
 function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
   return {
     merchant: expense?.merchant ?? "",
-    amount: Number(expense?.amount ?? 0),
+    amount: expense ? Number(expense.amount) : undefined,
     category: expense?.category ?? "",
     date: expense?.date ?? todayInputValue(),
     payment_method: (expense?.payment_method as ExpenseFormValues["payment_method"] | undefined) ?? "cash",
@@ -639,9 +639,9 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
             id="expense-amount"
             label="Amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
-            placeholder="385.5"
+            placeholder="0.00"
             error={errors.amount?.message}
             {...register("amount")}
           />
@@ -702,7 +702,7 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
 const incomeSchema = z.object({
   source: z.string().trim().min(1, "Income source is required"),
   type: z.enum(["salary", "freelance", "business", "remittance", "other"]),
-  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
   date: z.string().date("Date is required"),
   is_recurring: z.boolean(),
 });
@@ -713,7 +713,7 @@ function defaultIncomeValues(): IncomeFormValues {
   return {
     source: "",
     type: "salary",
-    amount: 0,
+    amount: undefined,
     date: todayInputValue(),
     is_recurring: false,
   };
@@ -786,9 +786,9 @@ export function IncomeFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
             id="income-amount"
             label="Amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
-            placeholder="35000"
+            placeholder="0.00"
             error={errors.amount?.message}
             {...register("amount")}
           />
@@ -816,7 +816,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
 const savingsGoalSchema = z.object({
   title: z.string().trim().min(1, "Goal title is required"),
   emoji: z.string().max(8, "Keep the emoji short").optional(),
-  target_amount: z.coerce.number().positive("Target amount must be greater than zero"),
+  target_amount: z.coerce.number().positive("Please enter a target amount greater than 0"),
   current_amount: z.coerce.number().nonnegative("Current amount cannot be negative").optional(),
   monthly_target: z.coerce.number().nonnegative("Monthly contribution cannot be negative"),
   deadline: z.string().date("Deadline is required"),
@@ -828,7 +828,7 @@ function defaultSavingsGoalValues(goal?: SavingsGoal | null): SavingsGoalFormVal
   return {
     title: goal?.title ?? "",
     emoji: goal?.emoji ?? "",
-    target_amount: Number(goal?.target_amount ?? 0),
+    target_amount: goal ? Number(goal.target_amount) : undefined,
     current_amount: Number(goal?.current_amount ?? 0),
     monthly_target: Number(goal?.monthly_target ?? 0),
     deadline: goal?.deadline ?? todayInputValue(),
@@ -932,9 +932,9 @@ export function SavingsGoalFormPanel({
             id="goal-target-amount"
             label="Target amount"
             type="number"
-            min="0"
+            min="0.01"
             step="0.01"
-            placeholder="50000"
+            placeholder="0.00"
             error={errors.target_amount?.message}
             {...register("target_amount")}
           />
@@ -968,14 +968,14 @@ export function SavingsGoalFormPanel({
 }
 
 const savingsGoalProgressSchema = z.object({
-  amount: z.coerce.number().positive("Amount must be greater than zero"),
+  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
 });
 
 type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
 
 function defaultSavingsGoalProgressValues(): SavingsGoalProgressValues {
   return {
-    amount: 0,
+    amount: undefined,
   };
 }
 
@@ -1053,9 +1053,9 @@ export function SavingsGoalProgressPanel({
           id="goal-add-amount"
           label="Amount to add"
           type="number"
-          min="0"
+          min="0.01"
           step="0.01"
-          placeholder="1000"
+          placeholder="0.00"
           error={errors.amount?.message}
           {...register("amount")}
         />

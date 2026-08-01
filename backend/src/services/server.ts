@@ -9,7 +9,7 @@ import { apiRouter } from "../routes/index.js";
 export function createServer() {
   const app = express();
 
-  app.use(cors({ origin: env.CORS_ORIGIN }));
+  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_req, res) => {

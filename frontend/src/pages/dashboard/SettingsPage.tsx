@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
-import type { Session } from "@supabase/supabase-js";
+import type { Session, User } from "@supabase/supabase-js";
 import { Check, ChevronDown, ChevronUp, ImagePlus, Plus, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useSettings } from "../../hooks/useSettings";
@@ -19,8 +19,24 @@ function initials(name: string) {
   return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "JD";
 }
 
-function readLocalProfile() {
-  try { return JSON.parse(window.localStorage.getItem("alalay-profile") || "{}") as { phone?: string; avatar?: string }; } catch { return {}; }
+function profileStorageKey(userId: string) {
+  return `alalay-profile:${userId}`;
+}
+
+function getMetadataAvatar(session: Session) {
+  const metadata = session.user.user_metadata;
+  return metadata?.avatar_url || metadata?.picture || metadata?.avatar || "";
+}
+
+function userHasPassword(user: User | null) {
+  if (!user) return false;
+  const providers = user.app_metadata?.providers;
+  const hasEmailIdentity = user.identities?.some((identity) => identity.provider === "email");
+  return Boolean(hasEmailIdentity || providers?.includes("email") || user.user_metadata?.password_set === true);
+}
+
+function readLocalProfile(userId: string) {
+  try { return JSON.parse(window.localStorage.getItem(profileStorageKey(userId)) || "{}"); } catch { return {}; }
 }
 
 function Field({ label, value, onChange, type = "text", error, placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; error?: string; placeholder?: string }) {
@@ -44,16 +60,16 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
   const fileRef = useRef<HTMLInputElement>(null);
   const initialName = profile?.name || getDisplayName(session);
   const initialEmail = profile?.email || session.user.email || "";
-  const localProfile = readLocalProfile();
-  const [form, setForm] = useState({ name: initialName, email: initialEmail, phone: profile?.phone || localProfile.phone || "", language: (profile?.language || "en") as "en" | "fil", avatar: profile?.avatar_url || localProfile.avatar || "" });
+  const localProfile = readLocalProfile(session.user.id);
+  const [form, setForm] = useState({ name: initialName, email: initialEmail, phone: profile?.phone || localProfile.phone || "", language: (profile?.language || "en") as "en" | "fil", avatar: profile?.avatar_url || getMetadataAvatar(session) || localProfile.avatar || "" });
   const [saved, setSaved] = useState(form);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (profile) {
-      const local = readLocalProfile();
-      const next = { name: profile.name || getDisplayName(session), email: profile.email || session.user.email || "", phone: profile.phone || local.phone || "", language: profile.language || "en", avatar: profile.avatar_url || local.avatar || "" };
+      const local = readLocalProfile(session.user.id);
+      const next = { name: profile.name || getDisplayName(session), email: profile.email || session.user.email || "", phone: profile.phone || local.phone || "", language: profile.language || "en", avatar: profile.avatar_url || getMetadataAvatar(session) || local.avatar || "" };
       setForm(next); setSaved(next);
     }
   }, [profile, session]);
@@ -74,7 +90,7 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
     setSaving(true);
     try {
       await apiRequest("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone || null, language: form.language, avatar_url: form.avatar.startsWith("http") ? form.avatar : null }) });
-      window.localStorage.setItem("alalay-profile", JSON.stringify({ phone: form.phone, avatar: form.avatar }));
+      window.localStorage.setItem(profileStorageKey(session.user.id), JSON.stringify({ phone: form.phone, avatar: form.avatar }));
       setSaved(form); onSaved(form.name.trim()); notify("Profile updated");
     } catch (saveError) { notify(saveError instanceof Error ? saveError.message : "Unable to update profile.", true); } finally { setSaving(false); }
   }
@@ -99,6 +115,7 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
   const [form, setForm] = useState({ current: "", next: "", confirm: "" });
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [factor, setFactor] = useState<{ id: string; qr: string; secret: string } | null>(null);
   const [verifiedFactor, setVerifiedFactor] = useState<{ id: string; friendlyName?: string } | null>(null);
   const [currentAal, setCurrentAal] = useState<string | null>(null);
@@ -107,6 +124,24 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
   const [verifyingTwoFactor, setVerifyingTwoFactor] = useState(false);
   const [disablingTwoFactor, setDisablingTwoFactor] = useState(false);
   const [code, setCode] = useState("");
+
+  async function loadPasswordState() {
+    if (!supabase) {
+      setHasPassword(null);
+      return;
+    }
+
+    const { data, error } = await supabase.auth.getUser();
+    if (error || !data.user) {
+      setHasPassword(null);
+      return;
+    }
+    setHasPassword(userHasPassword(data.user));
+  }
+
+  useEffect(() => {
+    void loadPasswordState();
+  }, []);
 
   async function loadTwoFactorState() {
     if (!supabase) {
@@ -152,23 +187,35 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
   async function changePassword(event: FormEvent) {
     event.preventDefault();
     const nextErrors: string[] = [];
-    if (!form.current) nextErrors.push("Enter your current password.");
+    if (hasPassword === null) nextErrors.push("Unable to determine your password settings. Try again.");
+    if (hasPassword && !form.current) nextErrors.push("Enter your current password.");
     if (form.next.length < 8 || !/\d/.test(form.next)) nextErrors.push("New password must be at least 8 characters and contain a number.");
     if (form.next !== form.confirm) nextErrors.push("Passwords do not match.");
     setErrors(nextErrors);
     if (nextErrors.length || !supabase) return;
     setSaving(true);
     try {
-      const email = (await supabase.auth.getUser()).data.user?.email;
-      if (!email) throw new Error("Unable to verify your account.");
-      const check = await supabase.auth.signInWithPassword({ email, password: form.current });
-      if (check.error) throw check.error;
-      const result = await supabase.auth.updateUser({ password: form.next });
+      if (hasPassword) {
+        const email = (await supabase.auth.getUser()).data.user?.email;
+        if (!email) throw new Error("Unable to verify your account.");
+        const check = await supabase.auth.signInWithPassword({ email, password: form.current });
+        if (check.error) throw check.error;
+      }
+      const currentMetadata = (await supabase.auth.getUser()).data.user?.user_metadata || {};
+      const result = await supabase.auth.updateUser({
+        password: form.next,
+        data: { ...currentMetadata, password_set: true },
+      });
       if (result.error) throw result.error;
+      await supabase.auth.refreshSession();
+      const refreshedUser = (await supabase.auth.getUser()).data.user;
+      setHasPassword(userHasPassword(refreshedUser) || Boolean(refreshedUser?.user_metadata?.password_set));
       setForm({ current: "", next: "", confirm: "" });
-      notify("Password changed");
+      notify(hasPassword ? "Password changed" : "Password set");
     } catch (changeError) {
-      notify(changeError instanceof Error ? changeError.message : "Unable to change password.", true);
+      const message = changeError instanceof Error ? changeError.message : "Unable to change password.";
+      setErrors([message]);
+      notify(message, true);
     } finally {
       setSaving(false);
     }
@@ -225,8 +272,9 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
 
   const twoFactorEnabled = Boolean(verifiedFactor);
   const canDisableTwoFactor = twoFactorEnabled && currentAal === "aal2";
+  const passwordOnly = hasPassword === false;
 
-  return <div className="space-y-5"><Card title="Change password" description="Use a strong password that you do not reuse elsewhere."><form onSubmit={changePassword} className="max-w-xl space-y-4">{errors.map((message) => <p key={message} className="text-xs text-red-600">{message}</p>)}<Field label="Current password" value={form.current} onChange={(value) => setForm({ ...form, current: value })} type="password" /><Field label="New password" value={form.next} onChange={(value) => setForm({ ...form, next: value })} type="password" /><Field label="Confirm new password" value={form.confirm} onChange={(value) => setForm({ ...form, confirm: value })} type="password" /><SaveButton disabled={!form.current || !form.next || !form.confirm} saving={saving}>Change password</SaveButton></form></Card><Card title="Authenticator app" description="Add a second factor to protect access to your financial data."><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-muted text-brand-primary"><ShieldCheck className="h-5 w-5" /></span><div className="flex-1"><p className="text-sm font-semibold text-slate-950">Two-factor authentication</p><p className="mt-1 text-xs text-slate-500">{loadingTwoFactor ? "Checking your authenticator status..." : twoFactorEnabled ? "Your account requires a 6-digit authenticator code at sign-in." : "Use an authenticator app to generate sign-in codes."}</p>{twoFactorEnabled && verifiedFactor?.friendlyName ? <p className="mt-2 text-xs text-slate-500">Connected app: {verifiedFactor.friendlyName}</p> : null}</div>{loadingTwoFactor ? <span className="text-xs font-semibold text-slate-400">Loading</span> : twoFactorEnabled ? <span className="text-xs font-semibold text-brand-primary">Enabled</span> : <button type="button" onClick={beginTwoFactor} disabled={enablingTwoFactor} className="rounded-xl bg-brand-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{enablingTwoFactor ? "Starting..." : "Enable"}</button>}</div>{factor ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-semibold">Scan this QR code</p>{factor.qr ? <img src={factor.qr} alt="Authenticator QR code" className="mt-3 h-40 w-40 rounded bg-white p-2" /> : null}<p className="mt-3 text-xs text-slate-500">Manual key: <code className="select-all font-mono text-slate-800">{factor.secret}</code></p><div className="mt-3 flex gap-2"><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code" className="h-9 rounded-lg border border-slate-200 px-3 text-sm" /><button type="button" onClick={verifyTwoFactor} disabled={code.length !== 6 || verifyingTwoFactor} className="rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white disabled:opacity-50">{verifyingTwoFactor ? "Verifying..." : "Confirm"}</button></div><p className="mt-3 text-xs text-slate-500">Two-factor protection turns on only after this code is verified.</p></div> : null}{twoFactorEnabled ? <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-950">Authenticator is active</p><p className="mt-1 text-xs text-slate-500">{canDisableTwoFactor ? "This account now requires your authenticator code when you sign in." : "Complete a full two-factor sign-in before disabling this authenticator."}</p></div><button type="button" onClick={disableTwoFactor} disabled={!canDisableTwoFactor || disablingTwoFactor} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">{disablingTwoFactor ? "Disabling..." : "Disable"}</button></div></div> : null}</Card></div>; }
+  return <div className="space-y-5"><Card title={passwordOnly ? "Set a password" : "Change password"} description={passwordOnly ? "You signed in with Google. Set a password to also enable email/password login for this account." : "Use a strong password that you do not reuse elsewhere."}><form onSubmit={changePassword} className="max-w-xl space-y-4">{errors.map((message) => <p key={message} className="text-xs text-red-600">{message}</p>)}{!passwordOnly ? <Field label="Current password" value={form.current} onChange={(value) => setForm({ ...form, current: value })} type="password" /> : null}<Field label="New password" value={form.next} onChange={(value) => setForm({ ...form, next: value })} type="password" /><Field label="Confirm new password" value={form.confirm} onChange={(value) => setForm({ ...form, confirm: value })} type="password" /><SaveButton disabled={(!passwordOnly && !form.current) || !form.next || !form.confirm || hasPassword === null} saving={saving}>{passwordOnly ? "Set password" : "Change password"}</SaveButton></form></Card><Card title="Authenticator app" description="Add a second factor to protect access to your financial data."><div className="flex items-start gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-muted text-brand-primary"><ShieldCheck className="h-5 w-5" /></span><div className="flex-1"><p className="text-sm font-semibold text-slate-950">Two-factor authentication</p><p className="mt-1 text-xs text-slate-500">{loadingTwoFactor ? "Checking your authenticator status..." : twoFactorEnabled ? "Your account requires a 6-digit authenticator code at sign-in." : "Use an authenticator app to generate sign-in codes."}</p>{twoFactorEnabled && verifiedFactor?.friendlyName ? <p className="mt-2 text-xs text-slate-500">Connected app: {verifiedFactor.friendlyName}</p> : null}</div>{loadingTwoFactor ? <span className="text-xs font-semibold text-slate-400">Loading</span> : twoFactorEnabled ? <span className="text-xs font-semibold text-brand-primary">Enabled</span> : <button type="button" onClick={beginTwoFactor} disabled={enablingTwoFactor} className="rounded-xl bg-brand-primary px-3 py-2 text-xs font-semibold text-white disabled:opacity-50">{enablingTwoFactor ? "Starting..." : "Enable"}</button>}</div>{factor ? <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4"><p className="text-sm font-semibold">Scan this QR code</p>{factor.qr ? <img src={factor.qr} alt="Authenticator QR code" className="mt-3 h-40 w-40 rounded bg-white p-2" /> : null}<p className="mt-3 text-xs text-slate-500">Manual key: <code className="select-all font-mono text-slate-800">{factor.secret}</code></p><div className="mt-3 flex gap-2"><input value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code" className="h-9 rounded-lg border border-slate-200 px-3 text-sm" /><button type="button" onClick={verifyTwoFactor} disabled={code.length !== 6 || verifyingTwoFactor} className="rounded-lg bg-brand-primary px-3 text-xs font-semibold text-white disabled:opacity-50">{verifyingTwoFactor ? "Verifying..." : "Confirm"}</button></div><p className="mt-3 text-xs text-slate-500">Two-factor protection turns on only after this code is verified.</p></div> : null}{twoFactorEnabled ? <div className="mt-5 rounded-xl border border-slate-200 bg-white p-4"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-sm font-semibold text-slate-950">Authenticator is active</p><p className="mt-1 text-xs text-slate-500">{canDisableTwoFactor ? "This account now requires your authenticator code when you sign in." : "Complete a full two-factor sign-in before disabling this authenticator."}</p></div><button type="button" onClick={disableTwoFactor} disabled={!canDisableTwoFactor || disablingTwoFactor} className="rounded-xl border border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">{disablingTwoFactor ? "Disabling..." : "Disable"}</button></div></div> : null}</Card></div>; }
 
 function CategoriesTab({ notify }: { notify: (message: string, error?: boolean) => void }) { const [settings, setSettings] = useState(() => readAppSettings()); const [kind, setKind] = useState<CategoryKind>("expense"); const [editing, setEditing] = useState<AppCategory | null>(null); const [form, setForm] = useState({ name: "", icon: "•", color: "#7db59c" }); const [dirty, setDirty] = useState(false); const categories = settings.categories.filter((category) => category.kind === kind).sort((a, b) => a.order - b.order); function openEdit(category?: AppCategory) { setEditing(category || null); setForm(category ? { name: category.name, icon: category.icon, color: category.color } : { name: "", icon: "•", color: "#7db59c" }); } function saveCategory(event: React.FormEvent) { event.preventDefault(); if (!form.name.trim()) return; const next = editing ? settings.categories.map((category) => category.id === editing.id ? { ...category, ...form, name: form.name.trim() } : category) : [...settings.categories, { id: createCategoryId(), kind, ...form, name: form.name.trim(), order: settings.categories.length }]; const nextSettings = { ...settings, categories: next }; setSettings(nextSettings); writeAppSettings(nextSettings); setDirty(false); setEditing(null); setForm({ name: "", icon: "•", color: "#7db59c" }); notify(editing ? "Category updated" : "Category added"); } function removeCategory(category: AppCategory) { if (!window.confirm(`Delete ${category.name}? Existing transactions keep their saved category.`)) return; const nextSettings = { ...settings, categories: settings.categories.filter((item) => item.id !== category.id) }; setSettings(nextSettings); writeAppSettings(nextSettings); notify("Category deleted"); } function move(category: AppCategory, direction: -1 | 1) { const list = [...categories]; const index = list.findIndex((item) => item.id === category.id); const other = list[index + direction]; if (!other) return; const next = settings.categories.map((item) => item.id === category.id ? { ...item, order: other.order } : item.id === other.id ? { ...item, order: category.order } : item); const nextSettings = { ...settings, categories: next }; setSettings(nextSettings); writeAppSettings(nextSettings); setDirty(false); } return <Card title="Categories" description="Manage the categories used by your bills, expenses, income, and budgets."><div className="mb-5 inline-flex rounded-xl border border-slate-200 p-1">{([["expense", "Expense categories"], ["income", "Income categories"]] as const).map(([value, label]) => <button key={value} type="button" onClick={() => setKind(value)} className={`rounded-lg px-3 py-1.5 text-sm ${kind === value ? "bg-brand-muted font-semibold text-brand-primary" : "text-slate-500"}`}>{label}</button>)}</div><div className="space-y-2">{categories.map((category) => <div key={category.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3"><span className="grid h-9 w-9 place-items-center rounded-lg text-lg" style={{ backgroundColor: `${category.color}22` }}>{category.icon}</span><span className="flex-1 text-sm font-semibold text-slate-950">{category.name}</span><span className="h-4 w-4 rounded-full border border-white shadow-sm" style={{ backgroundColor: category.color }} /><button type="button" onClick={() => move(category, -1)} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label={`Move ${category.name} up`}><ChevronUp className="h-4 w-4" /></button><button type="button" onClick={() => move(category, 1)} className="rounded p-1 text-slate-400 hover:bg-slate-100" aria-label={`Move ${category.name} down`}><ChevronDown className="h-4 w-4" /></button><button type="button" onClick={() => openEdit(category)} className="text-xs font-semibold text-brand-primary">Edit</button><button type="button" onClick={() => removeCategory(category)} className="rounded p-1 text-red-500 hover:bg-red-50" aria-label={`Delete ${category.name}`}><Trash2 className="h-4 w-4" /></button></div>)}</div><form onSubmit={saveCategory} className="mt-5 border-t border-slate-200 pt-5"><div className="grid gap-3 md:grid-cols-[1fr_90px_120px_auto]"><input value={form.name} onChange={(event) => { setForm({ ...form, name: event.target.value }); setDirty(true); }} placeholder={`${kind === "expense" ? "Expense" : "Income"} category name`} className="h-10 rounded-xl border border-slate-200 px-3 text-sm" /><input value={form.icon} onChange={(event) => setForm({ ...form, icon: event.target.value })} maxLength={2} aria-label="Category icon" className="h-10 rounded-xl border border-slate-200 px-3 text-center text-lg" /><input type="color" value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} aria-label="Category color" className="h-10 w-full rounded-xl border border-slate-200 bg-white p-1" /><button type="submit" disabled={!dirty && !editing} className="inline-flex h-10 items-center justify-center gap-1 rounded-xl bg-brand-primary px-3 text-sm font-semibold text-white disabled:opacity-50">{editing ? "Update" : <><Plus className="h-4 w-4" />Add</>}</button></div></form></Card>; }
 

@@ -26,8 +26,26 @@ export function requireUserId(userId: string | undefined) {
   return userId;
 }
 
-export function todayIso() {
-  return toDateOnlyIso(new Date());
+const appTimeZone = "Asia/Manila";
+
+function zonedDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: appTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  return {
+    year: Number(parts.find((part) => part.type === "year")?.value),
+    month: Number(parts.find((part) => part.type === "month")?.value),
+    day: Number(parts.find((part) => part.type === "day")?.value),
+  };
+}
+
+export function todayIso(date = new Date()) {
+  const parts = zonedDateParts(date);
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
 }
 
 export function addDaysIso(days: number) {
@@ -37,16 +55,19 @@ export function addDaysIso(days: number) {
 }
 
 export function monthRange(date = new Date()) {
-  const start = new Date(date.getFullYear(), date.getMonth(), 1);
-  const end = new Date(date.getFullYear(), date.getMonth() + 1, 0);
+  const parts = zonedDateParts(date);
+  const start = `${parts.year}-${String(parts.month).padStart(2, "0")}-01`;
+  const daysInMonth = new Date(Date.UTC(parts.year, parts.month, 0)).getUTCDate();
+  const end = `${parts.year}-${String(parts.month).padStart(2, "0")}-${daysInMonth}`;
   return {
-    start: toDateOnlyIso(start),
-    end: toDateOnlyIso(end),
+    start,
+    end,
   };
 }
 
 export function previousMonthRange(date = new Date()) {
-  const previous = new Date(date.getFullYear(), date.getMonth() - 1, 1);
+  const parts = zonedDateParts(date);
+  const previous = new Date(Date.UTC(parts.year, parts.month - 2, 1, 12));
   return monthRange(previous);
 }
 

@@ -68,9 +68,15 @@ export function readAppSettings(): AppSettings {
   if (typeof window === "undefined") return defaultSettings;
   try {
     const stored = JSON.parse(window.localStorage.getItem(storageKey) || "null") as Partial<AppSettings> | null;
+    const theme = stored?.theme && ["light", "dark", "system"].includes(stored.theme) ? stored.theme : defaultSettings.theme;
+    const currency = stored?.currency && ["PHP", "USD", "EUR", "JPY", "SGD"].includes(stored.currency) ? stored.currency : defaultSettings.currency;
+    const dateFormat = stored?.dateFormat && ["short", "slash", "iso"].includes(stored.dateFormat) ? stored.dateFormat : defaultSettings.dateFormat;
     return {
       ...defaultSettings,
       ...stored,
+      theme: theme as ThemeMode,
+      currency: currency as CurrencyCode,
+      dateFormat: dateFormat as DateFormat,
       notifications: { ...defaultSettings.notifications, ...stored?.notifications },
       categories: stored?.categories?.length ? stored.categories : defaultSettings.categories,
     };

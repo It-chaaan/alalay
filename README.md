@@ -9,7 +9,7 @@ This repository already contains:
 - a React frontend
 - an Express backend
 - Supabase-backed auth and data storage
-- a working Gemini-backed AI assistant
+- a Gemini-backed AI chat assistant; the dashboard AI insight card is still a placeholder
 - a browser-side OCR flow using `tesseract.js`
 
 ## Architecture
@@ -49,8 +49,8 @@ This repository already contains:
 Frontend routes currently implemented:
 
 - `/`
-- `/login`
-- `/register`
+- `/login`, `/register`, `/forgot-password`, `/reset-password`
+- `/auth/callback`
 - `/app`
 - `/app/bills`
 - `/app/subscriptions`
@@ -63,11 +63,12 @@ Frontend routes currently implemented:
 - `/app/ocr-scanner`
 - `/app/settings`
 
-There is no active `/forgot-password` route in the current app.
 
 ## Current feature set
 
 - authentication and protected app shell
+- email/password and Google OAuth sign-in
+- authenticator-app TOTP two-factor verification
 - dashboard summaries
 - bills management
 - subscriptions management
@@ -155,20 +156,24 @@ The frontend runs on the Vite dev server. The backend currently defaults to port
 
 ### Frontend
 
-- `VITE_API_URL` - backend base URL used by the frontend API client
+- `VITE_SUPABASE_URL` - Supabase project URL
+- `VITE_SUPABASE_ANON_KEY` - Supabase browser anon key
+- `VITE_API_URL` - optional backend base URL override used by the frontend API client
 
 ### Backend
 
 - `PORT`
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEMINI_API_KEY`
+- `GEMINI_MODEL`
+- `GEMINI_THINKING_BUDGET`
+- `CORS_ORIGIN`
 - `HTTPS_ENABLED`
 - `HTTPS_CERT_PATH`
 - `HTTPS_KEY_PATH`
 
-`frontend/.env.example` currently does not document `VITE_API_URL`, and `backend/.env.example` is missing the HTTPS certificate path variables used by the server.
+`VITE_API_URL` is not currently listed in `frontend/.env.example`; HTTPS certificate paths are supported by backend code but are not currently listed in `backend/.env.example`.
 
 ## Supabase notes
 
@@ -178,7 +183,8 @@ The frontend runs on the Vite dev server. The backend currently defaults to port
 
 ## AI and OCR notes
 
-- AI assistant is implemented and uses Google Gemini Flash through the backend
+- AI chat is implemented with Google Gemini Flash through the backend
+- The dashboard AI insight card is not connected to the chat service and still returns a not-configured placeholder; do not treat it as complete
 - assistant responses are rendered as markdown in the chat UI
 - OCR is currently executed in the browser via `tesseract.js`, not through a backend extraction pipeline
 

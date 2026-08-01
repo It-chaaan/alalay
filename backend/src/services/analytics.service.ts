@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
-import { asNumber, client, monthRange, previousMonthRange, requireUserId, throwIfError, todayIso } from "./db.js";
+import { addDaysIso, asNumber, client, monthRange, previousMonthRange, requireUserId, throwIfError, todayIso } from "./db.js";
+import { generateDashboardInsight } from "./dashboard-insight.service.js";
 
 const budgetColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
 
@@ -528,6 +529,25 @@ function monthlySubscriptionAmount(subscription: { amount: unknown; billing_cycl
   return subscription.billing_cycle === "yearly" ? amount / 12 : amount;
 }
 
+export function buildMonthlySpending(expenses: Array<{ date: string; amount: unknown }>, now: Date) {
+  const currentRange = monthRange(now);
+  const cursor = new Date(`${currentRange.start}T12:00:00Z`);
+  cursor.setUTCMonth(cursor.getUTCMonth() - 7, 1);
+
+  return Array.from({ length: 8 }, (_, index) => {
+    const range = monthRange(cursor);
+    const monthKey = range.start.slice(0, 7);
+    const value = expenses
+      .filter((expense) => expense.date.slice(0, 7) === monthKey)
+      .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
+    const label = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "Asia/Manila" }).format(cursor);
+    const current = monthKey === currentRange.start.slice(0, 7);
+    cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
+
+    return { month: label, value, current };
+  });
+}
+
 export async function getBudgetSummary(userId: string, options: BudgetSummaryOptions = {}) {
   const range = getBudgetRange(options);
   const plan = await getBudgetPlan(userId);
@@ -1006,10 +1026,16 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
 export async function getDashboardSummary(userId: string) {
   const current = monthRange();
   const previous = previousMonthRange();
-  const [bills, expenses, previousExpenses, goals, subscriptions] = await Promise.all([
+  const chartStartDate = new Date(`${current.start}T12:00:00Z`);
+  chartStartDate.setUTCMonth(chartStartDate.getUTCMonth() - 7, 1);
+  const chartStart = monthRange(chartStartDate).start;
+  const dueWeekEnd = addDaysIso(7);
+  const [bills, expenses, previousExpenses, chartExpenses, dueWeekBills, goals, subscriptions] = await Promise.all([
     rowsFor("bills", userId, "due_date", current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("expenses", userId, "date", previous.start, previous.end),
+    rowsFor("expenses", userId, "date", chartStart, current.end),
+    rowsFor("bills", userId, "due_date", current.start, dueWeekEnd),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
   ]);
@@ -1031,22 +1057,27 @@ export async function getDashboardSummary(userId: string) {
   const subscriptionScore = Math.max(0, 20 - subscriptionRatio * 20);
   const budget = await getBudgetSummary(userId);
   const budgetScore = budget ? Math.max(0, 20 - Math.max(0, budget.used_percent - 100)) : 10;
+  const aiInsight = await generateDashboardInsight({
+    month: current.start.slice(0, 7),
+    expenses,
+    bills,
+    subscriptions: subscriptionsData,
+    savingsGoals: goalsData,
+    budget,
+  });
 
   return {
     total_bills_this_month: bills.reduce((sum, item) => sum + asNumber(item.amount), 0),
-    bills_due_this_week: bills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)).reduce((sum, item) => sum + asNumber(item.amount), 0),
+    bills_due_this_week: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd).reduce((sum, item) => sum + asNumber(item.amount), 0),
     monthly_expenses: monthlyExpenses,
     monthly_expenses_delta_percent: previousTotal ? Math.round(((monthlyExpenses - previousTotal) / previousTotal) * 100) : 0,
     savings_progress_percent: savingsTarget ? Math.round((savingsCurrent / savingsTarget) * 100) : 0,
     savings_current: savingsCurrent,
     savings_target: savingsTarget,
     health_score: Math.round(billScore + savingsRateScore + subscriptionScore + budgetScore),
-    weekly_bills: bills,
-    recent_activity: expenses.slice(0, 5),
-    monthly_spending: [{ month: "Current", value: monthlyExpenses }],
-    ai_insight: {
-      status: "not_configured",
-      message: "AI insights are not configured yet.",
-    },
+    weekly_bills: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd),
+    recent_activity: [...chartExpenses].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 5),
+    monthly_spending: buildMonthlySpending(chartExpenses, new Date()),
+    ai_insight: aiInsight,
   };
 }

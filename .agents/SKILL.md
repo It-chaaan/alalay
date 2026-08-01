@@ -1,171 +1,53 @@
 # Alalay Development Skill
 
-## Purpose
+Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI/OCR work, and UI polish.
 
-Use this guide for all future work in Alalay. It reflects the current implementation and defines how changes should be made without fighting the existing architecture.
+## Workflow
 
-## Core responsibilities
+1. Inspect the relevant page, hook, backend route/service, and migration.
+2. Check `git status` and preserve unrelated changes.
+3. Reuse `frontend/src/lib/supabase.ts`, `apiClient.ts`, existing hooks, and shared layout components.
+4. Cross-check env names against both `.env.example` files and `backend/src/config/env.ts`.
+5. Run relevant frontend/backend builds and update project docs when architecture, auth, schema, API, analytics, AI, OCR, or theme behavior changes.
 
-The AI should help with:
+## Auth rules
 
-- feature implementation
-- bug fixing
-- refactoring
-- Supabase schema changes
-- backend API work
-- OCR-related frontend work
-- AI assistant improvements
-- financial logic updates
-- reporting and analytics changes
-- UI and UX polish
-- performance and security hardening
+- Supabase Auth supports email/password and Google OAuth; OAuth uses `/auth/callback` and the current client relies on the default implicit flow.
+- Do not manually create Google users. Supabase creates/matches the auth user and the profile trigger creates `public.users`.
+- Google-only accounts use the Settings “Set a password” state; detect email identities/providers or `user_metadata.password_set`, update password plus the marker, and refresh session state.
+- MFA is authenticator-app TOTP, not email/SMS. Use verified `totp` factors and `mfa.challengeAndVerify`.
+- Trust-device is not complete: the checkbox has no durable token, hashing, revocation, or backend enforcement.
+- Guide Google-only login failures to Google sign-in or Settings → Set a password.
 
-## Required context awareness
+## Theme/accessibility rules
 
-Before changing code, understand these current facts:
+- Respect Light/Dark/System via `AppPreferencesContext` and the root `dark` class.
+- Prefer existing Tailwind surface/text classes and provide `dark:` variants for custom UI. Never add light-only cards, banners, inputs, alerts, toasts, badges, or empty states.
+- Use high-contrast shared shell title/subtitle styles and preserve visible focus states and practical WCAG AA contrast.
 
-- Frontend is React 19 + TypeScript + Vite.
-- Routing is manual in `frontend/src/App.tsx`, not React Router.
-- Shared data hooks already exist:
-  - `frontend/src/hooks/useApiQuery.ts`
-  - `frontend/src/hooks/useApiMutation.ts`
-- API requests go through `frontend/src/lib/api.ts`.
-- Backend is Express + TypeScript.
-- Supabase is the database and auth provider.
-- AI assistant backend already exists and uses Google Gemini Flash.
-- OCR already exists, but it is browser-side through `tesseract.js`.
-- Current AI docs live in `.agents/`.
+## Data rules
 
-## Development workflow
+- Keep business calculations in backend services, especially analytics/reporting.
+- Use `Asia/Manila` date-only boundaries for finance summaries unless product requirements change.
+- Return dynamic chart current markers; do not hardcode month labels.
+- Distinguish loading, successful-empty, and error states; never turn failed queries into `₱0` or blank content.
+- Use migrations for schema/index/trigger changes and preserve RLS/backend auth.
 
-Before making changes:
+## AI/OCR rules
 
-1. Inspect the relevant feature path first.
-2. Reuse existing hooks, services, and utilities where possible.
-3. Check for an existing backend route or service before adding a new one.
-4. Preserve backwards compatibility unless the task explicitly allows breaking changes.
-5. Update documentation when architecture, schema, or workflows change.
+- Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`; never expose keys or move prompts/data calls to the client.
+- The dashboard AI card remains a placeholder and must not be given fake text. Define data, prompt contract, endpoint, refresh, caching, and error behavior before wiring it.
+- OCR currently runs in-browser with `tesseract.js`; do not describe it as a backend extraction pipeline.
 
-Do not rewrite stable code just to introduce a different pattern.
+## Profile/avatar rules
 
-## Implementation rules
+- Scope local profile storage by Supabase user ID (`alalay-profile:<userId>`).
+- Use Google provider metadata when available; otherwise use neutral initials. Never reuse a global cached photo.
+- Keep avatar uniqueness/repair logic in migrations and never use service-role credentials in the browser.
 
-### Frontend rules
+## Validation
 
-- Keep using the existing manual routing model unless the project explicitly migrates routing.
-- Only parse markdown for assistant-generated content, not ordinary user input.
-- Reuse existing layout and dashboard shell components.
-- Prefer extending current page modules over duplicating similar pages.
-- Keep styling aligned with current Tailwind usage and shared CSS patterns.
-- Avoid introducing a second state or data fetching framework.
-
-### Backend rules
-
-- Put business logic in services, not directly in route handlers.
-- Validate request payloads with Zod at API boundaries.
-- Reuse the current auth middleware and Supabase client setup.
-- Keep route contracts stable unless the user explicitly requests an API change.
-
-### Database rules
-
-- All schema changes must go through `supabase/migrations/`.
-- Respect RLS assumptions in every query or mutation.
-- Do not move privileged operations into the frontend.
-- Regenerate or update types when schema changes affect frontend data contracts.
-- Keep Supabase schema and API expectations aligned. If a frontend field is added, verify the column exists in migrations and in the live project.
-
-## Financial intelligence rules
-
-Understand these relationships before changing finance logic:
-
-- income feeds budget capacity and report summaries
-- expenses reduce budget headroom and affect analytics
-- bills and subscriptions are recurring obligations with due dates
-- savings goals compete with discretionary spending and budget allocations
-- reports aggregate cross-feature financial data
-- analytics should not recompute the same business rule differently in multiple places
-
-Most non-trivial finance calculations should live in backend services, especially analytics and reporting paths. Frontend calculations should be limited to presentation-only derivations.
-
-Do not introduce new formulas that conflict with current backend summaries without updating the backend source of truth.
-
-## AI assistant rules
-
-AI functionality exists today.
-
-Current implementation:
-
-- provider: Google Gemini Flash
-- backend services:
-  - `backend/src/services/ai.service.ts`
-  - `backend/src/services/ai.providers.ts`
-  - `backend/src/services/ai.context.service.ts`
-- routes:
-  - `GET /api/ai/status`
-  - `POST /api/ai/chat`
-  - `POST /api/ai/chat/stream`
-- frontend hook: `frontend/src/hooks/useAiAssistant.ts`
-- frontend page: `frontend/src/pages/dashboard/AiAssistantPage.tsx`
-
-Rules:
-
-- Keep prompt/context construction in the backend.
-- Do not move API keys or model calls into the client.
-- Preserve markdown-capable assistant rendering in the UI.
-- If conversation persistence changes, document whether history remains local-only or becomes server-backed.
-
-## OCR rules
-
-OCR functionality exists today, but the current implementation is frontend-side.
-
-Current implementation:
-
-- page: `frontend/src/pages/dashboard/OcrScannerPage.tsx`
-- engine: `tesseract.js`
-- backend OCR routes currently provide capability/demo support only
-
-Rules:
-
-- Do not document OCR as a backend document-processing pipeline unless it is actually implemented.
-- If extraction logic becomes server-side later, update `.agents/Agents.md`, this file, and `README.md`.
-
-## Settings and persistence rules
-
-Settings are split across backend-backed and local-only storage.
-
-Current persistence caveats from the codebase:
-
-- some profile data is backend-backed
-- some app preferences are stored in `localStorage`
-- AI chat history is stored locally in the frontend
-- some security/UI toggles such as 2FA state are currently UI/local-state oriented
-
-Do not assume every setting already has durable backend persistence.
-
-## Security rules
-
-- Never expose `SUPABASE_SERVICE_ROLE_KEY`.
-- Never expose `GEMINI_API_KEY`.
-- Never bypass authentication on protected API routes.
-- Always respect RLS.
-- Treat financial records, AI history, and Gmail connection data as sensitive.
-
-## Documentation synchronization rules
-
-Whenever any of the following changes:
-
-- database schema
-- backend APIs
-- frontend architecture
-- AI provider or response pipeline
-- OCR architecture
-- financial logic
-- authentication flow
-
-update all relevant docs so they stay synchronized:
-
-- `.agents/Agents.md`
-- `.agents/SKILL.md`
-- `README.md`
-
-Documentation is part of the implementation. Do not leave it stale.
+- Run the relevant builds.
+- Test dates near timezone/month boundaries and assert current markers change.
+- Verify email/password, Google callback, Google-only password setup, and TOTP paths separately.
+- Report unavailable browser/provider/production checks honestly and mark incomplete features as partial or needing verification.

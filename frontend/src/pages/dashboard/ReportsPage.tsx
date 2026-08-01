@@ -5,8 +5,8 @@ import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useReports } from "../../hooks/useReports";
 import type { ReportPeriod, ReportsSummary } from "../../hooks/types";
 import { formatCurrency, formatDateShort, formatMonthYear } from "../../utils/formatters";
-
-const palette = ["#e8775d", "#7db59c", "#6fa3d2", "#f2c87c", "#bdb2a5", "#9d90ac", "#0f8a6b"];
+import { buildReportDateTicks, reportDateRatio } from "../../utils/reportChartDates";
+import { getCategoryColor } from "../../utils/categoryColors";
 
 const periodOptions: Array<{ label: string; value: ReportPeriod }> = [
   { label: "This month", value: "this_month" },
@@ -145,14 +145,18 @@ function StatCard({ label, value, note, tone = "default" }: { label: string; val
   );
 }
 
-function LineChart({ title, values, labelFormatter }: { title: string; values: Array<{ date: string; amount: number }>; labelFormatter: (value: string) => string }) {
+function LineChart({ title, values, labelFormatter, dateRange }: { title: string; values: Array<{ date: string; amount: number }>; labelFormatter: (value: string) => string; dateRange?: { start: string; end: string } }) {
   const max = Math.max(1, ...values.map((item) => item.amount));
   const width = 840;
   const height = 120;
   const safeValues = values.length > 1 ? values : [{ date: "", amount: 0 }, { date: "", amount: 0 }];
-  const points = safeValues.map((item, index) => `${(index / (safeValues.length - 1)) * width},${height - (item.amount / max) * height}`).join(" ");
+  const points = safeValues.map((item, index) => {
+    const x = dateRange && item.date ? reportDateRatio(item.date, dateRange.start, dateRange.end) * width : (index / (safeValues.length - 1)) * width;
+    return `${x},${height - (item.amount / max) * height}`;
+  }).join(" ");
   const ticks = [max, max * 0.75, max * 0.5, max * 0.25, 0];
-  const labelIndexes = values.length > 1 ? [0, Math.floor((values.length - 1) / 2), values.length - 1] : [0];
+  const dateTicks = dateRange ? buildReportDateTicks(dateRange.start, dateRange.end) : [];
+  const labelValues = dateRange ? dateTicks : values.length > 1 ? [values[0]?.date, values[Math.floor((values.length - 1) / 2)]?.date, values[values.length - 1]?.date] : [values[0]?.date];
 
   return (
     <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -170,7 +174,7 @@ function LineChart({ title, values, labelFormatter }: { title: string; values: A
               <polyline fill="none" stroke="#0f6f57" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" points={points} />
             </svg>
             <div className="mt-1 flex justify-between text-xs text-slate-500">
-              {labelIndexes.map((index) => <span key={`${values[index]?.date}-${index}`}>{values[index] ? labelFormatter(values[index].date) : ""}</span>)}
+              {labelValues.map((value, index) => <span key={`${value}-${index}`}>{value ? labelFormatter(value) : ""}</span>)}
             </div>
           </div>
         </div>
@@ -272,7 +276,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
   const [period, setPeriod] = useState<ReportPeriod>("this_month");
   const [customRange, setCustomRange] = useState(defaultCustomRange);
   const { data: report, isLoading, error } = useReports({ period, ...customRange });
-  const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: palette[index % palette.length] }));
+  const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: getCategoryColor(category.name, index) }));
   const hasAnyFinancialData = report ? Object.entries(report.data_sources).some(([key, count]) => key !== "ai_insights" && count > 0) : false;
 
   return (
@@ -316,7 +320,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
           </section>
 
           <section className="mt-5">
-            <LineChart title={`Daily spending trend - ${report.range.label}`} values={report.charts.daily_spending} labelFormatter={formatDateShort} />
+            <LineChart title={`Daily spending trend - ${report.range.label}`} values={report.charts.daily_spending} labelFormatter={formatDateShort} dateRange={report.range} />
           </section>
 
           <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">

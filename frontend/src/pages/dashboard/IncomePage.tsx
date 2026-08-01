@@ -6,6 +6,7 @@ import { useActionDialog } from "../../hooks/useActionDialog";
 import { useIncome } from "../../hooks/useIncome";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
 
 type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
 
@@ -20,6 +21,7 @@ function getMonthKey(date: Date) {
 function getMonthLabel(date: Date, options: Intl.DateTimeFormatOptions) {
   return new Intl.DateTimeFormat("en-US", options).format(date);
 }
+
 
 function TrendIcon({ tone }: { tone: IncomeSourceType }) {
   const toneClass = {
@@ -53,15 +55,7 @@ function SourcePill({ type }: { type: IncomeSourceType }) {
 
 function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }) {
   const chartHeight = 160;
-  const monthly = Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(today);
-    date.setMonth(date.getMonth() - (5 - index));
-    const key = getMonthKey(date);
-    const total = entries
-      .filter((entry) => entry.date.startsWith(key))
-      .reduce((sum, entry) => sum + Number(entry.amount), 0);
-    return { month: new Intl.DateTimeFormat("en-US", { month: "short" }).format(date), total };
-  });
+  const monthly = buildIncomeMonthlySeries(entries, today);
   const max = Math.max(60000, ...monthly.map((item) => item.total));
   const yAxisLabels = [60000, 45000, 30000, 15000, 0];
 
@@ -92,11 +86,17 @@ function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }
               const height = Math.round((item.total / max) * chartHeight);
 
               return (
-                <div key={item.month} className="flex h-full flex-col items-center justify-end gap-2">
-                  <div className="flex h-[150px] w-8 items-end overflow-hidden rounded-t-sm border border-[#f0c27d] bg-[#f5cf91]">
-                    <div className="w-full bg-[#3f7d16]" style={{ height: `${height}px` }} />
+                <div key={item.key} className="flex h-full flex-col items-center justify-end gap-2">
+                  <div className="flex h-[150px] w-8 items-end">
+                    <div
+                      className={`w-full rounded-t-sm border ${item.current ? "border-[#2d6413] bg-[#3f7d16]" : "border-[#f0c27d] bg-[#f5cf91]"}`}
+                      style={{ height: `${height}px` }}
+                      title={`${item.month}: ${formatCurrency(item.total)}`}
+                    />
                   </div>
-                  <span className="text-xs text-slate-500">{item.month}</span>
+                  <span className={`text-xs ${item.current ? "font-semibold text-brand-primary" : "text-slate-500"}`}>
+                    {item.month}{item.current ? " · Current" : ""}
+                  </span>
                 </div>
               );
             })}
@@ -117,6 +117,8 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
       color: type === "salary" ? "#3f7d16" : type === "freelance" ? "#6fa3d2" : "#f4c37d",
     };
   });
+  const hasBreakdownData = breakdown.some((item) => item.value > 0);
+  let offset = 0;
 
   return (
     <div className="mt-5 border-t border-slate-200 pt-4">
@@ -124,11 +126,27 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
       <div className="flex items-center justify-between gap-4">
         <svg viewBox="0 0 42 42" className="h-20 w-20 shrink-0 -rotate-90">
           <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#eef0ec" strokeWidth="5" />
-          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#3f7d16" strokeWidth="5" strokeDasharray="77 23" strokeDashoffset="0" />
-          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#6fa3d2" strokeWidth="5" strokeDasharray="19 81" strokeDashoffset="-77" />
-          <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#f4c37d" strokeWidth="5" strokeDasharray="4 96" strokeDashoffset="-96" />
+          {hasBreakdownData ? breakdown.map((item) => {
+            if (item.value <= 0) return null;
+            const circle = (
+              <circle
+                key={item.label}
+                cx="21"
+                cy="21"
+                r="15.9"
+                fill="transparent"
+                stroke={item.color}
+                strokeWidth="5"
+                strokeDasharray={`${item.value} ${100 - item.value}`}
+                strokeDashoffset={-offset}
+              />
+            );
+            offset += item.value;
+            return circle;
+          }) : null}
         </svg>
         <div className="flex-1 space-y-1.5 text-xs">
+          {!hasBreakdownData ? <p className="mb-2 text-slate-500">No income recorded this month yet.</p> : null}
           {breakdown.map((item) => (
             <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-5">
               <span className="inline-flex items-center gap-2 text-slate-600"><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
@@ -147,9 +165,10 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
   const addIncomeDialog = useActionDialog("add-income");
   const { data: entries, isLoading, error, refetch } = useIncome();
   const rows = entries ?? [];
-  const thisMonth = getMonthKey(today);
-  const thisMonthRows = rows.filter((entry) => entry.date.startsWith(thisMonth));
-  const thisMonthTotal = thisMonthRows.reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const monthlySeries = buildIncomeMonthlySeries(rows, today);
+  const thisMonthTotal = monthlySeries.find((item) => item.current)?.total ?? 0;
+  const thisMonthKey = monthlySeries.find((item) => item.current)?.key ?? getMonthKey(today);
+  const thisMonthRows = rows.filter((entry) => entry.date.startsWith(thisMonthKey));
   const ytd = rows.filter((entry) => entry.date.startsWith(String(today.getFullYear()))).reduce((sum, entry) => sum + Number(entry.amount), 0);
   const bySource = Array.from(rows.reduce((map, entry) => {
     const key = `${entry.source}-${entry.type}`;

@@ -1,5 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import alalayLogo from "../../assets/alalay.svg";
+import { getBillDisplayStatus } from "../../components/dashboard/BillsComponents";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useDashboard } from "../../hooks/useDashboard";
 import type { DashboardSummary, Expense } from "../../hooks/types";
@@ -55,9 +56,9 @@ function SmallIcon({ type }: { type: string }) {
 
 function SummaryCards({ summary }: { summary: DashboardSummary }) {
   const items = [
-    { label: "Total bills", value: formatCurrency(summary.total_bills_this_month), note: "This month", icon: "receipt" },
-    { label: "Due this week", value: formatCurrency(summary.bills_due_this_week), note: "Upcoming bills", icon: "clock" },
-    { label: "Monthly expenses", value: formatCurrency(summary.monthly_expenses), note: `${summary.monthly_expenses_delta_percent}% vs last month`, icon: "wallet" },
+    { label: "Total bills", value: formatCurrency(summary.total_bills_this_month), note: summary.total_bills_this_month ? "This month" : "No bills this month", icon: "receipt" },
+    { label: "Due this week", value: formatCurrency(summary.bills_due_this_week), note: summary.bills_due_this_week ? "Upcoming bills" : "No bills due", icon: "clock" },
+    { label: "Monthly expenses", value: formatCurrency(summary.monthly_expenses), note: summary.monthly_expenses ? `${summary.monthly_expenses_delta_percent}% vs last month` : "No expenses this month", icon: "wallet" },
     { label: "Savings progress", value: `${summary.savings_progress_percent}%`, note: `${formatCurrency(summary.savings_current)} of ${formatCurrency(summary.savings_target)}`, icon: "spark" },
   ];
 
@@ -114,7 +115,13 @@ function HealthCard({ score }: { score: number }) {
   );
 }
 
-function AiInsightCard({ message }: { message: string }) {
+function AiInsightCard({ insight }: { insight: DashboardSummary["ai_insight"] }) {
+  const statusLabel = insight.status === "configured"
+    ? "Personalized insight"
+    : insight.status === "error"
+      ? "AI temporarily unavailable"
+      : "AI not configured";
+
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <div className="flex items-start gap-4">
@@ -125,16 +132,18 @@ function AiInsightCard({ message }: { message: string }) {
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="font-semibold text-slate-950">Alalay AI</h2>
             <span className="rounded-full bg-brand-muted px-2 py-0.5 text-xs font-medium text-brand-dark">
-              Bagong insight
+              {statusLabel}
             </span>
           </div>
-          <p className="mt-3 max-w-3xl leading-7 text-slate-800">{message}</p>
+          <p className="mt-3 max-w-3xl leading-7 text-slate-800">{insight.message}</p>
         </div>
       </div>
       <div className="mt-6 grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl bg-brand-muted p-4 text-brand-dark">
           <p className="text-sm font-semibold">AI status</p>
-          <p className="mt-1 text-sm opacity-80">Connect the AI Edge Function to enable personalized insights.</p>
+          <p className="mt-1 text-sm opacity-80">
+            {insight.status === "configured" ? "Generated from your latest Alalay financial data." : "Open Alalay AI to retry or review your financial data."}
+          </p>
         </div>
       </div>
     </article>
@@ -145,21 +154,10 @@ function WeeklyBills({ bills }: { bills: DashboardSummary["weekly_bills"] }) {
   const toneClass = {
     paid: "bg-emerald-50 text-emerald-700",
     upcoming: "bg-amber-50 text-amber-700",
+    due_today: "bg-amber-50 text-amber-700",
     overdue: "bg-red-50 text-red-600",
   };
   const today = new Date().toISOString().slice(0, 10);
-
-  function getBillDisplayStatus(bill: DashboardSummary["weekly_bills"][number]) {
-    if (bill.status === "paid") {
-      return "paid" as const;
-    }
-
-    if (bill.status === "overdue" || bill.due_date < today) {
-      return "overdue" as const;
-    }
-
-    return "upcoming" as const;
-  }
 
   return (
     <section className="mt-7">
@@ -208,11 +206,11 @@ function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary[
         {monthlySpending.map((item) => (
           <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
             <div
-              className="w-full max-w-8 rounded-t-md bg-brand-primary"
+              className={`w-full max-w-8 rounded-t-md ${item.current ? "bg-brand-dark" : "bg-brand-primary/60"}`}
               style={{ height: `${Math.max(20, (item.value / max) * 150)}px` }}
-              title={`${item.month}: ${formatCurrency(item.value)}`}
+              title={`${item.month}${item.current ? " (Current)" : ""}: ${formatCurrency(item.value)}`}
             />
-            <span className="text-xs text-slate-500">{item.month}</span>
+            <span className={`text-xs ${item.current ? "font-semibold text-brand-dark" : "text-slate-500"}`}>{item.month}{item.current ? " · Current" : ""}</span>
           </div>
         ))}
       </div>
@@ -225,7 +223,7 @@ function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
     <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
       <h2 className="font-semibold text-slate-950">Recent activity</h2>
       <div className="mt-5 space-y-4">
-        {recentActivity.map((activity) => (
+        {recentActivity.length ? recentActivity.map((activity) => (
           <div key={`${activity.merchant}-${activity.date}`} className="flex items-center gap-3">
             <span className="grid h-8 w-8 place-items-center rounded-full bg-orange-500 text-xs font-bold text-white">
               {activity.merchant.charAt(0)}
@@ -238,7 +236,7 @@ function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
               {formatCurrency(Number(activity.amount))}
             </p>
           </div>
-        ))}
+        )) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No recent activity yet. Your latest expenses will appear here.</p>}
       </div>
     </article>
   );
@@ -280,7 +278,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[0.9fr_1.6fr]">
           <HealthCard score={summary.health_score} />
-          <AiInsightCard message={summary.ai_insight.message} />
+          <AiInsightCard insight={summary.ai_insight} />
         </section>
 
         <WeeklyBills bills={summary.weekly_bills} />
