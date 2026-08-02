@@ -29,6 +29,10 @@ type FormDialogProps = {
   onSuccess: (result?: unknown) => void | Promise<void>;
 };
 
+type IncomeFormPanelProps = FormDialogProps & {
+  income?: IncomeEntry | null;
+};
+
 type BillFormPanelProps = FormDialogProps & {
   bill?: Bill | null;
 };
@@ -709,17 +713,17 @@ const incomeSchema = z.object({
 
 type IncomeFormValues = z.infer<typeof incomeSchema>;
 
-function defaultIncomeValues(): IncomeFormValues {
+function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
   return {
-    source: "",
-    type: "salary",
-    amount: undefined,
-    date: todayInputValue(),
-    is_recurring: false,
+    source: income?.source ?? "",
+    type: income?.type ?? "salary",
+    amount: income ? Number(income.amount) : undefined,
+    date: income?.date ?? todayInputValue(),
+    is_recurring: income ? Boolean(income.is_recurring) : false,
   };
 }
 
-export function IncomeFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
+export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
   const {
@@ -729,19 +733,19 @@ export function IncomeFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
     formState: { errors },
   } = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
-    defaultValues: defaultIncomeValues(),
+    defaultValues: defaultIncomeValues(income),
   });
 
   useEffect(() => {
     if (open) {
-      reset(defaultIncomeValues());
+      reset(defaultIncomeValues(income));
       resetMutation();
     }
-  }, [open, reset, resetMutation]);
+  }, [income, open, reset, resetMutation]);
 
   async function onSubmit(values: IncomeFormValues) {
-    await mutate<IncomeEntry>("/income", {
-      method: "POST",
+    await mutate<IncomeEntry>(income ? `/income/${income.id}` : "/income", {
+      method: income ? "PATCH" : "POST",
       body: JSON.stringify(values),
     });
     onSuccess();
@@ -752,10 +756,10 @@ export function IncomeFormPanel({ open, onClose, onSuccess }: FormDialogProps) {
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Add income"
+      title={income ? "Edit income" : "Add income"}
       description="Collect the income details here and send them straight to the backend income endpoint."
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Save income" />
+        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={income ? "Update income" : "Save income"} />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>

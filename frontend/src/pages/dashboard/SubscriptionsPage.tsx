@@ -187,7 +187,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
             <div className="mt-5 flex items-center justify-between gap-3 text-sm text-slate-500">
               <div>
                 <p className="font-medium text-slate-700">Renewal reminder</p>
-                <p className="mt-0.5 text-xs text-slate-500">{card.auto_renew ? "On locally" : "Off locally"}</p>
+                <p className="mt-0.5 text-xs text-slate-500">{card.auto_renew ? "Email + in-app" : "Off"}</p>
               </div>
               <RenewalReminderSwitch
                 checked={card.auto_renew}

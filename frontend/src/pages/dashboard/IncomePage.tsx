@@ -7,6 +7,9 @@ import { useIncome } from "../../hooks/useIncome";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
+import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
+import { useApiMutation } from "../../hooks/useApiMutation";
+import { Pen, Trash2 } from "lucide-react";
 
 type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
 
@@ -54,7 +57,7 @@ function SourcePill({ type }: { type: IncomeSourceType }) {
 }
 
 function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }) {
-  const chartHeight = 160;
+  const chartHeight = 150;
   const monthly = buildIncomeMonthlySeries(entries, today);
   const max = Math.max(60000, ...monthly.map((item) => item.total));
   const yAxisLabels = [60000, 45000, 30000, 15000, 0];
@@ -81,20 +84,20 @@ function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }
           {[0, 1, 2, 3, 4].map((line) => (
             <div key={line} className="absolute left-0 right-0 border-t border-dashed border-slate-200" style={{ top: `${line * 25}%` }} />
           ))}
-          <div className="relative z-10 grid h-full grid-cols-6 items-end gap-9 px-8 pb-6">
+          <div className="relative z-10 grid h-full min-w-0 grid-cols-6 items-end gap-2 px-2 pb-6 sm:gap-4 sm:px-4">
             {monthly.map((item) => {
               const height = Math.round((item.total / max) * chartHeight);
 
               return (
-                <div key={item.key} className="flex h-full flex-col items-center justify-end gap-2">
-                  <div className="flex h-[150px] w-8 items-end">
+                <div key={item.key} className="flex min-w-0 h-full flex-col items-center justify-end gap-2">
+                  <div className="flex h-[150px] w-8 shrink-0 items-end">
                     <div
                       className={`w-full rounded-t-sm border ${item.current ? "border-[#2d6413] bg-[#3f7d16]" : "border-[#f0c27d] bg-[#f5cf91]"}`}
                       style={{ height: `${height}px` }}
                       title={`${item.month}: ${formatCurrency(item.total)}`}
                     />
                   </div>
-                  <span className={`text-xs ${item.current ? "font-semibold text-brand-primary" : "text-slate-500"}`}>
+                  <span className={`whitespace-nowrap text-center text-xs ${item.current ? "font-semibold text-brand-primary" : "text-slate-500"}`}>
                     {item.month}{item.current ? " · Current" : ""}
                   </span>
                 </div>
@@ -163,7 +166,11 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
   const [today, setToday] = useState(() => new Date());
   const name = getDisplayName(session);
   const addIncomeDialog = useActionDialog("add-income");
+  const editIncomeDialog = useActionDialog("edit-income");
+  const [selectedIncome, setSelectedIncome] = useState<IncomeEntry | null>(null);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { data: entries, isLoading, error, refetch } = useIncome();
+  const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const rows = entries ?? [];
   const monthlySeries = buildIncomeMonthlySeries(rows, today);
   const thisMonthTotal = monthlySeries.find((item) => item.current)?.total ?? 0;
@@ -182,6 +189,39 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     const interval = window.setInterval(() => setToday(new Date()), 60_000);
     return () => window.clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpenMenuId(null);
+    }
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as HTMLElement | null;
+      if (target && !target.closest("[data-actions-menu]")) setOpenMenuId(null);
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("click", handleClickOutside);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("click", handleClickOutside);
+    };
+  }, []);
+
+  function openEditIncome(income: IncomeEntry) {
+    setSelectedIncome(income);
+    setOpenMenuId(null);
+    editIncomeDialog.open();
+  }
+
+  async function deleteIncome(income: IncomeEntry) {
+    if (!window.confirm(`Delete ${income.source}? This removes this recorded income from your totals.`)) return;
+    try {
+      await mutate(`/income/${income.id}`, { method: "DELETE" });
+      setOpenMenuId(null);
+      refetch();
+    } catch {
+      // The mutation error is shown beside the page data.
+    }
+  }
 
   const monthLabel = getMonthLabel(today, { month: "long", year: "numeric" });
 
@@ -204,6 +244,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     >
       {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading income...</div> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
+      {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
       {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records yet. Add an income source to start tracking earnings.</div> : null}
       {!isLoading && !error && rows.length > 0 ? (
         <>
@@ -261,6 +302,15 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
                   <p className="font-mono text-sm font-bold text-[#3f7d16]">+{formatCurrency(income.amount)}</p>
                   <p className="text-xs text-slate-400">{formatDateShort(income.date)}</p>
                 </div>
+                <MoreActionsMenu
+                  isOpen={openMenuId === income.id}
+                  onToggle={() => setOpenMenuId((current) => current === income.id ? null : income.id)}
+                  ariaLabel={`More actions for ${income.source} income`}
+                  estimatedMenuHeight={96}
+                >
+                  <MenuAction icon={Pen} label="Edit income" tone="info" onClick={() => openEditIncome(income)} />
+                  <MenuAction icon={Trash2} label="Delete income" tone="danger" disabled={isSubmitting} onClick={() => void deleteIncome(income)} />
+                </MoreActionsMenu>
               </div>
             ))}
           </div>
@@ -272,6 +322,15 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
         open={addIncomeDialog.isOpen}
         onClose={addIncomeDialog.close}
         onSuccess={refetch}
+      />
+      <IncomeFormPanel
+        open={editIncomeDialog.isOpen}
+        onClose={() => {
+          editIncomeDialog.close();
+          setSelectedIncome(null);
+        }}
+        onSuccess={refetch}
+        income={selectedIncome}
       />
     </DashboardShell>
   );

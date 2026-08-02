@@ -107,8 +107,49 @@ function PreferencesTab({ notify }: { notify: (message: string, error?: boolean)
 function Select({ label, value, options, onChange }: { label: string; value: string; options: readonly (readonly [string, string])[]; onChange: (value: string) => void }) { return <label className="block"><span className="text-xs font-semibold text-slate-950">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20">{options.map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>; }
 function SettingChoice({ label, value, options, onChange }: { label: string; value: string; options: readonly (readonly [string, string])[]; onChange: (value: string) => void }) { return <fieldset><legend className="text-xs font-semibold text-slate-950">{label}</legend><div className="mt-2 flex flex-wrap gap-2">{options.map(([option, text]) => <label key={option} className={`cursor-pointer rounded-xl border px-3 py-2 text-sm ${value === option ? "border-brand-primary bg-brand-muted font-semibold text-brand-primary" : "border-slate-200 text-slate-600"}`}><input type="radio" className="sr-only" checked={value === option} onChange={() => onChange(option)} />{text}</label>)}</div></fieldset>; }
 
-const notificationItems: Array<[keyof AppSettings["notifications"], string, string]> = [["billReminders", "Bill due reminders", "Get reminded before an upcoming bill is due."], ["overspendingAlerts", "Low balance / overspending alerts", "Be notified when spending needs attention."], ["budgetThresholds", "Budget threshold reached", "Alert at 80% and 100% of a category budget."], ["subscriptionReminders", "Subscription renewal reminders", "Know when a recurring subscription is about to renew."], ["summaries", "Weekly/monthly summary ready", "Receive an in-app summary of your activity."], ["savingsMilestones", "Savings goal milestones", "Celebrate progress toward savings goals."], ["loginAlerts", "New device login alerts", "Notify when your account is used on a new device."]];
-function NotificationsTab({ notify }: { notify: (message: string, error?: boolean) => void }) { const [settings, setSettings] = useState(() => readAppSettings()); const [saved, setSaved] = useState(settings); const [saving, setSaving] = useState(false); const dirty = JSON.stringify(settings) !== JSON.stringify(saved); async function submit(event: React.FormEvent) { event.preventDefault(); setSaving(true); await new Promise((resolve) => window.setTimeout(resolve, 250)); writeAppSettings(settings); setSaved(settings); setSaving(false); notify("Notification settings saved"); } return <Card title="Notifications" description="Choose which in-app reminders and alerts you want to receive."><form onSubmit={submit} className="space-y-2">{notificationItems.map(([key, label, description]) => <div key={key} className="flex items-center gap-4 border-b border-slate-100 py-3 last:border-0"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-950">{label}</p><p className="mt-0.5 text-xs text-slate-500">{description}</p>{key === "billReminders" && settings.notifications.billReminders ? <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">Remind me <input type="number" min="0" max="30" value={settings.notifications.billReminderDays} onChange={(event) => setSettings({ ...settings, notifications: { ...settings.notifications, billReminderDays: Number(event.target.value) } })} className="h-8 w-16 rounded-lg border border-slate-200 px-2" /> days before</label> : null}</div><button type="button" role="switch" aria-checked={settings.notifications[key]} onClick={() => setSettings({ ...settings, notifications: { ...settings.notifications, [key]: !settings.notifications[key] } })} className={`relative h-6 w-11 shrink-0 rounded-full transition ${settings.notifications[key] ? "bg-brand-primary" : "bg-slate-300"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${settings.notifications[key] ? "left-6" : "left-1"}`} /></button></div>)}<div className="pt-4"><SaveButton disabled={!dirty} saving={saving}>Save notifications</SaveButton></div></form></Card>; }
+const notificationItems: Array<[keyof AppSettings["notifications"], string, string]> = [["billReminders", "Bill due reminders", "Email reminders before an upcoming bill is due."], ["overspendingAlerts", "Low balance / overspending alerts", "Be notified when spending needs attention."], ["budgetThresholds", "Budget threshold reached", "Alert at 80% and 100% of a category budget."], ["subscriptionReminders", "Subscription renewal reminders", "Email + in-app reminders when a recurring subscription is about to renew."], ["summaries", "Weekly/monthly summary ready", "Receive a monthly email summary of your activity."], ["savingsMilestones", "Savings goal milestones", "Celebrate progress toward savings goals."], ["loginAlerts", "New device login alerts", "Notify when your account is used on a new device."]];
+
+type ApiNotificationPreferences = { user_id: string; bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean; budget_thresholds: boolean; savings_milestones: boolean; login_alerts: boolean };
+function toLocalNotifications(value: ApiNotificationPreferences): AppSettings["notifications"] { return { billReminders: value.bill_reminders, billReminderDays: value.bill_reminder_days, subscriptionReminders: value.subscription_reminders, summaries: value.summaries, overspendingAlerts: value.overspending_alerts, budgetThresholds: value.budget_thresholds, savingsMilestones: value.savings_milestones, loginAlerts: value.login_alerts }; }
+function toApiNotifications(value: AppSettings["notifications"]) { return { bill_reminders: value.billReminders, bill_reminder_days: value.billReminderDays, subscription_reminders: value.subscriptionReminders, summaries: value.summaries, overspending_alerts: value.overspendingAlerts, budget_thresholds: value.budgetThresholds, savings_milestones: value.savingsMilestones, login_alerts: value.loginAlerts }; }
+function NotificationsTab({ notify }: { notify: (message: string, error?: boolean) => void }) {
+  const initial = readAppSettings();
+  const [settings, setSettings] = useState(initial);
+  const [saved, setSaved] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const dirty = JSON.stringify(settings.notifications) !== JSON.stringify(saved.notifications);
+
+  useEffect(() => {
+    let active = true;
+    const legacy = window.localStorage.getItem("alalay-app-settings");
+    apiRequest<ApiNotificationPreferences>("/users/me/notification-preferences")
+      .then(async (remote) => {
+        let next = toLocalNotifications(remote);
+        if (legacy) {
+          const legacySettings = readAppSettings();
+          await apiRequest("/users/me/notification-preferences", { method: "PATCH", body: JSON.stringify(toApiNotifications(legacySettings.notifications)) });
+          next = legacySettings.notifications;
+          window.localStorage.removeItem("alalay-app-settings");
+        }
+        if (active) { setSettings((current) => ({ ...current, notifications: next })); setSaved((current) => ({ ...current, notifications: next })); }
+      })
+      .catch(() => { if (active) notify("Unable to load notification preferences; using saved local settings.", true); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [notify]);
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault(); setSaving(true);
+    try {
+      await apiRequest("/users/me/notification-preferences", { method: "PATCH", body: JSON.stringify(toApiNotifications(settings.notifications)) });
+      window.localStorage.removeItem("alalay-app-settings"); setSaved(settings); notify("Notification settings saved");
+    } catch (error) { notify(error instanceof Error ? error.message : "Unable to save notification settings.", true); }
+    finally { setSaving(false); }
+  }
+
+  return <Card title="Notifications" description="Choose which email and in-app reminders you want to receive."><form onSubmit={submit} className="space-y-2">{loading ? <p className="py-3 text-sm text-slate-500">Loading notification preferences...</p> : null}{notificationItems.map(([key, label, description]) => <div key={key} className="flex items-center gap-4 border-b border-slate-100 py-3 last:border-0"><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-950">{label}</p><p className="mt-0.5 text-xs text-slate-500">{description}</p>{key === "billReminders" && settings.notifications.billReminders ? <label className="mt-2 flex items-center gap-2 text-xs text-slate-600">Remind me <input type="number" min="0" max="30" value={settings.notifications.billReminderDays} onChange={(event) => setSettings({ ...settings, notifications: { ...settings.notifications, billReminderDays: Number(event.target.value) } })} className="h-8 w-16 rounded-lg border border-slate-200 px-2" /> days before</label> : null}</div><button type="button" role="switch" aria-checked={settings.notifications[key]} onClick={() => setSettings({ ...settings, notifications: { ...settings.notifications, [key]: !settings.notifications[key] } })} className={`relative h-6 w-11 shrink-0 rounded-full transition ${settings.notifications[key] ? "bg-brand-primary" : "bg-slate-300"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${settings.notifications[key] ? "left-6" : "left-1"}`} /></button></div>)}<div className="pt-4"><SaveButton disabled={!dirty || loading} saving={saving}>Save notifications</SaveButton></div></form></Card>;
+}
 
 function SecurityTab({ notify }: { notify: (message: string, error?: boolean) => void }) {
   const supabase = getSupabaseClient();

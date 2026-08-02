@@ -12,3 +12,14 @@ export const updateProfileSchema = z.object({
   pay_schedule: z.enum(["monthly", "semi-monthly", "weekly"]).optional(),
   onboarding_done: z.boolean().optional(),
 });
+
+export const notificationPreferencesSchema = z.object({
+  bill_reminders: z.boolean(),
+  bill_reminder_days: z.coerce.number().int().min(0).max(30),
+  subscription_reminders: z.boolean(),
+  summaries: z.boolean(),
+  overspending_alerts: z.boolean(),
+  budget_thresholds: z.boolean(),
+  savings_milestones: z.boolean(),
+  login_alerts: z.boolean(),
+});
