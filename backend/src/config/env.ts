@@ -2,7 +2,7 @@ import "dotenv/config";
 import { z } from "zod";
 
 const envSchema = z.object({
-  PORT: z.coerce.number().int().positive().default(4000),
+  PORT: z.coerce.number().int().positive().default(3000),
   HTTPS_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   HTTPS_CERT_PATH: z.string().optional(),
   HTTPS_KEY_PATH: z.string().optional(),

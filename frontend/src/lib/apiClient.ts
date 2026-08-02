@@ -15,10 +15,16 @@ type ApiFailure = {
 };
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
+
+function normalizeApiBaseUrl(value: string) {
+  const baseUrl = value.replace(/\/+$/, "");
+  return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
+}
+
 const candidateApiBaseUrls = Array.from(
   new Set(
     [
-      configuredApiUrl,
+      configuredApiUrl ? normalizeApiBaseUrl(configuredApiUrl) : undefined,
       "http://localhost:4000/api",
       "http://localhost:3000/api",
     ].filter((value): value is string => Boolean(value)),
