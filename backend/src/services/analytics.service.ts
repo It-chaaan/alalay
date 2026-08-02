@@ -1030,10 +1030,11 @@ export async function getDashboardSummary(userId: string) {
   chartStartDate.setUTCMonth(chartStartDate.getUTCMonth() - 7, 1);
   const chartStart = monthRange(chartStartDate).start;
   const dueWeekEnd = addDaysIso(7);
-  const [bills, expenses, previousExpenses, chartExpenses, dueWeekBills, goals, subscriptions] = await Promise.all([
+  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions] = await Promise.all([
     rowsFor("bills", userId, "due_date", current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("expenses", userId, "date", previous.start, previous.end),
+    rowsFor("bills", userId, "due_date", previous.start, previous.end),
     rowsFor("expenses", userId, "date", chartStart, current.end),
     rowsFor("bills", userId, "due_date", current.start, dueWeekEnd),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
@@ -1045,8 +1046,12 @@ export async function getDashboardSummary(userId: string) {
   if ("error" in goals) throwIfError(goals.error);
   if ("error" in subscriptions) throwIfError(subscriptions.error);
 
-  const monthlyExpenses = expenses.reduce((sum, item) => sum + asNumber(item.amount), 0);
-  const previousTotal = previousExpenses.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const paidBills = bills.filter((bill) => bill.status === "paid");
+  const previousPaidBills = previousBills.filter((bill) => bill.status === "paid");
+  const monthlyExpenses = expenses.reduce((sum, item) => sum + asNumber(item.amount), 0)
+    + paidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const previousTotal = previousExpenses.reduce((sum, item) => sum + asNumber(item.amount), 0)
+    + previousPaidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
   const savingsTarget = goalsData.reduce((sum, item) => sum + asNumber(item.target_amount), 0);
   const savingsCurrent = goalsData.reduce((sum, item) => sum + asNumber(item.current_amount), 0);
   const onTimeBills = bills.filter((bill) => bill.status === "paid" || bill.due_date >= todayIso()).length;

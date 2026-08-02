@@ -19,6 +19,13 @@ export function formatCurrency(amount: number, showCentavos = false, currency = 
   }).format(amount);
 }
 
+/** Formats a signed amount without the alarming "-₱" presentation. */
+export function formatSignedCurrency(amount: number, negativeSuffix = "short", showCentavos = false, currency = readAppSettings().currency) {
+  if (amount >= 0) return formatCurrency(amount, showCentavos, currency);
+
+  return `${formatCurrency(Math.abs(amount), showCentavos, currency)} ${negativeSuffix}`;
+}
+
 export function formatDateShort(value: string) {
   return formatDate(value, readAppSettings().dateFormat);
 }

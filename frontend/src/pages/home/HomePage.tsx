@@ -1,5 +1,6 @@
 import alalayLogo from "../../assets/alalay.svg";
 import { Container } from "../../components/layout/Container";
+import { MarketingFooter } from "../../components/layout/MarketingFooter";
 import { Navbar } from "../../components/navigation/Navbar";
 import { mobileDownloadCopy, qrPreviewCells } from "../../constants/mobileDownload";
 import { ReceiptText, Bot, PiggyBank, ChartNoAxesCombined, CreditCard, Scan  } from "lucide-react";
@@ -358,9 +359,9 @@ export function HomePage() {
 
       <MobileAppSoonSection />
 
-      <footer className="bg-[#f8f7f2] pb-8 pt-16">
-        <Container>
-          <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+      <MarketingFooter />
+      {/* Footer links are kept in the shared marketing footer. */}
+      {false && <footer><Container><div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
             <div className="max-w-sm">
               <div className="flex items-center gap-3 font-semibold text-slate-950">
                 <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">
@@ -369,8 +370,7 @@ export function HomePage() {
                 <span>Alalay</span>
               </div>
               <p className="mt-4 text-sm leading-6 text-slate-600">
-                Your AI-powered financial companion for bills, savings, and
-                spending clarity in the Philippines.
+                Take control of your bills, savings, and spending in the Philippines, with an AI assistant whenever you need guidance.
               </p>
             </div>
 
@@ -450,12 +450,11 @@ export function HomePage() {
 
           <div className="mt-14 border-t border-black/5 pt-6">
             <div className="flex flex-col gap-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-              <p>© 2025 Alalay. Made with care in the Philippines.</p>
-              <p>PH</p>
+              <p>© 2026 Alalay.</p>
+              <p>It_chaaan</p>
             </div>
           </div>
-        </Container>
-      </footer>
+      </Container></footer>}
     </main>
   );
 }

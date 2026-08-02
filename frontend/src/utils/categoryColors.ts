@@ -1,6 +1,8 @@
 const categoryColorMap: Record<string, string> = {
   food: "#e8775d",
+  repair: "#d65f4a",
   transport: "#6fa3d2",
+  transportation: "#6fa3d2",
   utilities: "#7db59c",
   rent: "#f2c87c",
   subscriptions: "#9d90ac",

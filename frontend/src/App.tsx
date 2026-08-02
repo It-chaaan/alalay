@@ -16,6 +16,8 @@ import { SavingsGoalsPage } from "./pages/dashboard/SavingsGoalsPage";
 import { SettingsPage } from "./pages/dashboard/SettingsPage";
 import { SubscriptionsPage } from "./pages/dashboard/SubscriptionsPage";
 import { HomePage } from "./pages/home/HomePage";
+import { ContactPage } from "./pages/public/ContactPage";
+import { PrivacyPage } from "./pages/public/PrivacyPage";
 
 function AppLoading() {
   return (
@@ -118,6 +120,9 @@ function AppContent() {
       data.subscription.unsubscribe();
     };
   }, [supabase]);
+
+  if (pathname === "/privacy") return <PrivacyPage />;
+  if (pathname === "/contact") return <ContactPage />;
 
   async function handleSignOut() {
     if (supabase) {

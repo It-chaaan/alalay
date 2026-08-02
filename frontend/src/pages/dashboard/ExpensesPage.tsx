@@ -5,11 +5,14 @@ import { ExpenseFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useApiMutation } from "../../hooks/useApiMutation";
+import { useBills } from "../../hooks/useBills";
 import { useExpenses } from "../../hooks/useExpenses";
-import type { Expense } from "../../hooks/types";
+import type { Bill, Expense } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { getCategoryColor } from "../../utils/categoryColors";
 import { Pen, Scan, Trash2 } from "lucide-react";
+
+type ExpenseListItem = Expense & { source: "expense" | "bill" };
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
@@ -17,9 +20,30 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
   const editExpenseDialog = useActionDialog("edit-expense");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { data: expenses, isLoading, error, refetch } = useExpenses();
+  const { data: expenses, isLoading: expensesLoading, error: expensesError, refetch } = useExpenses();
+  const { data: bills, isLoading: billsLoading, error: billsError } = useBills();
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
-  const items = expenses ?? [];
+  const items: ExpenseListItem[] = [
+    ...(expenses ?? []).map((expense) => ({ ...expense, source: "expense" as const })),
+    ...(bills ?? [])
+      .filter((bill: Bill) => bill.status === "paid")
+      .map((bill) => ({
+        id: bill.id,
+        amount: bill.amount,
+        category: bill.category,
+        merchant: bill.title,
+        date: bill.paid_at?.slice(0, 10) ?? bill.due_date,
+        payment_method: "bill",
+        receipt_url: null,
+        ocr_raw: null,
+        is_split: false,
+        split_with: [],
+        created_at: bill.created_at,
+        source: "bill" as const,
+      })),
+  ];
+  const isLoading = expensesLoading || billsLoading;
+  const error = expensesError ?? billsError;
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
   const categoryBreakdown = categories.map((category, index) => {
@@ -144,28 +168,30 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
-                  <MoreActionsMenu
-                    isOpen={openMenuId === item.id}
-                    onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
-                    ariaLabel={`More actions for ${item.merchant} expense`}
-                    estimatedMenuHeight={96}
-                  >
-                    <MenuAction
-                      icon={Pen}
-                      label="Edit expense"
-                      tone="info"
-                      onClick={() => openEditExpense(item)}
-                    />
-                    <MenuAction
-                      icon={Trash2}
-                      label="Delete expense"
-                      tone="danger"
-                      disabled={isSubmitting}
-                      onClick={() => {
-                        void deleteExpense(item);
-                      }}
-                    />
-                  </MoreActionsMenu>
+                  {item.source === "expense" ? (
+                    <MoreActionsMenu
+                      isOpen={openMenuId === item.id}
+                      onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
+                      ariaLabel={`More actions for ${item.merchant} expense`}
+                      estimatedMenuHeight={96}
+                    >
+                      <MenuAction
+                        icon={Pen}
+                        label="Edit expense"
+                        tone="info"
+                        onClick={() => openEditExpense(item)}
+                      />
+                      <MenuAction
+                        icon={Trash2}
+                        label="Delete expense"
+                        tone="danger"
+                        disabled={isSubmitting}
+                        onClick={() => {
+                          void deleteExpense(item);
+                        }}
+                      />
+                    </MoreActionsMenu>
+                  ) : <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Paid bill</span>}
                 </div>
               </div>
             </div>

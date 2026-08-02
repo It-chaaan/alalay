@@ -29,36 +29,12 @@ type TOTPFactor = {
   id: string;
 };
 
-const loginSchema = z.object({
-  email: z.string().min(1, "Email address is required").email("Enter a valid email address"),
-  password: z.string().min(1, "Password is required"),
+const authSchema = z.object({
+  name: z.string(),
+  email: z.string(),
+  password: z.string(),
+  confirmPassword: z.string(),
 });
-
-const registerSchema = z
-  .object({
-    name: z.string().min(2, "Name is required"),
-    email: z.string().min(1, "Email address is required").email("Enter a valid email address"),
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string().min(1, "Confirm your password"),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
-
-const forgotPasswordSchema = z.object({
-  email: z.string().min(1, "Email address is required").email("Enter a valid email address"),
-});
-
-const resetPasswordSchema = z
-  .object({
-    password: z.string().min(8, "Password must be at least 8 characters"),
-    confirmPassword: z.string().min(1, "Confirm your new password"),
-  })
-  .refine((values) => values.password === values.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
 
 function GoogleIcon() {
   return (
@@ -145,14 +121,28 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
   const showingMfaStep = isLogin && loginStep === "mfa";
 
-  const resolverSchema =
-    mode === "register"
-      ? registerSchema
-      : mode === "forgot"
-        ? forgotPasswordSchema
-        : mode === "reset"
-          ? resetPasswordSchema
-          : loginSchema;
+  const resolverSchema = authSchema.superRefine((values, context) => {
+    const addError = (path: [keyof AuthValues], message: string) => {
+      context.addIssue({ code: "custom", path, message });
+    };
+
+    if (isRegister && values.name.trim().length < 2) addError(["name"], "Name is required");
+
+    if (!isResetPassword) {
+      if (!values.email.trim()) addError(["email"], "Email address is required");
+      else if (!z.string().email().safeParse(values.email).success) addError(["email"], "Enter a valid email address");
+    }
+
+    if (!isForgotPassword) {
+      if (!values.password) addError(["password"], "Password is required");
+      else if ((isRegister || isResetPassword) && values.password.length < 8) addError(["password"], "Password must be at least 8 characters");
+    }
+
+    if (isRegister || isResetPassword) {
+      if (!values.confirmPassword) addError(["confirmPassword"], isResetPassword ? "Confirm your new password" : "Confirm your password");
+      else if (values.password !== values.confirmPassword) addError(["confirmPassword"], "Passwords do not match");
+    }
+  });
 
   const {
     register,

@@ -1,12 +1,13 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
+import { Info } from "lucide-react";
 import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
 import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
-import { formatCurrency } from "../../utils/formatters";
+import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -115,10 +116,33 @@ function MonthPicker({ label, onPrevious, onNext }: { label: string; onPrevious:
   );
 }
 
-function FlowCard({ label, value, note, tone = "default" }: { label: string; value: string; note?: string; tone?: "default" | "income" | "savings" | "warning" }) {
+function FlowCard({ label, value, note, detail, tone = "default" }: { label: string; value: string; note?: string; detail?: string; tone?: "default" | "income" | "savings" | "warning" }) {
+  const [showDetails, setShowDetails] = useState(false);
+
   return (
-    <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-      <p className="text-xs text-slate-500">{label}</p>
+    <article className="h-full rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-center gap-1.5">
+        <p className="text-xs text-slate-500">{label}</p>
+        {detail ? (
+          <span className="group relative inline-flex">
+            <button
+              type="button"
+              onClick={() => setShowDetails((visible) => !visible)}
+              aria-label={`More information about ${label}`}
+              aria-expanded={showDetails}
+              className="rounded-full text-slate-400 transition hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-muted"
+            >
+              <Info className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+            <span
+              role="tooltip"
+              className={`${showDetails ? "block" : "hidden group-hover:block"} absolute left-0 top-6 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-lg`}
+            >
+              {detail}
+            </span>
+          </span>
+        ) : null}
+      </div>
       <p className={`mt-3 font-mono text-xl font-bold ${tone === "income" ? "text-[#3f7d16]" : tone === "savings" ? "text-brand-primary" : tone === "warning" ? "text-[#c57a12]" : "text-slate-950"}`}>{value}</p>
       {note ? <p className="mt-1 text-xs text-slate-500">{note}</p> : null}
     </article>
@@ -171,6 +195,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       : Math.max(0, savingsBudget - goalAllocationTotal);
   const remainingSavingsLabel = budgetSummary?.remaining_savings_label ?? "Automatically move remaining savings into General Savings";
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
+  const categoryBudget = spendingCategories.reduce((sum, category) => sum + Number(category.budget), 0);
   const monthlyIncome = Number(budgetSummary?.monthly_income ?? 0);
   const budgetAmount = Number(budgetSummary?.budget_amount ?? budgetSummary?.total_budget ?? 0);
   const spentAmount = Number(budgetSummary?.spent_amount ?? budgetSummary?.total_spent ?? 0);
@@ -236,9 +261,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
               {unallocatedIncome >= 0
                 ? `${formatCurrency(unallocatedIncome)} of this month's income has not been assigned to the budget yet.`
                 : `Your budget is ${formatCurrency(Math.abs(unallocatedIncome))} above recorded income for this month.`}
-            </p>
-            <p className="mt-2 text-xs leading-5 text-slate-600 dark:text-slate-300">
-              Bills and subscriptions due this month are counted in category spending, so paid obligations will reflect in your budget.
+            {" "}Bills and subscriptions due this month are counted in category spending.
             </p>
           </div>
         </div>
@@ -246,11 +269,22 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
 
       <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <FlowCard label="Monthly Income" value={formatCurrency(monthlyIncome)} note="Income received this month" tone="income" />
-        <FlowCard label="Budgeted Amount" value={formatCurrency(budgetAmount)} note={`${budgetHealth.budgeted_percent}% of income`} />
+        <FlowCard
+          label="Budgeted Amount"
+          value={formatCurrency(budgetAmount)}
+          note="Includes category budgets + savings budget"
+          detail={`${budgetHealth.budgeted_percent}% of income. ${formatCurrency(categoryBudget)} category budgets + ${formatCurrency(savingsBudget)} savings budget = ${formatCurrency(budgetAmount)} total.`}
+        />
         <FlowCard label="Saved This Month" value={formatCurrency(savedAmount)} note="Monthly savings budget" tone="savings" />
         <FlowCard label="Spent" value={formatCurrency(spentAmount)} note={`${budgetSummary.used_percent}% of budget`} />
-        <FlowCard label="Remaining Budget" value={formatCurrency(remainingBudget)} note="Budgeted amount minus spending" tone={remainingBudget < 0 ? "warning" : "savings"} />
-        <FlowCard label="Unallocated Income" value={formatCurrency(unallocatedIncome)} note="Income not assigned to budget" tone={unallocatedIncome < 0 ? "warning" : "default"} />
+        <FlowCard label="Remaining Budget" value={formatSignedCurrency(remainingBudget, "over")} note="Budgeted amount minus spending" tone={remainingBudget < 0 ? "warning" : "savings"} />
+        <FlowCard
+          label="Unallocated Income"
+          value={formatSignedCurrency(unallocatedIncome, "over")}
+          note="Income not assigned to budget"
+          detail={`Monthly income (${formatCurrency(monthlyIncome)}) minus total planned budget (${formatCurrency(budgetAmount)}) = ${formatSignedCurrency(unallocatedIncome, "over")} unallocated.`}
+          tone={unallocatedIncome < 0 ? "warning" : "default"}
+        />
       </section>
 
       <section className="mt-5 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">

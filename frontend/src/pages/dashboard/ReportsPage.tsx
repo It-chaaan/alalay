@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useReports } from "../../hooks/useReports";
 import type { ReportPeriod, ReportsSummary } from "../../hooks/types";
-import { formatCurrency, formatDateShort, formatMonthYear } from "../../utils/formatters";
+import { formatCurrency, formatDateShort, formatMonthYear, formatSignedCurrency } from "../../utils/formatters";
 import { buildReportDateTicks, reportDateRatio } from "../../utils/reportChartDates";
 import { getCategoryColor } from "../../utils/categoryColors";
 
@@ -308,8 +308,8 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Total income" value={formatCurrency(report.total_income)} note={`${report.data_sources.income} income record${report.data_sources.income === 1 ? "" : "s"}`} tone="income" />
             <StatCard label="Total expenses" value={formatCurrency(report.total_expenses)} note="Manual expenses, paid bills, and subscriptions" />
-            <StatCard label="Net savings" value={formatCurrency(report.net_savings)} note={`${report.savings_rate}% savings rate`} tone="savings" />
-            <StatCard label="Budget utilization" value={`${report.budget_utilization}%`} note={`${formatCurrency(report.remaining_budget)} remaining`} tone={report.remaining_budget < 0 ? "warning" : "default"} />
+            <StatCard label="Net savings" value={formatSignedCurrency(report.net_savings, "short")} note={`${report.savings_rate}% savings rate`} tone={report.net_savings < 0 ? "warning" : "savings"} />
+            <StatCard label="Budget utilization" value={`${report.budget_utilization}%`} note={`${formatSignedCurrency(report.remaining_budget, "over")} remaining`} tone={report.remaining_budget < 0 ? "warning" : "default"} />
           </section>
 
           <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -344,7 +344,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <StatCard label="Budget" value={formatCurrency(report.budget.total_budget)} />
                 <StatCard label="Spent" value={formatCurrency(report.budget.spent)} />
-                <StatCard label="Remaining" value={formatCurrency(report.budget.remaining)} tone={report.budget.remaining < 0 ? "warning" : "savings"} />
+                <StatCard label="Remaining" value={formatSignedCurrency(report.budget.remaining, "over")} tone={report.budget.remaining < 0 ? "warning" : "savings"} />
                 <StatCard label="Monthly savings budget" value={formatCurrency(report.budget.monthly_savings_budget)} note={`${report.budget.savings_allocation_usage}% allocated to goals`} />
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -371,7 +371,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                     <div key={item.month}>
                       <div className="mb-2 flex items-center justify-between text-xs">
                         <span className="font-semibold text-slate-700">{formatMonthYear(`${item.month}-01`)}</span>
-                        <span className="font-mono text-slate-500">{formatCurrency(item.income - item.expenses)}</span>
+                        <span className={`font-mono ${item.income - item.expenses < 0 ? "text-[#c57a12]" : "text-slate-500"}`}>{formatSignedCurrency(item.income - item.expenses, "short")}</span>
                       </div>
                       <div className="grid gap-1">
                         <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#3f7d16]" style={{ width: `${(item.income / max) * 100}%` }} /></div>
