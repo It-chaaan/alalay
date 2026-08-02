@@ -48,7 +48,7 @@ const defaultCategories: AppCategory[] = [
 ].map(([name, icon, color, kind], order) => ({ id: `${kind}-${name.toLowerCase()}`, name, icon, color, kind: kind as CategoryKind, order }));
 
 export const defaultSettings: AppSettings = {
-  theme: "system",
+  theme: "light",
   currency: "PHP",
   dateFormat: "short",
   notifications: {
