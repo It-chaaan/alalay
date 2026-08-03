@@ -167,14 +167,6 @@ function getSavingsPreferenceLabel(value: SavingsPreferenceBehavior) {
   return "Automatically move remaining savings into General Savings";
 }
 
-function monthsUntil(deadline: string) {
-  const targetDate = new Date(`${deadline}T00:00:00`);
-  const today = new Date();
-  const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / 86400000);
-
-  return Math.max(1, Math.ceil(diffDays / 30));
-}
-
 function toDateOnlyIso(date: Date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -415,7 +407,6 @@ function calculateGoalAllocations(monthlySavingsBudget: number, autoDistribute: 
       const targetAmount = asNumber(goal.target_amount);
       const remaining = Math.max(0, targetAmount - currentAmount);
       const monthlyTarget = asNumber(goal.monthly_target);
-      const fallbackNeed = typeof goal.deadline === "string" ? remaining / monthsUntil(goal.deadline) : remaining;
 
       return {
         id: String(goal.id),
@@ -424,7 +415,7 @@ function calculateGoalAllocations(monthlySavingsBudget: number, autoDistribute: 
         currentAmount,
         targetAmount,
         remaining,
-        plannedAmount: Math.max(0, monthlyTarget || fallbackNeed),
+        plannedAmount: Math.max(0, monthlyTarget),
       };
     })
     .filter((goal) => goal.remaining > 0 && goal.plannedAmount > 0)

@@ -6,27 +6,14 @@ import { useActionDialog } from "../../hooks/useActionDialog";
 import { useSavingsDashboard } from "../../hooks/useSavingsGoals";
 import type { SavingsDashboard, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatMonthYear } from "../../utils/formatters";
+import { getMonthlyNeeded, getProjectedGoalDate } from "../../utils/savingsGoals";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
 }
 
-function monthsUntil(deadline: string) {
-  const targetDate = new Date(`${deadline}T00:00:00`);
-  const today = new Date();
-  const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / 86400000);
-
-  return Math.max(1, Math.ceil(diffDays / 30));
-}
-
-function getMonthlyNeeded(currentAmount: number, targetAmount: number, deadline: string) {
-  const remaining = Math.max(0, targetAmount - currentAmount);
-
-  if (!remaining) {
-    return 0;
-  }
-
-  return remaining / monthsUntil(deadline);
+function formatProjectedDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "short", year: "numeric" }).format(date);
 }
 
 function EmptyPanel({ children }: { children: string }) {
@@ -202,6 +189,9 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
                   const needed = Math.max(0, targetAmount - currentAmount);
                   const monthlyNeeded = getMonthlyNeeded(currentAmount, targetAmount, goal.deadline);
                   const isComplete = Boolean(goal.completed_at) || needed <= 0;
+                  const isAhead = !isComplete && monthlyNeeded > 0 && monthlyContribution > monthlyNeeded * 1.1;
+                  const isOnTrack = !isComplete && monthlyContribution >= monthlyNeeded;
+                  const projectedDate = getProjectedGoalDate(currentAmount, targetAmount, monthlyContribution);
 
                   return (
                     <article key={goal.id} className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -236,6 +226,16 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
                           <p className="mt-1 font-mono text-xs font-semibold text-slate-950">{formatCurrency(monthlyNeeded)}/mo</p>
                         </div>
                       </div>
+                      {!isComplete ? (
+                        <div className={`mt-4 rounded-xl border px-3 py-3 text-xs leading-5 ${isOnTrack ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+                          <p className="font-semibold">{isOnTrack ? (isAhead ? "✅ Ahead of pace" : "✅ On track") : "⚠️ Behind pace"}</p>
+                          {isOnTrack ? (
+                            <p className="mt-1">{projectedDate ? `At this rate, you’ll reach your goal by ${formatProjectedDate(projectedDate)}.` : "Keep this contribution going to reach your goal."}</p>
+                          ) : (
+                            <p className="mt-1">{projectedDate ? `At this rate, you’ll reach your goal by ${formatProjectedDate(projectedDate)}. ` : "At this rate, this goal will not be reached. "}Increase contribution by {formatCurrency(monthlyNeeded - monthlyContribution)}/mo or extend the deadline to reach {formatCurrency(targetAmount)} by {formatMonthYear(goal.deadline)}.</p>
+                          )}
+                        </div>
+                      ) : null}
                       <div className="mt-5 flex flex-wrap items-center gap-2">
                         <button
                           type="button"

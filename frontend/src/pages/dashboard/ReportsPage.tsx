@@ -7,6 +7,7 @@ import type { ReportPeriod, ReportsSummary } from "../../hooks/types";
 import { formatCurrency, formatDateShort, formatMonthYear, formatSignedCurrency } from "../../utils/formatters";
 import { buildReportDateTicks, reportDateRatio } from "../../utils/reportChartDates";
 import { getCategoryColor } from "../../utils/categoryColors";
+import { CategoryBadge } from "../../components/ui/CategoryBadge";
 
 const periodOptions: Array<{ label: string; value: ReportPeriod }> = [
   { label: "This month", value: "this_month" },
@@ -210,10 +211,7 @@ function CategoryBreakdown({ categories }: { categories: Array<{ name: string; a
         {categories.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No expense categories to report for this range.</p> : null}
         {categories.map((category) => (
           <div key={category.name} className="grid grid-cols-[minmax(92px,140px)_1fr_auto] items-center gap-4 text-xs">
-            <span className="inline-flex min-w-0 items-center gap-3">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: category.color }} />
-              <span className="truncate">{category.name}</span>
-            </span>
+            <CategoryBadge category={category.name} compact />
             <span className="h-1.5 rounded-full bg-slate-100">
               <span className="block h-1.5 rounded-full" style={{ width: `${Math.max(4, (category.amount / max) * 100)}%`, backgroundColor: category.color }} />
             </span>

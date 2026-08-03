@@ -1,9 +1,12 @@
 import type { Session } from "@supabase/supabase-js";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useMemo, useState } from "react";
 import alalayLogo from "../../assets/alalay.svg";
-import { getBillDisplayStatus } from "../../components/dashboard/BillsComponents";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { useBills } from "../../hooks/useBills";
 import { useDashboard } from "../../hooks/useDashboard";
-import type { DashboardSummary, Expense } from "../../hooks/types";
+import { useSubscriptions } from "../../hooks/useSubscriptions";
+import type { Bill, DashboardSummary, Expense, Subscription } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 type DashboardPageProps = {
@@ -80,41 +83,6 @@ function SummaryCards({ summary }: { summary: DashboardSummary }) {
   );
 }
 
-function HealthCard({ score }: { score: number }) {
-  const metrics = [
-    { label: "On-time bills", value: Math.min(100, score), color: "bg-brand-primary" },
-    { label: "Savings rate", value: Math.min(100, score), color: "bg-sky-500" },
-    { label: "Budget use", value: Math.min(100, score), color: "bg-amber-500" },
-  ];
-
-  return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="font-semibold text-slate-950">Financial Health</h2>
-      <div className="mt-6 grid gap-6 sm:grid-cols-[120px_1fr]">
-        <div className="grid h-28 w-28 place-items-center rounded-full border-[10px] border-brand-primary">
-          <div className="text-center">
-            <div className="font-mono text-2xl font-bold text-brand-primary">{score}</div>
-            <div className="text-xs text-slate-500">/100</div>
-          </div>
-        </div>
-        <div className="space-y-4">
-          {metrics.map((metric) => (
-            <div key={metric.label}>
-              <div className="mb-1 flex justify-between text-xs text-slate-500">
-                <span>{metric.label}</span>
-                <span className="font-semibold text-slate-700">{metric.value}%</span>
-              </div>
-              <div className="h-1.5 rounded-full bg-slate-100">
-                <div className={`h-1.5 rounded-full ${metric.color}`} style={{ width: `${metric.value}%` }} />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </article>
-  );
-}
-
 function AiInsightCard({ insight }: { insight: DashboardSummary["ai_insight"] }) {
   const statusLabel = insight.status === "configured"
     ? "Personalized insight"
@@ -150,46 +118,89 @@ function AiInsightCard({ insight }: { insight: DashboardSummary["ai_insight"] })
   );
 }
 
-function WeeklyBills({ bills }: { bills: DashboardSummary["weekly_bills"] }) {
-  const toneClass = {
-    paid: "bg-emerald-50 text-emerald-700",
-    upcoming: "bg-amber-50 text-amber-700",
-    due_today: "bg-amber-50 text-amber-700",
-    overdue: "bg-red-50 text-red-600",
-  };
-  const today = new Date().toISOString().slice(0, 10);
+type DueDateItem = {
+  id: string;
+  name: string;
+  amount: number;
+  date: string;
+  kind: "bill" | "subscription";
+};
+
+function toDateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function monthTitle(date: Date) {
+  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(date);
+}
+
+function DueDatesCalendar({ bills, subscriptions }: { bills: Bill[]; subscriptions: Subscription[] }) {
+  const [visibleMonth, setVisibleMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const items = useMemo<DueDateItem[]>(() => [
+    ...bills.map((bill) => ({ id: `bill-${bill.id}`, name: bill.title, amount: Number(bill.amount), date: bill.due_date, kind: "bill" as const })),
+    ...subscriptions.map((subscription) => ({ id: `subscription-${subscription.id}`, name: subscription.name, amount: Number(subscription.amount), date: subscription.renewal_date, kind: "subscription" as const })),
+  ], [bills, subscriptions]);
+  const itemsByDate = useMemo(() => {
+    const grouped = new Map<string, DueDateItem[]>();
+    items.forEach((item) => grouped.set(item.date, [...(grouped.get(item.date) ?? []), item]));
+    return grouped;
+  }, [items]);
+  const firstDay = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
+  const startOffset = (firstDay.getDay() + 6) % 7;
+  const daysInMonth = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0).getDate();
+  const cells = Array.from({ length: Math.ceil((startOffset + daysInMonth) / 7) * 7 }, (_, index) => {
+    const day = index - startOffset + 1;
+    return day > 0 && day <= daysInMonth ? new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), day) : null;
+  });
+  const selectedItems = selectedDate ? itemsByDate.get(selectedDate) ?? [] : [];
+  const todayKey = toDateKey(new Date());
+
+  function moveMonth(offset: number) {
+    setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + offset, 1));
+    setSelectedDate(null);
+  }
 
   return (
-    <section className="mt-7">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 className="font-semibold text-slate-950">Mga bills ngayong linggo</h2>
-        <a href="#" className="text-sm font-medium text-brand-primary hover:text-brand-dark">
-          Tingnan lahat {'->'}
-        </a>
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-slate-950">Due Dates</h2>
+        <div className="flex items-center gap-1">
+          <button type="button" onClick={() => moveMonth(-1)} aria-label="Previous month" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><ChevronLeft className="h-4 w-4" /></button>
+          <span className="min-w-28 text-center text-xs font-semibold text-slate-700">{monthTitle(visibleMonth)}</span>
+          <button type="button" onClick={() => moveMonth(1)} aria-label="Next month" className="grid h-8 w-8 place-items-center rounded-lg text-slate-500 hover:bg-slate-100"><ChevronRight className="h-4 w-4" /></button>
+        </div>
       </div>
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        {bills.map((bill) => (
-          <article
-            key={bill.id}
-            className={`rounded-2xl border bg-white p-4 shadow-sm ${
-              bill.status === "overdue" ? "border-red-200" : "border-slate-200"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="grid h-9 w-9 place-items-center rounded-full bg-brand-primary text-sm font-bold text-white">
-                {bill.title.charAt(0)}
-              </span>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${toneClass[getBillDisplayStatus(bill)]}`}>
-                {getBillDisplayStatus(bill)}
-              </span>
-            </div>
-            <p className="mt-4 text-sm font-semibold text-slate-950">{bill.title}</p>
-            <p className="mt-1 font-mono text-lg font-bold text-slate-950">{formatCurrency(Number(bill.amount))}</p>
-            <p className="mt-1 text-xs text-slate-500">Due {formatDateShort(bill.due_date)}</p>
-          </article>
-        ))}
+      <div className="mt-4 grid grid-cols-7 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+        {["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].map((day) => <span key={day}>{day}</span>)}
       </div>
-    </section>
+      <div className="mt-2 grid grid-cols-7 gap-1">
+        {cells.map((date, index) => {
+          if (!date) return <span key={`empty-${index}`} className="min-h-14 rounded-lg" />;
+          const dateKey = toDateKey(date);
+          const dayItems = itemsByDate.get(dateKey) ?? [];
+          const selected = selectedDate === dateKey;
+          return (
+            <button key={dateKey} type="button" onClick={() => dayItems.length && setSelectedDate(selected ? null : dateKey)} className={`min-h-14 rounded-lg px-1 py-1 text-left transition ${dayItems.length ? "hover:bg-brand-soft" : "cursor-default"} ${selected ? "bg-brand-soft ring-1 ring-brand-primary" : ""}`} aria-label={`${date.toDateString()}${dayItems.length ? `, ${dayItems.length} due` : ""}`}>
+              <span className={`mx-auto grid h-6 w-6 place-items-center rounded-full text-xs ${dateKey === todayKey ? "bg-brand-primary font-bold text-white ring-2 ring-brand-primary/20" : "text-slate-700"}`}>{date.getDate()}</span>
+              {dayItems.length ? <span className="mt-0.5 flex justify-center gap-0.5"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />{dayItems.some((item) => item.kind === "subscription") ? <span className="h-1.5 w-1.5 rounded-full bg-violet-500" /> : null}</span> : <span className="mt-2 block h-1.5" />}
+              <span className="mt-0.5 block truncate text-center text-[9px] text-slate-500">{dayItems[0]?.name ?? ""}</span>
+              {dayItems.length > 1 ? <span className="block text-center text-[9px] font-semibold text-brand-primary">+{dayItems.length - 1} more</span> : <span className="block h-3" />}
+            </button>
+          );
+        })}
+      </div>
+      {selectedItems.length ? (
+        <div className="mt-3 space-y-2 rounded-xl bg-slate-50 p-3">
+          <p className="text-xs font-semibold text-slate-700">Due {formatDateShort(selectedDate ?? "")}</p>
+          {selectedItems.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 text-xs"><span className="truncate text-slate-700">{item.name} <span className="text-slate-400">· {item.kind === "bill" ? "Bill" : "Subscription"}</span></span><span className="shrink-0 font-mono font-semibold text-slate-950">{formatCurrency(item.amount)}</span></div>)}
+        </div>
+      ) : null}
+      <div className="mt-3 flex gap-3 text-[10px] text-slate-500"><span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-amber-400" />Bill</span><span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-violet-500" />Subscription</span></div>
+    </article>
   );
 }
 
@@ -245,6 +256,8 @@ function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const { data: summary, isLoading, error } = useDashboard();
+  const { data: bills } = useBills();
+  const { data: subscriptions } = useSubscriptions();
   const formattedDate = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
   month: "long",
@@ -277,11 +290,9 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
         <SummaryCards summary={summary} />
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[0.9fr_1.6fr]">
-          <HealthCard score={summary.health_score} />
+          <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
           <AiInsightCard insight={summary.ai_insight} />
         </section>
-
-        <WeeklyBills bills={summary.weekly_bills} />
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[1.5fr_0.75fr]">
           <SpendingChart monthlySpending={summary.monthly_spending} />

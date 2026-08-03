@@ -3,11 +3,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ChangeEvent, DragEvent } from "react";
 import { Camera, Check, Loader2, Pencil, ReceiptText, RotateCcw, ScanLine, UploadCloud, X } from "lucide-react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useOcrScanner } from "../../hooks/useOcrScanner";
 import type { Expense } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
 import { isLowConfidenceOcr, shouldBlockOcrLogging } from "../../utils/ocrReview";
+import { getCategories } from "../../lib/appSettings";
 
 type OcrStage = "upload" | "scanning" | "review" | "logged";
 
@@ -37,7 +39,7 @@ type OcrScanResult = {
   raw_text?: string;
 };
 
-const categories = ["Food", "Utilities", "Health", "Transport", "Others"];
+const categories = getCategories("expense").map((category) => category.name);
 
 const paymentMethods = [
   { value: "cash", label: "Cash" },
@@ -742,7 +744,7 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
                           : "border-slate-200 bg-white text-slate-600 hover:border-brand-primary hover:text-brand-primary"
                       }`}
                     >
-                      {option}
+                      <span className="inline-flex items-center gap-1.5"><CategoryIcon category={option} />{option}</span>
                     </button>
                   ))}
                 </div>

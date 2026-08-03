@@ -13,6 +13,7 @@ import {
 import { BillFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { LinkLogo } from "../../components/ui/LinkLogo";
+import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { useBills } from "../../hooks/useBills";
@@ -233,13 +234,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                        <span
-                          className={`inline-flex max-w-full truncate rounded-md px-2 py-0.5 text-xs font-medium ${getCategoryBadgeClasses(
-                            row.category,
-                          )}`}
-                        >
-                          {row.category}
-                        </span>
+                          <CategoryBadge category={row.category} compact />
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 font-semibold">
                         {formatCurrency(Number(row.amount))}

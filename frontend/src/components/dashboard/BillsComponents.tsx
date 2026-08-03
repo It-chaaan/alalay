@@ -17,6 +17,7 @@ import type { ComponentType, InputHTMLAttributes, ReactNode } from "react";
 import { createPortal } from "react-dom";
 import type { Bill } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { CategoryBadge } from "../ui/CategoryBadge";
 
 export type BillDisplayStatus = "paid" | "upcoming" | "due_today" | "overdue" | "draft";
 
@@ -396,9 +397,7 @@ export function BillRow({
         </div>
       </td>
       <td className="px-4 py-4 sm:px-5">
-        <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-[13px] font-medium text-slate-600">
-          {bill.category}
-        </span>
+        <CategoryBadge category={bill.category} compact />
       </td>
       <td className="px-4 py-4 sm:px-5">
         <span className="text-[16px] font-semibold text-slate-950">
@@ -472,7 +471,7 @@ export function BillMobileCard({
         <div>
           <p className="text-[16px] font-semibold text-slate-950">{bill.title}</p>
           <p className="mt-1 text-[13px] text-slate-500">
-            {bill.category} · {bill.frequency ?? "One-time"}
+            <span className="inline-flex items-center gap-1.5"><CategoryBadge category={bill.category} compact /><span>· {bill.frequency ?? "One-time"}</span></span>
           </p>
         </div>
         <QuickActionsMenu

@@ -6,7 +6,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { useEffect, useId, useRef } from "react";
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
+import { Controller, useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
 import { z } from "zod";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import type {
@@ -18,10 +18,13 @@ import type {
   Subscription,
 } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
+import { getMonthlyNeeded } from "../../utils/savingsGoals";
 import { getCategories } from "../../lib/appSettings";
 import { Button } from "../ui/Button";
 import { SlideOver } from "../ui/SlideOver";
 import { TextInput } from "../ui/TextInput";
+import { CurrencyInput } from "../ui/CurrencyInput";
+import { CategorySelect } from "../ui/CategorySelect";
 
 type FormDialogProps = {
   open: boolean;
@@ -244,6 +247,8 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
     watch,
     reset,
     formState: { errors },
+    control,
+    setValue,
   } = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: defaultBillValues(bill),
@@ -310,29 +315,24 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
+          <FormCurrencyInput
             id="bill-amount"
             label="Amount"
-            type="number"
+            control={control}
+            name="amount"
             min="0.01"
             step="0.01"
             placeholder="0.00"
             error={errors.amount?.message}
-            {...register("amount")}
           />
-          <SelectField
+          <CategorySelect
             id="bill-category"
             label="Category"
+            value={category}
+            options={billCategoryOptions}
+            onChange={(value) => setValue("category", value, { shouldDirty: true, shouldValidate: true })}
             error={errors.category?.message}
-            {...register("category")}
-          >
-            <option value="">Select category</option>
-            {billCategoryOptions.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
-            ))}
-          </SelectField>
+          />
         </div>
 
         {category === "Other" ? (
@@ -441,6 +441,7 @@ export function SubscriptionFormPanel({
     handleSubmit,
     reset,
     formState: { errors },
+    control,
   } = useForm<SubscriptionFormValues>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: defaultSubscriptionValues(subscription),
@@ -497,15 +498,15 @@ export function SubscriptionFormPanel({
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
+          <FormCurrencyInput
             id="subscription-amount"
             label="Amount"
-            type="number"
+            control={control}
+            name="amount"
             min="0.01"
             step="0.01"
             placeholder="0.00"
             error={errors.amount?.message}
-            {...register("amount")}
           />
           <TextInput
             id="subscription-renewal-date"
@@ -584,6 +585,39 @@ function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
   };
 }
 
+function FormCurrencyInput({
+  control,
+  name,
+  ...props
+}: {
+  control: Control<any>;
+  name: string;
+  id: string;
+  label: string;
+  error?: string;
+  min?: string | number;
+  step?: string | number;
+  placeholder?: string;
+  helper?: ReactNode;
+}) {
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <CurrencyInput
+          {...props}
+          name={field.name}
+          value={field.value}
+          onChange={(value) => field.onChange(value)}
+          onBlur={field.onBlur}
+          inputRef={field.ref}
+        />
+      )}
+    />
+  );
+}
+
 export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
@@ -593,10 +627,14 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
     handleSubmit,
     reset,
     formState: { errors },
+    control,
+    setValue,
+    watch,
   } = useForm<ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: defaultExpenseValues(expense),
   });
+  const category = watch("category");
 
   useEffect(() => {
     if (open) {
@@ -639,15 +677,15 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
+          <FormCurrencyInput
             id="expense-amount"
             label="Amount"
-            type="number"
+            control={control}
+            name="amount"
             min="0.01"
             step="0.01"
             placeholder="0.00"
             error={errors.amount?.message}
-            {...register("amount")}
           />
           <TextInput
             id="expense-date"
@@ -659,15 +697,14 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField
+          <CategorySelect
             id="expense-category"
             label="Category"
+            value={category}
+            options={getCategories("expense").map((item) => item.name)}
+            onChange={(value) => setValue("category", value, { shouldDirty: true, shouldValidate: true })}
             error={errors.category?.message}
-            {...register("category")}
-          >
-            <option value="">Select category</option>
-            {getCategories("expense").map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}
-          </SelectField>
+          />
           <SelectField
             id="expense-payment-method"
             label="Payment method"
@@ -731,6 +768,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     handleSubmit,
     reset,
     formState: { errors },
+    control,
   } = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
@@ -786,15 +824,15 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
             <option value="remittance">Remittance</option>
             <option value="other">Other</option>
           </SelectField>
-          <TextInput
+          <FormCurrencyInput
             id="income-amount"
             label="Amount"
-            type="number"
+            control={control}
+            name="amount"
             min="0.01"
             step="0.01"
             placeholder="0.00"
             error={errors.amount?.message}
-            {...register("amount")}
           />
         </div>
 
@@ -852,11 +890,27 @@ export function SavingsGoalFormPanel({
     handleSubmit,
     reset,
     formState: { errors },
+    control,
   } = useForm<SavingsGoalFormValues>({
     resolver: zodResolver(savingsGoalSchema),
     defaultValues: defaultSavingsGoalValues(goal),
   });
   const isEditing = Boolean(goal);
+  const watchedValues = useWatch({ control });
+  const watchedTarget = Number(watchedValues.target_amount);
+  const watchedCurrent = Number(watchedValues.current_amount ?? goal?.current_amount ?? 0);
+  const watchedContribution = Number(watchedValues.monthly_target);
+  const watchedDeadline = String(watchedValues.deadline ?? "");
+  const watchedNeeded = watchedTarget > 0 && watchedDeadline
+    ? getMonthlyNeeded(watchedCurrent, watchedTarget, watchedDeadline)
+    : 0;
+  const contributionHint = !watchedTarget || !watchedDeadline
+    ? "Enter a target amount and deadline to see what you need each month."
+    : watchedNeeded === 0
+      ? "This goal is already fully funded."
+      : watchedContribution >= watchedNeeded
+        ? `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is on track.`
+        : `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is ${formatCurrency(watchedNeeded - watchedContribution)}/mo below that amount.`;
 
   useEffect(() => {
     if (open) {
@@ -932,38 +986,39 @@ export function SavingsGoalFormPanel({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <TextInput
+          <FormCurrencyInput
             id="goal-target-amount"
             label="Target amount"
-            type="number"
+            control={control}
+            name="target_amount"
             min="0.01"
             step="0.01"
             placeholder="0.00"
             error={errors.target_amount?.message}
-            {...register("target_amount")}
           />
-          <TextInput
+          <FormCurrencyInput
             id="goal-monthly-target"
             label="Monthly contribution"
-            type="number"
+            control={control}
+            name="monthly_target"
             min="0"
             step="0.01"
             placeholder="5000"
             error={errors.monthly_target?.message}
-            {...register("monthly_target")}
+            helper={contributionHint}
           />
         </div>
 
         {!isEditing ? (
-          <TextInput
+          <FormCurrencyInput
             id="goal-current-amount"
             label="Starting saved amount"
-            type="number"
+            control={control}
+            name="current_amount"
             min="0"
             step="0.01"
             placeholder="10000"
             error={errors.current_amount?.message}
-            {...register("current_amount")}
           />
         ) : null}
       </form>
@@ -996,6 +1051,7 @@ export function SavingsGoalProgressPanel({
     handleSubmit,
     reset,
     formState: { errors },
+    control,
   } = useForm<SavingsGoalProgressValues>({
     resolver: zodResolver(savingsGoalProgressSchema),
     defaultValues: defaultSavingsGoalProgressValues(),
@@ -1053,15 +1109,15 @@ export function SavingsGoalProgressPanel({
           </div>
         ) : null}
 
-        <TextInput
+        <FormCurrencyInput
           id="goal-add-amount"
           label="Amount to add"
-          type="number"
+          control={control}
+          name="amount"
           min="0.01"
           step="0.01"
           placeholder="0.00"
           error={errors.amount?.message}
-          {...register("amount")}
         />
 
         {remaining > 0 ? (
@@ -1134,6 +1190,7 @@ export function BudgetFormPanel({
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<BudgetFormValues>({
     resolver: zodResolver(budgetSchema),
@@ -1215,15 +1272,15 @@ export function BudgetFormPanel({
           </div>
 
           <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-            <TextInput
+            <FormCurrencyInput
               id="budget-savings-allocation"
               label="Monthly Savings Budget"
-              type="number"
+              control={control}
+              name="savings_allocation"
               min="0"
               step={budgetSliderStep}
               placeholder="5000"
               error={errors.savings_allocation?.message}
-              {...register("savings_allocation")}
             />
 
             <Controller
@@ -1314,7 +1371,8 @@ export function BudgetFormPanel({
                           min="0"
                           max={maxBudget}
                           step={budgetSliderStep}
-                          {...register(`categories.${index}.budget`)}
+                          value={currentBudget}
+                          onChange={(event) => setValue(`categories.${index}.budget`, Number(event.target.value), { shouldDirty: true, shouldValidate: true })}
                           className="h-2 w-full cursor-pointer appearance-none rounded-full"
                           style={{
                             background: `linear-gradient(90deg, ${color} 0%, ${color} ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
@@ -1323,14 +1381,14 @@ export function BudgetFormPanel({
                         />
                       </div>
 
-                      <TextInput
+                      <FormCurrencyInput
                         id={`budget-category-${field.id}`}
                         label="Budget amount"
-                        type="number"
+                        control={control}
+                        name={`categories.${index}.budget`}
                         min="0"
                         step={budgetSliderStep}
                         error={errors.categories?.[index]?.budget?.message}
-                        {...register(`categories.${index}.budget`)}
                       />
 
                       {deficit > 0 ? (

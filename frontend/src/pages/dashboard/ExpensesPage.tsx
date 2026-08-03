@@ -11,6 +11,8 @@ import type { Bill, Expense } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { getCategoryColor } from "../../utils/categoryColors";
 import { Pen, Scan, Trash2 } from "lucide-react";
+import { CategoryBadge } from "../../components/ui/CategoryBadge";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
 
 type ExpenseListItem = Expense & { source: "expense" | "bill" };
 
@@ -143,7 +145,7 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600" aria-label="Spending by category legend">
             {categoryBreakdown.map((item) => (
               <span key={item.category} className="inline-flex items-center gap-2">
-                <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: item.color }} aria-hidden="true" />
+                <CategoryIcon category={item.category} />
                 <span>{item.category}</span>
                 <span className="font-mono text-slate-500">{formatCurrency(item.amount)} ({item.percent.toFixed(1)}%)</span>
               </span>
@@ -164,7 +166,7 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
               <div className="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
                 <div className="min-w-0">
                   <div className="font-medium">{item.merchant}</div>
-                  <div className="mt-1 flex gap-2 text-xs"><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.category}</span><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
+                  <div className="mt-1 flex items-center gap-2 text-xs"><CategoryBadge category={item.category} compact /><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>

@@ -8,6 +8,7 @@ import { useBudget } from "../../hooks/useBudget";
 import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
+import { CategoryBadge } from "../../components/ui/CategoryBadge";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -44,14 +45,6 @@ function addMonthsToMonthKey(monthKey: string, offset: number) {
   return `${date.getFullYear()}-${nextMonth}`;
 }
 
-function monthsUntil(deadline: string) {
-  const targetDate = new Date(`${deadline}T00:00:00`);
-  const today = new Date();
-  const diffDays = Math.ceil((targetDate.getTime() - today.getTime()) / 86400000);
-
-  return Math.max(1, Math.ceil(diffDays / 30));
-}
-
 function getFallbackGoalAllocations(
   savingsBudget: number,
   autoDistribute: boolean,
@@ -75,7 +68,7 @@ function getFallbackGoalAllocations(
         currentAmount,
         targetAmount,
         remaining,
-        plannedAmount: Math.max(0, monthlyTarget || (remaining / monthsUntil(goal.deadline))),
+        plannedAmount: Math.max(0, monthlyTarget),
       };
     })
     .filter((item) => !item.goal.completed_at && item.remaining > 0 && item.plannedAmount > 0)
@@ -379,7 +372,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
             return (
               <div key={category.id}>
                 <div className="mb-2 grid grid-cols-[1fr_auto_auto] items-center gap-4 text-xs">
-                  <span className="inline-flex items-center gap-3 font-semibold"><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: category.color }} />{category.name}</span>
+                  <CategoryBadge category={category.name} compact />
                   <span className="font-mono text-slate-500">{formatCurrency(category.spent)} / {formatCurrency(category.budget)}</span>
                   <span className="font-mono text-[#3f7d16]">{percent}%</span>
                 </div>
