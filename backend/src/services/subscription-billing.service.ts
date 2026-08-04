@@ -72,6 +72,7 @@ export async function processSubscriptionBilling(userId?: string, now = new Date
         recurrence_key: recurrenceKey,
         billing_status: "generated",
         generated_at: new Date().toISOString(),
+        deleted_at: null,
       };
       const { data, error: insertError } = await client()
         .from("expenses")

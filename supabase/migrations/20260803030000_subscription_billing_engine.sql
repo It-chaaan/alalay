@@ -21,7 +21,7 @@ alter table public.expenses
 
 create unique index expenses_subscription_occurrence_unique
   on public.expenses (user_id, subscription_id, occurrence_date, billing_cycle)
-  where subscription_id is not null and occurrence_date is not null and billing_cycle is not null and deleted_at is null;
+  where subscription_id is not null and occurrence_date is not null and billing_cycle is not null;
 
 create index expenses_subscription_id_idx on public.expenses (subscription_id)
   where subscription_id is not null;
