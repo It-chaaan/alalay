@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { AppPreferencesProvider } from "./context/AppPreferencesContext";
+import { ProfileProvider } from "./context/ProfileContext";
 import { getSupabaseClient } from "./lib/supabase";
 import { apiRequest } from "./lib/apiClient";
 import { AuthPage } from "./pages/auth/AuthPage";
@@ -312,7 +313,9 @@ function AppContent() {
 export default function App() {
   return (
     <AppPreferencesProvider>
-      <AppContent />
+      <ProfileProvider>
+        <AppContent />
+      </ProfileProvider>
     </AppPreferencesProvider>
   );
 }

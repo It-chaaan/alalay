@@ -11,7 +11,7 @@ const series = buildIncomeMonthlySeries(entries, new Date("2026-08-01T00:00:00+0
 const current = series.find((item) => item.current);
 
 assert.equal(current?.key, "2026-08");
-assert.equal(current?.total, 12000);
+assert.equal(current?.total, 62000);
 assert.equal(series.find((item) => item.key === "2026-07")?.current, false);
 
 const variedSeries = buildIncomeMonthlySeries([

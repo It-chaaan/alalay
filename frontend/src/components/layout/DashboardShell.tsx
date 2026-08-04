@@ -35,8 +35,8 @@ export function DashboardShell({
         {!hideHeader ? (
           <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h1 className="text-2xl font-bold tracking-normal dark:!text-white">{title}</h1>
-              {subtitle ? <div className="mt-0.5 text-xs text-slate-500 dark:!text-slate-200">{subtitle}</div> : null}
+              <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">{title}</h1>
+              {subtitle ? <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
             </div>
             <div className="flex items-center gap-3">{secondaryAction}{action}</div>
           </header>

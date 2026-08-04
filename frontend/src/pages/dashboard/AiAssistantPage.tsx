@@ -86,8 +86,8 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
           <div className="flex items-center gap-3">
             <AlalayMark />
             <div>
-              <h1 className="text-base font-semibold text-slate-950">Alalay AI</h1>
-              <p className="flex items-center gap-1.5 text-xs text-slate-500">
+              <h1 className="page-header-title text-base font-semibold text-slate-950">Alalay AI</h1>
+              <p className="page-header-subtitle flex items-center gap-1.5 text-xs text-slate-500">
                 <span className={`h-1.5 w-1.5 rounded-full ${isConfigured ? "bg-[#3f7d16]" : "bg-amber-500"}`} />
                 {isStatusLoading ? "Checking provider..." : isConfigured ? `${status.provider} - ${status.model}` : "AI backend not configured"}
               </p>

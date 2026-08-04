@@ -34,6 +34,16 @@ body {
   color: #e5eee9;
 }
 
+/* Page-level headings sit directly on the app background rather than inside
+   the card surfaces covered by the rest of the dark-mode palette. */
+.dark .page-header-title {
+  color: #ffffff;
+}
+
+.dark .page-header-subtitle {
+  color: #cbd5e1;
+}
+
 .dark .bg-white,
 .dark .bg-app-surface,
 .dark .bg-\[\#fbfbf8\],

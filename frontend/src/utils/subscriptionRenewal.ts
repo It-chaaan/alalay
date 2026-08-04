@@ -1,4 +1,4 @@
-type SubscriptionBillingCycle = "monthly" | "yearly";
+type SubscriptionBillingCycle = "weekly" | "monthly" | "quarterly" | "yearly";
 
 function parseDateOnly(value: string) {
   const [year, month, day] = value.split("-").map(Number);
@@ -18,6 +18,15 @@ function addMonths(date: Date, months: number) {
   next.setUTCDate(Math.min(originalDay, new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate()));
 
   return next;
+}
+
+function addCycle(date: Date, cycle: SubscriptionBillingCycle) {
+  if (cycle === "weekly") {
+    const next = new Date(date);
+    next.setUTCDate(next.getUTCDate() + 7);
+    return next;
+  }
+  return addMonths(date, cycle === "quarterly" ? 3 : cycle === "yearly" ? 12 : 1);
 }
 
 function todayInManila() {
@@ -40,11 +49,10 @@ export function getNextSubscriptionRenewalDate(
     return renewalDate;
   }
 
-  const stepMonths = billingCycle === "yearly" ? 12 : 1;
   let occurrence = parseDateOnly(renewalDate);
 
   while (toDateOnly(occurrence) < today) {
-    occurrence = addMonths(occurrence, stepMonths);
+    occurrence = addCycle(occurrence, billingCycle);
   }
 
   return toDateOnly(occurrence);

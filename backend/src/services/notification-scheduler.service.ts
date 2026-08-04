@@ -2,6 +2,8 @@ import { env } from "../config/env.js";
 import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./db.js";
 import { getReports } from "./analytics.service.js";
 import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
+import { processSubscriptionBilling } from "./subscription-billing.service.js";
+import { addBillingCycle, type SubscriptionBillingCycle } from "./subscription-billing.service.js";
 
 type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean };
 type AuthUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
@@ -20,16 +22,6 @@ export function shouldSendReminder(enabled: boolean, dueDate: string, today: str
 
 export function shouldSendMonthlySummary(enabled: boolean, today: string) {
   return enabled && today.endsWith("-01");
-}
-
-function nextRenewalDate(date: string, cycle: string, today: string) {
-  const current = new Date(`${date}T00:00:00Z`);
-  const now = new Date(`${today}T00:00:00Z`);
-  while (current < now) {
-    if (cycle === "yearly") current.setUTCFullYear(current.getUTCFullYear() + 1);
-    else current.setUTCMonth(current.getUTCMonth() + 1);
-  }
-  return current.toISOString().slice(0, 10);
 }
 
 async function authUsers() {
@@ -69,6 +61,7 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
 
 export async function runNotificationScheduler(now = new Date()) {
   const today = todayIso(now);
+  await processSubscriptionBilling(undefined, now);
   const [users, preferencesResult, billsResult, subscriptionsResult] = await Promise.all([
     authUsers(),
     client().from("notification_preferences").select("*"),
@@ -94,7 +87,9 @@ export async function runNotificationScheduler(now = new Date()) {
     const user = userMap.get(subscription.user_id);
     const prefs = preferences.get(subscription.user_id) as Preferences | undefined;
     if (!user?.email || !prefs?.subscription_reminders) continue;
-    const renewalDate = nextRenewalDate(subscription.renewal_date, subscription.billing_cycle, today);
+    let renewalDate = String(subscription.renewal_date);
+    const cycle = (String(subscription.billing_cycle).toLowerCase() as SubscriptionBillingCycle);
+    while (renewalDate < today) renewalDate = addBillingCycle(renewalDate, cycle);
     const days = Number(prefs.bill_reminder_days);
     if (!shouldSendReminder(prefs.subscription_reminders, renewalDate, today, days)) continue;
     await sendLogged(user, "subscription_renewal", user.email, subscriptionRenewalEmail({ name: subscription.name, amount: asNumber(subscription.amount), renewal_date: renewalDate }, days), { related_subscription_id: subscription.id }, today);

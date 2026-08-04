@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { dashboardSidebarSections } from "../../constants/dashboard";
 import alalayLogo from "../../assets/alalay.svg";
 import {LayoutDashboard, ReceiptText, CreditCard, BanknoteArrowDown, BanknoteArrowUp, HandCoins, Wallet, Summary, Bot, Scan, Settings, TrendingUp } from "lucide-react";
+import { useProfile } from "../../context/ProfileContext";
 
 type DashboardSidebarProps = {
   activeLabel: string;
@@ -41,6 +42,9 @@ function SidebarIcon({ type }: { type: string }) {
 }
 
 export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: DashboardSidebarProps) {
+  const { profile } = useProfile();
+  const displayName = profile?.name || name;
+  const avatarUrl = profile?.avatar_url || "";
   return (
     <aside className="hidden h-screen w-[228px] shrink-0 overflow-hidden border-r border-slate-200 bg-[#fbfbf8] lg:sticky lg:top-0 lg:flex lg:flex-col">
       <div className="flex h-[68px] items-center gap-3 border-b border-slate-200/80 px-5">
@@ -82,14 +86,13 @@ export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: D
       </nav>
 
       <div className="shrink-0 border-t border-slate-200/80 p-4">
-        <div className="p-1">
+        <div className="rounded-xl p-1 transition hover:bg-slate-100">
           <div className="flex items-center gap-3">
-            <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">
-              {name.charAt(0).toUpperCase()}
-            </span>
+            <a href="/app/settings" className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-primary" aria-label="Open Settings profile">
+              {avatarUrl ? <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">{displayName.charAt(0).toUpperCase()}</span>}
+            </a>
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-slate-950">{name}</p>
-              <p className="mt-1 w-fit rounded bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">Free plan</p>
+              <a href="/app/settings" className="block truncate rounded-md text-xs font-semibold text-slate-950 focus:outline-none focus:ring-2 focus:ring-brand-primary">{displayName}</a>
             </div>
             <button
               type="button"

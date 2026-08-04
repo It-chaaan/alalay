@@ -19,18 +19,3 @@ export async function listByDateRange(table: TableName, userId: string, dateColu
   throwIfError(error);
   return data ?? [];
 }
-
-export async function incomeSummary(userId: string) {
-  const rows = await listByDateRange("income", userId, "date");
-  const thisMonth = new Date().toISOString().slice(0, 7);
-  const thisYear = String(new Date().getFullYear());
-  const thisMonthTotal = rows.filter((row) => row.date.startsWith(thisMonth)).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  const ytd = rows.filter((row) => row.date.startsWith(thisYear)).reduce((sum, row) => sum + Number(row.amount || 0), 0);
-
-  return {
-    this_month: thisMonthTotal,
-    ytd,
-    average_month: ytd / Math.max(1, new Date().getMonth() + 1),
-    sources: Array.from(new Set(rows.map((row) => row.source))).length,
-  };
-}

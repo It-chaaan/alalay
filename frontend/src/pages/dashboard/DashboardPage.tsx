@@ -1,12 +1,15 @@
 import type { Session } from "@supabase/supabase-js";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo, useState } from "react";
 import alalayLogo from "../../assets/alalay.svg";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useBills } from "../../hooks/useBills";
 import { useDashboard } from "../../hooks/useDashboard";
 import { useSubscriptions } from "../../hooks/useSubscriptions";
-import type { Bill, DashboardSummary, Expense, Subscription } from "../../hooks/types";
+import type { Bill, DashboardSummary, Subscription } from "../../hooks/types";
+import { apiRequest } from "../../lib/apiClient";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
+import { getBillDisplayStatus, type BillDisplayStatus } from "../../components/dashboard/BillsComponents";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 
 type DashboardPageProps = {
@@ -91,7 +94,7 @@ function AiInsightCard({ insight }: { insight: DashboardSummary["ai_insight"] })
       : "AI not configured";
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <article className="min-h-[360px] rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
       <div className="flex items-start gap-4">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-primary">
           <img src={alalayLogo} alt="" className="h-7 w-7 object-contain" />
@@ -208,20 +211,20 @@ function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary[
   const max = Math.max(1, ...monthlySpending.map((item) => item.value));
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
       <div className="mb-6 flex items-center justify-between">
         <h2 className="font-semibold text-slate-950">Monthly spending</h2>
         <p className="text-sm text-slate-500">Last 8 months</p>
       </div>
-      <div className="flex h-48 items-end gap-4 border-b border-dashed border-slate-200 px-3">
+      <div className="flex h-[320px] items-end gap-4 border-b border-dashed border-slate-200 px-3">
         {monthlySpending.map((item) => (
           <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
             <div
               className={`w-full max-w-8 rounded-t-md ${item.current ? "bg-brand-dark" : "bg-brand-primary/60"}`}
-              style={{ height: `${Math.max(20, (item.value / max) * 150)}px` }}
+              style={{ height: `${Math.max(24, (item.value / max) * 270)}px` }}
               title={`${item.month}${item.current ? " (Current)" : ""}: ${formatCurrency(item.value)}`}
             />
-            <span className={`text-xs ${item.current ? "font-semibold text-brand-dark" : "text-slate-500"}`}>{item.month}{item.current ? " · Current" : ""}</span>
+            <span className={`text-sm ${item.current ? "font-semibold text-brand-dark" : "text-slate-500"}`}>{item.month}{item.current ? " · Current" : ""}</span>
           </div>
         ))}
       </div>
@@ -229,25 +232,86 @@ function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary[
   );
 }
 
-function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
+function getBillDate(bill: Bill) {
+  return bill.status === "paid" && bill.paid_at ? bill.paid_at.slice(0, 10) : bill.due_date;
+}
+
+function formatBillListDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(new Date(year, month - 1, day));
+}
+
+function daysUntil(date: string, todayIso: string) {
+  const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+  const [todayYear, todayMonth, todayDay] = todayIso.split("-").map(Number);
+  return Math.round((new Date(year, month - 1, day).getTime() - new Date(todayYear, todayMonth - 1, todayDay).getTime()) / 86400000);
+}
+
+function getBillStatusCopy(status: BillDisplayStatus, bill: Bill, todayIso: string) {
+  if (status === "paid") return "Paid";
+  if (status === "overdue") return "Overdue";
+  if (status === "due_today") return "Due today";
+  const days = daysUntil(bill.due_date, todayIso);
+  return `Due in ${days} day${days === 1 ? "" : "s"}`;
+}
+
+function getBillStatusTone(status: BillDisplayStatus) {
+  if (status === "paid") return "bg-emerald-500";
+  if (status === "overdue") return "bg-rose-500";
+  if (status === "draft") return "bg-slate-400";
+  return "bg-amber-400";
+}
+
+function RecentUpcomingBills({ bills, onMarkPaid }: { bills: Bill[]; onMarkPaid: (bill: Bill) => Promise<void> }) {
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const recentBills = useMemo(() => {
+    const unpaid = bills
+      .filter((bill) => bill.status !== "paid")
+      .sort((a, b) => a.due_date.localeCompare(b.due_date))
+      .slice(0, 3);
+    const paid = bills
+      .filter((bill) => bill.status === "paid")
+      .sort((a, b) => getBillDate(b).localeCompare(getBillDate(a)))
+      .slice(0, 2);
+    return [...unpaid, ...paid];
+  }, [bills]);
+
+  async function handlePay(bill: Bill) {
+    setPayingId(bill.id);
+    try {
+      await onMarkPaid(bill);
+    } finally {
+      setPayingId(null);
+    }
+  }
+
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 className="font-semibold text-slate-950">Recent activity</h2>
-      <div className="mt-5 space-y-4">
-        {recentActivity.length ? recentActivity.map((activity) => (
-          <div key={`${activity.merchant}-${activity.date}`} className="flex items-center gap-3">
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-orange-500 text-xs font-bold text-white">
-              {activity.merchant.charAt(0)}
-            </span>
+    <article className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="font-semibold text-slate-950">Recent &amp; Upcoming Bills</h2>
+        <a href="/app/bills" className="shrink-0 text-xs font-semibold text-brand-primary hover:text-brand-dark">View all <span aria-hidden="true">→</span></a>
+      </div>
+      <div className="mt-5 space-y-5">
+        {recentBills.length ? recentBills.map((bill) => {
+          const status = getBillDisplayStatus(bill, todayIso);
+          const isPaid = status === "paid";
+          return (
+          <div key={bill.id} className="flex min-w-0 items-center gap-3">
+            <CategoryIcon category={bill.category} size="md" />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-slate-950">{activity.merchant}</p>
-              <p className="text-xs text-slate-500">{formatDateShort(activity.date)}</p>
+              <p className="truncate text-sm font-semibold text-slate-950">{bill.title}</p>
+              <p className="mt-1 flex items-center gap-1 text-xs text-slate-500"><CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />{formatBillListDate(getBillDate(bill))}</p>
             </div>
-            <p className="font-mono text-sm font-bold text-slate-950">
-              {formatCurrency(Number(activity.amount))}
-            </p>
+            <p className="shrink-0 font-mono text-sm font-bold text-slate-950">{formatCurrency(Number(bill.amount))}</p>
+            <span className="hidden shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600 sm:inline-flex">
+              <span className={`h-2 w-2 rounded-full ${getBillStatusTone(status)}`} aria-hidden="true" />
+              {getBillStatusCopy(status, bill, todayIso)}
+            </span>
+            {isPaid ? <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600 sm:grid" aria-label="Paid"><Check className="h-4 w-4" /></span> : <button type="button" onClick={() => void handlePay(bill)} disabled={payingId === bill.id} className="shrink-0 rounded-full bg-brand-primary px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark disabled:cursor-wait disabled:opacity-60">{payingId === bill.id ? "Paying…" : "Pay Now"}</button>}
           </div>
-        )) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No recent activity yet. Your latest expenses will appear here.</p>}
+          );
+        }) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No bills yet. Your recent and upcoming bills will appear here.</p>}
       </div>
     </article>
   );
@@ -256,7 +320,7 @@ function RecentActivity({ recentActivity }: { recentActivity: Expense[] }) {
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const { data: summary, isLoading, error } = useDashboard();
-  const { data: bills } = useBills();
+  const { data: bills, refetch: refetchBills } = useBills();
   const { data: subscriptions } = useSubscriptions();
   const formattedDate = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
@@ -265,12 +329,18 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   year: "numeric",
 }).format(new Date());
 
+  async function markBillPaid(bill: Bill) {
+    await apiRequest(`/bills/${bill.id}/pay`, { method: "PATCH" });
+    refetchBills();
+  }
+
   return (
     <DashboardShell
       activeLabel="Dashboard"
       title={`Good morning, ${name.trim().split(" ")[0]}!`}
       subtitle={formattedDate}
       name={name}
+      contentMaxWidth="max-w-[1480px]"
       onSignOut={onSignOut}
       action={
         <button
@@ -289,14 +359,16 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
           <>
         <SummaryCards summary={summary} />
 
-        <section className="mt-7 grid gap-5 xl:grid-cols-[0.9fr_1.6fr]">
+        <section className="mt-8 grid items-start gap-6 xl:grid-cols-[0.95fr_1.55fr]">
           <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
           <AiInsightCard insight={summary.ai_insight} />
         </section>
 
-        <section className="mt-7 grid gap-5 xl:grid-cols-[1.5fr_0.75fr]">
-          <SpendingChart monthlySpending={summary.monthly_spending} />
-          <RecentActivity recentActivity={summary.recent_activity} />
+        <section className="mt-8 grid gap-6 xl:items-start">
+          <div className="space-y-8">
+            <SpendingChart monthlySpending={summary.monthly_spending} />
+            <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />
+          </div>
         </section>
           </>
         ) : null}

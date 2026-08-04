@@ -8,6 +8,7 @@ import { createSubscriptionSchema, updateSubscriptionSchema } from "../schemas/s
 import { createSavingsGoalSchema, updateSavingsGoalSchema } from "../schemas/savingsGoal.schema.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { validateRequest } from "../middleware/validateRequest.js";
+import { processSubscriptionBilling } from "../services/subscription-billing.service.js";
 
 export function resourceRouter(table: TableName) {
   const router = Router();
@@ -25,7 +26,10 @@ export function resourceRouter(table: TableName) {
     router.get("/summary", asyncHandler(savingsDashboard));
   }
 
-  router.get("/", validateRequest({ query: schemas.query }), asyncHandler(controller.list));
+  router.get("/", validateRequest({ query: schemas.query }), asyncHandler(async (req, res, next) => {
+    if (table === "expenses") await processSubscriptionBilling(req.user!.id);
+    return controller.list(req, res);
+  }));
   router.get("/:id", validateRequest({ params: idParamSchema }), asyncHandler(controller.get));
   router.post("/", validateRequest({ body: schemas.create }), asyncHandler(controller.create));
   router.patch("/:id", validateRequest({ params: idParamSchema, body: schemas.update }), asyncHandler(controller.update));

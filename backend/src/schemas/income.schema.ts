@@ -12,6 +12,7 @@ export const createIncomeSchema = z.object({
   amount: z.coerce.number().nonnegative(),
   date: z.string().date(),
   is_recurring: z.boolean().optional(),
+  frequency: z.enum(["monthly", "weekly", "biweekly", "yearly"]).optional(),
 });
 
 export const updateIncomeSchema = createIncomeSchema.partial();

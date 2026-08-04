@@ -1,5 +1,7 @@
 import { getBudgetSummary, getDashboardSummary, getReports } from "./analytics.service.js";
 import { asNumber, client, monthRange, requireUserId, todayIso, throwIfError } from "./db.js";
+import { incomeForRange } from "./financial-summary.service.js";
+import { processSubscriptionBilling } from "./subscription-billing.service.js";
 import { getProfile } from "./settings.service.js";
 
 type ContextTopic = "overview" | "spending" | "bills" | "subscriptions" | "budget" | "savings" | "reports";
@@ -83,11 +85,6 @@ function categoryTotals(expenses: Array<Record<string, unknown>>) {
     .sort((left, right) => right.amount - left.amount);
 }
 
-function subscriptionMonthlyAmount(subscription: Record<string, unknown>) {
-  const amount = asNumber(subscription.amount);
-  return subscription.billing_cycle === "yearly" ? amount / 12 : amount;
-}
-
 function buildRiskAlerts(input: {
   budget: Awaited<ReturnType<typeof getBudgetSummary>> | null;
   bills: Array<Record<string, unknown>>;
@@ -123,6 +120,7 @@ function buildRiskAlerts(input: {
 }
 
 export async function buildFinancialContext(userId: string, message: string) {
+  await processSubscriptionBilling(userId);
   const topics = detectTopics(message);
   const current = monthRange();
   const lastMonthDate = new Date();
@@ -135,7 +133,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     budget,
     rawReport,
     rawPreviousReport,
-    currentIncome,
+    currentIncomeData,
     currentExpenses,
     currentBills,
     recentExpenses,
@@ -147,7 +145,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     getBudgetSummary(userId),
     getReports(userId, { period: "this_month" }),
     getReports(userId, { period: "last_month" }),
-    rowsFor("income", userId, "date", current.start, current.end),
+    incomeForRange(userId, current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("bills", userId, "due_date", current.start, current.end),
     recentRows("expenses", userId, 8),
@@ -158,7 +156,6 @@ export async function buildFinancialContext(userId: string, message: string) {
   const previousReport = rawPreviousReport as AiReportSummary;
 
   const categories = categoryTotals(currentExpenses);
-  const subscriptionMonthlyTotal = Number(subscriptions.reduce((sum, item) => sum + subscriptionMonthlyAmount(item), 0).toFixed(2));
   const savingsTarget = savingsGoals.reduce((sum, goal) => sum + asNumber(goal.target_amount), 0);
   const savingsCurrent = savingsGoals.reduce((sum, goal) => sum + asNumber(goal.current_amount), 0);
   const riskAlerts = buildRiskAlerts({ budget, bills: currentBills, subscriptions, currentExpenses, report });
@@ -169,14 +166,14 @@ export async function buildFinancialContext(userId: string, message: string) {
       currency: profile.currency ?? "PHP",
       preferred_language: profile.language ?? "en",
       pay_schedule: profile.pay_schedule ?? "monthly",
-      configured_monthly_income: asNumber(profile.income),
+      monthly_income: currentIncomeData.total,
     },
     range: current,
     financial_score: dashboard.health_score,
     monthly_summary: {
-      income: sumRows(currentIncome),
+        income: currentIncomeData.total,
       expenses: sumRows(currentExpenses),
-      cash_flow: Number((sumRows(currentIncome) - sumRows(currentExpenses)).toFixed(2)),
+        cash_flow: Number((currentIncomeData.total - sumRows(currentExpenses)).toFixed(2)),
       dashboard_monthly_expenses: dashboard.monthly_expenses,
       month_vs_last_month_expense_delta_percent: dashboard.monthly_expenses_delta_percent,
       savings_rate: report.savings_rate,
@@ -218,7 +215,7 @@ export async function buildFinancialContext(userId: string, message: string) {
 
   if (topics.includes("subscriptions")) {
     context.subscriptions = {
-      monthly_estimate: subscriptionMonthlyTotal,
+      tracked_subscriptions: subscriptions.length,
       rows: subscriptions.map((subscription) => ({
         name: subscription.name,
         amount: asNumber(subscription.amount),

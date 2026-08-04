@@ -5,6 +5,7 @@ import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
+import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
@@ -161,6 +162,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const budgetDialog = useActionDialog("budget");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
   const { data: fetchedBudgetSummary, isLoading, error, refetch } = useBudget(selectedMonth);
+  const { data: incomeSummary } = useIncomeSummary(selectedMonth);
   const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
   const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
   const budgetSummary = optimisticBudgetSummary ?? fetchedBudgetSummary;
@@ -189,13 +191,13 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const remainingSavingsLabel = budgetSummary?.remaining_savings_label ?? "Automatically move remaining savings into General Savings";
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
   const categoryBudget = spendingCategories.reduce((sum, category) => sum + Number(category.budget), 0);
-  const monthlyIncome = Number(budgetSummary?.monthly_income ?? 0);
+  const monthlyIncome = Number(incomeSummary?.this_month ?? budgetSummary?.monthly_income ?? 0);
   const budgetAmount = Number(budgetSummary?.budget_amount ?? budgetSummary?.total_budget ?? 0);
   const spentAmount = Number(budgetSummary?.spent_amount ?? budgetSummary?.total_spent ?? 0);
   const savedAmount = Number(budgetSummary?.saved_amount ?? savingsBudget);
   const remainingBudget = Number(budgetSummary?.remaining_budget ?? budgetSummary?.remaining ?? 0);
-  const unallocatedIncome = Number(budgetSummary?.unallocated_income ?? monthlyIncome - budgetAmount);
-  const budgetHealth = budgetSummary?.budget_health ?? {
+  const unallocatedIncome = monthlyIncome - budgetAmount;
+  const budgetHealth = {
     income: monthlyIncome,
     budgeted_percent: monthlyIncome ? Math.round((budgetAmount / monthlyIncome) * 100) : 0,
     spent_percent: monthlyIncome ? Math.round((spentAmount / monthlyIncome) * 100) : budgetAmount ? Math.round((spentAmount / budgetAmount) * 100) : 0,

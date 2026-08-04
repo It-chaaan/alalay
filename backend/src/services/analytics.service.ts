@@ -1,6 +1,8 @@
 import { randomUUID } from "crypto";
 import { addDaysIso, asNumber, client, monthRange, previousMonthRange, requireUserId, throwIfError, todayIso } from "./db.js";
 import { generateDashboardInsight } from "./dashboard-insight.service.js";
+import { incomeForMonth, incomeForRange } from "./financial-summary.service.js";
+import { processSubscriptionBilling } from "./subscription-billing.service.js";
 
 const budgetColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
 
@@ -287,36 +289,6 @@ function getDateFromTimestamp(value: unknown, fallback: string) {
   return typeof value === "string" && value.length >= 10 ? value.slice(0, 10) : fallback;
 }
 
-function getSubscriptionOccurrences(subscription: { renewal_date?: unknown; billing_cycle?: unknown; amount?: unknown; name?: unknown }, range: Pick<ReportRange, "start" | "end">): SpendingEntry[] {
-  if (typeof subscription.renewal_date !== "string" || !isDateOnly(subscription.renewal_date)) {
-    return [];
-  }
-
-  const start = parseDateOnly(range.start);
-  const end = parseDateOnly(range.end);
-  const stepMonths = subscription.billing_cycle === "yearly" ? 12 : 1;
-  let occurrence = parseDateOnly(subscription.renewal_date);
-  const entries: SpendingEntry[] = [];
-
-  while (occurrence < start) {
-    occurrence = addMonths(occurrence, stepMonths);
-  }
-
-  while (occurrence <= end) {
-    const date = toDateOnlyIso(occurrence);
-    entries.push({
-      date,
-      amount: asNumber(subscription.amount),
-      category: "Subscriptions",
-      source: "subscription",
-      label: String(subscription.name || "Subscription"),
-    });
-    occurrence = addMonths(occurrence, stepMonths);
-  }
-
-  return entries;
-}
-
 function getBudgetRange(options: BudgetSummaryOptions = {}) {
   if (options.month && /^\d{4}-\d{2}$/.test(options.month)) {
     const [year, month] = options.month.split("-").map(Number);
@@ -515,11 +487,6 @@ async function rowsFor(table: string, userId: string, dateColumn: string, from: 
   return data ?? [];
 }
 
-function monthlySubscriptionAmount(subscription: { amount: unknown; billing_cycle?: unknown }) {
-  const amount = asNumber(subscription.amount);
-  return subscription.billing_cycle === "yearly" ? amount / 12 : amount;
-}
-
 export function buildMonthlySpending(expenses: Array<{ date: string; amount: unknown }>, now: Date) {
   const currentRange = monthRange(now);
   const cursor = new Date(`${currentRange.start}T12:00:00Z`);
@@ -540,6 +507,7 @@ export function buildMonthlySpending(expenses: Array<{ date: string; amount: unk
 }
 
 export async function getBudgetSummary(userId: string, options: BudgetSummaryOptions = {}) {
+  await processSubscriptionBilling(userId);
   const range = getBudgetRange(options);
   const plan = await getBudgetPlan(userId);
 
@@ -547,18 +515,15 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
     return null;
   }
 
-  const [income, expenses, bills, subscriptions, savingsGoals, savingsPreference] = await Promise.all([
-    rowsFor("income", userId, "date", range.start, range.end),
+  const [incomeSummaryData, expenses, bills, savingsGoals, savingsPreference] = await Promise.all([
+    incomeForMonth(userId, range.start.slice(0, 7)),
     rowsFor("expenses", userId, "date", range.start, range.end),
     rowsFor("bills", userId, "due_date", range.start, range.end),
-    client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     getSavingsPreference(userId),
   ]);
 
-  const subscriptionsData = "data" in subscriptions ? subscriptions.data ?? [] : [];
   const savingsGoalsData = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
-  if ("error" in subscriptions) throwIfError(subscriptions.error);
   if ("error" in savingsGoals) throwIfError(savingsGoals.error);
 
   const categoriesData = normalizeBudgetCategories(plan.categories);
@@ -574,8 +539,6 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
   const paidBills = bills.filter((bill) => bill.status === "paid");
-  const subscriptionCharges = subscriptionsData.flatMap((subscription) => getSubscriptionOccurrences(subscription, range));
-
   for (const expense of expenses) {
     const category = String(expense.category || "");
     addCategoryAmount(categoryTotals, category, asNumber(expense.amount));
@@ -588,12 +551,7 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
     addCategoryLabel(categoryLabels, category);
   }
 
-  for (const subscription of subscriptionCharges) {
-    addCategoryAmount(categoryTotals, "Subscriptions", subscription.amount);
-    addCategoryLabel(categoryLabels, "Subscriptions");
-  }
-
-  const monthlyIncome = income.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const monthlyIncome = incomeSummaryData.this_month;
   const totalSpent = Array.from(categoryTotals.values()).reduce((sum, amount) => sum + amount, 0);
   const remainingBudget = totalBudget - totalSpent;
   const unallocatedIncome = monthlyIncome - totalBudget;
@@ -675,17 +633,16 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
 }
 
 export async function getSavingsDashboard(userId: string) {
-  const [savingsGoals, plan, profile, savingsPreference] = await Promise.all([
+  await processSubscriptionBilling(userId);
+  const [savingsGoals, plan, incomeData, savingsPreference] = await Promise.all([
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     getBudgetPlan(userId),
-    client().from("users").select("income,pay_schedule").eq("id", requireUserId(userId)).maybeSingle(),
+    incomeForMonth(userId),
     getSavingsPreference(userId),
   ]);
 
   const goals = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
-  const profileData = "data" in profile ? profile.data ?? null : null;
   if ("error" in savingsGoals) throwIfError(savingsGoals.error);
-  if ("error" in profile) throwIfError(profile.error);
 
   const budgetCategories = normalizeBudgetCategories(plan?.categories);
   const savingsCategory = budgetCategories.find(isSavingsCategory);
@@ -702,7 +659,7 @@ export async function getSavingsDashboard(userId: string) {
   const monthlyContribution = monthlySavingsBudget || goals.reduce((sum, goal) => sum + asNumber(goal.monthly_target), 0);
   const generalSavings = savingsAllocation.general_savings;
   const totalSavings = goalSavings + generalSavings;
-  const monthlyIncome = asNumber(profileData?.income);
+  const monthlyIncome = incomeData.this_month;
   const savingsRate = monthlyIncome ? Math.round((monthlyContribution / monthlyIncome) * 100) : 0;
   const topGoalAllocation = savingsAllocation.goal_allocations[0];
   const aiInsight = topGoalAllocation
@@ -751,6 +708,7 @@ export async function getSavingsDashboard(userId: string) {
 }
 
 export async function getReports(userId: string, options: ReportOptions = {}) {
+  await processSubscriptionBilling(userId);
   const range = getReportRange(options);
   const cacheKey = `${requireUserId(userId)}:${range.period}:${range.start}:${range.end}`;
   const cached = reportCache.get(cacheKey);
@@ -759,9 +717,9 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     return cached.data;
   }
 
-  const [expenses, income, bills, subscriptions, savingsGoals, plan, profile, aiInsights, savingsPreference] = await Promise.all([
+  const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights, savingsPreference] = await Promise.all([
     rowsFor("expenses", userId, "date", range.start, range.end),
-    rowsFor("income", userId, "date", range.start, range.end),
+    range.period === "this_month" ? incomeForMonth(userId, range.start.slice(0, 7)) : incomeForRange(userId, range.start, range.end),
     rowsFor("bills", userId, "due_date", range.start, range.end),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
@@ -787,7 +745,6 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
 
   const paidBills = bills.filter((bill) => bill.status === "paid");
   const outstandingBills = bills.filter((bill) => bill.status !== "paid");
-  const subscriptionCharges = subscriptionsData.flatMap((subscription) => getSubscriptionOccurrences(subscription, range));
   const spendingEntries: SpendingEntry[] = [
     ...expenses.map((expense) => ({
       date: String(expense.date),
@@ -804,14 +761,16 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       label: String(bill.title || "Bill"),
       status: String(bill.status || ""),
     })),
-    ...subscriptionCharges,
   ];
 
-  const totalIncome = income.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const income = incomeData.rows;
+  const totalIncome = incomeData.total;
   const manualExpenseTotal = expenses.reduce((sum, item) => sum + asNumber(item.amount), 0);
   const paidBillsTotal = paidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
   const outstandingBillsTotal = outstandingBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
-  const subscriptionSpending = subscriptionCharges.reduce((sum, item) => sum + item.amount, 0);
+  const subscriptionSpending = expenses
+    .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
+    .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
   const totalExpenses = manualExpenseTotal + paidBillsTotal + subscriptionSpending;
   const netSavings = totalIncome - totalExpenses;
   const categoryTotals = new Map<string, number>();
@@ -990,14 +949,14 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
         label: String(bill.title || "Bill"),
         status: String(bill.status || "unpaid"),
       })).sort((left, right) => left.date.localeCompare(right.date)),
-      subscriptions_timeline: subscriptionCharges.map((charge) => ({
-        date: charge.date,
-        amount: charge.amount,
-        label: charge.label,
+      subscriptions_timeline: subscriptionsData.map((subscription) => ({
+        date: String(subscription.renewal_date),
+        amount: asNumber(subscription.amount),
+        label: String(subscription.name || "Subscription"),
       })).sort((left, right) => left.date.localeCompare(right.date)),
     },
     data_sources: {
-      income: income.length,
+      income: incomeData.rows.length,
       expenses: expenses.length,
       bills: bills.length,
       subscriptions: subscriptionsData.length,
@@ -1016,12 +975,13 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
 
 export async function getDashboardSummary(userId: string) {
   const current = monthRange();
+  await processSubscriptionBilling(userId);
   const previous = previousMonthRange();
   const chartStartDate = new Date(`${current.start}T12:00:00Z`);
   chartStartDate.setUTCMonth(chartStartDate.getUTCMonth() - 7, 1);
   const chartStart = monthRange(chartStartDate).start;
   const dueWeekEnd = addDaysIso(7);
-  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions] = await Promise.all([
+  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions, incomeData] = await Promise.all([
     rowsFor("bills", userId, "due_date", current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("expenses", userId, "date", previous.start, previous.end),
@@ -1030,6 +990,7 @@ export async function getDashboardSummary(userId: string) {
     rowsFor("bills", userId, "due_date", current.start, dueWeekEnd),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
+    incomeForMonth(userId),
   ]);
 
   const goalsData = "data" in goals ? goals.data ?? [] : [];
@@ -1048,13 +1009,16 @@ export async function getDashboardSummary(userId: string) {
   const onTimeBills = bills.filter((bill) => bill.status === "paid" || bill.due_date >= todayIso()).length;
   const billScore = bills.length ? (onTimeBills / bills.length) * 35 : 35;
   const savingsRateScore = savingsTarget ? Math.min(25, (savingsCurrent / savingsTarget) * 25) : 10;
-  const localMonthlySubscriptionCost = subscriptionsData.reduce((sum, item) => sum + monthlySubscriptionAmount(item), 0);
-  const subscriptionRatio = monthlyExpenses ? localMonthlySubscriptionCost / monthlyExpenses : 0;
+  const subscriptionExpenses = expenses
+    .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
+    .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
+  const subscriptionRatio = monthlyExpenses ? subscriptionExpenses / monthlyExpenses : 0;
   const subscriptionScore = Math.max(0, 20 - subscriptionRatio * 20);
   const budget = await getBudgetSummary(userId);
   const budgetScore = budget ? Math.max(0, 20 - Math.max(0, budget.used_percent - 100)) : 10;
-  const aiInsight = await generateDashboardInsight({
+  const aiInsight = await generateDashboardInsight(userId, {
     month: current.start.slice(0, 7),
+    monthlyIncome: incomeData.this_month,
     expenses,
     bills,
     subscriptions: subscriptionsData,
@@ -1063,6 +1027,7 @@ export async function getDashboardSummary(userId: string) {
   });
 
   return {
+    monthly_income: incomeData.this_month,
     total_bills_this_month: bills.reduce((sum, item) => sum + asNumber(item.amount), 0),
     bills_due_this_week: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd).reduce((sum, item) => sum + asNumber(item.amount), 0),
     monthly_expenses: monthlyExpenses,

@@ -7,7 +7,7 @@ import { DashboardShell } from "../../components/layout/DashboardShell";
 import { LinkLogo } from "../../components/ui/LinkLogo";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useApiMutation } from "../../hooks/useApiMutation";
-import { useSettings } from "../../hooks/useSettings";
+import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import type { Subscription } from "../../hooks/types";
 import { useSubscriptions } from "../../hooks/useSubscriptions";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
@@ -16,7 +16,10 @@ import { getNextSubscriptionRenewalDate } from "../../utils/subscriptionRenewal"
 
 function monthlyAmount(subscription: Subscription) {
   const amount = Number(subscription.amount);
-  return subscription.billing_cycle === "yearly" ? amount / 12 : amount;
+  if (subscription.billing_cycle === "yearly") return amount / 12;
+  if (subscription.billing_cycle === "quarterly") return amount / 3;
+  if (subscription.billing_cycle === "weekly") return amount * 52 / 12;
+  return amount;
 }
 
 function RenewalReminderSwitch({
@@ -58,7 +61,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
   const addSubscriptionDialog = useActionDialog("add-subscription");
   const { data: subscriptions, isLoading, error, refetch } = useSubscriptions();
-  const { data: profile } = useSettings();
+  const { data: incomeSummary } = useIncomeSummary();
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -66,7 +69,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
   const cards = subscriptions ?? [];
   const monthlyTracked = cards.reduce((sum, subscription) => sum + monthlyAmount(subscription), 0);
   const yearlyTracked = monthlyTracked * 12;
-  const monthlyIncome = Number(profile?.income ?? 0);
+  const monthlyIncome = Number(incomeSummary?.this_month ?? 0);
   const incomePercent = monthlyIncome > 0 ? (monthlyTracked / monthlyIncome) * 100 : null;
 
   useEffect(() => {
@@ -179,7 +182,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
               <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-600">{card.billing_cycle}</span>
             </div>
             <h3 className="mt-4 font-medium">{card.name}</h3>
-            <div className="mt-1 text-xl font-bold">{formatCurrency(Number(card.amount))}<span className="text-sm font-normal text-slate-500">/{card.billing_cycle === "yearly" ? "yr" : "mo"}</span></div>
+            <div className="mt-1 text-xl font-bold">{formatCurrency(Number(card.amount))}<span className="text-sm font-normal text-slate-500">/{card.billing_cycle === "yearly" ? "yr" : card.billing_cycle === "quarterly" ? "qtr" : card.billing_cycle === "weekly" ? "wk" : "mo"}</span></div>
             <p className="mt-1 text-sm text-slate-500">
               Renews {formatDateShort(getNextSubscriptionRenewalDate(card.renewal_date, card.billing_cycle))}
             </p>

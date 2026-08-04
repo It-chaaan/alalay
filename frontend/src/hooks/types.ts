@@ -25,6 +25,13 @@ export type Expense = {
   is_split?: boolean;
   split_with?: string[];
   created_at: string;
+  subscription_id?: string | null;
+  billing_cycle?: "weekly" | "monthly" | "quarterly" | "yearly" | null;
+  occurrence_date?: string | null;
+  generated_by?: "subscription" | null;
+  recurrence_key?: string | null;
+  billing_status?: "generated" | "paid" | "void" | null;
+  generated_at?: string | null;
 };
 
 export type IncomeEntry = {
@@ -34,6 +41,7 @@ export type IncomeEntry = {
   amount: number | string;
   date: string;
   is_recurring: boolean;
+  frequency?: "monthly" | "weekly" | "biweekly" | "yearly";
   created_at: string;
 };
 
@@ -43,7 +51,7 @@ export type Subscription = {
   logo_url: string | null;
   amount: number | string;
   renewal_date: string;
-  billing_cycle: "monthly" | "yearly";
+  billing_cycle: "weekly" | "monthly" | "quarterly" | "yearly";
   auto_renew: boolean;
   last_used_at: string | null;
 };
@@ -248,6 +256,7 @@ export type ReportsSummary = {
 };
 
 export type DashboardSummary = {
+  monthly_income: number;
   total_bills_this_month: number;
   bills_due_this_week: number;
   monthly_expenses: number;

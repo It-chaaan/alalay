@@ -1,8 +1,12 @@
-import { asNumber } from "./db.js";
+import { asNumber, client, requireUserId } from "./db.js";
 import { createGeminiProvider } from "./ai.providers.js";
+
+const dashboardInsightCacheTtlMs = 24 * 60 * 60 * 1000;
+const dashboardInsightInFlight = new Map<string, Promise<DashboardInsight>>();
 
 type DashboardInsightInput = {
   month: string;
+  monthlyIncome: number;
   expenses: Array<Record<string, unknown>>;
   bills: Array<Record<string, unknown>>;
   subscriptions: Array<Record<string, unknown>>;
@@ -22,6 +26,7 @@ function compactContext(input: DashboardInsightInput) {
 
   return {
     month: input.month,
+    monthly_income: input.monthlyIncome,
     expenses: {
       total: Number(input.expenses.reduce((sum, row) => sum + asNumber(row.amount), 0).toFixed(2)),
       transactions: input.expenses.slice(0, 12).map((row) => ({
@@ -60,7 +65,21 @@ function compactContext(input: DashboardInsightInput) {
   };
 }
 
-export async function generateDashboardInsight(input: DashboardInsightInput): Promise<DashboardInsight> {
+async function generateDashboardInsightUncached(userId: string, input: DashboardInsightInput): Promise<DashboardInsight> {
+  const profileId = requireUserId(userId);
+  const { data: cached, error: cacheReadError } = await client()
+    .from("dashboard_insights")
+    .select("message, generated_at")
+    .eq("user_id", profileId)
+    .maybeSingle();
+
+  // A missing cache table should not take down the Dashboard; the migration
+  // creates it in normal deployments, while this fallback preserves AI output
+  // during rolling deployments.
+  if (!cacheReadError && cached && Date.now() - new Date(cached.generated_at).getTime() < dashboardInsightCacheTtlMs) {
+    return { status: "configured", message: cached.message };
+  }
+
   const provider = createGeminiProvider();
 
   if (!provider.isConfigured()) {
@@ -83,11 +102,35 @@ export async function generateDashboardInsight(input: DashboardInsightInput): Pr
       ].join(" "),
     });
 
+    const { error: cacheWriteError } = await client()
+      .from("dashboard_insights")
+      .upsert({ user_id: profileId, message, generated_at: new Date().toISOString() }, { onConflict: "user_id" });
+    if (cacheWriteError) {
+      // Do not hide a successful Gemini response if persistence is temporarily unavailable.
+      console.warn("Unable to persist dashboard AI insight cache:", cacheWriteError.message);
+    }
+
     return { status: "configured", message };
   } catch {
     return {
       status: "error",
       message: "AI insights are temporarily unavailable. Open Alalay AI to try again.",
     };
+  }
+}
+
+export async function generateDashboardInsight(userId: string, input: DashboardInsightInput): Promise<DashboardInsight> {
+  const profileId = requireUserId(userId);
+  const existing = dashboardInsightInFlight.get(profileId);
+  if (existing) return existing;
+
+  const request = generateDashboardInsightUncached(profileId, input);
+  dashboardInsightInFlight.set(profileId, request);
+  try {
+    return await request;
+  } finally {
+    if (dashboardInsightInFlight.get(profileId) === request) {
+      dashboardInsightInFlight.delete(profileId);
+    }
   }
 }

@@ -404,7 +404,7 @@ const subscriptionSchema = z.object({
   name: z.string().trim().min(1, "Subscription name is required"),
   amount: z.coerce.number().positive("Please enter an amount greater than 0"),
   renewal_date: z.string().date("Renewal date is required"),
-  billing_cycle: z.enum(["monthly", "yearly"]),
+  billing_cycle: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
   auto_renew: z.boolean(),
   last_used_at: z.string().optional(),
   logo_url: z.union([z.string().url("Enter a valid URL"), z.literal("")]).optional(),
@@ -524,6 +524,8 @@ export function SubscriptionFormPanel({
           {...register("billing_cycle")}
         >
           <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="quarterly">Quarterly</option>
           <option value="yearly">Yearly</option>
         </SelectField>
 
@@ -746,6 +748,7 @@ const incomeSchema = z.object({
   amount: z.coerce.number().positive("Please enter an amount greater than 0"),
   date: z.string().date("Date is required"),
   is_recurring: z.boolean(),
+  frequency: z.enum(["monthly", "weekly", "biweekly", "yearly"]),
 });
 
 type IncomeFormValues = z.infer<typeof incomeSchema>;
@@ -757,6 +760,7 @@ function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
     amount: income ? Number(income.amount) : undefined,
     date: income?.date ?? todayInputValue(),
     is_recurring: income ? Boolean(income.is_recurring) : false,
+    frequency: income?.frequency ?? "monthly",
   };
 }
 
@@ -769,10 +773,12 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     reset,
     formState: { errors },
     control,
+    watch,
   } = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
   });
+  const recurring = watch("is_recurring");
 
   useEffect(() => {
     if (open) {
@@ -850,6 +856,19 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
           description="Turn this on if the source repeats on a fixed schedule."
           {...register("is_recurring")}
         />
+
+        <SelectField
+          id="income-frequency"
+          label="Frequency"
+          disabled={!recurring}
+          error={errors.frequency?.message}
+          {...register("frequency")}
+        >
+          <option value="monthly">Monthly</option>
+          <option value="weekly">Weekly</option>
+          <option value="biweekly">Biweekly</option>
+          <option value="yearly">Yearly</option>
+        </SelectField>
       </form>
     </SlideOver>
   );
@@ -1381,14 +1400,23 @@ export function BudgetFormPanel({
                         />
                       </div>
 
-                      <FormCurrencyInput
-                        id={`budget-category-${field.id}`}
-                        label="Budget amount"
+                      <Controller
                         control={control}
                         name={`categories.${index}.budget`}
-                        min="0"
-                        step={budgetSliderStep}
-                        error={errors.categories?.[index]?.budget?.message}
+                        render={({ field: budgetField }) => (
+                          <CurrencyInput
+                            id={`budget-category-${field.id}`}
+                            label="Budget amount"
+                            value={budgetField.value === 0 || budgetField.value === "0" ? "" : budgetField.value}
+                            onChange={(value) => budgetField.onChange(value)}
+                            onBlur={budgetField.onBlur}
+                            inputRef={budgetField.ref}
+                            min="0"
+                            step={budgetSliderStep}
+                            placeholder="0"
+                            error={errors.categories?.[index]?.budget?.message}
+                          />
+                        )}
                       />
 
                       {deficit > 0 ? (

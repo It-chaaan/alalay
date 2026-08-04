@@ -5,7 +5,7 @@ export const createSubscriptionSchema = z.object({
   logo_url: z.string().url().nullable().optional(),
   amount: z.coerce.number().nonnegative(),
   renewal_date: z.string().date(),
-  billing_cycle: z.enum(["monthly", "yearly"]).optional(),
+  billing_cycle: z.enum(["weekly", "monthly", "quarterly", "yearly"]).optional(),
   // Local reminder preference only; this app does not control provider renewal settings.
   auto_renew: z.boolean().optional(),
   // User-provided or internally derived local metadata, not provider usage telemetry.
