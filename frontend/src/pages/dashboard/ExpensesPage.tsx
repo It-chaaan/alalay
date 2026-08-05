@@ -13,6 +13,7 @@ import { getCategoryColor } from "../../utils/categoryColors";
 import { Pen, Scan, Trash2 } from "lucide-react";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
+import { groupExpensesByDate } from "../../utils/expenseGrouping";
 
 type ExpenseListItem = Expense & { source: "expense" | "bill" };
 
@@ -44,6 +45,7 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
         source: "bill" as const,
       })),
   ];
+  const dateGroups = groupExpensesByDate(items);
   const isLoading = expensesLoading || billsLoading;
   const error = expensesError ?? billsError;
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -159,45 +161,45 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
         {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
         {!isLoading && !error && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No expenses yet. Log an expense to start seeing your spending.</div> : null}
-        {items.map((item) => (
-          <div key={item.id}>
-            <div className="mb-2 text-sm text-slate-500">{formatDateShort(item.date)}</div>
-            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
-                <div className="min-w-0">
-                  <div className="font-medium">{item.merchant}</div>
-                  <div className="mt-1 flex items-center gap-2 text-xs"><CategoryBadge category={item.category} compact /><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
-                  {item.source === "expense" ? (
-                    <MoreActionsMenu
-                      isOpen={openMenuId === item.id}
-                      onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
-                      ariaLabel={`More actions for ${item.merchant} expense`}
-                      estimatedMenuHeight={96}
-                    >
-                      <MenuAction
-                        icon={Pen}
-                        label="Edit expense"
-                        tone="info"
-                        onClick={() => openEditExpense(item)}
-                      />
-                      <MenuAction
-                        icon={Trash2}
-                        label="Delete expense"
-                        tone="danger"
-                        disabled={isSubmitting}
-                        onClick={() => {
-                          void deleteExpense(item);
-                        }}
-                      />
-                    </MoreActionsMenu>
-                  ) : <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Paid bill</span>}
-                </div>
-              </div>
+        {dateGroups.map((group) => (
+          <section key={group.date}>
+            <div className="mb-2 flex items-center justify-between text-sm text-slate-500">
+              <span>{formatDateShort(group.date)}</span>
+              <span className="font-mono">{formatCurrency(group.subtotal)}</span>
             </div>
-          </div>
+            <div className="space-y-3">
+              {group.items.map((item) => (
+                <div key={`${item.source}-${item.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                  <div className="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
+                    <div className="min-w-0">
+                      <div className="font-medium">{item.merchant}</div>
+                      <div className="mt-1 flex items-center gap-2 text-xs"><CategoryBadge category={item.category} compact /><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
+                      {item.source === "expense" ? (
+                        <MoreActionsMenu
+                          isOpen={openMenuId === item.id}
+                          onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
+                          ariaLabel={`More actions for ${item.merchant} expense`}
+                          estimatedMenuHeight={96}
+                        >
+                          <MenuAction icon={Pen} label="Edit expense" tone="info" onClick={() => openEditExpense(item)} />
+                          <MenuAction
+                            icon={Trash2}
+                            label="Delete expense"
+                            tone="danger"
+                            disabled={isSubmitting}
+                            onClick={() => { void deleteExpense(item); }}
+                          />
+                        </MoreActionsMenu>
+                      ) : <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Paid bill</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
       <ExpenseFormPanel

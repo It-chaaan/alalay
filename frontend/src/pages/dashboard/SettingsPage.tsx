@@ -10,8 +10,8 @@ import { apiRequest } from "../../lib/apiClient";
 import { createCategoryId, readAppSettings, writeAppSettings, type AppCategory, type AppSettings, type CategoryKind, type CurrencyCode, type DateFormat, type ThemeMode } from "../../lib/appSettings";
 import { useProfile } from "../../context/ProfileContext";
 
-const settingsTabs = ["Profile", "Preferences", "Notifications", "Security", "Categories"] as const;
-type SettingsTab = (typeof settingsTabs)[number];
+const settingsTabs = ["Profile", "Preferences", "Notifications", "Security"] as const;
+type SettingsTab = (typeof settingsTabs)[number] | "Categories";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";

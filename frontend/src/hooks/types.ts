@@ -267,7 +267,7 @@ export type DashboardSummary = {
   health_score: number;
   weekly_bills: Bill[];
   recent_activity: Expense[];
-  monthly_spending: Array<{ month: string; value: number; current?: boolean }>;
+    monthly_spending: Array<{ month: string; value: number; current?: boolean; has_data?: boolean }>;
   ai_insight: { status: string; message: string };
 };
 

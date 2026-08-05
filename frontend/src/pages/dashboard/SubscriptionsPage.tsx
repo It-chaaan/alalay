@@ -187,11 +187,8 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
               Renews {formatDateShort(getNextSubscriptionRenewalDate(card.renewal_date, card.billing_cycle))}
             </p>
             {card.last_used_at ? <p className="mt-1 text-sm text-slate-500">Manual last used {formatDateShort(card.last_used_at)}</p> : null}
-            <div className="mt-5 flex items-center justify-between gap-3 text-sm text-slate-500">
-              <div>
-                <p className="font-medium text-slate-700">Renewal reminder</p>
-                <p className="mt-0.5 text-xs text-slate-500">{card.auto_renew ? "Email + in-app" : "Off"}</p>
-              </div>
+            <div className="mt-4 flex items-center justify-between gap-3 text-sm text-slate-500">
+              <p className="font-medium text-slate-700">Renewal reminder</p>
               <RenewalReminderSwitch
                 checked={card.auto_renew}
                 disabled={isSubmitting}

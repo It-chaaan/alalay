@@ -2,7 +2,6 @@ import { env } from "../config/env.js";
 import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./db.js";
 import { getReports } from "./analytics.service.js";
 import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
-import { processSubscriptionBilling } from "./subscription-billing.service.js";
 import { addBillingCycle, type SubscriptionBillingCycle } from "./subscription-billing.service.js";
 
 type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean };
@@ -61,7 +60,6 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
 
 export async function runNotificationScheduler(now = new Date()) {
   const today = todayIso(now);
-  await processSubscriptionBilling(undefined, now);
   const [users, preferencesResult, billsResult, subscriptionsResult] = await Promise.all([
     authUsers(),
     client().from("notification_preferences").select("*"),

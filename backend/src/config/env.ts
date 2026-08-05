@@ -16,6 +16,7 @@ const envSchema = z.object({
   EMAIL_FROM: z.string().default("Alalay <notifications@alalay.app>"),
   APP_URL: z.string().url().default("http://localhost:5173"),
   NOTIFICATION_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  BILLING_DEBUG: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
 });
 
 export const env = envSchema.parse(process.env);

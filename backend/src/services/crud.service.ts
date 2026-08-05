@@ -2,7 +2,10 @@ import { client, requireUserId, throwIfError, type TableName } from "./db.js";
 import { AppError } from "../utils/api.js";
 
 export async function listOwned(table: TableName, userId: string, filters?: Record<string, unknown>) {
-  let query = client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null).order("created_at", { ascending: false });
+  let query = client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null);
+  query = table === "expenses"
+    ? query.order("date", { ascending: false }).order("created_at", { ascending: false })
+    : query.order("created_at", { ascending: false });
 
   if (filters) {
     for (const [key, value] of Object.entries(filters)) {

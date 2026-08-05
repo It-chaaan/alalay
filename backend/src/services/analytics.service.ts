@@ -495,14 +495,14 @@ export function buildMonthlySpending(expenses: Array<{ date: string; amount: unk
   return Array.from({ length: 8 }, (_, index) => {
     const range = monthRange(cursor);
     const monthKey = range.start.slice(0, 7);
-    const value = expenses
-      .filter((expense) => expense.date.slice(0, 7) === monthKey)
+    const monthExpenses = expenses.filter((expense) => expense.date.slice(0, 7) === monthKey);
+    const value = monthExpenses
       .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
     const label = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "Asia/Manila" }).format(cursor);
     const current = monthKey === currentRange.start.slice(0, 7);
     cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
 
-    return { month: label, value, current };
+    return { month: label, value, current, has_data: monthExpenses.length > 0 };
   });
 }
 

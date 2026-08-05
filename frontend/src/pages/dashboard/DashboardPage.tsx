@@ -209,6 +209,7 @@ function DueDatesCalendar({ bills, subscriptions }: { bills: Bill[]; subscriptio
 
 function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary["monthly_spending"] }) {
   const max = Math.max(1, ...monthlySpending.map((item) => item.value));
+  const scale = (value: number) => value > 0 ? Math.log1p(value) / Math.log1p(max) : 0;
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-7 shadow-sm">
@@ -220,9 +221,9 @@ function SpendingChart({ monthlySpending }: { monthlySpending: DashboardSummary[
         {monthlySpending.map((item) => (
           <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
             <div
-              className={`w-full max-w-8 rounded-t-md ${item.current ? "bg-brand-dark" : "bg-brand-primary/60"}`}
-              style={{ height: `${Math.max(24, (item.value / max) * 270)}px` }}
-              title={`${item.month}${item.current ? " (Current)" : ""}: ${formatCurrency(item.value)}`}
+              className={`w-full max-w-8 rounded-t-md ${!(item.has_data ?? item.value > 0) ? "border-2 border-dashed border-slate-300 bg-slate-50" : item.current ? "bg-brand-dark/60" : "bg-brand-primary/60"}`}
+              style={{ height: `${(item.has_data ?? item.value > 0) ? Math.max(12, scale(item.value) * 270) : 24}px` }}
+              title={`${item.month}${item.current ? " (So far)" : ""}${(item.has_data ?? item.value > 0) ? `: ${formatCurrency(item.value)}` : ": No recorded expenses"}`}
             />
             <span className={`text-sm ${item.current ? "font-semibold text-brand-dark" : "text-slate-500"}`}>{item.month}{item.current ? " · Current" : ""}</span>
           </div>
@@ -292,12 +293,16 @@ function RecentUpcomingBills({ bills, onMarkPaid }: { bills: Bill[]; onMarkPaid:
         <h2 className="font-semibold text-slate-950">Recent &amp; Upcoming Bills</h2>
         <a href="/app/bills" className="shrink-0 text-xs font-semibold text-brand-primary hover:text-brand-dark">View all <span aria-hidden="true">→</span></a>
       </div>
+      <p className="mt-3 text-xs text-slate-500">Bars use a compressed scale so high-spend outliers do not hide smaller months. Dashed bars indicate no recorded expenses.</p>
       <div className="mt-5 space-y-5">
-        {recentBills.length ? recentBills.map((bill) => {
+        {recentBills.length ? recentBills.map((bill, index) => {
           const status = getBillDisplayStatus(bill, todayIso);
           const isPaid = status === "paid";
           return (
-          <div key={bill.id} className="flex min-w-0 items-center gap-3">
+          <div key={bill.id}>
+            {index === 0 && !isPaid ? <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Upcoming</h3> : null}
+            {isPaid && (index === 0 || recentBills[index - 1].status !== "paid") ? <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Paid this period</h3> : null}
+            <div className="flex min-w-0 items-center gap-3">
             <CategoryIcon category={bill.category} size="md" />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold text-slate-950">{bill.title}</p>
@@ -309,6 +314,7 @@ function RecentUpcomingBills({ bills, onMarkPaid }: { bills: Bill[]; onMarkPaid:
               {getBillStatusCopy(status, bill, todayIso)}
             </span>
             {isPaid ? <span className="hidden h-8 w-8 shrink-0 place-items-center rounded-full bg-emerald-50 text-emerald-600 sm:grid" aria-label="Paid"><Check className="h-4 w-4" /></span> : <button type="button" onClick={() => void handlePay(bill)} disabled={payingId === bill.id} className="shrink-0 rounded-full bg-brand-primary px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-dark disabled:cursor-wait disabled:opacity-60">{payingId === bill.id ? "Paying…" : "Pay Now"}</button>}
+            </div>
           </div>
           );
         }) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">No bills yet. Your recent and upcoming bills will appear here.</p>}
