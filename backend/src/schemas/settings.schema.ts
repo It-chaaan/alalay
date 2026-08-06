@@ -3,7 +3,7 @@ import { z } from "zod";
 export const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  avatar_url: z.string().max(5_000_000).nullable().optional(),
+  avatar_url: z.string().url().max(500).nullable().optional(),
   phone: z.string().max(32).nullable().optional(),
   currency: z.enum(["PHP", "USD", "EUR", "JPY", "SGD"]).optional(),
   language: z.enum(["en", "fil"]).optional(),

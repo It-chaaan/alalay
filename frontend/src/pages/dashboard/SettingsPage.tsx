@@ -9,6 +9,7 @@ import { apiRequest } from "../../lib/apiClient";
 import { createCategoryId, readAppSettings, writeAppSettings, type AppCategory, type AppSettings, type CategoryKind, type CurrencyCode, type DateFormat, type ThemeMode } from "../../lib/appSettings";
 import { useProfile } from "../../context/ProfileContext";
 import { UserAvatar } from "../../components/ui/UserAvatar";
+import { uploadProfileAvatar } from "../../lib/profileAvatar";
 
 const settingsTabs = ["Profile", "Preferences", "Notifications", "Security"] as const;
 type SettingsTab = (typeof settingsTabs)[number] | "Categories";
@@ -57,6 +58,7 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
   const [form, setForm] = useState({ name: initialName, email: initialEmail, phone: profile?.phone || localProfile.phone || "", language: (profile?.language || "en") as "en" | "fil", avatar: profile?.avatar_url || "" });
   const [saved, setSaved] = useState(form);
   const [saving, setSaving] = useState(false);
+  const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -71,6 +73,7 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
   function update(key: keyof typeof form, value: string) { setForm((current) => ({ ...current, [key]: value })); }
   function selectPhoto(file: File | undefined) {
     if (!file || !file.type.startsWith("image/")) return notify("Choose an image file.", true);
+    setAvatarFile(file);
     const reader = new FileReader(); reader.onload = () => update("avatar", String(reader.result)); reader.readAsDataURL(file);
   }
   async function submit(event: FormEvent) {
@@ -82,10 +85,12 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      const savedProfile = await apiRequest<Profile>("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone || null, language: form.language, avatar_url: form.avatar || null }) });
+      const avatarUrl = avatarFile ? await uploadProfileAvatar(session.user.id, avatarFile) : form.avatar || null;
+      const savedProfile = await apiRequest<Profile>("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone || null, language: form.language, avatar_url: avatarUrl }) });
       window.localStorage.setItem(profileStorageKey(session.user.id), JSON.stringify({ phone: form.phone }));
       updateProfile(savedProfile);
-      setSaved(form); onSaved(form.name.trim()); notify("Profile updated");
+      const nextForm = { ...form, avatar: savedProfile.avatar_url || avatarUrl || "" };
+      setForm(nextForm); setSaved(nextForm); setAvatarFile(null); onSaved(form.name.trim()); notify("Profile updated");
     } catch (saveError) { notify(saveError instanceof Error ? saveError.message : "Unable to update profile.", true); } finally { setSaving(false); }
   }
 
