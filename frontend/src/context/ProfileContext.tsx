@@ -11,15 +11,6 @@ type ProfileContextValue = {
 
 const ProfileContext = createContext<ProfileContextValue | null>(null);
 
-function getLocalAvatar(userId: string) {
-  try {
-    const local = JSON.parse(window.localStorage.getItem(`alalay-profile:${userId}`) || "{}");
-    return typeof local.avatar === "string" ? local.avatar : "";
-  } catch {
-    return "";
-  }
-}
-
 export function ProfileProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -40,8 +31,7 @@ export function ProfileProvider({ children }: { children: ReactNode }) {
 
     try {
       const nextProfile = await apiRequest<Profile>("/users/me");
-      const avatar = nextProfile.avatar_url || getLocalAvatar(data.session.user.id) || null;
-      setProfile({ ...nextProfile, avatar_url: avatar });
+      setProfile(nextProfile);
     } catch {
       setProfile(null);
     } finally {

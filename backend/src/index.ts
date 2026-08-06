@@ -4,7 +4,7 @@ import { startNotificationScheduler } from "./services/notification-scheduler.se
 import { startBillingScheduler } from "./services/billing-scheduler.service.js";
 
 const app = createServer();
-const protocol = env.HTTPS_ENABLED ? "https" : "http";
+const protocol = env.HTTPS_TERMINATE_LOCALLY ? "https" : "http";
 const address = `${protocol}://localhost:${env.PORT}`;
 
 const server = app.listen(env.PORT, () => {

@@ -3,6 +3,7 @@ import { dashboardSidebarSections } from "../../constants/dashboard";
 import alalayLogo from "../../assets/alalay.svg";
 import {LayoutDashboard, ReceiptText, CreditCard, BanknoteArrowDown, BanknoteArrowUp, HandCoins, Wallet, Summary, Bot, Scan, Settings, TrendingUp } from "lucide-react";
 import { useProfile } from "../../context/ProfileContext";
+import { UserAvatar } from "../ui/UserAvatar";
 
 type DashboardSidebarProps = {
   activeLabel: string;
@@ -89,7 +90,7 @@ export function DashboardSidebar({ activeLabel, name, onSignOut, footerNote }: D
         <div className="rounded-xl p-1 transition hover:bg-slate-100">
           <div className="flex items-center gap-3">
             <a href="/app/settings" className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-brand-primary" aria-label="Open Settings profile">
-              {avatarUrl ? <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover" /> : <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-primary text-xs font-bold text-white">{displayName.charAt(0).toUpperCase()}</span>}
+              <UserAvatar url={avatarUrl} name={displayName} />
             </a>
             <div className="min-w-0 flex-1">
               <a href="/app/settings" className="block truncate rounded-md text-xs font-semibold text-slate-950 focus:outline-none focus:ring-2 focus:ring-brand-primary">{displayName}</a>

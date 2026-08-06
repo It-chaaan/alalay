@@ -14,6 +14,14 @@ export function createServer() {
   app.use((_req, res, next) => {
     if (env.HTTPS_ENABLED) {
       res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+      const forwardedProto = _req.header("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+      if (!_req.secure && forwardedProto !== "https") {
+        res.status(403).json({
+          success: false,
+          error: { code: "https_required", message: "HTTPS is required." },
+        });
+        return;
+      }
     }
     next();
   });
@@ -37,10 +45,10 @@ export function createServer() {
 
   app.use(errorHandler);
 
-  if (env.HTTPS_ENABLED) {
+  if (env.HTTPS_TERMINATE_LOCALLY) {
     if (!env.HTTPS_CERT_PATH || !env.HTTPS_KEY_PATH) {
       throw new Error(
-        "HTTPS is enabled but HTTPS_CERT_PATH or HTTPS_KEY_PATH is missing.",
+        "HTTPS_TERMINATE_LOCALLY is enabled but HTTPS_CERT_PATH or HTTPS_KEY_PATH is missing.",
       );
     }
 

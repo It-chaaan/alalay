@@ -5,6 +5,8 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
   HTTPS_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
+  // Set true only when this process owns the TLS certificate (not on Render/Heroku/Railway/Vercel).
+  HTTPS_TERMINATE_LOCALLY: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
   HTTPS_CERT_PATH: z.string().optional(),
   HTTPS_KEY_PATH: z.string().optional(),
   SUPABASE_URL: z.string().url().optional(),

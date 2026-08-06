@@ -4,11 +4,11 @@ import type { Session, User } from "@supabase/supabase-js";
 import type { Profile } from "../../hooks/types";
 import { Check, ChevronDown, ChevronUp, ImagePlus, Plus, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
-import { useSettings } from "../../hooks/useSettings";
 import { getSupabaseClient } from "../../lib/supabase";
 import { apiRequest } from "../../lib/apiClient";
 import { createCategoryId, readAppSettings, writeAppSettings, type AppCategory, type AppSettings, type CategoryKind, type CurrencyCode, type DateFormat, type ThemeMode } from "../../lib/appSettings";
 import { useProfile } from "../../context/ProfileContext";
+import { UserAvatar } from "../../components/ui/UserAvatar";
 
 const settingsTabs = ["Profile", "Preferences", "Notifications", "Security"] as const;
 type SettingsTab = (typeof settingsTabs)[number] | "Categories";
@@ -17,17 +17,8 @@ function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
 }
 
-function initials(name: string) {
-  return name.split(" ").filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase() || "JD";
-}
-
 function profileStorageKey(userId: string) {
   return `alalay-profile:${userId}`;
-}
-
-function getMetadataAvatar(session: Session) {
-  const metadata = session.user.user_metadata;
-  return metadata?.avatar_url || metadata?.picture || metadata?.avatar || "";
 }
 
 function userHasPassword(user: User | null) {
@@ -58,13 +49,12 @@ function Card({ title, description, children }: { title: string; description?: s
 }
 
 function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (name: string) => void; notify: (message: string, error?: boolean) => void }) {
-  const { data: profile, isLoading, error } = useSettings();
-  const { updateProfile } = useProfile();
+  const { profile, isLoading, updateProfile } = useProfile();
   const fileRef = useRef<HTMLInputElement>(null);
   const initialName = profile?.name || getDisplayName(session);
   const initialEmail = profile?.email || session.user.email || "";
   const localProfile = readLocalProfile(session.user.id);
-  const [form, setForm] = useState({ name: initialName, email: initialEmail, phone: profile?.phone || localProfile.phone || "", language: (profile?.language || "en") as "en" | "fil", avatar: profile?.avatar_url || getMetadataAvatar(session) || localProfile.avatar || "" });
+  const [form, setForm] = useState({ name: initialName, email: initialEmail, phone: profile?.phone || localProfile.phone || "", language: (profile?.language || "en") as "en" | "fil", avatar: profile?.avatar_url || "" });
   const [saved, setSaved] = useState(form);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -72,7 +62,7 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
   useEffect(() => {
     if (profile) {
       const local = readLocalProfile(session.user.id);
-      const next = { name: profile.name || getDisplayName(session), email: profile.email || session.user.email || "", phone: profile.phone || local.phone || "", language: profile.language || "en", avatar: profile.avatar_url || getMetadataAvatar(session) || local.avatar || "" };
+      const next = { name: profile.name || getDisplayName(session), email: profile.email || session.user.email || "", phone: profile.phone || local.phone || "", language: profile.language || "en", avatar: profile.avatar_url || "" };
       setForm(next); setSaved(next);
     }
   }, [profile, session]);
@@ -93,13 +83,13 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
     setSaving(true);
     try {
       const savedProfile = await apiRequest<Profile>("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone || null, language: form.language, avatar_url: form.avatar || null }) });
-      window.localStorage.setItem(profileStorageKey(session.user.id), JSON.stringify({ phone: form.phone, avatar: form.avatar }));
-      updateProfile({ ...savedProfile, avatar_url: form.avatar || savedProfile.avatar_url || null });
+      window.localStorage.setItem(profileStorageKey(session.user.id), JSON.stringify({ phone: form.phone }));
+      updateProfile(savedProfile);
       setSaved(form); onSaved(form.name.trim()); notify("Profile updated");
     } catch (saveError) { notify(saveError instanceof Error ? saveError.message : "Unable to update profile.", true); } finally { setSaving(false); }
   }
 
-  return <Card title="Profile" description="Manage your personal information and account identity."><form onSubmit={submit} className="space-y-5">{isLoading && !profile ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Loading profile...</p> : null}{error ? <p className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}<div className="flex items-center gap-4"><div className="relative">{form.avatar ? <img src={form.avatar} alt="Profile avatar" className="h-16 w-16 rounded-full object-cover" /> : <span className="grid h-16 w-16 place-items-center rounded-full bg-brand-primary text-lg font-bold text-white">{initials(form.name)}</span>}<button type="button" onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-brand-primary text-white" aria-label="Change photo"><ImagePlus className="h-3.5 w-3.5" /></button><input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => selectPhoto(event.target.files?.[0])} /></div><div><p className="font-semibold text-slate-950">{form.name}</p><p className="text-sm text-slate-500">{form.email}</p><button type="button" onClick={() => fileRef.current?.click()} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-primary"><Upload className="h-3 w-3" />Change photo</button></div></div><div className="grid gap-4 md:grid-cols-2"><Field label="Full name" value={form.name} onChange={(value) => update("name", value)} error={errors.name} /><Field label="Email address" value={form.email} onChange={(value) => update("email", value)} type="email" error={errors.email} /><Field label="Phone number" value={form.phone} onChange={(value) => update("phone", value)} type="tel" placeholder="+63 912 345 6789" error={errors.phone} /></div><fieldset><legend className="text-xs font-semibold text-slate-950">Language</legend><div className="mt-2 inline-flex rounded-xl border border-slate-200 p-1">{([["en", "English"], ["fil", "Filipino"]] as const).map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm ${form.language === value ? "bg-brand-muted font-semibold text-brand-primary" : "text-slate-500"}`}><input type="radio" className="sr-only" checked={form.language === value} onChange={() => update("language", value)} />{label}</label>)}</div></fieldset><div><SaveButton disabled={!dirty} saving={saving}>Save changes</SaveButton></div></form></Card>;
+  return <Card title="Profile" description="Manage your personal information and account identity."><form onSubmit={submit} className="space-y-5">{isLoading && !profile ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-500">Loading profile...</p> : null}<div className="flex items-center gap-4"><div className="relative"><UserAvatar url={form.avatar} name={form.name} size="large" alt="Profile avatar" /><button type="button" onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-brand-primary text-white" aria-label="Change photo"><ImagePlus className="h-3.5 w-3.5" /></button><input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => selectPhoto(event.target.files?.[0])} /></div><div><p className="font-semibold text-slate-950">{form.name}</p><p className="text-sm text-slate-500">{form.email}</p><button type="button" onClick={() => fileRef.current?.click()} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-primary"><Upload className="h-3 w-3" />Change photo</button></div></div><div className="grid gap-4 md:grid-cols-2"><Field label="Full name" value={form.name} onChange={(value) => update("name", value)} error={errors.name} /><Field label="Email address" value={form.email} onChange={(value) => update("email", value)} type="email" error={errors.email} /><Field label="Phone number" value={form.phone} onChange={(value) => update("phone", value)} type="tel" placeholder="+63 912 345 6789" error={errors.phone} /></div><fieldset><legend className="text-xs font-semibold text-slate-950">Language</legend><div className="mt-2 inline-flex rounded-xl border border-slate-200 p-1">{([["en", "English"], ["fil", "Filipino"]] as const).map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm ${form.language === value ? "bg-brand-muted font-semibold text-brand-primary" : "text-slate-500"}`}><input type="radio" className="sr-only" checked={form.language === value} onChange={() => update("language", value)} />{label}</label>)}</div></fieldset><div><SaveButton disabled={!dirty} saving={saving}>Save changes</SaveButton></div></form></Card>;
 }
 
 function PreferencesTab({ notify }: { notify: (message: string, error?: boolean) => void }) {
