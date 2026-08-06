@@ -11,6 +11,7 @@ import { apiRequest } from "../../lib/apiClient";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { getBillDisplayStatus, type BillDisplayStatus } from "../../components/dashboard/BillsComponents";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
+import { DashboardSkeleton, ListSkeleton, SkeletonBlock, SkeletonCard, SkeletonText, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 type DashboardPageProps = {
   session: Session;
@@ -349,9 +350,10 @@ function RecentUpcomingBills({ bills, onMarkPaid }: { bills: Bill[]; onMarkPaid:
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const greeting = getPhilippineGreeting();
-  const { data: summary, isLoading, error } = useDashboard();
-  const { data: bills, refetch: refetchBills } = useBills();
-  const { data: subscriptions } = useSubscriptions();
+  const { data: summary, isLoading, isSlowLoading, error } = useDashboard();
+  const { data: bills, isLoading: billsLoading, refetch: refetchBills } = useBills();
+  const { data: subscriptions, isLoading: subscriptionsLoading } = useSubscriptions();
+  const scheduleLoading = billsLoading || subscriptionsLoading;
   const formattedDate = new Intl.DateTimeFormat("en-US", {
   weekday: "long",
   month: "long",
@@ -370,7 +372,6 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
       title={`${greeting}, ${name.trim().split(" ")[0]}!`}
       subtitle={formattedDate}
       name={name}
-      contentMaxWidth="max-w-[1480px]"
       onSignOut={onSignOut}
       action={
         <button
@@ -382,7 +383,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
         </button>
       }
     >
-        {isLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading dashboard...</div> : null}
+        {isLoading ? <><DashboardSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
         {!isLoading && !error && !summary ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No dashboard data available yet.</div> : null}
         {summary ? (
@@ -390,12 +391,12 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
         <SummaryCards summary={summary} />
 
         <section className="mt-5 grid items-start gap-4 xl:grid-cols-[2fr_1fr]">
-          <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
+          {scheduleLoading ? <SkeletonCard className="h-[390px]"><SkeletonText className="w-28" /><SkeletonBlock className="mt-5 h-72 w-full" /></SkeletonCard> : <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />}
           <AiInsightCard insight={summary.ai_insight} />
         </section>
 
         <section className="mt-5">
-          <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />
+          {scheduleLoading ? <ListSkeleton rows={2} /> : <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />}
         </section>
           </>
         ) : null}

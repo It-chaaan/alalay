@@ -12,7 +12,6 @@ export function DashboardShell({
   footerNote,
   onSignOut,
   name,
-  contentMaxWidth = "max-w-[940px]",
   hideHeader = false,
 }: {
   activeLabel: string;
@@ -24,14 +23,13 @@ export function DashboardShell({
   footerNote?: ReactNode;
   onSignOut: () => void;
   name: string;
-  contentMaxWidth?: string;
   hideHeader?: boolean;
 }) {
   return (
       <main className="min-h-screen bg-app-background text-slate-950 dark:text-white lg:flex lg:h-screen lg:overflow-hidden">
       <DashboardSidebar activeLabel={activeLabel} name={name} onSignOut={onSignOut} footerNote={footerNote} />
       <section className="mx-auto min-w-0 flex-1 px-5 py-8 sm:px-8 lg:overflow-y-auto lg:px-12">
-        <div className={`mx-auto w-full ${contentMaxWidth}`}>
+        <div className="mx-auto w-full max-w-[1480px]">
         {!hideHeader ? (
           <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>

@@ -504,7 +504,6 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
       subtitle="Scan a receipt to log expenses automatically"
       name={name}
       onSignOut={onSignOut}
-      contentMaxWidth="max-w-[930px]"
     >
       <StepTracker activeStep={activeStep} stage={stage} />
 

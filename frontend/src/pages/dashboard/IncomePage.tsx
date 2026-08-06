@@ -12,6 +12,7 @@ import { buildIncomeOccurrences } from "../../utils/incomeRecurrence";
 import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Pen, Trash2 } from "lucide-react";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
 
@@ -171,7 +172,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
   const editIncomeDialog = useActionDialog("edit-income");
   const [selectedIncome, setSelectedIncome] = useState<IncomeEntry | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { data: entries, isLoading, error, refetch } = useIncome();
+  const { data: entries, isLoading, isSlowLoading, error, refetch } = useIncome();
   const { data: incomeSummary } = useIncomeSummary(getMonthKey(today));
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const rows = entries ?? [];
@@ -246,7 +247,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
         </button>
       }
     >
-      {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading income...</div> : null}
+{isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
       {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records yet. Add an income source to start tracking earnings.</div> : null}

@@ -8,6 +8,7 @@ import type { ComponentPropsWithoutRef } from "react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { type AiLanguage, useAiAssistant, useAiChat } from "../../hooks/useAiAssistant";
 import { isSafeMarkdownUrl } from "../../utils/markdownSecurity";
+import { SkeletonText, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 const aiPromptSuggestions = [
   "How much did I spend this month?",
@@ -59,7 +60,7 @@ function AssistantMessage({ content }: { content: string }) {
 
 export function AiAssistantPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
-  const { data: status, isLoading: isStatusLoading, error: statusError } = useAiAssistant();
+  const { data: status, isLoading: isStatusLoading, isSlowLoading, error: statusError } = useAiAssistant();
   const [language, setLanguage] = useState<AiLanguage>("auto");
   const [draft, setDraft] = useState("");
   const { messages, sendMessage, clearMessages, isStreaming, error } = useAiChat(session.user.id, language);
@@ -88,7 +89,7 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
   }
 
   return (
-    <DashboardShell activeLabel="AI Assistant" title="AI Assistant" name={name} onSignOut={onSignOut} hideHeader contentMaxWidth="max-w-[980px]">
+    <DashboardShell activeLabel="AI Assistant" title="AI Assistant" name={name} onSignOut={onSignOut} hideHeader>
       <section className="flex min-h-[calc(100vh-64px)] flex-col">
         <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
           <div className="flex items-center gap-3">
@@ -97,7 +98,7 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
               <h1 className="page-header-title text-base font-semibold text-slate-950">Alalay AI</h1>
               <p className="page-header-subtitle flex items-center gap-1.5 text-xs text-slate-500">
                 <span className={`h-1.5 w-1.5 rounded-full ${isConfigured ? "bg-[#3f7d16]" : "bg-amber-500"}`} />
-                {isStatusLoading ? "Checking provider..." : isConfigured ? `${status.provider} - ${status.model}` : "AI backend not configured"}
+                {isStatusLoading ? <SkeletonText className="inline-block w-28 align-middle" /> : isConfigured ? `${status.provider} - ${status.model}` : "AI backend not configured"}
               </p>
             </div>
           </div>
@@ -137,6 +138,7 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
             </p>
           </div>
         </section>
+        <SlowLoadNotice show={isStatusLoading && isSlowLoading} />
 
         {messages.length === 0 ? (
           <div className="mt-4 grid gap-2 md:grid-cols-2">

@@ -20,13 +20,14 @@ import { useBills } from "../../hooks/useBills";
 import type { Bill } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { normalizeExternalUrl, openExternalLink } from "../../utils/linkPreview";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 type BillFilter = "all" | "upcoming" | "overdue" | "paid";
 
 export function BillsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
   const addBillDialog = useActionDialog("add-bill");
-  const { data: bills, isLoading, error, refetch } = useBills();
+  const { data: bills, isLoading, isSlowLoading, error, refetch } = useBills();
   const { mutate } = useApiMutation();
   const [activeFilter, setActiveFilter] = useState<BillFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -129,7 +130,6 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       title="Bills"
       name={name}
       onSignOut={onSignOut}
-      contentMaxWidth="max-w-[1100px]"
       action={
         <button
           type="button"
@@ -189,7 +189,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       </div>
 
       <div className="mt-4 overflow-visible rounded-[14px] border border-slate-200 bg-white shadow-sm">
-        {isLoading ? <div className="p-6 text-sm text-slate-500">Loading bills...</div> : null}
+{isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
         {error ? <div className="p-6 text-sm text-red-700">{error}</div> : null}
         {!isLoading && !error && rows.length === 0 ? (
           <BillsEmptyState onAddBill={addBillDialog.open} hasFilters={false} />

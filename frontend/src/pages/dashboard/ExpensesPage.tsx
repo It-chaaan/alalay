@@ -14,6 +14,7 @@ import { Pen, Scan, Trash2 } from "lucide-react";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { groupExpensesByDate } from "../../utils/expenseGrouping";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 type ExpenseListItem = Expense & { source: "expense" | "bill" };
 
@@ -23,8 +24,8 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
   const editExpenseDialog = useActionDialog("edit-expense");
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { data: expenses, isLoading: expensesLoading, error: expensesError, refetch } = useExpenses();
-  const { data: bills, isLoading: billsLoading, error: billsError } = useBills();
+  const { data: expenses, isLoading: expensesLoading, isSlowLoading: expensesSlow, error: expensesError, refetch } = useExpenses();
+  const { data: bills, isLoading: billsLoading, isSlowLoading: billsSlow, error: billsError } = useBills();
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const items: ExpenseListItem[] = [
     ...(expenses ?? []).map((expense) => ({ ...expense, source: "expense" as const })),
@@ -46,7 +47,8 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       })),
   ];
   const dateGroups = groupExpensesByDate(items);
-  const isLoading = expensesLoading || billsLoading;
+const isLoading = expensesLoading || billsLoading;
+const isSlowLoading = expensesSlow || billsSlow;
   const error = expensesError ?? billsError;
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
@@ -157,7 +159,7 @@ export function ExpensesPage({ session, onSignOut }: { session: Session; onSignO
       </div>
 
       <div className="mt-6 space-y-5">
-        {isLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading expenses...</div> : null}
+{isLoading ? <><PageSkeleton kind="list" /><SlowLoadNotice show={isSlowLoading} /></> : null}
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
         {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
         {!isLoading && !error && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No expenses yet. Log an expense to start seeing your spending.</div> : null}

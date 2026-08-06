@@ -10,6 +10,7 @@ import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -161,7 +162,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const name = getDisplayName(session);
   const budgetDialog = useActionDialog("budget");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
-  const { data: fetchedBudgetSummary, isLoading, error, refetch } = useBudget(selectedMonth);
+  const { data: fetchedBudgetSummary, isLoading, isSlowLoading, error, refetch } = useBudget(selectedMonth);
   const { data: incomeSummary } = useIncomeSummary(selectedMonth);
   const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
   const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
@@ -240,7 +241,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
         </button>
       }
     >
-      {isLoading ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading budget...</div> : null}
+{isLoading ? <><PageSkeleton kind="budget" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {!isLoading && !error && !budgetSummary ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div> : null}
       {budgetSummary ? (

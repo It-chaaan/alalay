@@ -13,6 +13,7 @@ import { useSubscriptions } from "../../hooks/useSubscriptions";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { normalizeExternalUrl, openExternalLink } from "../../utils/linkPreview";
 import { getNextSubscriptionRenewalDate } from "../../utils/subscriptionRenewal";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 function monthlyAmount(subscription: Subscription) {
   const amount = Number(subscription.amount);
@@ -60,7 +61,7 @@ function RenewalReminderSwitch({
 export function SubscriptionsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
   const addSubscriptionDialog = useActionDialog("add-subscription");
-  const { data: subscriptions, isLoading, error, refetch } = useSubscriptions();
+  const { data: subscriptions, isLoading, isSlowLoading, error, refetch } = useSubscriptions();
   const { data: incomeSummary } = useIncomeSummary();
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const [editingSubscription, setEditingSubscription] = useState<Subscription | null>(null);
@@ -158,7 +159,7 @@ export function SubscriptionsPage({ session, onSignOut }: { session: Session; on
         </button>
       }
     >
-      {isLoading ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">Loading subscriptions...</div> : null}
+{isLoading ? <><PageSkeleton kind="list" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
       {!isLoading && !error && cards.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No subscriptions yet. Add one to track renewals.</div> : null}

@@ -7,6 +7,7 @@ import { useSavingsDashboard } from "../../hooks/useSavingsGoals";
 import type { SavingsDashboard, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatMonthYear } from "../../utils/formatters";
 import { getMonthlyNeeded, getProjectedGoalDate } from "../../utils/savingsGoals";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -128,7 +129,7 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
   const editGoalDialog = useActionDialog("edit-goal");
   const progressGoalDialog = useActionDialog("update-goal-progress");
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
-  const { data: dashboard, isLoading, error, refetch } = useSavingsDashboard();
+  const { data: dashboard, isLoading, isSlowLoading, error, refetch } = useSavingsDashboard();
   const goals = dashboard?.goals ?? [];
 
   function openEditGoal(goal: SavingsGoal) {
@@ -148,7 +149,6 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
       subtitle="Overview, general savings, and goal progress"
       name={name}
       onSignOut={onSignOut}
-      contentMaxWidth="max-w-[1040px]"
       action={
         <button
           type="button"
@@ -159,7 +159,7 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
         </button>
       }
     >
-      {isLoading ? <EmptyPanel>Loading savings dashboard...</EmptyPanel> : null}
+{isLoading ? <><PageSkeleton kind="budget" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {!isLoading && !error && !dashboard ? <EmptyPanel>No savings data available yet.</EmptyPanel> : null}
 

@@ -8,6 +8,7 @@ import { formatCurrency, formatDateShort, formatMonthYear, formatSignedCurrency 
 import { buildReportDateTicks, reportDateRatio } from "../../utils/reportChartDates";
 import { getCategoryColor } from "../../utils/categoryColors";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
+import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 const periodOptions: Array<{ label: string; value: ReportPeriod }> = [
   { label: "This month", value: "this_month" },
@@ -273,7 +274,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
   const defaultCustomRange = useMemo(getDefaultCustomRange, []);
   const [period, setPeriod] = useState<ReportPeriod>("this_month");
   const [customRange, setCustomRange] = useState(defaultCustomRange);
-  const { data: report, isLoading, error } = useReports({ period, ...customRange });
+  const { data: report, isLoading, isSlowLoading, error } = useReports({ period, ...customRange });
   const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: getCategoryColor(category.name, index) }));
   const hasAnyFinancialData = report ? Object.entries(report.data_sources).some(([key, count]) => key !== "ai_insights" && count > 0) : false;
 
@@ -284,7 +285,6 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
       subtitle={report ? report.range.label : "Financial analytics"}
       name={name}
       onSignOut={onSignOut}
-      contentMaxWidth="max-w-[1180px]"
       action={
         <ReportControls
           period={period}
@@ -296,7 +296,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
         />
       }
     >
-      {isLoading ? <EmptyPanel>Loading reports...</EmptyPanel> : null}
+{isLoading ? <><PageSkeleton kind="report" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {!isLoading && !error && !report ? <EmptyPanel>No report data available yet.</EmptyPanel> : null}
       {report && !hasAnyFinancialData ? <EmptyPanel>No financial records found for {report.range.label}. Add income, expenses, bills, subscriptions, budgets, or savings goals to populate this dashboard.</EmptyPanel> : null}
