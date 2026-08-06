@@ -9,7 +9,7 @@ function cookieHeader(token: string, maxAge: number) {
     "Path=/",
     `Max-Age=${maxAge}`,
     "HttpOnly",
-    env.HTTPS_ENABLED ? "SameSite=None" : "SameSite=Lax",
+    "SameSite=Lax",
     ...(env.HTTPS_ENABLED ? ["Secure"] : []),
   ].join("; ");
 }

@@ -9,6 +9,7 @@ import { createSavingsGoalSchema, updateSavingsGoalSchema } from "../schemas/sav
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { processSubscriptionBilling } from "../services/subscription-billing.service.js";
+import { writeRateLimit } from "../middleware/rateLimit.js";
 
 export function resourceRouter(table: TableName) {
   const router = Router();
@@ -31,9 +32,9 @@ export function resourceRouter(table: TableName) {
     return controller.list(req, res);
   }));
   router.get("/:id", validateRequest({ params: idParamSchema }), asyncHandler(controller.get));
-  router.post("/", validateRequest({ body: schemas.create }), asyncHandler(controller.create));
-  router.patch("/:id", validateRequest({ params: idParamSchema, body: schemas.update }), asyncHandler(controller.update));
-  router.delete("/:id", validateRequest({ params: idParamSchema }), asyncHandler(controller.remove));
+  router.post("/", writeRateLimit, validateRequest({ body: schemas.create }), asyncHandler(controller.create));
+  router.patch("/:id", writeRateLimit, validateRequest({ params: idParamSchema, body: schemas.update }), asyncHandler(controller.update));
+  router.delete("/:id", writeRateLimit, validateRequest({ params: idParamSchema }), asyncHandler(controller.remove));
 
   return router;
 }

@@ -8,8 +8,15 @@ import { apiRouter } from "../routes/index.js";
 
 export function createServer() {
   const app = express();
+  app.set("trust proxy", 1);
 
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  app.use((_req, res, next) => {
+    if (env.HTTPS_ENABLED) {
+      res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+    }
+    next();
+  });
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/health", (_req, res) => {

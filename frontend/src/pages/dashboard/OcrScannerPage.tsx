@@ -10,6 +10,7 @@ import type { Expense } from "../../hooks/types";
 import { formatCurrency } from "../../utils/formatters";
 import { isLowConfidenceOcr, shouldBlockOcrLogging } from "../../utils/ocrReview";
 import { getCategories } from "../../lib/appSettings";
+import { validateAndNormalizeOcrFile } from "../../utils/ocrFileSecurity";
 
 type OcrStage = "upload" | "scanning" | "review" | "logged";
 
@@ -148,6 +149,7 @@ function parseAmount(value: string) {
 }
 
 function parseReceiptText(rawText: string, confidence: number): OcrScanResult {
+  rawText = rawText.slice(0, 50_000);
   const lines = rawText
     .split(/\r?\n/)
     .map((line) => line.replace(/\s+/g, " ").trim())
@@ -307,9 +309,10 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
     }, 120);
 
     try {
-      if (file?.type.startsWith("image/")) {
+      if (file) {
+        const normalizedFile = await validateAndNormalizeOcrFile(file);
         const Tesseract = await import("tesseract.js");
-        const result = await Tesseract.recognize(file, "eng", {
+        const result = await Tesseract.recognize(normalizedFile, "eng", {
           logger: (message) => {
             if (message.status === "recognizing text") {
               setProgress(Math.max(12, Math.min(96, Math.round(message.progress * 100))));
@@ -318,20 +321,6 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
         });
 
         applyScanResult(parseReceiptText(result.data.text, result.data.confidence));
-      } else if (file) {
-        applyScanResult({
-          ...fallbackScanResult,
-          status: "needs_review",
-          confidence: 0,
-          merchant: file.name.replace(/\.[^.]+$/, "") || "Uploaded receipt",
-          date: new Date().toISOString().slice(0, 10),
-          cashier: "PDF OCR not available in this browser scanner",
-          suggested_category: "Others",
-          items: [],
-          totals: { subtotal: 0, vat: 0, total: 0 },
-          raw_text: "",
-        });
-        setNotice("PDF upload is accepted, but live OCR currently works best with JPG or PNG receipts.");
       }
     } catch (scanError: unknown) {
       applyScanResult({

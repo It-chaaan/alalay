@@ -7,7 +7,9 @@ export async function getProfile(userId: string) {
 }
 
 export async function updateProfile(userId: string, payload: Record<string, unknown>) {
-  const { data, error } = await client().from("users").update(payload).eq("id", requireUserId(userId)).select("*").single();
+  const editableFields = ["name", "email", "avatar_url", "phone", "currency", "language", "income", "pay_schedule", "onboarding_done"];
+  const safePayload = Object.fromEntries(Object.entries(payload).filter(([key]) => editableFields.includes(key)));
+  const { data, error } = await client().from("users").update(safePayload).eq("id", requireUserId(userId)).select("*").single();
   throwIfError(error);
   return data;
 }

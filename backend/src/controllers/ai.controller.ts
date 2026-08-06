@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { aiStatus, chat, streamChat, type AiChatRequest } from "../services/ai.service.js";
 import { sendSuccess } from "../utils/api.js";
+import { randomUUID } from "node:crypto";
 
 type ValidatedAiBody = {
   message: string;
@@ -50,7 +51,9 @@ export async function streamMessage(req: Request, res: Response) {
     res.write(`event: done\ndata: ${JSON.stringify(result)}\n\n`);
     res.end();
   } catch (error: unknown) {
-    res.write(`event: error\ndata: ${JSON.stringify({ message: error instanceof Error ? error.message : "AI request failed." })}\n\n`);
+    const correlationId = randomUUID();
+    console.error(`[${correlationId}] AI stream failed`, error instanceof Error ? error.stack || error.message : error);
+    res.write(`event: error\ndata: ${JSON.stringify({ message: "AI request failed.", correlationId })}\n\n`);
     res.end();
   }
 }

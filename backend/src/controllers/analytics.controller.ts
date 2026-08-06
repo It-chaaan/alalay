@@ -13,9 +13,21 @@ export async function budgetSummary(req: Request, res: Response) {
 }
 
 export async function saveBudget(req: Request, res: Response) {
-  const categories = Array.isArray(req.body?.categories) ? req.body.categories : [];
-  const autoDistributeSavings = Boolean(req.body?.auto_distribute_savings);
-  const remainingSavingsBehavior = typeof req.body?.remaining_savings_behavior === "string" ? req.body.remaining_savings_behavior : undefined;
+  const body = req.validated?.body as {
+    categories: Array<{
+      id: string;
+      name: string;
+      budget: number;
+      auto_distribute?: boolean;
+      last_distributed_month?: string | null;
+      last_distributed_amount?: number;
+    }>;
+    auto_distribute_savings?: boolean;
+    remaining_savings_behavior?: "save" | "carry_over" | "none";
+  };
+  const categories = body.categories;
+  const autoDistributeSavings = Boolean(body.auto_distribute_savings);
+  const remainingSavingsBehavior = body.remaining_savings_behavior;
 
   return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories, { autoDistributeSavings, remainingSavingsBehavior }));
 }

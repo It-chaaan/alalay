@@ -16,6 +16,10 @@ type ApiFailure = {
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
 
+if (import.meta.env.PROD && configuredApiUrl && !configuredApiUrl.startsWith("https://")) {
+  throw new Error("VITE_API_URL must use https in production builds.");
+}
+
 function normalizeApiBaseUrl(value: string) {
   const baseUrl = value.replace(/\/+$/, "");
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
@@ -25,8 +29,8 @@ const candidateApiBaseUrls = Array.from(
   new Set(
     [
       configuredApiUrl ? normalizeApiBaseUrl(configuredApiUrl) : undefined,
-      "http://localhost:4000/api",
-      "http://localhost:3000/api",
+      import.meta.env.DEV ? "http://localhost:4000/api" : undefined,
+      import.meta.env.DEV ? "http://localhost:3000/api" : undefined,
     ].filter((value): value is string => Boolean(value)),
   ),
 );
@@ -54,7 +58,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
         throw new Error(
           payload.success
             ? "Request failed."
-            : payload.error.details || payload.error.message,
+            : payload.error.message,
         );
       }
 
@@ -99,7 +103,7 @@ export async function apiStreamRequest(
       });
 
       if (!response.ok) {
-        throw new Error(await response.text());
+        throw new Error("AI request failed. Please try again.");
       }
 
       const reader = response.body?.getReader();

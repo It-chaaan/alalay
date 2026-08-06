@@ -27,21 +27,7 @@ function createMessage(role: AiChatMessage["role"], content: string): AiChatMess
   };
 }
 
-function storageKey(userId: string) {
-  return `alalay-ai-chat:${userId}`;
-}
-
-function loadMessages(userId: string) {
-  try {
-    const raw = localStorage.getItem(storageKey(userId));
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw) as AiChatMessage[];
-    return Array.isArray(parsed) ? parsed.filter((message) => message.role === "user" || message.role === "assistant") : [];
-  } catch {
-    return [];
-  }
-}
+function loadMessages(_userId: string) { return []; }
 
 export function useAiAssistant() {
   return useApiQuery<AiStatus>("/ai/status");
@@ -55,10 +41,6 @@ export function useAiChat(userId: string, language: AiLanguage) {
   useEffect(() => {
     setMessages(loadMessages(userId));
   }, [userId]);
-
-  useEffect(() => {
-    localStorage.setItem(storageKey(userId), JSON.stringify(messages.slice(-40)));
-  }, [messages, userId]);
 
   const history = useMemo(
     () => messages.slice(-12).map((message) => ({ role: message.role, content: message.content })),
@@ -141,7 +123,6 @@ export function useAiChat(userId: string, language: AiLanguage) {
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
-    localStorage.removeItem(storageKey(userId));
   }, [userId]);
 
   return {

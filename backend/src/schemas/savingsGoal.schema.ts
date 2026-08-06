@@ -1,13 +1,37 @@
 import { z } from "zod";
+import { currencyAmount, safeDate } from "./common.schema.js";
 
-export const createSavingsGoalSchema = z.object({
-  title: z.string().min(1),
-  emoji: z.string().optional(),
-  target_amount: z.coerce.number().nonnegative(),
-  current_amount: z.coerce.number().nonnegative().optional(),
-  monthly_target: z.coerce.number().nonnegative().optional(),
-  deadline: z.string().date(),
+const savingsGoalShape = z.object({
+  title: z.string().trim().min(1).max(200),
+  emoji: z.string().max(16).optional(),
+  target_amount: currencyAmount,
+  current_amount: currencyAmount.optional(),
+  monthly_target: currencyAmount.optional(),
+  deadline: safeDate,
   completed_at: z.string().datetime().nullable().optional(),
-});
+}).strict();
 
-export const updateSavingsGoalSchema = createSavingsGoalSchema.partial();
+function checkCurrentWithinTarget(
+  value: { current_amount?: number; target_amount?: number },
+  ctx: z.RefinementCtx
+) {
+  if (
+    value.current_amount !== undefined &&
+    value.target_amount !== undefined &&
+    value.current_amount > value.target_amount
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["current_amount"],
+      message: "current_amount cannot exceed target_amount.",
+    });
+  }
+}
+
+export const createSavingsGoalSchema = savingsGoalShape.superRefine(checkCurrentWithinTarget);
+
+export const updateSavingsGoalSchema = savingsGoalShape.partial().superRefine((value, ctx) => {
+  // Only enforce when the patch touches at least one of the two fields.
+  if (value.current_amount === undefined && value.target_amount === undefined) return;
+  checkCurrentWithinTarget(value, ctx);
+});

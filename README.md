@@ -1,5 +1,14 @@
 # Alalay
 
+## Security controls and deployment requirements
+
+- Supabase Auth is called directly by the frontend, so login, signup, password-reset, and MFA throttling must be enabled in the Supabase Auth settings and/or the production edge gateway. The backend rate limiters cover authenticated API writes, AI/OCR cost surfaces, and trusted-device issuance; the in-memory limiter must use a shared gateway/Redis policy when running multiple backend instances.
+- Production backend startup requires `NODE_ENV=production`, `HTTPS_ENABLED=true`, HTTPS `APP_URL`/`CORS_ORIGIN`, and certificate/key configuration. Configure HSTS and TLS termination consistently at the hosting layer.
+- Set `SUPABASE_ANON_KEY` so authenticated request paths use the caller JWT and Supabase RLS. The service-role key is reserved for auth verification and background schedulers; never expose it to the frontend.
+- Confirm in the Supabase dashboard that passwords use bcrypt or an equivalent strong scheme, breached-password checks are enabled, and password-strength rules are appropriate for the product.
+- OCR is currently browser-only. If receipts are uploaded or persisted in the future, isolate processing, validate files server-side, and add malware scanning before storage or provider submission.
+- Bearer tokens remain a product architecture decision. A BFF with HttpOnly, SameSite cookies is the preferred follow-up; until then, keep the frontend CSP and hosting headers strict and use short-lived Supabase sessions with refresh enabled.
+
 Alalay is a Filipino-first personal finance web application for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights.
 
 ## Current implementation status

@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
-import { getSupabase } from "../config/supabase.js";
+import { getServiceSupabase, runWithUserSupabase } from "../config/supabase.js";
 import { AppError } from "../utils/api.js";
 
 export async function requireAuth(req: Request, _res: Response, next: NextFunction) {
@@ -11,7 +11,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     return;
   }
 
-  const { data, error } = await getSupabase().auth.getUser(token);
+  const { data, error } = await getServiceSupabase().auth.getUser(token);
 
   if (error || !data.user) {
     next(new AppError(401, "unauthorized", "Invalid or expired Authorization token."));
@@ -24,5 +24,9 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
     user_metadata: data.user.user_metadata,
   };
 
-  next();
+  try {
+    runWithUserSupabase(token, next);
+  } catch (error) {
+    next(error);
+  }
 }

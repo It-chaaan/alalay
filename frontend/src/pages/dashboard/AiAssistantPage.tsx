@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { ComponentPropsWithoutRef } from "react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { type AiLanguage, useAiAssistant, useAiChat } from "../../hooks/useAiAssistant";
+import { isSafeMarkdownUrl } from "../../utils/markdownSecurity";
 
 const aiPromptSuggestions = [
   "How much did I spend this month?",
@@ -44,7 +46,13 @@ function formatTime(value: string) {
 function AssistantMessage({ content }: { content: string }) {
   return (
     <div className="assistant-message break-words">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          a: ({ href, children, ...props }: ComponentPropsWithoutRef<"a">) =>
+            isSafeMarkdownUrl(href) ? <a href={href} {...props}>{children}</a> : <span>{children}</span>,
+        }}
+      >{content}</ReactMarkdown>
     </div>
   );
 }

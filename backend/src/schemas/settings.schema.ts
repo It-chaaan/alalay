@@ -7,11 +7,10 @@ export const updateProfileSchema = z.object({
   phone: z.string().max(32).nullable().optional(),
   currency: z.enum(["PHP", "USD", "EUR", "JPY", "SGD"]).optional(),
   language: z.enum(["en", "fil"]).optional(),
-  plan: z.enum(["free", "plus", "family"]).optional(),
-  income: z.coerce.number().nonnegative().optional(),
+  income: z.coerce.number().finite().nonnegative().max(100_000_000).optional(),
   pay_schedule: z.enum(["monthly", "semi-monthly", "weekly"]).optional(),
   onboarding_done: z.boolean().optional(),
-});
+}).strict();
 
 export const notificationPreferencesSchema = z.object({
   bill_reminders: z.boolean(),
@@ -22,4 +21,4 @@ export const notificationPreferencesSchema = z.object({
   budget_thresholds: z.boolean(),
   savings_milestones: z.boolean(),
   login_alerts: z.boolean(),
-});
+}).strict();
