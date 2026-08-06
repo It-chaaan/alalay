@@ -25,24 +25,15 @@ function normalizeApiBaseUrl(value: string) {
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
 }
 
-const candidateApiBaseUrls = Array.from(
-  new Set(
-    [
-      configuredApiUrl ? normalizeApiBaseUrl(configuredApiUrl) : undefined,
-      import.meta.env.DEV ? "http://localhost:4000/api" : undefined,
-      import.meta.env.DEV ? "http://localhost:3000/api" : undefined,
-    ].filter((value): value is string => Boolean(value)),
-  ),
+const apiBaseUrl = normalizeApiBaseUrl(
+  configuredApiUrl ?? "http://localhost:3000/api",
 );
 
 export async function apiRequest<T>(path: string, options: RequestInit = {}) {
   const { token } = await getAuthToken();
 
-  let lastNetworkError: unknown = null;
-
-  for (const baseUrl of candidateApiBaseUrls) {
-    try {
-      const response = await fetch(`${baseUrl}${path}`, {
+  try {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
         ...options,
         credentials: "include",
         headers: {
@@ -63,22 +54,15 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
       }
 
       return payload.data;
-    } catch (error: unknown) {
-      if (error instanceof TypeError) {
-        lastNetworkError = error;
-        continue;
-      }
-
+  } catch (error: unknown) {
+    if (!(error instanceof TypeError)) {
       throw error;
     }
-  }
 
-  throw (
-    lastNetworkError ??
-    new Error(
+    throw new Error(
       "Unable to reach the backend API. Check VITE_API_URL or start the backend server.",
-    )
-  );
+    );
+  }
 }
 
 export async function apiStreamRequest(
@@ -87,11 +71,8 @@ export async function apiStreamRequest(
   onEvent: (event: { event: string; data: unknown }) => void,
 ) {
   const { token } = await getAuthToken();
-  let lastNetworkError: unknown = null;
-
-  for (const baseUrl of candidateApiBaseUrls) {
-    try {
-      const response = await fetch(`${baseUrl}${path}`, {
+  try {
+      const response = await fetch(`${apiBaseUrl}${path}`, {
         ...options,
         credentials: "include",
         headers: {
@@ -148,22 +129,15 @@ export async function apiStreamRequest(
       }
 
       return;
-    } catch (error: unknown) {
-      if (error instanceof TypeError) {
-        lastNetworkError = error;
-        continue;
-      }
-
+  } catch (error: unknown) {
+    if (!(error instanceof TypeError)) {
       throw error;
     }
-  }
 
-  throw (
-    lastNetworkError ??
-    new Error(
+    throw new Error(
       "Unable to reach the backend API. Check VITE_API_URL or start the backend server.",
-    )
-  );
+    );
+  }
 }
 
 async function getAuthToken() {

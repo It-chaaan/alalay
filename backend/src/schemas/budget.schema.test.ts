@@ -9,3 +9,15 @@ test("budget endpoint rejects unknown fields and invalid money precision", () =>
   });
   assert.equal(result.success, false);
 });
+
+test("budget accepts month keys for distribution metadata", () => {
+  assert.equal(budgetSchema.safeParse({
+    categories: [{ id: "savings", name: "Savings", budget: 1000, last_distributed_month: "2026-08" }],
+  }).success, true);
+  assert.equal(budgetSchema.safeParse({
+    categories: [{ id: "savings", name: "Savings", budget: 1000, last_distributed_month: "2026-08-01" }],
+  }).success, false);
+  assert.equal(budgetSchema.safeParse({
+    categories: [{ id: "savings", name: "Savings", budget: 1000, last_distributed_month: null }],
+  }).success, true);
+});

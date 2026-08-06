@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { Button } from "../../components/ui/Button";
@@ -119,6 +119,8 @@ export function AuthPage({ mode }: AuthPageProps) {
   const [trustDevice, setTrustDevice] = useState(false);
   const [isMfaStateLoading, setIsMfaStateLoading] = useState(isLogin);
   const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
+  const mfaVerificationInFlight = useRef(false);
+  const autoSubmittedMfaCode = useRef<string | null>(null);
   const showingMfaStep = isLogin && loginStep === "mfa";
 
   const resolverSchema = authSchema.superRefine((values, context) => {
@@ -223,6 +225,22 @@ export function AuthPage({ mode }: AuthPageProps) {
   }, [isLogin]);
 
   useEffect(() => {
+    if (!showingMfaStep) {
+      autoSubmittedMfaCode.current = null;
+      return;
+    }
+
+    if (mfaCode.length !== 6) {
+      autoSubmittedMfaCode.current = null;
+      return;
+    }
+
+    if (autoSubmittedMfaCode.current === mfaCode || mfaVerificationInFlight.current) return;
+    autoSubmittedMfaCode.current = mfaCode;
+    void handleMfaVerification();
+  }, [mfaCode, showingMfaStep]);
+
+  useEffect(() => {
     if (!isResetPassword) {
       return;
     }
@@ -280,6 +298,8 @@ export function AuthPage({ mode }: AuthPageProps) {
   }
 
   async function handleMfaVerification() {
+    if (mfaVerificationInFlight.current) return;
+
     setAuthError("");
     setAuthNotice("");
 
@@ -295,6 +315,7 @@ export function AuthPage({ mode }: AuthPageProps) {
       return;
     }
 
+    mfaVerificationInFlight.current = true;
     setIsVerifyingMfa(true);
 
     try {
@@ -320,6 +341,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     } catch (verifyError) {
       setAuthError(verifyError instanceof Error ? verifyError.message : "Invalid authenticator code.");
     } finally {
+      mfaVerificationInFlight.current = false;
       setIsVerifyingMfa(false);
     }
   }

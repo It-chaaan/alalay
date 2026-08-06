@@ -1170,6 +1170,14 @@ const budgetSliderMax = 50000;
 const budgetSliderStep = 100;
 const budgetSliderColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
 
+function normalizeDistributedMonth(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(normalized)) return normalized;
+  if (/^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(normalized)) return normalized.slice(0, 7);
+  return null;
+}
+
 function createBudgetCategoryId() {
   return globalThis.crypto?.randomUUID?.() ?? `budget-category-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1254,7 +1262,9 @@ export function BudgetFormPanel({
             name: savingsCategory?.name ?? "Monthly Savings Budget",
             budget: values.savings_allocation,
             auto_distribute: values.auto_distribute_savings,
-            last_distributed_month: savingsCategory?.last_distributed_month ?? budgetSummary?.savings_last_distributed_month ?? null,
+            last_distributed_month: normalizeDistributedMonth(
+              savingsCategory?.last_distributed_month ?? budgetSummary?.savings_last_distributed_month,
+            ),
             last_distributed_amount: savingsCategory?.last_distributed_amount ?? budgetSummary?.savings_last_distributed_amount ?? 0,
           },
         ],

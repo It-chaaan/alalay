@@ -1,11 +1,13 @@
 import { z } from "zod";
 
+const monthKeySchema = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Invalid year-month.");
+
 const budgetCategorySchema = z.object({
   id: z.string().trim().min(1).max(100),
   name: z.string().trim().min(1).max(100),
   budget: z.coerce.number().finite().nonnegative().max(100_000_000),
   auto_distribute: z.boolean().optional(),
-  last_distributed_month: z.string().date().nullable().optional(),
+  last_distributed_month: monthKeySchema.nullable().optional(),
   last_distributed_amount: z.coerce.number().finite().nonnegative().max(100_000_000).optional(),
 }).strict();
 
