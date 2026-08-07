@@ -25,6 +25,10 @@ In the output, you'll find options to open the app in a
 
 You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
 
+## Current mobile experience
+
+`app/index.tsx` is the Alalay landing screen. It uses the device Light/Dark appearance, reuses the frontend Alalay mark in `assets/images/alalay.svg`, and routes its two calls to action to the clearly marked `app/auth.tsx` account-flow placeholder. Authentication is not implemented in the mobile app yet; the placeholder must be replaced with the secure Supabase-backed mobile auth flow before release.
+
 ## Get a fresh project
 
 When you're ready, run:
