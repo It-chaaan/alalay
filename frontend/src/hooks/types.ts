@@ -231,7 +231,7 @@ export type ReportsSummary = {
     savings_allocation_history: Array<{ month: string; goal_allocation: number; general_savings: number; unallocated_savings: number }>;
     goal_contribution_history: Array<{ date: string; amount: number; goal: string }>;
     projected_completion: Array<{ id: string; title: string; projected_date: string; progress_percent: number }>;
-    distribution: Array<{ name: string; amount: number; target: number }>;
+      distribution: Array<{ id: string; name: string; amount: number; target: number; deadline: string | null }>;
   };
   charts: {
     daily_spending: Array<{ date: string; amount: number }>;
@@ -241,7 +241,7 @@ export type ReportsSummary = {
     savings_growth: Array<{ name: string; current: number; target: number }>;
     category_distribution: Array<{ name: string; amount: number; percent: number }>;
     bills_timeline: Array<{ date: string; amount: number; label: string; status: string }>;
-    subscriptions_timeline: Array<{ date: string; amount: number; label: string }>;
+      subscriptions_timeline: Array<{ date: string; amount: number; label: string; status: string }>;
   };
   data_sources: {
     income: number;

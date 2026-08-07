@@ -1,6 +1,6 @@
 import type { Session } from "@supabase/supabase-js";
 import { CalendarDays, Download } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useReports } from "../../hooks/useReports";
 import type { ReportPeriod, ReportsSummary } from "../../hooks/types";
@@ -131,7 +131,7 @@ function ReportControls({
   );
 }
 
-function EmptyPanel({ children }: { children: string }) {
+function EmptyPanel({ children }: { children: ReactNode }) {
   return <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">{children}</div>;
 }
 
@@ -174,6 +174,11 @@ function LineChart({ title, values, labelFormatter, dateRange }: { title: string
             {[0, 1, 2, 3, 4].map((line) => <div key={line} className="absolute left-0 right-0 border-t border-dashed border-slate-200" style={{ top: `${line * 25}%` }} />)}
             <svg viewBox={`0 0 ${width} ${height}`} className="relative z-10 h-28 w-full overflow-visible">
               <polyline fill="none" stroke="#0f6f57" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" points={points} />
+              {safeValues.map((item, index) => {
+                const x = dateRange && item.date ? reportDateRatio(item.date, dateRange.start, dateRange.end) * width : (index / (safeValues.length - 1)) * width;
+                const y = height - (item.amount / max) * height;
+                return <circle key={`${item.date}-${index}`} cx={x} cy={y} r="3.5" fill="#0f6f57" tabIndex={0} aria-label={item.date ? `${labelFormatter(item.date)}: ${formatCurrency(item.amount)}` : formatCurrency(item.amount)}><title>{item.date ? `${labelFormatter(item.date)}: ${formatCurrency(item.amount)}` : formatCurrency(item.amount)}</title></circle>;
+              })}
             </svg>
             <div className="mt-1 flex justify-between text-xs text-slate-500">
               {labelValues.map((value, index) => <span key={`${value}-${index}`}>{value ? labelFormatter(value) : ""}</span>)}
@@ -194,7 +199,7 @@ function Donut({ categories }: { categories: Array<{ name: string; amount: numbe
       <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#eef0ec" strokeWidth="6" />
       {total > 0 ? categories.map((category) => {
         const dash = (category.amount / total) * 100;
-        const circle = <circle key={category.name} cx="21" cy="21" r="15.9" fill="transparent" stroke={category.color} strokeWidth="6" strokeDasharray={`${dash} ${100 - dash}`} strokeDashoffset={-offset} />;
+        const circle = <circle key={category.name} cx="21" cy="21" r="15.9" fill="transparent" stroke={category.color} strokeWidth="6" strokeDasharray={`${dash} ${100 - dash}`} strokeDashoffset={-offset} tabIndex={0} aria-label={`${category.name}: ${formatCurrency(category.amount)}`}><title>{category.name}: {formatCurrency(category.amount)}</title></circle>;
         offset += dash;
         return circle;
       }) : null}
@@ -213,7 +218,7 @@ function CategoryBreakdown({ categories }: { categories: Array<{ name: string; a
         {categories.map((category) => (
           <div key={category.name} className="grid grid-cols-[minmax(92px,140px)_1fr_auto] items-center gap-4 text-xs">
             <CategoryBadge category={category.name} compact />
-            <span className="h-1.5 rounded-full bg-slate-100">
+            <span className="h-1.5 rounded-full bg-slate-100" title={`${category.name}: ${formatCurrency(category.amount)} (${category.percent}%)`}>
               <span className="block h-1.5 rounded-full" style={{ width: `${Math.max(4, (category.amount / max) * 100)}%`, backgroundColor: category.color }} />
             </span>
             <span className="font-mono font-semibold">{formatCurrency(category.amount)}</span>
@@ -224,26 +229,68 @@ function CategoryBreakdown({ categories }: { categories: Array<{ name: string; a
   );
 }
 
-function ComparisonBars({ title, rows }: { title: string; rows: Array<{ name: string; budget: number; actual: number }> }) {
-  const max = Math.max(1, ...rows.flatMap((row) => [row.budget, row.actual]));
+type BudgetFilter = "all" | "over" | "under";
+type BudgetRow = { name: string; budget: number; actual: number };
+
+function budgetRowStatus(row: BudgetRow) {
+  if (row.actual > row.budget) return "over";
+  if (row.budget > 0 && row.actual / row.budget >= 0.95) return "near";
+  return "under";
+}
+
+function ComparisonBars({
+  title,
+  rows,
+  filter,
+  onClearFilter,
+}: {
+  title: string;
+  rows: BudgetRow[];
+  filter: BudgetFilter;
+  onClearFilter: () => void;
+}) {
+  const [showZeroRows, setShowZeroRows] = useState(false);
+  const inactiveRows = rows.filter((row) => row.budget === 0 && row.actual === 0);
+  const activeRows = rows.filter((row) => row.budget > 0 || row.actual > 0);
+  const filteredRows = activeRows.filter((row) => filter === "all" || budgetRowStatus(row) === filter);
+  const visibleRows = [...filteredRows, ...(showZeroRows && filter === "all" ? inactiveRows : [])];
+  const filterLabel = filter === "over" ? "Over budget" : "Under budget";
 
   return (
-    <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article id="budget-comparison" className="scroll-mt-16 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-sm font-semibold">{title}</h2>
       <div className="mt-5 space-y-4">
-        {rows.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">Create a budget to compare planned and actual spending.</p> : null}
-        {rows.slice(0, 8).map((row) => (
-          <div key={row.name}>
-            <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-              <span className="truncate font-semibold text-slate-700">{row.name}</span>
-              <span className="font-mono text-slate-500">{formatCurrency(row.actual)} / {formatCurrency(row.budget)}</span>
+        {filter !== "all" ? <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"><span>Showing {filterLabel.toLowerCase()} categories</span><button type="button" onClick={onClearFilter} className="font-semibold text-brand-primary hover:text-brand-dark">Show all</button></div> : null}
+        {visibleRows.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">{filter === "all" ? "Create a budget to compare planned and actual spending." : `No ${filterLabel.toLowerCase()} categories in this range.`}</p> : null}
+        {visibleRows.slice(0, showZeroRows ? 20 : 8).map((row) => {
+          const usagePercent = row.budget > 0
+            ? Math.min(100, (row.actual / row.budget) * 100)
+            : row.actual > 0 ? 100 : 0;
+          const status = budgetRowStatus(row);
+          const tone = status === "over" ? "bg-red-400" : status === "near" ? "bg-[#bdb2a5]" : "bg-emerald-500";
+          const statusLabel = status === "over" ? "Over budget" : status === "near" ? "Near budget" : "Under budget";
+
+          return (
+            <div key={row.name}>
+              <div className="mb-2 flex items-center justify-between gap-4 text-xs">
+                <span className="flex min-w-0 items-center gap-2 truncate font-semibold text-slate-700"><span className={`h-2 w-2 shrink-0 rounded-full ${tone}`} aria-hidden="true" />{row.name}</span>
+                <span className="font-mono text-slate-500">{formatCurrency(row.actual)} / {formatCurrency(row.budget)}</span>
+              </div>
+              <div
+                className="h-1.5 rounded-full bg-slate-100"
+                title={`${row.name}: ${formatCurrency(row.actual)} of ${formatCurrency(row.budget)} budget — ${statusLabel}`}
+                role="progressbar"
+                aria-label={`${row.name} budget use`}
+                aria-valuemin={0}
+                aria-valuemax={row.budget}
+                aria-valuenow={row.actual}
+              >
+                <div className={`h-1.5 rounded-full ${tone}`} style={{ width: `${usagePercent}%` }} />
+              </div>
             </div>
-            <div className="grid gap-1">
-              <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#bdb2a5]" style={{ width: `${(row.budget / max) * 100}%` }} /></div>
-              <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-brand-primary" style={{ width: `${(row.actual / max) * 100}%` }} /></div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
+        {inactiveRows.length > 0 && filter === "all" ? <button type="button" onClick={() => setShowZeroRows((current) => !current)} className="text-xs font-semibold text-brand-primary hover:text-brand-dark">{showZeroRows ? "Hide inactive categories" : `Show ${inactiveRows.length} categories with no activity`}</button> : null}
       </div>
     </article>
   );
@@ -259,7 +306,7 @@ function Timeline({ title, empty, rows }: { title: string; empty: string; rows: 
           <div key={`${row.date}-${row.label}-${row.amount}`} className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-4 py-3 text-xs">
             <div className="min-w-0">
               <p className="truncate font-semibold text-slate-800">{row.label}</p>
-              <p className="mt-0.5 text-slate-500">{formatDateShort(row.date)}{row.status ? ` - ${row.status}` : ""}</p>
+              <p className="mt-0.5 text-slate-500">{formatDateShort(row.date)} - {row.status || "upcoming"}</p>
             </div>
             <p className="shrink-0 font-mono font-semibold">{formatCurrency(row.amount)}</p>
           </div>
@@ -274,9 +321,15 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
   const defaultCustomRange = useMemo(getDefaultCustomRange, []);
   const [period, setPeriod] = useState<ReportPeriod>("this_month");
   const [customRange, setCustomRange] = useState(defaultCustomRange);
+  const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>("all");
   const { data: report, isLoading, isSlowLoading, error } = useReports({ period, ...customRange });
   const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: getCategoryColor(category.name, index) }));
   const hasAnyFinancialData = report ? Object.entries(report.data_sources).some(([key, count]) => key !== "ai_insights" && count > 0) : false;
+
+  function showBudgetRows(filter: Exclude<BudgetFilter, "all">) {
+    setBudgetFilter(filter);
+    window.requestAnimationFrame(() => document.getElementById("budget-comparison")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
 
   return (
     <DashboardShell
@@ -303,7 +356,10 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
 
       {report ? (
         <>
-          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <nav className="sticky top-2 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur" aria-label="Report sections">
+            {["overview", "budget", "trends", "savings", "timeline"].map((section) => <a key={section} href={`#reports-${section}`} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold capitalize text-slate-600 hover:bg-slate-50">{section}</a>)}
+          </nav>
+          <section id="reports-overview" className="scroll-mt-16 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Total income" value={formatCurrency(report.total_income)} note={`${report.data_sources.income} income record${report.data_sources.income === 1 ? "" : "s"}`} tone="income" />
             <StatCard label="Total expenses" value={formatCurrency(report.total_expenses)} note="Manual expenses, paid bills, and subscriptions" />
             <StatCard label="Net savings" value={formatSignedCurrency(report.net_savings, "short")} note={`${report.savings_rate}% savings rate`} tone={report.net_savings < 0 ? "warning" : "savings"} />
@@ -335,19 +391,19 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             <CategoryBreakdown categories={categories} />
           </section>
 
-          <section className="mt-5 grid gap-4 lg:grid-cols-2">
-            <ComparisonBars title="Budget vs actual spending" rows={report.charts.budget_vs_actual} />
+          <section id="reports-budget" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
+            <ComparisonBars title="Budget vs actual spending" rows={report.charts.budget_vs_actual} filter={budgetFilter} onClearFilter={() => setBudgetFilter("all")} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Budget integration</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <StatCard label="Budget" value={formatCurrency(report.budget.total_budget)} />
                 <StatCard label="Spent" value={formatCurrency(report.budget.spent)} />
                 <StatCard label="Remaining" value={formatSignedCurrency(report.budget.remaining, "over")} tone={report.budget.remaining < 0 ? "warning" : "savings"} />
-                <StatCard label="Monthly savings budget" value={formatCurrency(report.budget.monthly_savings_budget)} note={`${report.budget.savings_allocation_usage}% allocated to goals`} />
+                <div className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm"><p className="text-xs text-slate-500">Monthly savings budget</p><p className="mt-3 font-mono text-xl font-bold text-brand-primary">{formatCurrency(report.budget.goal_allocation_total)} / {formatCurrency(report.budget.monthly_savings_budget)}</p><p className="mt-1 text-xs text-slate-500">{report.budget.savings_allocation_usage}% allocated to goals</p><div className="mt-3 h-2 rounded-full bg-slate-100" role="progressbar" aria-label="Monthly savings allocation" aria-valuemin={0} aria-valuemax={report.budget.monthly_savings_budget} aria-valuenow={report.budget.goal_allocation_total}><div className="h-2 rounded-full bg-brand-primary" style={{ width: `${Math.min(100, report.budget.savings_allocation_usage)}%` }} /></div></div>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <p className="rounded-xl bg-red-50 px-4 py-3 text-xs text-red-700">{report.budget.over_budget_categories.length} over budget categor{report.budget.over_budget_categories.length === 1 ? "y" : "ies"}</p>
-                <p className="rounded-xl bg-emerald-50 px-4 py-3 text-xs text-brand-dark">{report.budget.under_budget_categories.length} under budget categor{report.budget.under_budget_categories.length === 1 ? "y" : "ies"}</p>
+                <button type="button" onClick={() => showBudgetRows("over")} className={`rounded-xl bg-red-50 px-4 py-3 text-left text-xs text-red-700 transition hover:bg-red-100 ${budgetFilter === "over" ? "ring-2 ring-red-300" : ""}`}><p className="font-semibold">{report.budget.over_budget_categories.length} over budget categor{report.budget.over_budget_categories.length === 1 ? "y" : "ies"}</p><p className="mt-1">{report.budget.over_budget_categories.map((category) => category.name).join(", ") || "None"}</p></button>
+                <button type="button" onClick={() => showBudgetRows("under")} className={`rounded-xl bg-emerald-50 px-4 py-3 text-left text-xs text-brand-dark transition hover:bg-emerald-100 ${budgetFilter === "under" ? "ring-2 ring-emerald-300" : ""}`}><p className="font-semibold">{report.budget.under_budget_categories.length} under budget categor{report.budget.under_budget_categories.length === 1 ? "y" : "ies"}</p><p className="mt-1">{report.budget.under_budget_categories.map((category) => category.name).join(", ") || "None"}</p></button>
               </div>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">Goal savings: <span className="font-mono font-semibold text-slate-950">{formatCurrency(report.budget.goal_allocation_total)}</span></p>
@@ -356,10 +412,11 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section className="mt-5 grid gap-4 lg:grid-cols-2">
+          <section id="reports-trends" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
             <LineChart title="Monthly spending trend" values={report.charts.monthly_spending.map((item) => ({ date: `${item.month}-01`, amount: item.amount }))} labelFormatter={formatMonthYear} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Income vs expenses</h2>
+              <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-600" aria-label="Chart legend"><span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#3f7d16]" aria-hidden="true" />Income</span><span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-[#e8775d]" aria-hidden="true" />Expenses</span></div>
               <div className="mt-5 space-y-4">
                 {report.charts.income_vs_expense.length === 0 ? <p className="rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">No income or expense records in this range.</p> : null}
                 {report.charts.income_vs_expense.map((item) => {
@@ -371,9 +428,9 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                         <span className="font-semibold text-slate-700">{formatMonthYear(`${item.month}-01`)}</span>
                         <span className={`font-mono ${item.income - item.expenses < 0 ? "text-[#c57a12]" : "text-slate-500"}`}>{formatSignedCurrency(item.income - item.expenses, "short")}</span>
                       </div>
-                      <div className="grid gap-1">
-                        <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#3f7d16]" style={{ width: `${(item.income / max) * 100}%` }} /></div>
-                        <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-[#e8775d]" style={{ width: `${(item.expenses / max) * 100}%` }} /></div>
+                      <div className="grid gap-2">
+                        <div><div className="mb-1 flex justify-between text-[11px] text-slate-500"><span>Income</span><span className="font-mono">{formatCurrency(item.income)}</span></div><div className="h-1.5 rounded-full bg-slate-100" title={`${formatMonthYear(`${item.month}-01`)} income: ${formatCurrency(item.income)}`}><div className="h-1.5 rounded-full bg-[#3f7d16]" style={{ width: `${(item.income / max) * 100}%` }} /></div></div>
+                        <div><div className="mb-1 flex justify-between text-[11px] text-slate-500"><span>Expenses</span><span className="font-mono">{formatCurrency(item.expenses)}</span></div><div className="h-1.5 rounded-full bg-slate-100" title={`${formatMonthYear(`${item.month}-01`)} expenses: ${formatCurrency(item.expenses)}`}><div className="h-1.5 rounded-full bg-[#e8775d]" style={{ width: `${(item.expenses / max) * 100}%` }} /></div></div>
                       </div>
                     </div>
                   );
@@ -382,11 +439,11 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section className="mt-5 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <section id="reports-savings" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Savings goals</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                <StatCard label="Total goal savings" value={formatCurrency(report.savings.total_goal_savings)} />
+                <StatCard label="Total goal savings" value={formatCurrency(report.savings.total_goal_savings)} note={report.savings.total_goal_savings === 0 ? "No amounts have been saved to goals yet." : "Saved across all goals"} />
                 <StatCard label="Goal progress" value={`${report.savings.goal_progress}%`} />
                 <StatCard label="Active goals" value={String(report.savings.active_goals)} />
                 <StatCard label="Completed goals" value={String(report.savings.completed_goals)} />
@@ -397,9 +454,9 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                   const percent = goal.target ? Math.min(100, Math.round((goal.amount / goal.target) * 100)) : 0;
 
                   return (
-                    <div key={goal.name}>
+                    <div key={goal.id}>
                       <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-                        <span className="truncate font-semibold text-slate-700">{goal.name}</span>
+                        <span className="min-w-0 truncate font-semibold text-slate-700">{goal.name}<span className="ml-2 font-normal text-slate-400">{formatCurrency(goal.amount)} / {formatCurrency(goal.target)}{goal.deadline ? ` · due ${formatDateShort(goal.deadline)}` : ""}</span></span>
                         <span className="font-mono text-slate-500">{percent}%</span>
                       </div>
                       <div className="h-1.5 rounded-full bg-slate-100"><div className="h-1.5 rounded-full bg-brand-primary" style={{ width: `${percent}%` }} /></div>
@@ -414,7 +471,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                 <StatCard label="Monthly savings budget" value={formatCurrency(report.savings.monthly_savings_budget)} />
                 <StatCard label="General savings" value={formatCurrency(report.savings.general_savings)} />
                 <StatCard label="Goal monthly targets" value={formatCurrency(report.savings.monthly_contributions)} />
-                <StatCard label="Recorded goal savings" value={formatCurrency(report.savings_contributions)} />
+                <StatCard label="Recorded goal savings" value={formatCurrency(report.savings_contributions)} note={report.savings_contributions === 0 ? "No goal contributions have been recorded yet." : "Current balances across goals"} />
               </div>
               {report.savings.savings_allocation_history.length === 0 && report.savings.goal_contribution_history.length === 0 ? (
                 <p className="mt-5 rounded-xl bg-slate-50 px-4 py-5 text-sm text-slate-500">Savings allocation history and goal contribution history will appear once those records are available.</p>
@@ -430,7 +487,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section className="mt-5 grid gap-4 lg:grid-cols-2">
+          <section id="reports-timeline" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
             <Timeline title="Bills timeline" rows={report.charts.bills_timeline} empty="No bills due in this date range." />
             <Timeline title="Subscriptions timeline" rows={report.charts.subscriptions_timeline} empty="No subscription renewals in this date range." />
           </section>

@@ -160,6 +160,8 @@ There is no working `/forgot-password` route in the current app.
 
 - Analytical summaries and trends
 - Backed by backend analytics services
+- Daily spending includes zero-activity dates for the selected range, and category totals must reconcile with total expenses.
+- Sticky report-section links, budget filters, status timelines, and chart tooltips keep long reports navigable and interpretable.
 
 ### AI assistant
 

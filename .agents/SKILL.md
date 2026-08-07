@@ -24,11 +24,13 @@ Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI
 - Respect Light/Dark/System via `AppPreferencesContext` and the root `dark` class.
 - Prefer existing Tailwind surface/text classes and provide `dark:` variants for custom UI. Never add light-only cards, banners, inputs, alerts, toasts, badges, or empty states.
 - Use high-contrast shared shell title/subtitle styles and preserve visible focus states and practical WCAG AA contrast.
+- Report charts need keyboard-reachable value tooltips, and budget indicators must pair color with labels or values.
 
 ## Data rules
 
 - Keep business calculations in backend services, especially analytics/reporting.
 - Use `Asia/Manila` date-only boundaries for finance summaries unless product requirements change.
+- Report totals and breakdowns must use the same spending dataset; chart values must not be visually rescaled in a way that contradicts their labels.
 - Return dynamic chart current markers; do not hardcode month labels.
 - Distinguish loading, successful-empty, and error states; never turn failed queries into `₱0` or blank content.
 - Use migrations for schema/index/trigger changes and preserve RLS/backend auth.

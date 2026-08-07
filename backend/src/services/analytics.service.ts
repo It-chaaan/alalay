@@ -285,6 +285,19 @@ function sortedSeries(map: Map<string, number>, keys?: string[]) {
   return entries.map(([date, amount]) => ({ date, amount: Number(amount.toFixed(2)) }));
 }
 
+function dateKeysBetween(start: string, end: string) {
+  const keys: string[] = [];
+  const cursor = parseDateOnly(start);
+  const last = parseDateOnly(end);
+
+  while (cursor <= last) {
+    keys.push(toDateOnlyIso(cursor));
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  return keys;
+}
+
 function getDateFromTimestamp(value: unknown, fallback: string) {
   return typeof value === "string" && value.length >= 10 ? value.slice(0, 10) : fallback;
 }
@@ -771,7 +784,9 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   const subscriptionSpending = expenses
     .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
     .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
-  const totalExpenses = manualExpenseTotal + paidBillsTotal + subscriptionSpending;
+  // Subscription expenses are regular expense rows and are already included in
+  // manualExpenseTotal. Adding subscriptionSpending here double-counts them.
+  const totalExpenses = manualExpenseTotal + paidBillsTotal;
   const netSavings = totalIncome - totalExpenses;
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
@@ -923,13 +938,15 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
         progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0,
       })),
       distribution: savingsGoalsData.map((goal) => ({
+        id: String(goal.id),
         name: String(goal.title),
         amount: Number(asNumber(goal.current_amount).toFixed(2)),
         target: Number(asNumber(goal.target_amount).toFixed(2)),
+        deadline: goal.deadline ? String(goal.deadline) : null,
       })),
     },
     charts: {
-      daily_spending: sortedSeries(dailySpending),
+      daily_spending: sortedSeries(dailySpending, dateKeysBetween(range.start, range.end)),
       monthly_spending: monthKeys.map((month) => ({ month, amount: Number((monthlySpending.get(month) ?? 0).toFixed(2)) })),
       income_vs_expense: monthKeys.map((month) => ({
         month,
@@ -953,6 +970,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
         date: String(subscription.renewal_date),
         amount: asNumber(subscription.amount),
         label: String(subscription.name || "Subscription"),
+        status: subscription.auto_renew === false ? "auto-renew off" : "active",
       })).sort((left, right) => left.date.localeCompare(right.date)),
     },
     data_sources: {
@@ -965,7 +983,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       ocr_expenses: expenses.filter((expense) => expense.ocr_raw).length,
       ai_insights: aiInsightsData.length,
     },
-    daily_spending: sortedSeries(dailySpending),
+    daily_spending: sortedSeries(dailySpending, dateKeysBetween(range.start, range.end)),
   };
 
   reportCache.set(cacheKey, { expiresAt: Date.now() + reportCacheTtlMs, data: result });

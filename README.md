@@ -86,6 +86,8 @@ Frontend routes currently implemented:
 - savings goals
 - budget planning
 - reports and analytics
+  - Report expense totals reconcile with category breakdowns, and daily trends include zero-spend dates across the selected period.
+  - Report navigation, timeline statuses, budget filters, and chart labels help users interpret long report pages.
 - AI assistant
 - OCR scanner
 - settings and profile management
