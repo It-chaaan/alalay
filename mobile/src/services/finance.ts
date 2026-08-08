@@ -33,6 +33,28 @@ export type FinanceItem = {
   paid: boolean;
 };
 
+export type ExpenseRecord = {
+  id: string;
+  merchant: string;
+  amount: number | string;
+  category: string;
+  date: string;
+  payment_method?: string;
+};
+
+export type SavingsDashboard = {
+  overview: { totalSavings: number; goalSavings: number; activeGoals: number; monthlyContribution: number };
+  goals: Array<{ id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null }>;
+};
+
+export function fetchExpenses() {
+  return authenticatedApiRequest<ExpenseRecord[]>('/api/expenses');
+}
+
+export function fetchSavingsDashboard() {
+  return authenticatedApiRequest<SavingsDashboard>('/api/savings-goals/summary');
+}
+
 export async function fetchFinanceItems() {
   const [billResult, subscriptionResult] = await Promise.allSettled([
     authenticatedApiRequest<BillRecord[]>('/api/bills'),

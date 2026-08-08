@@ -33,7 +33,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
   const { token } = await getAuthToken();
 
   try {
-      const response = await fetch(`${apiBaseUrl}${path}`, {
+      let response = await fetch(`${apiBaseUrl}${path}`, {
         ...options,
         credentials: "include",
         headers: {
@@ -42,6 +42,22 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
           ...options.headers,
         },
       });
+
+      // A tab can remain open past the access-token lifetime even when the
+      // Supabase UI session still exists. Refresh once and replay only 401s;
+      // never weaken backend verification or retry arbitrary failures.
+      if (response.status === 401) {
+        const refreshed = await getAuthToken(true);
+        response = await fetch(`${apiBaseUrl}${path}`, {
+          ...options,
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${refreshed.token}`,
+            ...options.headers,
+          },
+        });
+      }
 
       const payload = (await response.json()) as ApiSuccess<T> | ApiFailure;
 
@@ -140,9 +156,16 @@ export async function apiStreamRequest(
   }
 }
 
-async function getAuthToken() {
+async function getAuthToken(forceRefresh = false) {
   const supabase = getSupabaseClient();
-  const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+  let session = supabase ? (await supabase.auth.getSession()).data.session : null;
+
+  const expiresSoon = session?.expires_at !== undefined && session.expires_at <= Math.floor(Date.now() / 1000) + 60;
+  if (supabase && (forceRefresh || expiresSoon)) {
+    const refreshed = await supabase.auth.refreshSession();
+    session = refreshed.data.session ?? session;
+  }
+
   const token = session?.access_token;
 
   if (!token) {

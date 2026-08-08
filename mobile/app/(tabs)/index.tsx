@@ -4,11 +4,11 @@ import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pre
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ScanLine, ShoppingBag, Utensils, UserCircle, WalletCards, X } from 'lucide-react-native';
+import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ScanLine, UserCircle, WalletCards, X } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { authenticatedApiRequest } from '@/services/api';
-import { derivedStatus, fetchFinanceItems, type FinanceItem } from '@/services/finance';
+import { derivedStatus, fetchExpenses, fetchFinanceItems, fetchSavingsDashboard, type ExpenseRecord, type FinanceItem, type SavingsDashboard } from '@/services/finance';
 import { getSupabaseClient } from '@/services/supabase';
 import { getUnreadNotificationCount } from '@/services/notifications';
 
@@ -26,26 +26,29 @@ const palette = {
   warning: '#B7791F',
 };
 
+/* legacy mock fixtures removed from rendering
 const goals = [
   { key: 'emergency', name: 'Emergency Fund', saved: '₱67,500', target: '₱100,000', percent: 68, color: palette.accent },
   { key: 'travel', name: 'Baguio Weekend', saved: '₱12,000', target: '₱20,000', percent: 60, color: '#5E9BC5' },
 ];
+*/
 
-const recentExpenses = [
+/* const recentExpenses = [
   { name: 'Lunch at Salcedo', category: 'Food & dining · Today', amount: '−₱380', icon: Utensils },
   { name: 'Grocery run', category: 'Essentials · Aug 7', amount: '−₱2,145', icon: ShoppingBag },
   { name: 'Grab ride', category: 'Transport · Aug 6', amount: '−₱240', icon: ArrowUpRight },
-];
+]; */
 
 type Icon = typeof Home;
 type SummarySlide = { key: string; eyebrow: string; title: string; amount: string; detailLabel: string; detail: string; secondaryLabel: string; secondary: string; icon: Icon };
+type IncomeRecord = { id: string; source: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; type?: string };
 type QuickAddAction = 'bill' | 'subscription' | 'expense' | 'ocr' | 'savings';
 
 function formatPeso(value: number) {
   return `₱${Math.round(value).toLocaleString('en-PH')}`;
 }
 
-function buildSummarySlides(items: FinanceItem[], monthlyExpenses: number): SummarySlide[] {
+function buildSummarySlides(items: FinanceItem[], expenses: ExpenseRecord[], income: IncomeRecord[], savings: SavingsDashboard | null): SummarySlide[] {
   const currentMonth = new Date().toISOString().slice(0, 7);
   const unpaid = items.filter((item) => !item.paid);
   const monthItems = unpaid.filter((item) => item.dueDate.slice(0, 7) === currentMonth);
@@ -57,10 +60,14 @@ function buildSummarySlides(items: FinanceItem[], monthlyExpenses: number): Summ
     return date >= today && date <= weekEnd;
   }).length;
   const totalBills = monthItems.reduce((sum, item) => sum + item.amount, 0);
+  const monthlyExpenses = expenses.filter((expense) => expense.date.slice(0, 7) === currentMonth).reduce((sum, expense) => sum + Number(expense.amount), 0);
+  const monthlyIncome = income.filter((entry) => entry.date.slice(0, 7) === currentMonth).reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const totalSavings = Number(savings?.overview.totalSavings ?? 0);
+  const goalSavings = Number(savings?.overview.goalSavings ?? 0);
   return [
     { key: 'bills', eyebrow: 'MONTHLY OVERVIEW', title: 'Total bills this month', amount: formatPeso(totalBills), detailLabel: 'Due this week', detail: `${dueThisWeek} ${dueThisWeek === 1 ? 'bill' : 'bills'}`, secondaryLabel: 'Monthly expenses', secondary: formatPeso(monthlyExpenses), icon: FileText },
-    { key: 'spending', eyebrow: 'INCOME & SPENDING', title: 'Current commitments', amount: formatPeso(totalBills), detailLabel: 'Open bills', detail: `${unpaid.length}`, secondaryLabel: 'Monthly expenses', secondary: formatPeso(monthlyExpenses), icon: WalletCards },
-    { key: 'savings', eyebrow: 'SAVINGS SNAPSHOT', title: 'Keep your plan moving', amount: formatPeso(totalBills), detailLabel: 'Due this month', detail: `${monthItems.length}`, secondaryLabel: 'Bills and subscriptions', secondary: formatPeso(totalBills), icon: PiggyBank },
+    { key: 'spending', eyebrow: 'INCOME & SPENDING', title: 'Monthly income', amount: formatPeso(monthlyIncome), detailLabel: 'Expenses this month', detail: formatPeso(monthlyExpenses), secondaryLabel: 'Open commitments', secondary: `${unpaid.length}`, icon: WalletCards },
+    { key: 'savings', eyebrow: 'SAVINGS SNAPSHOT', title: 'Total saved', amount: formatPeso(totalSavings), detailLabel: 'Goal savings', detail: formatPeso(goalSavings), secondaryLabel: 'Active goals', secondary: `${savings?.overview.activeGoals ?? 0}`, icon: PiggyBank },
   ];
 }
 
@@ -71,23 +78,29 @@ export default function HomeScreen() {
   const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const [financeError, setFinanceError] = useState('');
-  const [monthlyExpenses, setMonthlyExpenses] = useState(0);
+  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [income, setIncome] = useState<IncomeRecord[]>([]);
+  const [savings, setSavings] = useState<SavingsDashboard | null>(null);
   const [firstName, setFirstName] = useState('there');
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
   const cardWidth = Math.max(260, width - 48);
-  const summarySlides = buildSummarySlides(financeItems, monthlyExpenses);
+  const summarySlides = buildSummarySlides(financeItems, expenses, income, savings);
 
   const refreshFinance = useCallback(async () => {
     setFinanceLoading(true);
     setFinanceError('');
     try {
-      const [items, dashboard] = await Promise.all([
+      const [items, expenseRows, incomeRows, savingsSummary] = await Promise.all([
         fetchFinanceItems(),
-        authenticatedApiRequest<{ monthly_expenses: number }>('/api/dashboard/summary'),
+        fetchExpenses(),
+        authenticatedApiRequest<IncomeRecord[]>('/api/income'),
+        fetchSavingsDashboard(),
       ]);
       setFinanceItems(items);
-      setMonthlyExpenses(Number(dashboard.monthly_expenses) || 0);
+      setExpenses(expenseRows);
+      setIncome(incomeRows);
+      setSavings(savingsSummary);
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : 'Bills could not load.');
     } finally {
@@ -115,6 +128,9 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { void refreshFinance(); }, [refreshFinance]));
   useFocusEffect(useCallback(() => { setUnreadNotifications(getUnreadNotificationCount()); }, []));
+
+  const dashboardGoals = (savings?.goals ?? []).slice().sort((a, b) => a.deadline.localeCompare(b.deadline)).slice(0, 3);
+  const recentExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
@@ -155,21 +171,22 @@ export default function HomeScreen() {
         <Pagination count={summarySlides.length} activeIndex={summaryIndex} />
         <View style={styles.shortcutRow}><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
 
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Savings goals</Text><Text style={styles.sectionHint}>2 goals</Text></View>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Savings goals</Text><Text style={styles.sectionHint}>{savings?.overview.activeGoals ?? 0} active</Text></View>
         <FlatList
-          data={goals}
+          data={dashboardGoals}
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.goalList}
-          keyExtractor={(item) => item.key}
+          keyExtractor={(item) => item.id}
           renderItem={({ item }) => <SavingsGoalCard goal={item} />}
         />
+        {!financeLoading && !financeError && dashboardGoals.length === 0 && <Pressable onPress={() => router.push('/(tabs)/savings')} style={styles.inlineEmpty}><Text style={styles.stateTitle}>No savings goals yet</Text><Text style={styles.stateText}>Tap to create your first goal.</Text></Pressable>}
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
         <View style={styles.listCard}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading bills…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={styles.errorText}>{financeError}</Text></View> : financeItems.length ? financeItems.slice(0, 5).map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />) : <View style={styles.inlineState}><Text style={styles.stateTitle}>No bills yet</Text><Text style={styles.stateText}>Use Add to create your first bill or subscription.</Text></View>}</View>
 
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent expenses</Text><Pressable accessibilityRole="button" onPress={() => Alert.alert('Expenses', 'Expense history is coming next.')}><Text style={styles.link}>See all</Text></Pressable></View>
-        <View style={styles.listCard}>{recentExpenses.map((expense) => <ExpenseRow key={expense.name} expense={expense} />)}</View>
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent expenses</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/expenses')}><Text style={styles.link}>See all</Text></Pressable></View>
+        <View style={styles.listCard}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading expenses…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={styles.errorText}>{financeError}</Text></View> : recentExpenseRows.length ? recentExpenseRows.map((expense) => <ExpenseRow key={expense.id} expense={expense} />) : <View style={styles.inlineState}><Text style={styles.stateTitle}>No expenses yet</Text><Text style={styles.stateText}>Your recent purchases will appear here.</Text></View>}</View>
 
       </ScrollView>
 
@@ -193,10 +210,10 @@ function Pagination({ count, activeIndex }: { count: number; activeIndex: number
   return <View style={styles.pagination} accessibilityRole="tablist">{Array.from({ length: count }, (_, index) => <View key={index} style={[styles.paginationDot, index === activeIndex ? styles.paginationActive : styles.paginationInactive]} />)}</View>;
 }
 
-function SavingsGoalCard({ goal }: { goal: typeof goals[number] }) {
+function SavingsGoalCard({ goal }: { goal: SavingsDashboard['goals'][number] & { percent?: number; color?: string } }) {
   return <View style={styles.goalCard}>
-    <View style={styles.goalTop}><View style={styles.goalIcon}><PiggyBank size={20} color={goal.color} strokeWidth={1.8} /></View><View style={styles.goalHeading}><Text style={styles.goalName}>{goal.name}</Text><Text style={styles.goalAmount}>{goal.saved} <Text style={styles.goalTarget}>of {goal.target}</Text></Text></View><ProgressRing percent={goal.percent} color={goal.color} /></View>
-    <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${goal.percent}%`, backgroundColor: goal.color }]} /></View>
+    <View style={styles.goalTop}><View style={styles.goalIcon}><Text style={styles.goalEmoji}>{goal.emoji || '🎯'}</Text></View><View style={styles.goalHeading}><Text style={styles.goalName}>{goal.title}</Text><Text style={styles.goalAmount}>{formatPeso(Number(goal.current_amount))} <Text style={styles.goalTarget}>of {formatPeso(Number(goal.target_amount))}</Text></Text><Text style={styles.goalTarget}>Due {goal.deadline}</Text></View><ProgressRing percent={Math.min(100, Math.round(Number(goal.current_amount) / Math.max(1, Number(goal.target_amount)) * 100))} color={palette.accent} /></View>
+    <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${Math.min(100, Math.round(Number(goal.current_amount) / Math.max(1, Number(goal.target_amount)) * 100))}%`, backgroundColor: palette.accent }]} /></View>
     <View style={styles.goalFooter}><Text style={styles.goalMomentum}>You’re {goal.percent}% there — keep going</Text><ArrowUpRight size={15} color={goal.color} strokeWidth={2} /></View>
   </View>;
 }
@@ -213,9 +230,8 @@ function FinanceRow({ item }: { item: FinanceItem }) {
   return <View style={styles.row}><View style={styles.rowIcon}><FinanceIcon size={18} color={status === 'Overdue' ? palette.danger : palette.accent} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={styles.rowTitle}>{item.name}</Text><Text style={styles.rowMeta}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><View style={styles.rowRight}><Text style={styles.rowAmount}>{formatPeso(item.amount)}</Text><Text style={[styles.status, status === 'Overdue' ? styles.statusDanger : status === 'Paid' ? styles.statusPaid : styles.statusUpcoming]}>{status}</Text></View></View>;
 }
 
-function ExpenseRow({ expense }: { expense: typeof recentExpenses[number] }) {
-  const ExpenseIcon = expense.icon;
-  return <View style={styles.row}><View style={styles.rowIcon}><ExpenseIcon size={18} color={palette.accent} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={styles.rowTitle}>{expense.name}</Text><Text style={styles.rowMeta}>{expense.category}</Text></View><Text style={styles.expenseAmount}>{expense.amount}</Text></View>;
+function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
+  return <View style={styles.row}><View style={styles.rowIcon}><WalletCards size={18} color={palette.accent} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={styles.rowTitle}>{expense.merchant}</Text><Text style={styles.rowMeta}>{expense.category} · {expense.date}</Text></View><Text style={styles.expenseAmount}>-{formatPeso(Number(expense.amount))}</Text></View>;
 }
 
 const quickAddItems: { action: QuickAddAction; icon: Icon; label: string }[] = [
@@ -371,6 +387,7 @@ const styles = StyleSheet.create({
   goalCard: { width: 306, padding: 17, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
   goalTop: { flexDirection: 'row', alignItems: 'center' },
   goalIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
+  goalEmoji: { fontSize: 21 },
   goalHeading: { flex: 1, marginLeft: 11 },
   goalName: { color: palette.ink, fontSize: 15, fontWeight: '800' },
   goalAmount: { marginTop: 4, color: palette.ink, fontSize: 14, fontWeight: '800' },
@@ -388,6 +405,7 @@ const styles = StyleSheet.create({
   insightText: { marginTop: 3, color: palette.muted, fontSize: 12, lineHeight: 17 },
   listCard: { paddingHorizontal: 15, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
   inlineState: { alignItems: 'center', justifyContent: 'center', minHeight: 92, paddingVertical: 16 },
+  inlineEmpty: { alignItems: 'center', marginTop: 8, padding: 16, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
   stateTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   stateText: { marginTop: 5, color: palette.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   errorText: { color: palette.danger, fontSize: 12, lineHeight: 18, textAlign: 'center' },
