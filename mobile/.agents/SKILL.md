@@ -13,6 +13,7 @@ Use this for feature work, bug fixes, refactors, Supabase-backed changes, analyt
 ## Auth rules
 
 - Supabase Auth supports email/password and Google OAuth, same as web, but the mobile OAuth flow uses a deep-link-based redirect (via `expo-auth-session` or Supabase's native OAuth pattern), not the web app's browser `/auth/callback` implicit flow. Do not assume the web OAuth implementation can be copied as-is.
+- The current mobile auth screen is `app/auth.tsx`; it uses the native Supabase client in `src/services/supabase.ts`, SecureStore-backed session persistence, and Google PKCE through Expo WebBrowser/deep linking.
 - Do not manually create Google users — same rule as web; Supabase creates/matches the auth user and the profile trigger creates `public.users`.
 - Google-only accounts need an equivalent "Set a password" screen in mobile Settings, using the same detection logic as web (email identities/providers, `user_metadata.password_set`).
 - MFA is authenticator-app TOTP, not email/SMS, matching web. Use verified `totp` factors and `mfa.challengeAndVerify`.
@@ -22,7 +23,7 @@ Use this for feature work, bug fixes, refactors, Supabase-backed changes, analyt
 
 ## Theme/accessibility rules
 
-- Respect Light/Dark/System mode using React Native's `Appearance`/`useColorScheme` API, mirroring the intent of the web app's `AppPreferencesContext` — port the same user preference persistence logic (don't just follow system theme with no override).
+- The current mobile product is intentionally light-only: `hooks/use-color-scheme.ts` is the single theme source and returns `light`, while the root navigation uses `DefaultTheme`. If user-selectable Light/Dark/System preferences are introduced later, persist them before re-enabling device appearance detection.
 - Use a single consistent styling approach (NativeWind or StyleSheet-based design tokens, matching whatever the project has already established) with explicit light/dark variants for every custom UI element. Never ship a light-only card, banner, input, alert, toast, badge, or empty state.
 - Maintain visible focus/pressed states for every interactive element and practical WCAG AA contrast in both themes. On mobile, also confirm minimum touch target sizes (44×44pt iOS / 48×48dp Android) are respected — this has no direct web equivalent and needs its own check.
 

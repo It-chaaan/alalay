@@ -4,26 +4,43 @@
 
 - Supabase Auth is called directly by the frontend, so login, signup, password-reset, and MFA throttling must be enabled in the Supabase Auth settings and/or the production edge gateway. The backend rate limiters cover authenticated API writes, AI/OCR cost surfaces, and trusted-device issuance; the in-memory limiter must use a shared gateway/Redis policy when running multiple backend instances.
 - Production backend startup requires `NODE_ENV=production`, `HTTPS_ENABLED=true`, HTTPS `APP_URL`/`CORS_ORIGIN`, and HSTS. Keep `HTTPS_TERMINATE_LOCALLY=false` on Render/Heroku/Railway/Vercel-style platforms; set it to `true` and provide certificate/key paths only for a self-hosted process that terminates TLS itself.
-- Set `SUPABASE_ANON_KEY` so authenticated request paths use the caller JWT and Supabase RLS. The service-role key is reserved for auth verification and background schedulers; never expose it to the frontend.
+- Set `SUPABASE_ANON_KEY` so authenticated request paths use the caller JWT and Supabase RLS. The service-role key is reserved for auth verification and background schedulers; never expose it to the frontend or mobile app.
 - Confirm in the Supabase dashboard that passwords use bcrypt or an equivalent strong scheme, breached-password checks are enabled, and password-strength rules are appropriate for the product.
-- OCR is currently browser-only. If receipts are uploaded or persisted in the future, isolate processing, validate files server-side, and add malware scanning before storage or provider submission.
-- Bearer tokens remain a product architecture decision. A BFF with HttpOnly, SameSite cookies is the preferred follow-up; until then, keep the frontend CSP and hosting headers strict and use short-lived Supabase sessions with refresh enabled.
+- OCR is currently browser-only on web. If receipts are uploaded or persisted in the future (on web or mobile), isolate processing, validate files server-side, and add malware scanning before storage or provider submission.
+- Bearer tokens remain a product architecture decision. A BFF with HttpOnly, SameSite cookies is the preferred follow-up for web; until then, keep the frontend CSP and hosting headers strict and use short-lived Supabase sessions with refresh enabled. The mobile app stores its session using secure on-device storage (see `mobile/lib/supabase.ts`), not browser storage patterns.
 
-Alalay is a Filipino-first personal finance web application for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights.
+Alalay is a Filipino-first personal finance app for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights. It currently ships as a web application, with a React Native (Expo) mobile app in active development that shares the same backend and Supabase project.
+
+## Repository structure
+
+```text
+frontend/   React web application
+backend/    Express + TypeScript API server (shared by web and mobile)
+mobile/     React Native (Expo) mobile application
+supabase/   SQL migrations, config, generated types (shared by web and mobile)
+.agents/    AI-facing project instructions for web, mobile, backend, and shared infrastructure
+```
+
+Mobile setup is documented in `mobile/.env.example` and its `.agents` guidance; there is no `mobile/README.md` in the current repository.
+
+The mobile app is a separate client only — it does not have its own backend or database. See `mobile/README.md` for mobile-specific setup, and `mobile/.agents/AGENTS.md` / `mobile/.agents/SKILL.md` for mobile-specific implementation and design guidance.
 
 ## Current implementation status
 
+The capability notes in this section describe the implemented web/shared-backend surface. They should not be read as a claim that the mobile client already exposes every web feature; mobile is active development and its verified status is documented in `mobile/.agents/AGENTS.md`.
+
 This repository already contains:
 
-- a React frontend
-- an Express backend
+- a React frontend (web)
+- a React Native (Expo) mobile app, in active development
+- an Express backend, shared by both clients
 - Supabase-backed auth and data storage
 - a Gemini-backed AI chat assistant; the dashboard AI insight card is still a placeholder
-- a browser-side OCR flow using `tesseract.js`
+- a browser-side OCR flow using `tesseract.js` on web (mobile OCR approach is a separate, not-yet-finalized implementation decision — see `mobile/.agents/AGENTS.md`)
 
 ## Architecture
 
-### Frontend
+### Frontend (web)
 
 - React 19
 - TypeScript
@@ -31,31 +48,46 @@ This repository already contains:
 - Tailwind CSS plus shared app CSS
 - manual routing in `frontend/src/App.tsx`
 
+### Mobile
+
+- React Native via Expo (SDK 54)
+- TypeScript
+- Expo Router
+- StyleSheet-based screen styling and palette objects
+- Expo SecureStore-backed Supabase session persistence
+- Expo WebBrowser/Linking and Supabase PKCE settings for Google OAuth
+- `react-native-svg` for the landing feature carousel artwork
+- The current app contains a landing carousel, auth screens, and a two-tab starter scaffold; feature screens and a mobile API client are not yet implemented
+
 ### Backend
 
 - Express
 - TypeScript
 - Zod validation
 - Supabase integration
+- Shared by both the web frontend and the mobile app — no mobile-specific backend exists
 
 ### Database
 
 - Supabase Postgres
 - migrations under `supabase/migrations/`
 - RLS-enabled application tables
+- Shared by both web and mobile; no separate mobile schema
 
 ### AI
 
 - Google Gemini Flash 2.5
 - backend routes for status, chat, and streaming chat
+- These routes are currently consumed by the web client; mobile has not yet implemented its API/data layer
 
 ### OCR
 
-- frontend-side OCR implemented with `tesseract.js`
+- Web: frontend-side OCR implemented with `tesseract.js`
+- Mobile: not yet implemented; requires a separate approach since `tesseract.js` does not run in React Native (see `mobile/.agents/AGENTS.md` for the open decision between on-device native OCR vs. a new backend OCR endpoint)
 
 ## Current routes
 
-Frontend routes currently implemented:
+Frontend (web) routes currently implemented:
 
 - `/`
 - `/login`, `/register`, `/forgot-password`, `/reset-password`
@@ -72,6 +104,7 @@ Frontend routes currently implemented:
 - `/app/ocr-scanner`
 - `/app/settings`
 
+Mobile does not yet mirror this route list. Its current Expo Router inventory is the landing screen (`app/index.tsx`), auth (`app/auth.tsx`), modal, and the `Home`/`Explore` tab scaffold under `app/(tabs)/`.
 
 ## Current feature set
 
@@ -89,12 +122,14 @@ Frontend routes currently implemented:
   - Report expense totals reconcile with category breakdowns, and daily trends include zero-spend dates across the selected period.
   - Report navigation, timeline statuses, budget filters, and chart labels help users interpret long report pages.
 - AI assistant
-- OCR scanner
+- OCR scanner (web only; mobile pending)
 - settings and profile management
+
+This feature set is the target for both web and mobile. Mobile implementation status may lag behind web — check `mobile/README.md` for what's currently working on mobile specifically.
 
 ## Backend API summary
 
-The backend exposes authenticated `/api/*` routes plus supporting endpoints. Notable implemented areas include:
+The backend exposes authenticated `/api/*` routes plus supporting endpoints, shared by both web and mobile clients. Notable implemented areas include:
 
 - auth and user profile APIs
 - bills
@@ -134,6 +169,7 @@ The current schema includes `users.phone`.
 
 - Node.js 20+
 - npm
+- For mobile: Expo Go app (matching the project's pinned Expo SDK — currently SDK 54) on a physical device, or an iOS/Android simulator
 
 ### Install
 
@@ -147,7 +183,12 @@ cd backend
 npm install
 ```
 
-### Run the frontend
+```bash
+cd mobile
+npm install
+```
+
+### Run the frontend (web)
 
 ```bash
 cd frontend
@@ -161,20 +202,38 @@ cd backend
 npm run dev
 ```
 
-The frontend runs on the Vite dev server. The backend currently defaults to port `4000` in active project usage unless overridden by `PORT`.
+The frontend runs on the Vite dev server. The backend currently defaults to port `4000` in active project usage unless overridden by `PORT` — note this has been a source of confusion where some frontend code paths pointed at the wrong port during development; confirm the actual running port with `npm run dev`'s startup log if requests aren't reaching the backend.
+
+### Run the mobile app
+
+```bash
+cd mobile
+npx expo start
+```
+
+Scan the printed QR code with Expo Go (physical device) or press `a`/`i` to launch an Android/iOS simulator, if configured. Mobile environment variables are documented below and in `mobile/.env.example`.
 
 ## Environment variables
 
-### Frontend
+### Frontend (web)
 
 - `VITE_SUPABASE_URL` - Supabase project URL
 - `VITE_SUPABASE_ANON_KEY` - Supabase browser anon key
 - `VITE_API_URL` - optional backend base URL override used by the frontend API client
 
+### Mobile
+
+- `EXPO_PUBLIC_SUPABASE_URL` - Supabase project URL (same project as web)
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key (same value as web's `VITE_SUPABASE_ANON_KEY`)
+- `EXPO_PUBLIC_API_URL` - backend base URL used by the mobile API client. When testing on a physical device over Wi-Fi, this must be a reachable network address (deployed backend URL, or your machine's local network IP for local backend testing) — `localhost` will not resolve correctly from a phone.
+
+Expo requires the `EXPO_PUBLIC_` prefix for any environment variable exposed to client code; this is not interchangeable with the web app's `VITE_` prefix.
+
 ### Backend
 
 - `PORT`
 - `SUPABASE_URL`
+- `SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `GEMINI_API_KEY`
 - `GEMINI_MODEL`
@@ -191,19 +250,20 @@ The frontend runs on the Vite dev server. The backend currently defaults to port
 - schema changes must go through `supabase/migrations/`
 - RLS is enabled on the current application tables
 - `supabase/config.toml` references `seed.sql`, but that file is currently missing
+- schema and migrations are shared between web and mobile — do not create a mobile-specific schema fork
 
 ## AI and OCR notes
 
-- AI chat is implemented with Google Gemini Flash through the backend
-- The dashboard AI insight card is not connected to the chat service and still returns a not-configured placeholder; do not treat it as complete
-- assistant responses are rendered as markdown in the chat UI
-- OCR is currently executed in the browser via `tesseract.js`, not through a backend extraction pipeline
+- AI chat is implemented with Google Gemini Flash through the backend for the web client; mobile does not yet have an AI chat screen or API client
+- The dashboard AI insight card is not connected to the chat service and still returns a not-configured placeholder; do not treat it as complete on the web. Mobile has no dashboard AI card yet
+- assistant responses are rendered as markdown in the chat UI on web; mobile requires an equivalent React Native markdown renderer (not yet implemented)
+- OCR is currently executed in the browser via `tesseract.js` on web, not through a backend extraction pipeline. Mobile OCR is not yet implemented and requires a different technical approach (see `mobile/.agents/AGENTS.md`)
 
 ## Documentation
 
-Implementation-facing AI documentation lives here:
+Implementation-facing AI documentation:
 
-- [.agents/Agents.md](./.agents/Agents.md)
-- [.agents/SKILL.md](./.agents/SKILL.md)
+- Web/backend: [.agents/Agents.md](./.agents/Agents.md), [.agents/SKILL.md](./.agents/SKILL.md)
+- Mobile: [mobile/.agents/AGENTS.md](./mobile/.agents/AGENTS.md), [mobile/.agents/SKILL.md](./mobile/.agents/SKILL.md)
 
-These files must be updated whenever architecture, schema, AI flows, OCR flows, or financial logic changes.
+These files must be updated whenever architecture, schema, AI flows, OCR flows, navigation, or financial logic changes, for the relevant client(s).

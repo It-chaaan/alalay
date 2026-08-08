@@ -46,6 +46,7 @@ If the mobile app lives in its own repository separate from the web app, treat `
 
 - Provider: Supabase Auth (same project as web).
 - Session storage: **do not use browser storage patterns.** Use `expo-secure-store` (or the current project's established secure storage library) for persisting the Supabase session on-device, not `AsyncStorage` alone (which is not encrypted) and never a plain JS variable that resets on app restart.
+- Current implementation: `mobile/src/services/supabase.ts` creates the native Supabase client with SecureStore persistence, while `mobile/app/auth.tsx` provides email/password sign-in, sign-up, and Google OAuth using the PKCE/deep-link flow.
 - OAuth (Google): mobile OAuth cannot reuse the web app's `/auth/callback` browser redirect flow as-is. Use Expo's `expo-auth-session` (or Supabase's documented React Native OAuth pattern) with a proper deep link scheme registered for the app. Confirm the redirect URI is registered in both the Supabase Auth settings and the Expo app config before assuming this works out of the box.
 - MFA: same TOTP-based approach as web (`mfa.challengeAndVerify` against verified `totp` factors) — do not implement SMS/email MFA on mobile if the web app deliberately avoids it; keep this consistent across clients unless there's a specific product reason to diverge.
 - Google-only accounts / "Set a password" flow: port the same detection logic (email identities/providers, `user_metadata.password_set`) from web; the mobile Settings screen needs an equivalent "Set a password" state.
@@ -115,6 +116,8 @@ Same standards as the web app's `AGENTS.md` (explicit types at service/API bound
 
 - Reuse existing layout, card, list, and form patterns already established in the mobile app rather than introducing new one-off patterns per screen.
 - Keep assistant markdown rendering visually aligned with the app's chat bubble styling.
+- The landing feature carousel's presentational SVG artwork lives in `src/components/feature-slide-art.tsx`; keep its palette prop-driven when adding or revising slides.
+- App UI icons use `lucide-react-native`; the only non-Lucide icon asset is the official four-color Google brand mark.
 
 ## Security rules
 

@@ -2,18 +2,22 @@
 
 ## Project overview
 
-Alalay is a Filipino-first personal finance web application. The current implementation covers account authentication, household-aware finance tracking, bills, subscriptions, expenses, income, savings goals, budget planning, reports, OCR-assisted entry, and a working AI assistant backed by Google Gemini.
+Alalay is a Filipino-first personal finance application with an existing React web client and an Expo/React Native mobile client in the same repository. The web client contains the implemented finance product; mobile development is the current active focus and is still a scaffold/partial implementation. Both clients use the existing backend and Supabase infrastructure; mobile does not have a separate backend or database.
 
 This document is the implementation-derived reference for future AI-assisted changes. It must stay aligned with the codebase.
 
 ## Repository structure
 
 ```text
+package.json       Root workspace metadata/scripts
 frontend/   React 19 + TypeScript + Vite application
 backend/    Express + TypeScript API server
+mobile/     React Native + Expo mobile client (active development)
 supabase/   SQL migrations, config, generated types
 .agents/    AI-facing project instructions
 ```
+
+`node_modules/`, `package.json`, and `package-lock.json` also exist at the repository root. Client-specific dependencies and lockfiles are under `frontend/` and `mobile/`; backend dependencies are under `backend/`.
 
 ## Current architecture
 
@@ -25,11 +29,30 @@ supabase/   SQL migrations, config, generated types
 - Routing: manual route switching in `frontend/src/App.tsx`
 - State model:
   - React local state for page concerns
-  - Auth state through `frontend/src/contexts/AuthContext.tsx`
+  - Supabase session state is currently coordinated in `frontend/src/App.tsx`
+  - Preferences through `frontend/src/context/AppPreferencesContext.tsx`
   - Data fetching through shared hooks:
     - `frontend/src/hooks/useApiQuery.ts`
     - `frontend/src/hooks/useApiMutation.ts`
-- API access through `frontend/src/lib/api.ts`
+- API access through `frontend/src/lib/apiClient.ts`
+
+### Mobile
+
+- Framework: React Native with Expo SDK 54 and TypeScript
+- Navigation: Expo Router with a root stack and a two-tab scaffold (`Home` and `Explore`)
+- Styling: React Native `StyleSheet` and palette objects; no NativeWind/Tailwind layer
+- Current routes/files: `app/index.tsx` (the sole landing carousel), `app/auth.tsx` (sign-in/sign-up), `app/(tabs)/index.tsx`, `app/(tabs)/explore.tsx`, and `app/modal.tsx`
+- Shared components/hooks: `components/`, `hooks/use-color-scheme.ts`, `hooks/use-theme-color.ts`, and `constants/theme.ts`
+- Native dependencies used by the current UI include Expo Image, Expo SecureStore, Expo WebBrowser, Expo Linking, React Navigation, React Native Reanimated, React Native SVG, safe-area-context, and vector icons
+- Supabase client: `mobile/lib/supabase.ts`; it uses `@supabase/supabase-js` with SecureStore-backed session persistence and PKCE OAuth settings
+- Theme: the current product code intentionally forces the shared color-scheme hook to `light`; no mobile Settings/preferences screen or three-way theme persistence is implemented
+- The mobile app does not currently contain the web client's API hooks, dashboard feature screens, or a mobile AuthContext equivalent
+
+### Shared infrastructure
+
+- `backend/` is the shared Express API server for web and any future mobile API integration.
+- `supabase/` contains the single shared Postgres schema, migrations, RLS policies, and generated types used as the source of truth.
+- Do not create a mobile-specific backend, Supabase project, schema fork, or duplicate financial calculation layer.
 
 ### Backend
 
@@ -66,9 +89,11 @@ supabase/   SQL migrations, config, generated types
 ### Authentication
 
 - Provider: Supabase Auth
-- Frontend session source: `AuthContext`
+- Web session source: Supabase session handling in `frontend/src/App.tsx`
+- Mobile auth: `mobile/app/auth.tsx` calls Supabase Auth directly through `mobile/lib/supabase.ts`
 - Backend protection: auth middleware on `/api/*` routes
 - Protected UI: dashboard routes gated in `frontend/src/App.tsx`
+- Mobile session persistence uses Expo SecureStore; mobile OAuth uses a PKCE/deep-link flow through Expo WebBrowser/Linking.
 
 ### AI
 
@@ -92,6 +117,7 @@ supabase/   SQL migrations, config, generated types
 - Main page: `frontend/src/pages/dashboard/OcrScannerPage.tsx`
 - Engine: `tesseract.js`
 - Backend OCR routes currently expose capabilities/demo endpoints only.
+- Mobile OCR is not implemented; browser `tesseract.js` must not be copied into React Native without a separate compatible approach.
 
 ## Frontend routing
 
@@ -113,7 +139,9 @@ Routes are manually mapped in `frontend/src/App.tsx`.
 - `/app/settings`
 - `/app/settings/plan` redirects to settings
 
-There is no working `/forgot-password` route in the current app.
+The web app includes `/forgot-password` and `/reset-password` routes; mobile does not currently implement a password-reset screen.
+
+Mobile uses Expo Router files rather than these web paths. The currently implemented mobile route set is the landing screen, auth screen, modal, and the `Home`/`Explore` tab scaffold; it does not yet mirror the web feature route inventory.
 
 ## Current feature map
 
@@ -180,14 +208,28 @@ There is no working `/forgot-password` route in the current app.
 - App preferences
 - Some settings are backend-backed, others are local-only
 
+### Mobile implementation status
+
+- Landing/onboarding screen with a four-slide SVG feature carousel
+- Email/password sign-in and sign-up UI
+- Google OAuth UI using native PKCE/deep-link handling
+- Two-tab Expo Router starter scaffold
+- No mobile dashboard, bills, subscriptions, expenses, income, savings goals, budget, reports, AI assistant, OCR scanner, or Settings feature screens are currently implemented in `mobile/`
+
 ## Data flow
 
+### Web flow
+
 1. Frontend route/page calls `useApiQuery` or `useApiMutation`.
-2. Requests go through `frontend/src/lib/api.ts`.
+2. Requests go through `frontend/src/lib/apiClient.ts`.
 3. Backend auth middleware resolves the current user from Supabase tokens.
 4. Route handlers validate payloads and call service-layer logic.
 5. Services read/write Supabase tables and compute analytics where needed.
 6. Frontend updates local page state from normalized API responses.
+
+### Mobile flow
+
+The current mobile implementation calls Supabase Auth directly for its auth screens and persists sessions with SecureStore. A mobile API client/data-fetching layer is not currently present; when mobile feature screens are added, they should reuse the shared authenticated backend/API contracts rather than duplicate business logic.
 
 ## Financial logic ownership
 
@@ -206,6 +248,14 @@ Frontend should render server results and only perform UI-level formatting or tr
 ### Frontend
 
 - `VITE_API_URL` is expected by the app
+
+### Mobile
+
+- `EXPO_PUBLIC_API_URL` is defined in the mobile environment template for future/shared API access
+- `EXPO_PUBLIC_SUPABASE_URL`
+- `EXPO_PUBLIC_SUPABASE_ANON_KEY`
+
+The current mobile Supabase auth client reads the two Supabase variables. Mobile API usage is not yet implemented in the checked-in client.
 
 `frontend/.env.example` is currently incomplete and should include this.
 
@@ -265,6 +315,7 @@ Frontend should render server results and only perform UI-level formatting or tr
 - Never bypass auth middleware on protected API routes.
 - Respect current RLS assumptions in every new query or mutation.
 - Treat `gmail_connections` tokens and user financial data as sensitive.
+- Mobile auth sessions must use SecureStore or another secure on-device mechanism; do not use browser storage or plain AsyncStorage for session tokens.
 
 ## Known implementation issues
 
@@ -276,13 +327,15 @@ Frontend should render server results and only perform UI-level formatting or tr
 - Several soft-delete triggers still point at `soft_delete_bills()` for non-bill tables.
 - Some user settings and AI chat history are stored in `localStorage`.
 - Hardcoded colors remain in parts of the frontend instead of centralized tokens.
+- Mobile feature coverage is currently partial and should not be documented as matching the web feature set until those screens and integrations exist.
 
 ## Documentation synchronization rules
 
-Whenever architecture, schema, APIs, AI flows, OCR behavior, or financial logic changes, update:
+Whenever architecture, schema, APIs, AI flows, OCR behavior, financial logic, or client structure changes, update the relevant documentation:
 
-- `.agents/Agents.md`
+- `.agents/AGENTS.md`
 - `.agents/SKILL.md`
 - `README.md`
+- `mobile/.agents/AGENTS.md` and `mobile/.agents/SKILL.md` for mobile-specific architecture or workflow changes
 
 Do not leave implementation changes undocumented.
