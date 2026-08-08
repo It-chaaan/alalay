@@ -18,11 +18,31 @@ export const updateBill = (userId: string, id: string, payload: Record<string, u
 export const deleteBill = (userId: string, id: string) => softDeleteOwned("bills", userId, id);
 
 export async function payBill(userId: string, id: string) {
-  const { data, error } = await client().from("bills").update({ status: "paid", paid_at: new Date().toISOString() }).eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).select("*").single();
+  const { data: current, error: readError } = await client().from("bills").select("*").eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).single();
+  if (readError || !current) throw new AppError(404, "not_found", "Bill not found.");
+  const recurring = Boolean(current.recurring) && Boolean(current.frequency);
+  const update = recurring
+    ? { status: "unpaid", paid_at: new Date().toISOString(), due_date: addBillCycle(String(current.due_date), String(current.frequency)) }
+    : { status: "paid", paid_at: new Date().toISOString() };
+  const { data, error } = await client().from("bills").update(update).eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).select("*").single();
   if (error) {
     throw new AppError(404, "not_found", "Bill not found.");
   }
   return data;
+}
+
+function addBillCycle(value: string, frequency: string) {
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (frequency === "weekly") date.setUTCDate(date.getUTCDate() + 7);
+  else {
+    const months = frequency === "quarterly" ? 3 : frequency === "yearly" ? 12 : 1;
+    const originalDay = date.getUTCDate();
+    date.setUTCDate(1);
+    date.setUTCMonth(date.getUTCMonth() + months);
+    date.setUTCDate(Math.min(originalDay, new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0)).getUTCDate()));
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 export async function billSummary(userId: string) {

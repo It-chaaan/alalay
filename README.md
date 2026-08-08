@@ -57,7 +57,7 @@ This repository already contains:
 - Expo SecureStore-backed Supabase session persistence
 - Expo WebBrowser/Linking and Supabase PKCE settings for Google OAuth
 - `react-native-svg` for the landing feature carousel artwork
-- The current app contains a landing carousel, auth screens, and a two-tab starter scaffold; feature screens and a mobile API client are not yet implemented
+- The current app contains a landing carousel, auth screens, and a tailored two-tab authenticated shell. The shared mobile API helper currently powers the authenticated Alalay chat-head's dashboard insight and AI chat; the remaining feature screens are still partial.
 
 ### Backend
 
@@ -104,14 +104,16 @@ Frontend (web) routes currently implemented:
 - `/app/ocr-scanner`
 - `/app/settings`
 
-Mobile does not yet mirror this route list. Its current Expo Router inventory is the landing screen (`app/index.tsx`), auth (`app/auth.tsx`), modal, and the `Home`/`Explore` tab scaffold under `app/(tabs)/`.
+Mobile does not yet mirror this route list. Its current Expo Router inventory is the landing screen (`app/index.tsx`), auth (`app/auth.tsx`), modal, and authenticated Home, Budget, Settings, and Explore destinations under `app/(tabs)/`; the default tab chrome is hidden behind the custom Home floating nav.
 
 ## Current feature set
 
 - authentication and protected app shell
 - email/password and Google OAuth sign-in
 - authenticator-app TOTP two-factor verification
-- dashboard summaries
+- dashboard summary presentation (mobile Home currently uses mock display data, with a real authenticated AI insight/chat-head)
+- mobile Budget category-limit view backed by the shared budget summary API
+- mobile Settings destination placeholder
 - bills management
 - subscriptions management
 - expenses tracking
@@ -254,9 +256,9 @@ Expo requires the `EXPO_PUBLIC_` prefix for any environment variable exposed to 
 
 ## AI and OCR notes
 
-- AI chat is implemented with Google Gemini Flash through the backend for the web client; mobile does not yet have an AI chat screen or API client
-- The dashboard AI insight card is not connected to the chat service and still returns a not-configured placeholder; do not treat it as complete on the web. Mobile has no dashboard AI card yet
-- assistant responses are rendered as markdown in the chat UI on web; mobile requires an equivalent React Native markdown renderer (not yet implemented)
+- AI chat is implemented with Google Gemini Flash through the backend for web and the mobile chat-head; mobile uses `mobile/src/services/api.ts` to authenticate its dashboard-insight and chat requests
+- The web dashboard insight card and mobile chat-head obtain their insight from the authenticated dashboard summary. Mobile's other dashboard figures remain presentation-only mock data.
+- Assistant responses are rendered as markdown in the chat UI on web. Mobile's chat-head currently presents the backend response as native text bubbles; add a React Native markdown renderer before relying on rich markdown formatting there.
 - OCR is currently executed in the browser via `tesseract.js` on web, not through a backend extraction pipeline. Mobile OCR is not yet implemented and requires a different technical approach (see `mobile/.agents/AGENTS.md`)
 
 ## Documentation

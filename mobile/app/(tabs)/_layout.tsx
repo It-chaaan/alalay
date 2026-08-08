@@ -1,35 +1,30 @@
 import { Tabs } from 'expo-router';
 import React from 'react';
 
-import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
-
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
+        // Navigation is rendered by the dashboard's floating custom bar.
+        tabBarStyle: { display: 'none' },
       }}>
       <Tabs.Screen
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
-        }}
-      />
+      <Tabs.Screen name="bills" options={{ title: 'Bills' }} />
+      <Tabs.Screen name="subscriptions" options={{ title: 'Subscriptions' }} />
+      <Tabs.Screen name="income" options={{ title: 'Income' }} />
+      <Tabs.Screen name="expenses" options={{ title: 'Expenses' }} />
+      <Tabs.Screen name="ocr" options={{ title: 'OCR Scanner' }} />
+      <Tabs.Screen name="budget" options={{ title: 'Budget' }} />
+      <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
+      <Tabs.Screen name="savings" options={{ title: 'Savings' }} />
+      <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
+      <Tabs.Screen name="notifications" options={{ title: 'Notifications' }} />
     </Tabs>
   );
 }

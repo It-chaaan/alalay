@@ -39,14 +39,14 @@ supabase/   SQL migrations, config, generated types
 ### Mobile
 
 - Framework: React Native with Expo SDK 54 and TypeScript
-- Navigation: Expo Router with a root stack and a two-tab scaffold (`Home` and `Explore`)
+- Navigation: Expo Router with a root stack and an authenticated shell; the default tab chrome is hidden in favor of the Home floating nav (Home, Income, Camera/OCR, Budget, Reports). Bills, subscriptions, and savings are reached from dashboard shortcuts.
 - Styling: React Native `StyleSheet` and palette objects; no NativeWind/Tailwind layer
-- Current routes/files: `app/index.tsx` (the sole landing carousel), `app/auth.tsx` (sign-in/sign-up), `app/(tabs)/index.tsx`, `app/(tabs)/explore.tsx`, and `app/modal.tsx`
+- Current routes/files: `app/index.tsx` (landing carousel), `app/auth.tsx` (sign-in/sign-up), `app/(tabs)/index.tsx` (Home), `income.tsx`, `bills.tsx`, `subscriptions.tsx`, `savings.tsx`, `ocr.tsx`, `profile.tsx`, `notifications.tsx`, `budget.tsx`, `settings.tsx`, and `app/modal.tsx`
 - Shared components/hooks: `components/`, `hooks/use-color-scheme.ts`, `hooks/use-theme-color.ts`, and `constants/theme.ts`
 - Native dependencies used by the current UI include Expo Image, Expo SecureStore, Expo WebBrowser, Expo Linking, React Navigation, React Native Reanimated, React Native SVG, safe-area-context, and vector icons
 - Supabase client: `mobile/lib/supabase.ts`; it uses `@supabase/supabase-js` with SecureStore-backed session persistence and PKCE OAuth settings
 - Theme: the current product code intentionally forces the shared color-scheme hook to `light`; no mobile Settings/preferences screen or three-way theme persistence is implemented
-- The mobile app does not currently contain the web client's API hooks, dashboard feature screens, or a mobile AuthContext equivalent
+- The mobile app has a small authenticated API helper at `mobile/src/services/api.ts` for the Home chat-head's dashboard insight and AI chat; it does not yet contain the web client's query hooks, full dashboard data screen, or a mobile AuthContext equivalent
 
 ### Shared infrastructure
 
@@ -213,8 +213,8 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Landing/onboarding screen with a four-slide SVG feature carousel
 - Email/password sign-in and sign-up UI
 - Google OAuth UI using native PKCE/deep-link handling
-- Two-tab Expo Router starter scaffold
-- No mobile dashboard, bills, subscriptions, expenses, income, savings goals, budget, reports, AI assistant, OCR scanner, or Settings feature screens are currently implemented in `mobile/`
+- Expo Router authenticated shell with a custom Home floating nav ordered Home, Income, Camera/OCR, Budget, Reports; Home includes real authenticated finance loading, profile shortcuts, and a draggable AI chat-head interaction
+- Mobile Bills/Subscriptions, Income, Savings, Budget, profile/notifications/settings, and OCR entry destinations are implemented with shared authenticated API contracts; OCR capture itself remains platform-dependent
 
 ## Data flow
 
@@ -229,7 +229,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 ### Mobile flow
 
-The current mobile implementation calls Supabase Auth directly for its auth screens and persists sessions with SecureStore. A mobile API client/data-fetching layer is not currently present; when mobile feature screens are added, they should reuse the shared authenticated backend/API contracts rather than duplicate business logic.
+The current mobile implementation calls Supabase Auth directly for its auth screens and persists sessions with SecureStore. `mobile/src/services/api.ts` attaches the current access token for the Home chat-head's dashboard insight and AI chat calls; full query/mutation hooks are not yet present. Future mobile feature screens should reuse the shared authenticated backend/API contracts rather than duplicate business logic.
 
 ## Financial logic ownership
 

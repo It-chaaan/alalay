@@ -21,6 +21,9 @@ const lightPalette: Palette = {
 
 function getAuthError(message: string) {
   const lower = message.toLowerCase();
+  if (lower.includes('securestore') || lower.includes('getvaluewithkeyasync') || lower.includes('deletevaluewithkeyasync') || lower.includes('setvaluewithkeyasync')) {
+    return 'This app build has an outdated SecureStore native module. Update Expo Go or rebuild the development client, then try signing in again.';
+  }
   if (lower.includes('invalid login credentials')) return 'The email or password is incorrect.';
   if (lower.includes('user already registered') || lower.includes('already been registered')) return 'An account with this email already exists. Try signing in.';
   if (lower.includes('network') || lower.includes('fetch') || lower.includes('connect')) return 'We could not connect right now. Check your internet connection and try again.';
@@ -72,7 +75,9 @@ export default function AuthScreen() {
     if (!supabase) { setError('Supabase is not configured for this build.'); return; }
     setLoading(true);
     try {
-      const redirectTo = Linking.createURL('auth/callback');
+      // Keep the callback on the native app scheme. If this URI is not present
+      // in Supabase's redirect allow-list, Auth falls back to the Site URL.
+      const redirectTo = 'mobile://auth/callback';
       const { data, error: oauthError } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
       if (oauthError) throw oauthError;
       if (!data.url) throw new Error('Google sign-in could not start.');

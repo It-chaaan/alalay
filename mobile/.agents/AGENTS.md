@@ -23,13 +23,14 @@ If the mobile app lives in its own repository separate from the web app, treat `
 
 - Framework: React Native via Expo (managed workflow)
 - Language: TypeScript
+- Metro uses Expo defaults with strict package-export resolution disabled so dependencies can fall back to published `main`/`module` entries when an export map is incomplete.
 - Navigation: Expo Router (file-based routing) — confirm this is the actual navigation library in use before assuming; if the project instead uses React Navigation directly, follow its existing route structure rather than introducing Expo Router mid-project.
 - Styling: prefer a single consistent approach (e.g. NativeWind if Tailwind-style utility classes are wanted for parity with the web app's mental model, or StyleSheet-based design tokens) — do not mix multiple styling approaches within the app. Confirm which is already established before adding new screens.
 - State model:
   - React local state for screen-level concerns
   - Auth state through an `AuthContext` equivalent to the web app's, adapted for mobile session storage (see Authentication below)
   - Data fetching through shared hooks mirroring the web app's pattern (`useApiQuery`, `useApiMutation`) — port these rather than reinventing a new data-fetching pattern, so backend contracts and error handling stay consistent between web and mobile.
-- API access through a shared API client module (mirror `frontend/src/lib/api.ts` from the web app), pointed at the same backend.
+- API access through `src/services/api.ts`, which attaches the active Supabase access token to the shared backend. It currently supports the Home chat-head's dashboard insight and AI chat; port shared query/mutation hooks as fuller mobile feature screens are added.
 
 ### Backend
 
@@ -47,6 +48,8 @@ If the mobile app lives in its own repository separate from the web app, treat `
 - Provider: Supabase Auth (same project as web).
 - Session storage: **do not use browser storage patterns.** Use `expo-secure-store` (or the current project's established secure storage library) for persisting the Supabase session on-device, not `AsyncStorage` alone (which is not encrypted) and never a plain JS variable that resets on app restart.
 - Current implementation: `mobile/src/services/supabase.ts` creates the native Supabase client with SecureStore persistence, while `mobile/app/auth.tsx` provides email/password sign-in, sign-up, and Google OAuth using the PKCE/deep-link flow.
+- Expo SDK 54 pins `expo-secure-store` to `~15.0.8`; after changing Expo/native dependencies, update Expo Go or rebuild the development client because Metro reloads cannot update the native SecureStore module.
+- SecureStore-backed auth session persistence must be tested in a development build (`npx expo run:ios`, `npx expo run:android`, or EAS development build). Expo Go may bundle an older native SecureStore surface; the app degrades to signed-out/non-persistent behavior there rather than crashing, but it is not a valid persistence test.
 - OAuth (Google): mobile OAuth cannot reuse the web app's `/auth/callback` browser redirect flow as-is. Use Expo's `expo-auth-session` (or Supabase's documented React Native OAuth pattern) with a proper deep link scheme registered for the app. Confirm the redirect URI is registered in both the Supabase Auth settings and the Expo app config before assuming this works out of the box.
 - MFA: same TOTP-based approach as web (`mfa.challengeAndVerify` against verified `totp` factors) — do not implement SMS/email MFA on mobile if the web app deliberately avoids it; keep this consistent across clients unless there's a specific product reason to diverge.
 - Google-only accounts / "Set a password" flow: port the same detection logic (email identities/providers, `user_metadata.password_set`) from web; the mobile Settings screen needs an equivalent "Set a password" state.
@@ -67,6 +70,8 @@ If the mobile app lives in its own repository separate from the web app, treat `
 - Do not silently reuse or assume `tesseract.js` works on mobile without validating this first — treat OCR as a genuinely separate implementation task, not a straightforward port.
 
 ## Mobile navigation map
+
+The authenticated Home tab is implemented at `app/(tabs)/index.tsx` with presentation-only dashboard mock data, summary and savings carousels, quick-add/OCR affordances, a draggable Alalay chat-head, and a floating tab bar ordered Home, Bills, Add, Budget, Reports. Expo Router's default tab chrome is hidden so it is not rendered underneath the custom bar. Budget (`app/(tabs)/budget.tsx`) reads the shared budget summary API and renders category limits/progress; Settings (`app/(tabs)/settings.tsx`) is a minimal destination ready for future preferences. The chat-head fetches the authenticated dashboard insight and uses the shared backend AI chat endpoint; the remaining Home dashboard values are still mock display data.
 
 Mirror the web app's route list, adapted to mobile screens/tabs rather than URL paths. Suggested mapping (adjust to match whatever navigation library and structure the project actually uses):
 
