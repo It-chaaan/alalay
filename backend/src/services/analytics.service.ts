@@ -1003,7 +1003,7 @@ export async function getDashboardSummary(userId: string) {
   chartStartDate.setUTCMonth(chartStartDate.getUTCMonth() - 7, 1);
   const chartStart = monthRange(chartStartDate).start;
   const dueWeekEnd = addDaysIso(7);
-  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions, incomeData] = await Promise.all([
+  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions, incomeData, previousIncomeData] = await Promise.all([
     rowsFor("bills", userId, "due_date", current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("expenses", userId, "date", previous.start, previous.end),
@@ -1013,6 +1013,7 @@ export async function getDashboardSummary(userId: string) {
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     incomeForMonth(userId),
+    incomeForMonth(userId, previous.start.slice(0, 7)),
   ]);
 
   const goalsData = "data" in goals ? goals.data ?? [] : [];
@@ -1026,6 +1027,14 @@ export async function getDashboardSummary(userId: string) {
     + paidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
   const previousTotal = previousExpenses.reduce((sum, item) => sum + asNumber(item.amount), 0)
     + previousPaidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  // Match the Reports screen's net-savings calculation: monthly income minus
+  // expenses and paid bills. Keeping it server-side preserves one financial definition.
+  const netSavings = incomeData.this_month - monthlyExpenses;
+  const previousNetSavings = previousIncomeData.this_month - previousTotal;
+  const hasPreviousNetSavingsData = previousIncomeData.rows.length > 0 || previousExpenses.length > 0 || previousBills.length > 0;
+  const netSavingsTrendPercent = hasPreviousNetSavingsData && previousNetSavings !== 0
+    ? Number((((netSavings - previousNetSavings) / Math.abs(previousNetSavings)) * 100).toFixed(1))
+    : null;
   const savingsTarget = goalsData.reduce((sum, item) => sum + asNumber(item.target_amount), 0);
   const savingsCurrent = goalsData.reduce((sum, item) => sum + asNumber(item.current_amount), 0);
   const onTimeBills = bills.filter((bill) => bill.status === "paid" || bill.due_date >= todayIso()).length;
@@ -1050,6 +1059,8 @@ export async function getDashboardSummary(userId: string) {
 
   return {
     monthly_income: incomeData.this_month,
+    net_savings: Number(netSavings.toFixed(2)),
+    net_savings_trend_percent: netSavingsTrendPercent,
     total_bills_this_month: bills.reduce((sum, item) => sum + asNumber(item.amount), 0),
     bills_due_this_week: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd).reduce((sum, item) => sum + asNumber(item.amount), 0),
     monthly_expenses: monthlyExpenses,

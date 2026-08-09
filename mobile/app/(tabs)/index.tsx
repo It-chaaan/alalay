@@ -39,11 +39,22 @@ const goals = [
 ]; */
 
 type Icon = typeof Home;
-type DashboardSummary = { total_bills_this_month: number; monthly_expenses: number; subscription_spending: number };
+type DashboardSummary = {
+  total_bills_this_month: number;
+  monthly_expenses: number;
+  subscription_spending: number;
+  net_savings: number;
+  net_savings_trend_percent: number | null;
+};
 type SummaryStat = { label: string; value: string };
 
 function formatPeso(value: number) {
   return `₱${Math.round(value).toLocaleString('en-PH')}`;
+}
+
+function formatBalancePeso(value: number) {
+  const sign = value < 0 ? String.fromCharCode(0x2212) : '';
+  return sign + String.fromCharCode(0x20B1) + Math.abs(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 function buildOverviewStats(summary: DashboardSummary | null) {
@@ -132,7 +143,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Your overview</Text></View>
-        <SummaryCard stats={buildOverviewStats(dashboardSummary)} loading={financeLoading} />
+        <SummaryCard summary={dashboardSummary} stats={buildOverviewStats(dashboardSummary)} loading={financeLoading} />
         <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
@@ -149,11 +160,22 @@ export default function HomeScreen() {
   );
 }
 
-function SummaryCard({ stats, loading }: { stats: SummaryStat[]; loading: boolean }) {
+function SummaryCard({ summary, stats, loading }: { summary: DashboardSummary | null; stats: SummaryStat[]; loading: boolean }) {
+  const trend = summary?.net_savings_trend_percent ?? null;
+  const trendDirection = trend === null ? null : trend > 0 ? 'up' : trend < 0 ? 'down' : 'flat';
+  const trendMagnitude = Math.abs(trend ?? 0).toFixed(1);
+  const trendLabel = trendDirection === 'up'
+    ? String.fromCharCode(0x2197) + ' ' + trendMagnitude + '%'
+    : trendDirection === 'down'
+      ? String.fromCharCode(0x2198) + ' ' + trendMagnitude + '%'
+      : trendDirection === 'flat' ? String.fromCharCode(0x2192) + ' 0.0%' : null;
+
   return <View style={styles.summaryCard}>
     <View style={styles.summaryOrb} /><View style={styles.summaryOrbSmall} />
     <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>MONTHLY OVERVIEW</Text><WalletCards size={20} color="#D8EFE2" strokeWidth={1.8} /></View>
-    <Text style={styles.summaryTitle}>Your money out this month</Text>
+    <View style={styles.balanceMeta}><Text style={styles.balanceLabel}>NET SAVINGS</Text>{trendLabel ? <Text style={[styles.balanceTrend, trendDirection === 'up' && styles.balanceTrendUp, trendDirection === 'down' && styles.balanceTrendDown]}>{trendLabel}</Text> : null}</View>
+    <Text style={styles.balanceValue}>{loading ? 'Loading...' : typeof summary?.net_savings === 'number' ? formatBalancePeso(summary.net_savings) : String.fromCharCode(0x2014)}</Text>
+    <Text style={styles.balanceSubtitle}>Income minus expenses this month</Text>
     <View style={styles.summaryStats}>{stats.map((stat, index) => <View key={stat.label} style={styles.summaryStatBlock}><Text style={styles.summaryStatLabel}>{stat.label}</Text><Text style={styles.summaryStatValue}>{loading ? 'Loading...' : stat.value}</Text>{index < stats.length - 1 ? <View style={styles.summaryDivider} /> : null}</View>)}</View>
   </View>;
 }
@@ -215,8 +237,14 @@ const styles = StyleSheet.create({
   summaryOrbSmall: { position: 'absolute', width: 80, height: 80, borderRadius: 40, right: 36, bottom: -35, backgroundColor: 'rgba(255,255,255,0.08)' },
   summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  summaryTitle: { marginTop: 15, color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  summaryStats: { flexDirection: 'row', alignItems: 'center', marginTop: 17 },
+  balanceMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 },
+  balanceLabel: { color: '#D8EFE2', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  balanceTrend: { color: '#D8EFE2', fontSize: 11, fontWeight: '900' },
+  balanceTrendUp: { color: '#C4F5D5' },
+  balanceTrendDown: { color: '#FFD3D0' },
+  balanceValue: { marginTop: 2, color: '#FFFFFF', fontSize: 27, fontWeight: '900', letterSpacing: -0.7 },
+  balanceSubtitle: { marginTop: 1, color: '#D8EFE2', fontSize: 10, fontWeight: '600' },
+  summaryStats: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
   summaryStatBlock: { flex: 1, position: 'relative' },
   summaryStatLabel: { color: '#BFE3D0', fontSize: 10, fontWeight: '600' },
   summaryStatValue: { marginTop: 3, color: '#FFFFFF', fontSize: 14, fontWeight: '800' },

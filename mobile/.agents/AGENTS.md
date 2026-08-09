@@ -83,6 +83,8 @@ Mirror the web app's route list, adapted to mobile screens/tabs rather than URL 
 
 Confirm the actual current navigation structure in the codebase before assuming this mapping is already implemented — this is a target structure to build toward, not a description of existing code.
 
+The Home overview's Net Savings is the same current-month calculation as Reports: income minus expenses and paid bills. It includes a month-over-month trend only when a meaningful previous-month comparison is available.
+
 ## Current feature map
 
 Same feature scope as the web app's feature map (Auth, Dashboard, Bills, Expenses, Income, Subscriptions, Savings goals, Budget, Reports, AI assistant, OCR scanner, Settings) — refer to the web app's `AGENTS.md` for the authoritative description of what each feature does. This document does not duplicate that list; it only calls out where the mobile implementation must diverge (auth session storage, OAuth flow, OCR, navigation).

@@ -157,7 +157,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 - Summary cards and finance overview
 - Recent activity and high-level metrics
-- Mobile Home uses one fixed monthly overview card backed by the shared dashboard summary API; the card shows total expenses, bills, and subscription spending.
+- Mobile Home uses one fixed monthly overview card backed by the shared dashboard summary API; it shows the Reports-consistent monthly Net Savings (income minus expenses and paid bills), an optional month-over-month trend, plus total expenses, bills, and subscription spending.
 
 ### Bills
 
