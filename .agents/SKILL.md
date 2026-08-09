@@ -32,6 +32,8 @@ Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI
 
 Budget editing is month-scoped: use the selected `YYYY-MM` when reading or saving the shared budget plan, and keep over-budget states legible with both color and text.
 
+Wallet/account links are account-scoped: income records require `wallet_id`, outgoing records may set it, and wallet balances must remain derived from linked transaction rows. Validate wallet ownership server-side and preserve the default Cash wallet.
+
 ## Data rules
 
 - Keep business calculations in backend services, especially analytics/reporting.

@@ -11,6 +11,7 @@ export const createSubscriptionSchema = z.object({
   auto_renew: z.boolean().optional(),
   // User-provided or internally derived local metadata, not provider usage telemetry.
   last_used_at: z.string().datetime().nullable().optional(),
+  wallet_id: z.string().uuid().nullable().optional(),
 }).strict();
 
 export const updateSubscriptionSchema = createSubscriptionSchema.partial();

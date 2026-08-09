@@ -42,11 +42,10 @@ type Icon = typeof Home;
 type DashboardSummary = {
   total_bills_this_month: number;
   monthly_expenses: number;
-  subscription_spending: number;
+  monthly_income: number;
   net_savings: number;
   net_savings_trend_percent: number | null;
 };
-type SummaryStat = { label: string; value: string };
 
 function formatPeso(value: number) {
   return `₱${Math.round(value).toLocaleString('en-PH')}`;
@@ -55,15 +54,6 @@ function formatPeso(value: number) {
 function formatBalancePeso(value: number) {
   const sign = value < 0 ? String.fromCharCode(0x2212) : '';
   return sign + String.fromCharCode(0x20B1) + Math.abs(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-function buildOverviewStats(summary: DashboardSummary | null) {
-  const value = (amount: number | undefined) => summary ? formatPeso(amount ?? 0) : '—';
-  return [
-    { label: 'Total expenses', value: value(summary?.monthly_expenses) },
-    { label: 'Total bills', value: value(summary?.total_bills_this_month) },
-    { label: 'Total subscriptions', value: value(summary?.subscription_spending) },
-  ];
 }
 
 export default function HomeScreen() {
@@ -143,7 +133,7 @@ export default function HomeScreen() {
         </View>
 
         <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Your overview</Text></View>
-        <SummaryCard summary={dashboardSummary} stats={buildOverviewStats(dashboardSummary)} loading={financeLoading} />
+        <SummaryCard summary={dashboardSummary} loading={financeLoading} />
         <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
@@ -160,7 +150,7 @@ export default function HomeScreen() {
   );
 }
 
-function SummaryCard({ summary, stats, loading }: { summary: DashboardSummary | null; stats: SummaryStat[]; loading: boolean }) {
+function SummaryCard({ summary, loading }: { summary: DashboardSummary | null; loading: boolean }) {
   const trend = summary?.net_savings_trend_percent ?? null;
   const trendDirection = trend === null ? null : trend > 0 ? 'up' : trend < 0 ? 'down' : 'flat';
   const trendMagnitude = Math.abs(trend ?? 0).toFixed(1);
@@ -169,14 +159,21 @@ function SummaryCard({ summary, stats, loading }: { summary: DashboardSummary | 
     : trendDirection === 'down'
       ? String.fromCharCode(0x2198) + ' ' + trendMagnitude + '%'
       : trendDirection === 'flat' ? String.fromCharCode(0x2192) + ' 0.0%' : null;
+  const hasActivity = Boolean(summary && (summary.monthly_income > 0 || summary.monthly_expenses > 0));
+  const isNegative = (summary?.net_savings ?? 0) < 0;
+  const insight = loading
+    ? 'Preparing your monthly view'
+    : !hasActivity
+      ? 'Add income or expenses to start tracking'
+      : isNegative
+        ? 'Spending is above income this month'
+        : 'Income is covering spending this month';
 
   return <View style={styles.summaryCard}>
-    <View style={styles.summaryOrb} /><View style={styles.summaryOrbSmall} />
-    <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>MONTHLY OVERVIEW</Text><WalletCards size={20} color="#D8EFE2" strokeWidth={1.8} /></View>
-    <View style={styles.balanceMeta}><Text style={styles.balanceLabel}>NET SAVINGS</Text>{trendLabel ? <Text style={[styles.balanceTrend, trendDirection === 'up' && styles.balanceTrendUp, trendDirection === 'down' && styles.balanceTrendDown]}>{trendLabel}</Text> : null}</View>
-    <Text style={styles.balanceValue}>{loading ? 'Loading...' : typeof summary?.net_savings === 'number' ? formatBalancePeso(summary.net_savings) : String.fromCharCode(0x2014)}</Text>
-    <Text style={styles.balanceSubtitle}>Income minus expenses this month</Text>
-    <View style={styles.summaryStats}>{stats.map((stat, index) => <View key={stat.label} style={styles.summaryStatBlock}><Text style={styles.summaryStatLabel}>{stat.label}</Text><Text style={styles.summaryStatValue}>{loading ? 'Loading...' : stat.value}</Text>{index < stats.length - 1 ? <View style={styles.summaryDivider} /> : null}</View>)}</View>
+    <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>{isNegative ? 'NET THIS MONTH' : 'NET SAVINGS THIS MONTH'}</Text></View>
+    <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.balanceValue, isNegative && styles.balanceValueNegative]}>{loading ? 'Loading…' : !hasActivity ? String.fromCharCode(0x2014) : summary ? formatBalancePeso(summary.net_savings) : String.fromCharCode(0x2014)}</Text>
+    {trendLabel ? <Text style={[styles.balanceTrend, trendDirection === 'up' && styles.balanceTrendUp, trendDirection === 'down' && styles.balanceTrendDown]}>{trendLabel} vs last month</Text> : null}
+    <Text style={styles.balanceSubtitle}>{insight}</Text>
   </View>;
 }
 
@@ -232,23 +229,15 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   sectionHint: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
-  summaryCard: { width: '100%', height: 174, overflow: 'hidden', padding: 19, borderRadius: 22, backgroundColor: palette.accent, position: 'relative' },
-  summaryOrb: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -55, top: -60, backgroundColor: 'rgba(255,255,255,0.09)' },
-  summaryOrbSmall: { position: 'absolute', width: 80, height: 80, borderRadius: 40, right: 36, bottom: -35, backgroundColor: 'rgba(255,255,255,0.08)' },
-  summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  summaryCard: { width: '100%', minHeight: 158, justifyContent: 'center', padding: 21, borderRadius: 22, backgroundColor: palette.accent },
+  summaryTop: { flexDirection: 'row', alignItems: 'center' },
   summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  balanceMeta: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 9 },
-  balanceLabel: { color: '#D8EFE2', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
-  balanceTrend: { color: '#D8EFE2', fontSize: 11, fontWeight: '900' },
+  balanceTrend: { marginTop: 7, color: '#D8EFE2', fontSize: 11, fontWeight: '900' },
   balanceTrendUp: { color: '#C4F5D5' },
   balanceTrendDown: { color: '#FFD3D0' },
-  balanceValue: { marginTop: 2, color: '#FFFFFF', fontSize: 27, fontWeight: '900', letterSpacing: -0.7 },
-  balanceSubtitle: { marginTop: 1, color: '#D8EFE2', fontSize: 10, fontWeight: '600' },
-  summaryStats: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  summaryStatBlock: { flex: 1, position: 'relative' },
-  summaryStatLabel: { color: '#BFE3D0', fontSize: 10, fontWeight: '600' },
-  summaryStatValue: { marginTop: 3, color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  summaryDivider: { position: 'absolute', width: 1, height: 30, right: 10, top: 0, backgroundColor: 'rgba(255,255,255,0.28)' },
+  balanceValue: { marginTop: 9, color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.9 },
+  balanceValueNegative: { color: '#FFF4F2' },
+  balanceSubtitle: { marginTop: 13, color: '#D8EFE2', fontSize: 11, fontWeight: '700' },
   shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 2 },
   shortcut: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 5, borderRadius: 12 },
   shortcutIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },

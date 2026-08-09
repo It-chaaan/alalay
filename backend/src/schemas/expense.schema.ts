@@ -39,6 +39,7 @@ export const createExpenseSchema = z.object({
   recurrence_key: z.string().max(200).nullable().optional(),
   billing_status: z.enum(["generated", "paid", "void"]).nullable().optional(),
   generated_at: z.string().datetime().nullable().optional(),
+  wallet_id: z.string().uuid().nullable().optional(),
 }).strict();
 
 export const updateExpenseSchema = createExpenseSchema.partial();

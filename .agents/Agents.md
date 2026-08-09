@@ -77,6 +77,7 @@ supabase/   SQL migrations, config, generated types
   - `income`
   - `subscriptions`
   - `savings_goals`
+  - `wallets`
   - `notifications`
   - `dashboard_preferences`
   - `ai_insights`
@@ -181,6 +182,12 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 ### Savings goals
 
 - Goal CRUD and progress tracking
+
+### Wallets
+
+- Philippine-focused wallet/account presets with a per-user default Cash wallet
+- Income requires a destination wallet; expenses, bills, and subscriptions may optionally reference a source wallet
+- Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
 
 ### Budget
 

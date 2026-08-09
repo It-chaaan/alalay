@@ -5,6 +5,8 @@ import { ArrowLeft, FileText, Pencil, Plus, Repeat, Search, Trash2 } from 'lucid
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authenticatedApiRequest } from '@/services/api';
+import { fetchWallets } from '@/services/finance';
+import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { deleteFinanceItem, derivedStatus, fetchFinanceItems, markFinanceItemPaid, type FinanceItem } from '@/services/finance';
 import { CategoryChipRow, DatePickerField, evaluateAmountExpression, FinanceFormSheet, FrequencyChips, billCategories, type Frequency, FormTextInput } from '@/components/finance-form';
 
@@ -21,11 +23,12 @@ export default function BillsScreen() {
   const [creating, setCreating] = useState(false);
   const [filter, setFilter] = useState<BillFilter>('All');
   const [query, setQuery] = useState('');
+  const [wallets, setWallets] = useState<Wallet[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
-    try { setItems(await fetchFinanceItems()); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Bills could not load.'); } finally { setLoading(false); }
+    try { const [financeItems, walletRows] = await Promise.all([fetchFinanceItems(), fetchWallets()]); setItems(financeItems); setWallets(walletRows as Wallet[]); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Bills could not load.'); } finally { setLoading(false); }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -51,8 +54,8 @@ export default function BillsScreen() {
       <View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={[styles.filter, filter === value && styles.filterActive]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View>
       {filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onPaid={() => void markPaid(item)} onEdit={() => setEditing(item)} onDelete={() => remove(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}
     </ScrollView>}
-    {editing && <BillEditor item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
-    {creating && <NewBillForm onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
+    {editing && <BillEditor wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
+    {creating && <NewBillForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
   </SafeAreaView>;
 }
 
@@ -61,7 +64,7 @@ function BillCard({ item, onPaid, onEdit, onDelete }: { item: FinanceItem; onPai
   return <View style={styles.billCard}><View style={styles.billTop}><View style={styles.billIcon}>{item.source === 'subscription' ? <Repeat size={19} color={palette.accent} /> : <FileText size={19} color={palette.accent} />}</View><View style={styles.billMain}><Text style={styles.billName}>{item.name}</Text><Text style={styles.billMeta}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><Text style={styles.billAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text></View><View style={styles.billBottom}><Text style={[styles.status, status === 'Overdue' && styles.statusOverdue, status === 'Paid' && styles.statusPaid]}>{status}</Text><View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} onPress={onEdit} style={styles.actionButton}><Pencil size={16} color={palette.muted} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.name}`} onPress={onDelete} style={styles.actionButton}><Trash2 size={16} color={palette.danger} /></Pressable>{status !== 'Paid' && <Pressable accessibilityRole="button" onPress={onPaid} style={styles.paidButton}><Text style={styles.paidText}>{item.source === 'subscription' ? 'Mark renewed' : 'Mark paid'}</Text></Pressable>}</View></View></View>;
 }
 
-function BillEditor({ item, onClose, onSaved }: EditorProps) {
+function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets: Wallet[] }) {
   const [name, setName] = useState(item.name);
   const [amount, setAmount] = useState(String(item.amount));
   const [category, setCategory] = useState(item.category === 'Subscriptions' ? 'Entertainment' : item.category);
@@ -69,22 +72,23 @@ function BillEditor({ item, onClose, onSaved }: EditorProps) {
   const [frequency, setFrequency] = useState<'weekly' | 'monthly' | 'quarterly' | 'yearly'>(item.frequency ?? 'monthly');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
 
   const save = async () => {
     const parsedAmount = Number(amount);
     if (!name.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { setError('Enter a name, valid amount, and date as YYYY-MM-DD.'); return; }
     setSaving(true); setError('');
     try {
-      if (item.source === 'bill') await authenticatedApiRequest(`/api/bills/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: name.trim(), amount: parsedAmount, category: category.trim() || 'General', due_date: date, recurring: item.recurring, frequency: item.recurring ? frequency : null }) });
+      if (item.source === 'bill') await authenticatedApiRequest(`/api/bills/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: name.trim(), amount: parsedAmount, category: category.trim() || 'General', due_date: date, recurring: item.recurring, frequency: item.recurring ? frequency : null, wallet_id: walletId }) });
       else await authenticatedApiRequest(`/api/subscriptions/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name.trim(), amount: parsedAmount, renewal_date: date, billing_cycle: frequency }) });
       await onSaved();
     } catch (saveError) { setError(saveError instanceof Error ? saveError.message : 'Could not save this item.'); } finally { setSaving(false); }
   };
 
-  return <View style={styles.overlay}><Pressable accessibilityLabel="Close editor" onPress={onClose} style={styles.dismiss} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editorKeyboard}><ScrollView contentContainerStyle={styles.editor} keyboardShouldPersistTaps="handled"><View style={styles.editorHeader}><View><Text style={styles.eyebrow}>EDIT {item.source === 'subscription' ? 'SUBSCRIPTION' : 'BILL'}</Text><Text style={styles.editorTitle}>{item.name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose}><Text style={styles.closeText}>×</Text></Pressable></View><TextInput accessibilityLabel="Name" value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={palette.muted} style={styles.input} /><TextInput accessibilityLabel="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Amount" placeholderTextColor={palette.muted} style={styles.input} />{item.source === 'bill' && <TextInput accessibilityLabel="Category" value={category} onChangeText={setCategory} placeholder="Category" placeholderTextColor={palette.muted} style={styles.input} />}<View style={styles.frequencyRow}>{(['monthly', 'weekly', 'quarterly', 'yearly'] as const).map((value) => <Pressable key={value} onPress={() => setFrequency(value)} style={[styles.frequencyChip, frequency === value && styles.frequencyActive]}><Text style={[styles.frequencyText, frequency === value && styles.frequencyTextActive]}>{value}</Text></Pressable>)}</View><TextInput accessibilityLabel="Due date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={palette.muted} style={styles.input} />{error ? <Text style={styles.error}>{error}</Text> : null}<Pressable accessibilityRole="button" disabled={saving} onPress={() => void save()} style={styles.saveButton}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save changes</Text>}</Pressable></ScrollView></KeyboardAvoidingView></View>;
+  return <View style={styles.overlay}><Pressable accessibilityLabel="Close editor" onPress={onClose} style={styles.dismiss} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.editorKeyboard}><ScrollView contentContainerStyle={styles.editor} keyboardShouldPersistTaps="handled"><View style={styles.editorHeader}><View><Text style={styles.eyebrow}>EDIT {item.source === 'subscription' ? 'SUBSCRIPTION' : 'BILL'}</Text><Text style={styles.editorTitle}>{item.name}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose}><Text style={styles.closeText}>×</Text></Pressable></View><TextInput accessibilityLabel="Name" value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={palette.muted} style={styles.input} /><TextInput accessibilityLabel="Amount" value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Amount" placeholderTextColor={palette.muted} style={styles.input} />{item.source === 'bill' && <TextInput accessibilityLabel="Category" value={category} onChangeText={setCategory} placeholder="Category" placeholderTextColor={palette.muted} style={styles.input} />}<View style={styles.frequencyRow}>{(['monthly', 'weekly', 'quarterly', 'yearly'] as const).map((value) => <Pressable key={value} onPress={() => setFrequency(value)} style={[styles.frequencyChip, frequency === value && styles.frequencyActive]}><Text style={[styles.frequencyText, frequency === value && styles.frequencyTextActive]}>{value}</Text></Pressable>)}</View><TextInput accessibilityLabel="Due date" value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={palette.muted} style={styles.input} />{item.source === 'bill' && <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} label="Paid from" />}{error ? <Text style={styles.error}>{error}</Text> : null}<Pressable accessibilityRole="button" disabled={saving} onPress={() => void save()} style={styles.saveButton}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Save changes</Text>}</Pressable></ScrollView></KeyboardAvoidingView></View>;
 }
 
-function NewBillForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
+function NewBillForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
@@ -92,6 +96,7 @@ function NewBillForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   const [frequency, setFrequency] = useState<Frequency | 'one-time'>('one-time');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [walletId, setWalletId] = useState<string | null>(null);
 
   const save = async () => {
     const value = evaluateAmountExpression(amount);
@@ -102,7 +107,7 @@ function NewBillForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: name.trim(), amount: value, category, due_date: date, recurring: frequency !== 'one-time', frequency: frequency === 'one-time' ? null : frequency, status: 'unpaid' }) });
+      await authenticatedApiRequest('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: name.trim(), amount: value, category, due_date: date, recurring: frequency !== 'one-time', frequency: frequency === 'one-time' ? null : frequency, status: 'unpaid', wallet_id: walletId }) });
       await onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this bill.');
@@ -114,6 +119,7 @@ function NewBillForm({ onClose, onSaved }: { onClose: () => void; onSaved: () =>
   return <FinanceFormSheet title="Add bill" eyebrow="BILLS" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save bill" onSave={() => void save()} onClose={onClose}>
     <FormTextInput label="Biller name" value={name} onChangeText={setName} placeholder="e.g. Meralco" />
     <CategoryChipRow value={category} onChange={setCategory} options={billCategories} />
+    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} label="Paid from" />
     <DatePickerField label="Due date" value={date} onChange={setDate} />
     <FrequencyChips value={frequency} onChange={setFrequency} includeOneTime />
   </FinanceFormSheet>;

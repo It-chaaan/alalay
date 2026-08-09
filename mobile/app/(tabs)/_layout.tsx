@@ -19,6 +19,7 @@ export default function TabLayout() {
       <Tabs.Screen name="subscriptions" options={{ title: 'Subscriptions' }} />
       <Tabs.Screen name="income" options={{ title: 'Income' }} />
       <Tabs.Screen name="expenses" options={{ title: 'Expenses' }} />
+      <Tabs.Screen name="wallets" options={{ title: 'Wallets' }} />
       <Tabs.Screen name="ocr" options={{ title: 'OCR Scanner' }} />
       <Tabs.Screen name="budget" options={{ title: 'Budget' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />

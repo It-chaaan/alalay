@@ -6,8 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryChipRow, DatePickerField, evaluateAmountExpression, FinanceFormSheet, FormTextInput, formPalette, IncomeFrequencyChips, type IncomeFrequency } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
+import { WalletPicker, type Wallet } from '@/components/wallet-picker';
+import { fetchWallets } from '@/services/finance';
 
-type Income = { id: string; source: string; type: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string };
+type Income = { id: string; source: string; type: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; wallet_id: string };
 
 const incomeTypes = [
   { label: 'Salary', icon: Building2 },
@@ -24,12 +26,15 @@ export default function IncomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  const [wallets, setWallets] = useState<Wallet[]>([]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      setRows(await authenticatedApiRequest<Income[]>('/api/income'));
+      const [income, walletRows] = await Promise.all([authenticatedApiRequest<Income[]>('/api/income'), fetchWallets()]);
+      setRows(income);
+      setWallets(walletRows as Wallet[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Income could not load.');
     } finally {
@@ -42,30 +47,31 @@ export default function IncomeScreen() {
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
     <View style={styles.header}><Pressable accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={styles.back}><ArrowLeft size={21} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>MONEY IN</Text><Text style={styles.title}>Income</Text></View><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [styles.add, pressed && styles.pressed]}><Plus size={20} color="#FFFFFF" /><Text style={styles.addText}>Add</Text></Pressable></View>
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={formPalette.accent} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>Add salary, freelance, business, remittance, or other income.</Text></View>}</ScrollView>}
-    {open && <IncomeForm onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
+    {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
   </SafeAreaView>;
 }
 
-function IncomeForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
+function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [source, setSource] = useState('');
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [typeLabel, setTypeLabel] = useState('Salary');
   const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
   const [recurring, setRecurring] = useState(true);
+  const [walletId, setWalletId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
   const save = async () => {
     const value = evaluateAmountExpression(amount);
-    if (!source.trim() || value === null || value <= 0) {
-      setError('Enter a source and a valid amount.');
+    if (!source.trim() || value === null || value <= 0 || !walletId) {
+      setError(!walletId ? 'Choose where this income will be deposited.' : 'Enter a source and a valid amount.');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest('/api/income', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel as keyof typeof incomeTypeValues], amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null }) });
+      await authenticatedApiRequest('/api/income', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel as keyof typeof incomeTypeValues], amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
       await onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this income.');
@@ -77,6 +83,7 @@ function IncomeForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => 
   return <FinanceFormSheet title="Add income" eyebrow="MONEY IN" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save income" onSave={() => void save()} onClose={onClose}>
     <FormTextInput label="Source" value={source} onChangeText={setSource} placeholder="e.g. Freelance client" />
     <CategoryChipRow label="Income type" value={typeLabel} onChange={setTypeLabel} options={incomeTypes} />
+    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Deposit to" />
     <DatePickerField label="Date" value={date} onChange={setDate} />
     <View style={styles.recurring}><View style={styles.recurringCopy}><Text style={styles.recurringTitle}>Recurring income</Text><Text style={styles.muted}>{recurring ? 'Automatically grouped by frequency.' : 'Save this as a one-time entry.'}</Text></View><Switch accessibilityLabel="Recurring income" value={recurring} onValueChange={setRecurring} trackColor={{ false: '#D7E1DC', true: formPalette.accent }} thumbColor="#FFFFFF" /></View>
     {recurring && <IncomeFrequencyChips value={frequency} onChange={setFrequency} />}

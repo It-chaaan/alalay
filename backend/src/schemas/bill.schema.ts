@@ -17,6 +17,7 @@ const billShape = z.object({
   status: z.enum(["unpaid", "paid", "overdue"]).optional(),
   notes: z.string().max(2_000).nullable().optional(),
   attachment_url: z.string().url().max(2_000).nullable().optional(),
+  wallet_id: z.string().uuid().nullable().optional(),
 }).strict();
 
 function checkRecurringFrequency(
