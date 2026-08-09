@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, FileText, Pencil, Plus, Repeat, Search, Trash2, X } from 'lucide-react-native';
+import { ArrowLeft, FileText, Pencil, Plus, Repeat, Search, Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authenticatedApiRequest } from '@/services/api';
 import { deleteFinanceItem, derivedStatus, fetchFinanceItems, markFinanceItemPaid, type FinanceItem } from '@/services/finance';
+import { CategoryChipRow, DatePickerField, evaluateAmountExpression, FinanceFormSheet, FrequencyChips, billCategories, type Frequency, FormTextInput } from '@/components/finance-form';
 
 const palette = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
 
@@ -84,9 +85,38 @@ function BillEditor({ item, onClose, onSaved }: EditorProps) {
 }
 
 function NewBillForm({ onClose, onSaved }: { onClose: () => void; onSaved: () => Promise<void> }) {
-  const [subscription, setSubscription] = useState(false); const [name, setName] = useState(''); const [amount, setAmount] = useState(''); const [date, setDate] = useState(new Date().toISOString().slice(0, 10)); const [category, setCategory] = useState('Utilities'); const [cycle, setCycle] = useState<'weekly'|'monthly'|'quarterly'|'yearly'>('monthly'); const [error, setError] = useState(''); const [saving, setSaving] = useState(false);
-  const save = async () => { const value = Number(amount); if (!name.trim() || !Number.isFinite(value) || value <= 0 || !/^\d{4}-\d{2}-\d{2}$/.test(date)) { setError('Enter a name, valid amount, and date.'); return; } setSaving(true); try { await authenticatedApiRequest(subscription ? '/api/subscriptions' : '/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(subscription ? { name: name.trim(), amount: value, renewal_date: date, billing_cycle: cycle, auto_renew: true } : { title: name.trim(), amount: value, category, due_date: date, recurring: false, status: 'unpaid' }) }); await onSaved(); } catch (e) { setError(e instanceof Error ? e.message : 'Could not save.'); } finally { setSaving(false); } };
-  return <View style={styles.overlay}><Pressable onPress={onClose} style={styles.dismiss} /><View style={styles.editor}><View style={styles.editorHeader}><View><Text style={styles.eyebrow}>NEW PAYMENT</Text><Text style={styles.editorTitle}>Add {subscription ? 'subscription' : 'bill'}</Text></View><Pressable onPress={onClose}><X size={21} color={palette.ink} /></Pressable></View><View style={styles.frequencyRow}><Pressable onPress={() => setSubscription(false)} style={[styles.frequencyChip, !subscription && styles.frequencyActive]}><Text style={styles.frequencyText}>Bill</Text></Pressable><Pressable onPress={() => setSubscription(true)} style={[styles.frequencyChip, subscription && styles.frequencyActive]}><Text style={styles.frequencyText}>Subscription</Text></Pressable></View><TextInput value={name} onChangeText={setName} placeholder="Name" placeholderTextColor={palette.muted} style={styles.input} /><TextInput value={amount} onChangeText={setAmount} keyboardType="decimal-pad" placeholder="Amount" placeholderTextColor={palette.muted} style={styles.input} />{!subscription && <TextInput value={category} onChangeText={setCategory} placeholder="Category" placeholderTextColor={palette.muted} style={styles.input} />}{subscription && <View style={styles.frequencyRow}>{(['weekly','monthly','quarterly','yearly'] as const).map((v) => <Pressable key={v} onPress={() => setCycle(v)} style={[styles.frequencyChip, cycle === v && styles.frequencyActive]}><Text style={styles.frequencyText}>{v}</Text></Pressable>)}</View>}<TextInput value={date} onChangeText={setDate} placeholder="Date (YYYY-MM-DD)" placeholderTextColor={palette.muted} style={styles.input} />{error ? <Text style={styles.error}>{error}</Text> : null}<Pressable disabled={saving} onPress={() => void save()} style={styles.saveButton}>{saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.saveText}>Save</Text>}</Pressable></View></View>;
+  const [name, setName] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [category, setCategory] = useState('Electricity');
+  const [frequency, setFrequency] = useState<Frequency | 'one-time'>('one-time');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const save = async () => {
+    const value = evaluateAmountExpression(amount);
+    if (!name.trim() || value === null || value <= 0) {
+      setError('Enter a biller name and a valid amount.');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    try {
+      await authenticatedApiRequest('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: name.trim(), amount: value, category, due_date: date, recurring: frequency !== 'one-time', frequency: frequency === 'one-time' ? null : frequency, status: 'unpaid' }) });
+      await onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not save this bill.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <FinanceFormSheet title="Add bill" eyebrow="BILLS" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save bill" onSave={() => void save()} onClose={onClose}>
+    <FormTextInput label="Biller name" value={name} onChangeText={setName} placeholder="e.g. Meralco" />
+    <CategoryChipRow value={category} onChange={setCategory} options={billCategories} />
+    <DatePickerField label="Due date" value={date} onChange={setDate} />
+    <FrequencyChips value={frequency} onChange={setFrequency} includeOneTime />
+  </FinanceFormSheet>;
 }
 
 const styles = StyleSheet.create({

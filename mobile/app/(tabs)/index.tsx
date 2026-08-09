@@ -1,10 +1,10 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle } from 'react-native-svg';
-import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ScanLine, UserCircle, WalletCards, X } from 'lucide-react-native';
+import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { authenticatedApiRequest } from '@/services/api';
@@ -42,7 +42,6 @@ const goals = [
 type Icon = typeof Home;
 type SummarySlide = { key: string; eyebrow: string; title: string; amount: string; detailLabel: string; detail: string; secondaryLabel: string; secondary: string; icon: Icon };
 type IncomeRecord = { id: string; source: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; type?: string };
-type QuickAddAction = 'bill' | 'subscription' | 'expense' | 'ocr' | 'savings';
 
 function formatPeso(value: number) {
   return `₱${Math.round(value).toLocaleString('en-PH')}`;
@@ -169,7 +168,7 @@ export default function HomeScreen() {
           onMomentumScrollEnd={(event) => setSummaryIndex(Math.round(event.nativeEvent.contentOffset.x / cardWidth))}
         />
         <Pagination count={summarySlides.length} activeIndex={summaryIndex} />
-        <View style={styles.shortcutRow}><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
+        <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Savings goals</Text><Text style={styles.sectionHint}>{savings?.overview.activeGoals ?? 0} active</Text></View>
         <FlatList
@@ -234,95 +233,6 @@ function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
   return <View style={styles.row}><View style={styles.rowIcon}><WalletCards size={18} color={palette.accent} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={styles.rowTitle}>{expense.merchant}</Text><Text style={styles.rowMeta}>{expense.category} · {expense.date}</Text></View><Text style={styles.expenseAmount}>-{formatPeso(Number(expense.amount))}</Text></View>;
 }
 
-const quickAddItems: { action: QuickAddAction; icon: Icon; label: string }[] = [
-  { action: 'bill', icon: FileText, label: 'Add bill' },
-  { action: 'subscription', icon: Repeat, label: 'Add subscription' },
-  { action: 'expense', icon: WalletCards, label: 'Add expense' },
-  { action: 'ocr', icon: ScanLine, label: 'Scan receipt (OCR)' },
-  { action: 'savings', icon: PiggyBank, label: 'Add savings' },
-];
-
-function AddMenu({ bottom, screenWidth, onSelect }: { bottom: number; screenWidth: number; onSelect: (action: QuickAddAction) => void }) {
-  const menuWidth = Math.min(272, screenWidth - 24);
-  const cellWidth = Math.floor((menuWidth - 36) / 2);
-  return <View style={[styles.addMenu, { bottom }]}>
-    <Text style={styles.addMenuTitle}>What would you like to add?</Text>
-    <View style={[styles.addGrid, { width: menuWidth - 28 }]}>{quickAddItems.map((item) => <AddMenuItem key={item.action} cellWidth={cellWidth} icon={item.icon} label={item.label} onPress={() => onSelect(item.action)} />)}</View>
-  </View>;
-}
-
-function AddMenuItem({ cellWidth, icon: IconComponent, label, onPress }: { cellWidth: number; icon: Icon; label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.addMenuItem, { width: cellWidth }, pressed && styles.pressed]}><IconComponent size={20} color={palette.accent} strokeWidth={1.8} /><Text style={styles.addMenuLabel}>{label}</Text></Pressable>;
-}
-
-const quickAddTitles: Record<Exclude<QuickAddAction, 'ocr'>, string> = {
-  bill: 'Add bill',
-  subscription: 'Add subscription',
-  expense: 'Add expense',
-  savings: 'Add savings goal',
-};
-
-function QuickAddForm({ action, onClose, onSaved }: { action: Exclude<QuickAddAction, 'ocr'>; onClose: () => void; onSaved: () => Promise<void> }) {
-  const [title, setTitle] = useState('');
-  const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState(action === 'expense' ? 'General' : 'Utilities');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [currentAmount, setCurrentAmount] = useState('');
-  const [cycle, setCycle] = useState<'weekly' | 'monthly' | 'quarterly' | 'yearly'>('monthly');
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
-
-  const submit = async () => {
-    const parsedAmount = Number(amount);
-    if (!title.trim() || !Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Enter a name and a valid amount.');
-      return;
-    }
-    setError('');
-    setSaving(true);
-    try {
-      if (action === 'bill') {
-        await authenticatedApiRequest('/api/bills', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), amount: parsedAmount, category: category.trim() || 'General', due_date: date, recurring: false, status: 'unpaid' }) });
-      } else if (action === 'subscription') {
-        await authenticatedApiRequest('/api/subscriptions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: title.trim(), amount: parsedAmount, renewal_date: date, billing_cycle: cycle, auto_renew: true }) });
-      } else if (action === 'expense') {
-        await authenticatedApiRequest('/api/expenses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: title.trim(), amount: parsedAmount, category: category.trim() || 'General', date, payment_method: 'cash' }) });
-      } else {
-        const current = currentAmount ? Number(currentAmount) : 0;
-        if (!Number.isFinite(current) || current < 0 || current > parsedAmount) {
-          setError('Current amount must be between ₱0 and the target.');
-          return;
-        }
-        await authenticatedApiRequest('/api/savings-goals', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), target_amount: parsedAmount, current_amount: current, deadline: date }) });
-      }
-      Alert.alert('Saved', `${quickAddTitles[action]} added successfully.`);
-      await onSaved();
-      onClose();
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : 'Could not save this yet.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  return <View style={styles.formOverlay}>
-    <Pressable accessibilityLabel="Close add form" onPress={onClose} style={styles.formDismiss} />
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.formKeyboard}>
-      <ScrollView contentContainerStyle={styles.formCard} keyboardShouldPersistTaps="handled">
-        <View style={styles.formHeader}><View><Text style={styles.formEyebrow}>QUICK ADD</Text><Text style={styles.formTitle}>{quickAddTitles[action]}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.formClose}><X size={20} color={palette.ink} /></Pressable></View>
-        <TextInput accessibilityLabel={action === 'expense' ? 'Merchant' : 'Name'} value={title} onChangeText={setTitle} placeholder={action === 'expense' ? 'Merchant' : action === 'subscription' ? 'Subscription name' : action === 'savings' ? 'Goal name' : 'Bill name'} placeholderTextColor={palette.muted} style={styles.formInput} />
-        <TextInput accessibilityLabel={action === 'savings' ? 'Target amount' : 'Amount'} value={amount} onChangeText={setAmount} placeholder={action === 'savings' ? 'Target amount (₱)' : 'Amount (₱)'} placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={styles.formInput} />
-        {(action === 'bill' || action === 'expense') && <TextInput accessibilityLabel="Category" value={category} onChangeText={setCategory} placeholder="Category" placeholderTextColor={palette.muted} style={styles.formInput} />}
-        {action === 'subscription' && <View style={styles.cycleRow}>{(['monthly', 'weekly', 'quarterly', 'yearly'] as const).map((value) => <Pressable key={value} accessibilityRole="button" onPress={() => setCycle(value)} style={[styles.cycleChip, cycle === value && styles.cycleChipActive]}><Text style={[styles.cycleText, cycle === value && styles.cycleTextActive]}>{value}</Text></Pressable>)}</View>}
-        {action === 'savings' && <TextInput accessibilityLabel="Current amount" value={currentAmount} onChangeText={setCurrentAmount} placeholder="Current amount (optional)" placeholderTextColor={palette.muted} keyboardType="decimal-pad" style={styles.formInput} />}
-        <TextInput accessibilityLabel={action === 'subscription' ? 'Renewal date' : action === 'savings' ? 'Goal deadline' : action === 'bill' ? 'Due date' : 'Expense date'} value={date} onChangeText={setDate} placeholder="YYYY-MM-DD" placeholderTextColor={palette.muted} style={styles.formInput} />
-        {Boolean(error) && <Text style={styles.formError}>{error}</Text>}
-        <Pressable accessibilityRole="button" disabled={saving} onPress={submit} style={({ pressed }) => [styles.formSubmit, saving && styles.formSubmitDisabled, pressed && styles.pressed]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.formSubmitText}>Save</Text>}</Pressable>
-      </ScrollView>
-    </KeyboardAvoidingView>
-  </View>;
-}
-
 function BottomNav({ bottom }: { bottom: number }) {
   return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => Alert.alert('Reports', 'Reports are coming next.')} /></View>;
 }
@@ -379,8 +289,8 @@ const styles = StyleSheet.create({
   paginationDot: { height: 6, borderRadius: 3 },
   paginationActive: { width: 24, backgroundColor: palette.accent },
   paginationInactive: { width: 6, backgroundColor: '#B8C8BF' },
-  shortcutRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, marginTop: 8 },
-  shortcut: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
+  shortcutRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
+  shortcut: { flexGrow: 1, flexBasis: '45%', minHeight: 76, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
   shortcutIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
   shortcutLabel: { marginTop: 6, color: palette.ink, fontSize: 11, fontWeight: '800' },
   goalList: { gap: 12 },

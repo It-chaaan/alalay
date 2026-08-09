@@ -30,6 +30,8 @@ Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI
 - Use high-contrast shared shell title/subtitle styles and preserve visible focus states and practical WCAG AA contrast.
 - Report charts need keyboard-reachable value tooltips, and budget indicators must pair color with labels or values.
 
+Budget editing is month-scoped: use the selected `YYYY-MM` when reading or saving the shared budget plan, and keep over-budget states legible with both color and text.
+
 ## Data rules
 
 - Keep business calculations in backend services, especially analytics/reporting.

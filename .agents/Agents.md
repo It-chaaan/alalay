@@ -90,7 +90,7 @@ supabase/   SQL migrations, config, generated types
 
 - Provider: Supabase Auth
 - Web session source: Supabase session handling in `frontend/src/App.tsx`
-- Mobile auth: `mobile/app/auth.tsx` calls Supabase Auth directly through `mobile/lib/supabase.ts`
+- Mobile auth: `mobile/app/auth.tsx` calls Supabase Auth directly through `mobile/src/services/supabase.ts`; `mobile/app/_layout.tsx` restores the persisted session before routing into the authenticated shell
 - Backend protection: auth middleware on `/api/*` routes
 - Protected UI: dashboard routes gated in `frontend/src/App.tsx`
 - Mobile session persistence uses Expo SecureStore; mobile OAuth uses a PKCE/deep-link flow through Expo WebBrowser/Linking.
@@ -214,7 +214,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Email/password sign-in and sign-up UI
 - Google OAuth UI using native PKCE/deep-link handling
 - Expo Router authenticated shell with a custom Home floating nav ordered Home, Income, Camera/OCR, Budget, Reports; Home includes real authenticated finance loading, profile shortcuts, and a draggable AI chat-head interaction
-- Mobile Bills/Subscriptions, Income, Savings, Budget, profile/notifications/settings, and OCR entry destinations are implemented with shared authenticated API contracts; OCR capture itself remains platform-dependent
+- Mobile Expenses, Bills/Subscriptions, Income, Savings, Budget, profile/notifications/settings, and OCR entry destinations are implemented with shared authenticated API contracts; OCR capture itself remains platform-dependent
 
 ## Data flow
 
@@ -316,6 +316,14 @@ The current mobile Supabase auth client reads the two Supabase variables. Mobile
 - Respect current RLS assumptions in every new query or mutation.
 - Treat `gmail_connections` tokens and user financial data as sensitive.
 - Mobile auth sessions must use SecureStore or another secure on-device mechanism; do not use browser storage or plain AsyncStorage for session tokens.
+
+## Shared mobile finance forms
+
+Mobile bill, subscription, expense, income, and savings-goal creation now share a Tarsi-style form component system in `mobile/src/components/finance-form.tsx`, including a custom arithmetic keypad, chip rows, and a keyboard-safe calendar/date flow.
+One-time income entries now persist a nullable `frequency`; recurring income keeps the selected weekly, monthly, biweekly, or yearly value.
+The shared keypad keeps raw amount expressions unformatted for parsing/saving, displays thousands separators, uses `⌫` for single-character deletion, and uses a dedicated trash key for clear-all.
+
+Budget plans are stored per user and `YYYY-MM` month in the shared `budget_plans` table; both web and mobile budget editors must send the selected month.
 
 ## Known implementation issues
 

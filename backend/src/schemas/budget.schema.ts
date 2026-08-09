@@ -12,6 +12,7 @@ const budgetCategorySchema = z.object({
 }).strict();
 
 export const budgetSchema = z.object({
+  month: monthKeySchema.optional(),
   categories: z.array(budgetCategorySchema).max(100),
   auto_distribute_savings: z.boolean().optional(),
   remaining_savings_behavior: z.enum(["auto_general", "leave_unallocated", "ask_monthly"]).optional(),

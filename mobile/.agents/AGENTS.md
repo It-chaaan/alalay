@@ -48,6 +48,8 @@ If the mobile app lives in its own repository separate from the web app, treat `
 - Provider: Supabase Auth (same project as web).
 - Session storage: **do not use browser storage patterns.** Use `expo-secure-store` (or the current project's established secure storage library) for persisting the Supabase session on-device, not `AsyncStorage` alone (which is not encrypted) and never a plain JS variable that resets on app restart.
 - Current implementation: `mobile/src/services/supabase.ts` creates the native Supabase client with SecureStore persistence, while `mobile/app/auth.tsx` provides email/password sign-in, sign-up, and Google OAuth using the PKCE/deep-link flow.
+- `mobile/app/_layout.tsx` restores the persisted session before rendering the navigation stack, shows a loading state during the check, and redirects authenticated users to Home without a landing/sign-in flash.
+- `mobile/app/_layout.tsx` restores the persisted session before rendering the navigation stack, shows a loading state during the check, and redirects authenticated users to Home without a landing/sign-in flash.
 - Expo SDK 54 pins `expo-secure-store` to `~15.0.8`; after changing Expo/native dependencies, update Expo Go or rebuild the development client because Metro reloads cannot update the native SecureStore module.
 - SecureStore-backed auth session persistence must be tested in a development build (`npx expo run:ios`, `npx expo run:android`, or EAS development build). Expo Go may bundle an older native SecureStore surface; the app degrades to signed-out/non-persistent behavior there rather than crashing, but it is not a valid persistence test.
 - OAuth (Google): mobile OAuth cannot reuse the web app's `/auth/callback` browser redirect flow as-is. Use Expo's `expo-auth-session` (or Supabase's documented React Native OAuth pattern) with a proper deep link scheme registered for the app. Confirm the redirect URI is registered in both the Supabase Auth settings and the Expo app config before assuming this works out of the box.
@@ -133,6 +135,17 @@ Same as web's `AGENTS.md`, plus mobile-specific additions:
 - Respect RLS assumptions in every query/mutation, same as web.
 - Treat financial data and any stored tokens (Gmail connections, if ported to mobile) as sensitive — store using secure, encrypted on-device storage, not plain `AsyncStorage`.
 - Session tokens must be stored via secure storage (`expo-secure-store` or equivalent), not plain `AsyncStorage`, given mobile devices can be lost/stolen and app sandboxing alone isn't sufficient protection for auth tokens.
+
+## Shared finance entry components
+
+- `src/components/finance-form.tsx` owns the shared add-form interaction system for bills, subscriptions, expenses, income, and savings goals: keyboard-safe sheet layout, custom amount keypad, basic inline arithmetic, chip rows, payment-method chips, and the in-app calendar picker.
+- `app/(tabs)/expenses.tsx` is the dedicated monthly expense overview. It reuses `fetchExpenses()` and shared bill records, merges paid bills into the spending list, and keeps Log expense on the shared form sheet.
+- Amounts are entered through the custom keypad and parsed on save; text fields remain system-keyboard inputs inside `KeyboardAvoidingView` behavior. Keep new finance add flows on this component system rather than recreating form sheets per screen.
+- The keypad's amount state remains a clean expression for parsing and persistence while the display adds thousands separators; `⌫` removes one character and the trash key clears the whole expression.
+- The subscription API/schema currently has no category column, so subscription category chips are presentational until the shared schema is intentionally extended.
+- One-time income uses a nullable `frequency`; recurring income persists the selected weekly, monthly, biweekly, or yearly value.
+
+Budget create/edit uses the shared `/api/budget` contract and sends the selected `YYYY-MM` month; budget plans are persisted per user and month rather than through a mobile-only store.
 
 ## Known implementation issues to track
 

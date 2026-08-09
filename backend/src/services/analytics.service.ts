@@ -16,6 +16,7 @@ type BudgetCategoryInput = {
 };
 
 type SaveBudgetOptions = {
+  month?: string;
   autoDistributeSavings?: boolean;
   remainingSavingsBehavior?: string;
 };
@@ -452,13 +453,15 @@ function buildSavingsAllocationSummary(
   };
 }
 
-async function getBudgetPlan(userId: string) {
-  const { data, error } = await client().from("budget_plans").select("*").eq("user_id", requireUserId(userId)).maybeSingle();
+async function getBudgetPlan(userId: string, month?: string) {
+  const planMonth = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : monthRange().start.slice(0, 7);
+  const { data, error } = await client().from("budget_plans").select("*").eq("user_id", requireUserId(userId)).eq("month", planMonth).maybeSingle();
   throwIfError(error);
   return data ?? null;
 }
 
 export async function saveBudgetPlan(userId: string, categories: BudgetCategoryInput[], options: SaveBudgetOptions = {}) {
+  const planMonth = options.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(options.month) ? options.month : monthRange().start.slice(0, 7);
   let sanitizedCategories = categories
     .map((category) => ({
       id: category.id || randomUUID(),
@@ -475,6 +478,7 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
     .upsert(
       {
         user_id: requireUserId(userId),
+        month: planMonth,
         categories: sanitizedCategories.map((category) => isSavingsCategory(category)
           ? {
               ...category,
@@ -483,7 +487,7 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
             }
           : category),
       },
-      { onConflict: "user_id" },
+      { onConflict: "user_id,month" },
     )
     .select("*")
     .single();
@@ -491,7 +495,7 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
   throwIfError(error);
   await saveSavingsPreference(userId, options.remainingSavingsBehavior);
 
-  return getBudgetSummary(userId);
+  return getBudgetSummary(userId, { month: planMonth });
 }
 
 async function rowsFor(table: string, userId: string, dateColumn: string, from: string, to: string) {
@@ -522,7 +526,7 @@ export function buildMonthlySpending(expenses: Array<{ date: string; amount: unk
 export async function getBudgetSummary(userId: string, options: BudgetSummaryOptions = {}) {
   await processSubscriptionBilling(userId);
   const range = getBudgetRange(options);
-  const plan = await getBudgetPlan(userId);
+  const plan = await getBudgetPlan(userId, range.start.slice(0, 7));
 
   if (!plan) {
     return null;

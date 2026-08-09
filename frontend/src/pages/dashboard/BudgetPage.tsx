@@ -390,7 +390,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
-      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetchBudgetAndGoals} budgetSummary={budgetSummary} />
+      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetchBudgetAndGoals} budgetSummary={budgetSummary} month={selectedMonth} />
     </DashboardShell>
   );
 }

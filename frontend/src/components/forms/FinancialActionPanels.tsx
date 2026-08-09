@@ -1202,6 +1202,7 @@ function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormVal
 
 type BudgetFormPanelProps = FormDialogProps & {
   budgetSummary: BudgetSummary | null;
+  month: string;
 };
 
 export function BudgetFormPanel({
@@ -1209,6 +1210,7 @@ export function BudgetFormPanel({
   onClose,
   onSuccess,
   budgetSummary,
+  month,
 }: BudgetFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
@@ -1249,6 +1251,7 @@ export function BudgetFormPanel({
     const savedBudget = await mutate<BudgetSummary>("/budget", {
       method: "PATCH",
       body: JSON.stringify({
+        month,
         auto_distribute_savings: values.auto_distribute_savings,
         remaining_savings_behavior: values.remaining_savings_behavior,
         categories: [

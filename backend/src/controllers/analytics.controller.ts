@@ -14,6 +14,7 @@ export async function budgetSummary(req: Request, res: Response) {
 
 export async function saveBudget(req: Request, res: Response) {
   const body = req.validated?.body as {
+    month?: string;
     categories: Array<{
       id: string;
       name: string;
@@ -29,7 +30,7 @@ export async function saveBudget(req: Request, res: Response) {
   const autoDistributeSavings = Boolean(body.auto_distribute_savings);
   const remainingSavingsBehavior = body.remaining_savings_behavior;
 
-  return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories, { autoDistributeSavings, remainingSavingsBehavior }));
+  return sendSuccess(res, await saveBudgetPlan(req.user!.id, categories, { month: body.month, autoDistributeSavings, remainingSavingsBehavior }));
 }
 
 export async function reportsSummary(req: Request, res: Response) {

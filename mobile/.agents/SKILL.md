@@ -10,6 +10,10 @@ Use this for feature work, bug fixes, refactors, Supabase-backed changes, analyt
 4. Cross-check env variable names against `.env.example` (mobile) and the Expo app config — remember mobile uses `EXPO_PUBLIC_` prefixes, not `VITE_`.
 5. Run the relevant mobile build/typecheck (e.g. `npx tsc --noEmit`, `expo prebuild`/`eas build` dry checks as applicable) and update project docs (`AGENTS.md`, `SKILL.md`, `README.md`) when architecture, auth, navigation, AI, OCR, or theming behavior changes.
 
+## Finance form component rule
+
+Finance add flows should reuse `src/components/finance-form.tsx` for the custom amount keypad, category/payment chips, calendar picker, and keyboard-avoiding sheet. Keep the shared component as the single interaction pattern for bills, subscriptions, and expenses.
+
 ## Auth rules
 
 - Supabase Auth supports email/password and Google OAuth, same as web, but the mobile OAuth flow uses a deep-link-based redirect (via `expo-auth-session` or Supabase's native OAuth pattern), not the web app's browser `/auth/callback` implicit flow. Do not assume the web OAuth implementation can be copied as-is.
@@ -26,6 +30,8 @@ Use this for feature work, bug fixes, refactors, Supabase-backed changes, analyt
 - The current mobile product is intentionally light-only: `hooks/use-color-scheme.ts` is the single theme source and returns `light`, while the root navigation uses `DefaultTheme`. If user-selectable Light/Dark/System preferences are introduced later, persist them before re-enabling device appearance detection.
 - Use a single consistent styling approach (NativeWind or StyleSheet-based design tokens, matching whatever the project has already established) with explicit light/dark variants for every custom UI element. Never ship a light-only card, banner, input, alert, toast, badge, or empty state.
 - Maintain visible focus/pressed states for every interactive element and practical WCAG AA contrast in both themes. On mobile, also confirm minimum touch target sizes (44×44pt iOS / 48×48dp Android) are respected — this has no direct web equivalent and needs its own check.
+
+Budget editing is month-scoped: use the selected `YYYY-MM` when reading or saving the shared budget plan, and keep over-budget states legible with both color and text.
 
 ## Data rules
 
