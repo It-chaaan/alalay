@@ -57,7 +57,8 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
 }
 
 export async function deleteWallet(userId: string, id: string) {
-  const { data, error } = await client().from("wallets").delete().eq("user_id", requireUserId(userId)).eq("id", id).eq("is_default_cash", false).select("id").single();
-  if (error || !data) throw new AppError(409, "wallet_in_use", "This wallet could not be removed. Unlink its transactions first.");
-  return data;
+  requireUserId(userId);
+  const { data, error } = await client().rpc("delete_wallet", { target_wallet_id: id });
+  if (error || !data) throw new AppError(409, "wallet_delete_failed", error?.message ?? "This wallet could not be removed.");
+  return { id: data };
 }

@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, FileText, Pencil, Plus, Repeat, Search, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, FileText, Pencil, Repeat, Search, Trash2 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authenticatedApiRequest } from '@/services/api';
 import { fetchWallets } from '@/services/finance';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
+import { HeaderAddButton } from '@/components/header-add-button';
 import { deleteFinanceItem, derivedStatus, fetchFinanceItems, markFinanceItemPaid, type FinanceItem } from '@/services/finance';
 import { CategoryChipRow, DatePickerField, evaluateAmountExpression, FinanceFormSheet, FrequencyChips, billCategories, type Frequency, FormTextInput } from '@/components/finance-form';
 
@@ -61,7 +62,7 @@ export default function BillsScreen() {
   const unpaid = monthlyBills.filter((item) => derivedStatus(item) !== 'Paid').reduce((sum, item) => sum + item.amount, 0);
 
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}><ArrowLeft size={21} color={palette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>PAYMENTS</Text><Text style={styles.title}>Bills</Text></View><Pressable onPress={() => setCreating(true)} style={styles.addButton}><Plus size={18} color="#fff" /><Text style={styles.addText}>Add</Text></Pressable></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={({ pressed }) => [styles.backButton, pressed && styles.pressed]}><ArrowLeft size={21} color={palette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>PAYMENTS</Text><Text style={styles.title}>Bills</Text></View><HeaderAddButton onPress={() => setCreating(true)} /></View>
     {loading ? <View style={styles.center}><ActivityIndicator color={palette.accent} /><Text style={styles.centerCopy}>Loading bills and subscriptions…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load bills</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <FinancialOverviewCard eyebrow="BILLS OVERVIEW" period={monthName(month)} primaryLabel="TOTAL BILLS THIS MONTH" value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingText={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} />
       <View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={[styles.filter, filter === value && styles.filterActive]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View></View>

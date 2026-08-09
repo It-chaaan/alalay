@@ -34,7 +34,7 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
     const cursor = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
     while (cursor <= end) {
       const candidate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth()))));
-      if (candidate > anchor && candidate >= start && candidate <= end) dates.push(dateKey(candidate));
+      if (candidate >= anchor && candidate >= start && candidate <= end) dates.push(dateKey(candidate));
       cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
     }
     return dates;
