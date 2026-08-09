@@ -2,7 +2,7 @@ import fs from "node:fs";
 import https from "node:https";
 import cors from "cors";
 import express from "express";
-import { env } from "../config/env.js";
+import { allowedCorsOrigins, env } from "../config/env.js";
 import { errorHandler } from "../middleware/errorHandler.js";
 import { apiRouter } from "../routes/index.js";
 
@@ -10,7 +10,15 @@ export function createServer() {
   const app = express();
   app.set("trust proxy", 1);
 
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  const allowedOrigins = allowedCorsOrigins();
+  app.use(cors({
+    origin(origin, callback) {
+      // Native clients send no Origin header. Browser callers must be an explicitly
+      // configured production origin or one of the Expo web preview origins.
+      callback(null, !origin || allowedOrigins.has(origin));
+    },
+    credentials: true,
+  }));
   app.use((_req, res, next) => {
     if (env.HTTPS_ENABLED) {
       res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");

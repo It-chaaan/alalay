@@ -44,7 +44,7 @@ supabase/   SQL migrations, config, generated types
 - Current routes/files: `app/index.tsx` (landing carousel), `app/auth.tsx` (sign-in/sign-up), `app/(tabs)/index.tsx` (Home), `income.tsx`, `bills.tsx`, `subscriptions.tsx`, `savings.tsx`, `ocr.tsx`, `profile.tsx`, `notifications.tsx`, `budget.tsx`, `settings.tsx`, and `app/modal.tsx`
 - Shared components/hooks: `components/`, `hooks/use-color-scheme.ts`, `hooks/use-theme-color.ts`, and `constants/theme.ts`
 - Native dependencies used by the current UI include Expo Image, Expo SecureStore, Expo WebBrowser, Expo Linking, React Navigation, React Native Reanimated, React Native SVG, safe-area-context, and vector icons
-- Supabase client: `mobile/lib/supabase.ts`; it uses `@supabase/supabase-js` with SecureStore-backed session persistence and PKCE OAuth settings
+- Supabase client: `mobile/src/services/supabase.ts`; it uses `@supabase/supabase-js` with SecureStore-backed native session persistence, a guarded `localStorage` fallback for Expo web preview, and PKCE OAuth settings
 - Theme: the current product code intentionally forces the shared color-scheme hook to `light`; no mobile Settings/preferences screen or three-way theme persistence is implemented
 - The mobile app has a small authenticated API helper at `mobile/src/services/api.ts` for the Home chat-head's dashboard insight and AI chat; it does not yet contain the web client's query hooks, full dashboard data screen, or a mobile AuthContext equivalent
 
@@ -78,6 +78,7 @@ supabase/   SQL migrations, config, generated types
   - `subscriptions`
   - `savings_goals`
   - `notifications`
+  - `dashboard_preferences`
   - `ai_insights`
   - `gmail_connections`
   - `bill_suggestions`
@@ -93,7 +94,8 @@ supabase/   SQL migrations, config, generated types
 - Mobile auth: `mobile/app/auth.tsx` calls Supabase Auth directly through `mobile/src/services/supabase.ts`; `mobile/app/_layout.tsx` restores the persisted session before routing into the authenticated shell
 - Backend protection: auth middleware on `/api/*` routes
 - Protected UI: dashboard routes gated in `frontend/src/App.tsx`
-- Mobile session persistence uses Expo SecureStore; mobile OAuth uses a PKCE/deep-link flow through Expo WebBrowser/Linking.
+- Mobile native session persistence uses Expo SecureStore; Expo web preview uses guarded `localStorage` to retain sessions across reloads. Mobile OAuth uses a PKCE/deep-link flow through Expo WebBrowser/Linking.
+- Backend CORS uses an explicit allow-list: configured browser origins plus Expo web preview on `http://localhost:8081` and `http://localhost:8082`; it does not use a wildcard origin.
 
 ### AI
 
@@ -155,6 +157,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 - Summary cards and finance overview
 - Recent activity and high-level metrics
+- Mobile Home uses one fixed monthly overview card backed by the shared dashboard summary API; the card shows total expenses, bills, and subscription spending.
 
 ### Bills
 
@@ -214,7 +217,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Email/password sign-in and sign-up UI
 - Google OAuth UI using native PKCE/deep-link handling
 - Expo Router authenticated shell with a custom Home floating nav ordered Home, Income, Camera/OCR, Budget, Reports; Home includes real authenticated finance loading, profile shortcuts, and a draggable AI chat-head interaction
-- Mobile Expenses, Bills/Subscriptions, Income, Savings, Budget, profile/notifications/settings, and OCR entry destinations are implemented with shared authenticated API contracts; OCR capture itself remains platform-dependent
+- Mobile Expenses, Bills/Subscriptions, Income, Savings, Budget, Reports, profile/notifications/settings, and OCR entry destinations are implemented with shared authenticated API contracts; the Home overview carousel persists per-user card selections through the shared dashboard preferences API; OCR capture itself remains platform-dependent
 
 ## Data flow
 
@@ -315,7 +318,7 @@ The current mobile Supabase auth client reads the two Supabase variables. Mobile
 - Never bypass auth middleware on protected API routes.
 - Respect current RLS assumptions in every new query or mutation.
 - Treat `gmail_connections` tokens and user financial data as sensitive.
-- Mobile auth sessions must use SecureStore or another secure on-device mechanism; do not use browser storage or plain AsyncStorage for session tokens.
+- Mobile native auth sessions must use SecureStore or another secure on-device mechanism; do not use plain AsyncStorage for session tokens. Expo web preview may use guarded `localStorage`, but it is less secure and should not define the production web app's storage policy.
 
 ## Shared mobile finance forms
 

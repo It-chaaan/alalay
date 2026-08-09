@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 function warnSecureStoreFailure(operation: string, error: unknown) {
@@ -38,6 +39,43 @@ const secureStorage = {
   },
 };
 
+const webStorage = {
+  async getItem(key: string) {
+    try {
+      return localStorage.getItem(key);
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(`[localStorage] getItem failed; the session may not persist.`, error);
+      }
+      return null;
+    }
+  },
+  async setItem(key: string, value: string) {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(`[localStorage] setItem failed; the session may not persist.`, error);
+      }
+    }
+  },
+  async removeItem(key: string) {
+    try {
+      localStorage.removeItem(key);
+    } catch (error) {
+      if (__DEV__) {
+        console.warn(`[localStorage] removeItem failed; the session may not persist.`, error);
+      }
+    }
+  },
+};
+
+// localStorage is accessible to any JavaScript running on the page and is less
+// secure than SecureStore's OS-level encrypted storage (for example, it is
+// vulnerable to XSS). This is acceptable for Expo web preview/development;
+// a production web deployment should use storage appropriate to its own threat model.
+const sessionStorage = Platform.OS === 'web' ? webStorage : secureStorage;
+
 let client: SupabaseClient | null = null;
 
 export function getSupabaseClient() {
@@ -48,7 +86,7 @@ export function getSupabaseClient() {
 
   client ??= createClient(url, anonKey, {
     auth: {
-      storage: secureStorage,
+      storage: sessionStorage,
       autoRefreshToken: true,
       persistSession: true,
       detectSessionInUrl: false,

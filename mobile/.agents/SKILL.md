@@ -17,13 +17,13 @@ Finance add flows should reuse `src/components/finance-form.tsx` for the custom 
 ## Auth rules
 
 - Supabase Auth supports email/password and Google OAuth, same as web, but the mobile OAuth flow uses a deep-link-based redirect (via `expo-auth-session` or Supabase's native OAuth pattern), not the web app's browser `/auth/callback` implicit flow. Do not assume the web OAuth implementation can be copied as-is.
-- The current mobile auth screen is `app/auth.tsx`; it uses the native Supabase client in `src/services/supabase.ts`, SecureStore-backed session persistence, and Google PKCE through Expo WebBrowser/deep linking.
+- The current mobile auth screen is `app/auth.tsx`; it uses the platform-aware Supabase client in `src/services/supabase.ts`, with SecureStore-backed native persistence and guarded `localStorage` persistence for Expo web preview, plus Google PKCE through Expo WebBrowser/deep linking.
 - Do not manually create Google users — same rule as web; Supabase creates/matches the auth user and the profile trigger creates `public.users`.
 - Google-only accounts need an equivalent "Set a password" screen in mobile Settings, using the same detection logic as web (email identities/providers, `user_metadata.password_set`).
 - MFA is authenticator-app TOTP, not email/SMS, matching web. Use verified `totp` factors and `mfa.challengeAndVerify`.
 - Trust-device is not a complete feature on web (no durable token, hashing, revocation, or backend enforcement) — do not build a mobile trust-device feature that implies stronger guarantees than the shared backend currently provides.
 - Guide Google-only login failures to Google sign-in or Settings → Set a password, same as web's messaging pattern.
-- Session persistence must use secure on-device storage (`expo-secure-store` or the project's established equivalent) — never plain `AsyncStorage` for tokens, and never an in-memory-only session that resets on app restart.
+- Native session persistence must use secure on-device storage (`expo-secure-store` or the project's established equivalent) — never plain `AsyncStorage` for tokens, and never an in-memory-only session that resets on app restart. Expo web preview's guarded `localStorage` fallback is intentionally limited to browser preview and carries XSS risk.
 
 ## Theme/accessibility rules
 

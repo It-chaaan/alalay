@@ -1,12 +1,11 @@
 import type { NextFunction, Request, Response } from "express";
-import { env } from "../config/env.js";
+import { allowedCorsOrigins } from "../config/env.js";
 import { AppError } from "../utils/api.js";
 
 function allowedOrigin(value: string | undefined) {
   if (!value) return false;
   try {
-    const configured = env.CORS_ORIGIN.split(",").map((item) => item.trim());
-    return configured.includes(value) || new URL(env.APP_URL).origin === value;
+    return allowedCorsOrigins().has(value);
   } catch {
     return false;
   }

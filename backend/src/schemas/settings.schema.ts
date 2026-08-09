@@ -22,3 +22,9 @@ export const notificationPreferencesSchema = z.object({
   savings_milestones: z.boolean(),
   login_alerts: z.boolean(),
 }).strict();
+
+export const overviewCardKeySchema = z.enum(["bills", "spending", "savings", "budget"]);
+
+export const overviewPreferencesSchema = z.object({
+  cards: z.array(overviewCardKeySchema).min(1).max(4),
+}).strict();

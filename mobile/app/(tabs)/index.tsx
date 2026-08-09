@@ -1,14 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Circle } from 'react-native-svg';
 import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { authenticatedApiRequest } from '@/services/api';
-import { derivedStatus, fetchExpenses, fetchFinanceItems, fetchSavingsDashboard, type ExpenseRecord, type FinanceItem, type SavingsDashboard } from '@/services/finance';
+import { derivedStatus, fetchExpenses, fetchFinanceItems, type ExpenseRecord, type FinanceItem } from '@/services/finance';
 import { getSupabaseClient } from '@/services/supabase';
 import { getUnreadNotificationCount } from '@/services/notifications';
 
@@ -40,66 +39,45 @@ const goals = [
 ]; */
 
 type Icon = typeof Home;
-type SummarySlide = { key: string; eyebrow: string; title: string; amount: string; detailLabel: string; detail: string; secondaryLabel: string; secondary: string; icon: Icon };
-type IncomeRecord = { id: string; source: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; type?: string };
+type DashboardSummary = { total_bills_this_month: number; monthly_expenses: number; subscription_spending: number };
+type SummaryStat = { label: string; value: string };
 
 function formatPeso(value: number) {
   return `₱${Math.round(value).toLocaleString('en-PH')}`;
 }
 
-function buildSummarySlides(items: FinanceItem[], expenses: ExpenseRecord[], income: IncomeRecord[], savings: SavingsDashboard | null): SummarySlide[] {
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const unpaid = items.filter((item) => !item.paid);
-  const monthItems = unpaid.filter((item) => item.dueDate.slice(0, 7) === currentMonth);
-  const today = new Date();
-  const weekEnd = new Date(today);
-  weekEnd.setDate(today.getDate() + 7);
-  const dueThisWeek = unpaid.filter((item) => {
-    const date = new Date(`${item.dueDate}T12:00:00`);
-    return date >= today && date <= weekEnd;
-  }).length;
-  const totalBills = monthItems.reduce((sum, item) => sum + item.amount, 0);
-  const monthlyExpenses = expenses.filter((expense) => expense.date.slice(0, 7) === currentMonth).reduce((sum, expense) => sum + Number(expense.amount), 0);
-  const monthlyIncome = income.filter((entry) => entry.date.slice(0, 7) === currentMonth).reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const totalSavings = Number(savings?.overview.totalSavings ?? 0);
-  const goalSavings = Number(savings?.overview.goalSavings ?? 0);
+function buildOverviewStats(summary: DashboardSummary | null) {
+  const value = (amount: number | undefined) => summary ? formatPeso(amount ?? 0) : '—';
   return [
-    { key: 'bills', eyebrow: 'MONTHLY OVERVIEW', title: 'Total bills this month', amount: formatPeso(totalBills), detailLabel: 'Due this week', detail: `${dueThisWeek} ${dueThisWeek === 1 ? 'bill' : 'bills'}`, secondaryLabel: 'Monthly expenses', secondary: formatPeso(monthlyExpenses), icon: FileText },
-    { key: 'spending', eyebrow: 'INCOME & SPENDING', title: 'Monthly income', amount: formatPeso(monthlyIncome), detailLabel: 'Expenses this month', detail: formatPeso(monthlyExpenses), secondaryLabel: 'Open commitments', secondary: `${unpaid.length}`, icon: WalletCards },
-    { key: 'savings', eyebrow: 'SAVINGS SNAPSHOT', title: 'Total saved', amount: formatPeso(totalSavings), detailLabel: 'Goal savings', detail: formatPeso(goalSavings), secondaryLabel: 'Active goals', secondary: `${savings?.overview.activeGoals ?? 0}`, icon: PiggyBank },
+    { label: 'Total expenses', value: value(summary?.monthly_expenses) },
+    { label: 'Total bills', value: value(summary?.total_bills_this_month) },
+    { label: 'Total subscriptions', value: value(summary?.subscription_spending) },
   ];
 }
 
 export default function HomeScreen() {
-  const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
-  const [summaryIndex, setSummaryIndex] = useState(0);
   const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const [financeError, setFinanceError] = useState('');
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
-  const [income, setIncome] = useState<IncomeRecord[]>([]);
-  const [savings, setSavings] = useState<SavingsDashboard | null>(null);
+  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [firstName, setFirstName] = useState('there');
   const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
   const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
-  const cardWidth = Math.max(260, width - 48);
-  const summarySlides = buildSummarySlides(financeItems, expenses, income, savings);
 
   const refreshFinance = useCallback(async () => {
     setFinanceLoading(true);
     setFinanceError('');
     try {
-      const [items, expenseRows, incomeRows, savingsSummary] = await Promise.all([
+      const [items, expenseRows, summary] = await Promise.all([
         fetchFinanceItems(),
         fetchExpenses(),
-        authenticatedApiRequest<IncomeRecord[]>('/api/income'),
-        fetchSavingsDashboard(),
+        authenticatedApiRequest<DashboardSummary>('/api/dashboard/summary'),
       ]);
       setFinanceItems(items);
       setExpenses(expenseRows);
-      setIncome(incomeRows);
-      setSavings(savingsSummary);
+      setDashboardSummary(summary);
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : 'Bills could not load.');
     } finally {
@@ -128,7 +106,6 @@ export default function HomeScreen() {
   useFocusEffect(useCallback(() => { void refreshFinance(); }, [refreshFinance]));
   useFocusEffect(useCallback(() => { setUnreadNotifications(getUnreadNotificationCount()); }, []));
 
-  const dashboardGoals = (savings?.goals ?? []).slice().sort((a, b) => a.deadline.localeCompare(b.deadline)).slice(0, 3);
   const recentExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
   return (
@@ -154,32 +131,9 @@ export default function HomeScreen() {
           */}
         </View>
 
-        <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Swipe to explore</Text></View>
-        <FlatList
-          data={summarySlides}
-          horizontal
-          pagingEnabled
-          snapToInterval={cardWidth}
-          decelerationRate="fast"
-          showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.key}
-          getItemLayout={(_, index) => ({ length: cardWidth, offset: cardWidth * index, index })}
-          renderItem={({ item }) => <SummaryCard slide={item} width={cardWidth} />}
-          onMomentumScrollEnd={(event) => setSummaryIndex(Math.round(event.nativeEvent.contentOffset.x / cardWidth))}
-        />
-        <Pagination count={summarySlides.length} activeIndex={summaryIndex} />
+        <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Your overview</Text></View>
+        <SummaryCard stats={buildOverviewStats(dashboardSummary)} loading={financeLoading} />
         <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
-
-        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Savings goals</Text><Text style={styles.sectionHint}>{savings?.overview.activeGoals ?? 0} active</Text></View>
-        <FlatList
-          data={dashboardGoals}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.goalList}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <SavingsGoalCard goal={item} />}
-        />
-        {!financeLoading && !financeError && dashboardGoals.length === 0 && <Pressable onPress={() => router.push('/(tabs)/savings')} style={styles.inlineEmpty}><Text style={styles.stateTitle}>No savings goals yet</Text><Text style={styles.stateText}>Tap to create your first goal.</Text></Pressable>}
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
         <View style={styles.listCard}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading bills…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={styles.errorText}>{financeError}</Text></View> : financeItems.length ? financeItems.slice(0, 5).map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />) : <View style={styles.inlineState}><Text style={styles.stateTitle}>No bills yet</Text><Text style={styles.stateText}>Use Add to create your first bill or subscription.</Text></View>}</View>
@@ -195,31 +149,13 @@ export default function HomeScreen() {
   );
 }
 
-function SummaryCard({ slide, width }: { slide: SummarySlide; width: number }) {
-  const SlideIcon = slide.icon;
-  return <View style={[styles.summaryCard, { width }]}>
+function SummaryCard({ stats, loading }: { stats: SummaryStat[]; loading: boolean }) {
+  return <View style={styles.summaryCard}>
     <View style={styles.summaryOrb} /><View style={styles.summaryOrbSmall} />
-    <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>{slide.eyebrow}</Text><SlideIcon size={20} color="#D8EFE2" strokeWidth={1.8} /></View>
-    <Text style={styles.summaryTitle}>{slide.title}</Text><Text style={styles.summaryAmount}>{slide.amount}</Text>
-    <View style={styles.summaryStats}><View><Text style={styles.summaryStatLabel}>{slide.detailLabel}</Text><Text style={styles.summaryStatValue}>{slide.detail}</Text></View><View style={styles.summaryDivider} /><View><Text style={styles.summaryStatLabel}>{slide.secondaryLabel}</Text><Text style={styles.summaryStatValue}>{slide.secondary}</Text></View></View>
+    <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>MONTHLY OVERVIEW</Text><WalletCards size={20} color="#D8EFE2" strokeWidth={1.8} /></View>
+    <Text style={styles.summaryTitle}>Your money out this month</Text>
+    <View style={styles.summaryStats}>{stats.map((stat, index) => <View key={stat.label} style={styles.summaryStatBlock}><Text style={styles.summaryStatLabel}>{stat.label}</Text><Text style={styles.summaryStatValue}>{loading ? 'Loading...' : stat.value}</Text>{index < stats.length - 1 ? <View style={styles.summaryDivider} /> : null}</View>)}</View>
   </View>;
-}
-
-function Pagination({ count, activeIndex }: { count: number; activeIndex: number }) {
-  return <View style={styles.pagination} accessibilityRole="tablist">{Array.from({ length: count }, (_, index) => <View key={index} style={[styles.paginationDot, index === activeIndex ? styles.paginationActive : styles.paginationInactive]} />)}</View>;
-}
-
-function SavingsGoalCard({ goal }: { goal: SavingsDashboard['goals'][number] & { percent?: number; color?: string } }) {
-  return <View style={styles.goalCard}>
-    <View style={styles.goalTop}><View style={styles.goalIcon}><Text style={styles.goalEmoji}>{goal.emoji || '🎯'}</Text></View><View style={styles.goalHeading}><Text style={styles.goalName}>{goal.title}</Text><Text style={styles.goalAmount}>{formatPeso(Number(goal.current_amount))} <Text style={styles.goalTarget}>of {formatPeso(Number(goal.target_amount))}</Text></Text><Text style={styles.goalTarget}>Due {goal.deadline}</Text></View><ProgressRing percent={Math.min(100, Math.round(Number(goal.current_amount) / Math.max(1, Number(goal.target_amount)) * 100))} color={palette.accent} /></View>
-    <View style={styles.goalTrack}><View style={[styles.goalFill, { width: `${Math.min(100, Math.round(Number(goal.current_amount) / Math.max(1, Number(goal.target_amount)) * 100))}%`, backgroundColor: palette.accent }]} /></View>
-    <View style={styles.goalFooter}><Text style={styles.goalMomentum}>You’re {goal.percent}% there — keep going</Text><ArrowUpRight size={15} color={goal.color} strokeWidth={2} /></View>
-  </View>;
-}
-
-function ProgressRing({ percent, color }: { percent: number; color: string }) {
-  const radius = 21; const circumference = 2 * Math.PI * radius;
-  return <View style={styles.ring}><Svg width={56} height={56} viewBox="0 0 56 56"><Circle cx="28" cy="28" r={radius} fill="none" stroke={palette.accentPale} strokeWidth="6" /><Circle cx="28" cy="28" r={radius} fill="none" stroke={color} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${circumference} ${circumference}`} strokeDashoffset={circumference * (1 - percent / 100)} rotation="-90" origin="28, 28" /></Svg><Text style={[styles.ringText, { color }]}>{percent}%</Text></View>;
 }
 
 function FinanceRow({ item }: { item: FinanceItem }) {
@@ -234,7 +170,7 @@ function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
 }
 
 function BottomNav({ bottom }: { bottom: number }) {
-  return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => Alert.alert('Reports', 'Reports are coming next.')} /></View>;
+  return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => router.push('/(tabs)/reports')} /></View>;
 }
 
 function NavItem({ icon: IconComponent, label, active = false, onPress }: { icon: Icon; label: string; active?: boolean; onPress: () => void }) {
@@ -247,7 +183,7 @@ function getGreeting() {
 }
 
 function Shortcut({ icon: IconComponent, label, onPress }: { icon: Icon; label: string; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}><View style={styles.shortcutIcon}><IconComponent size={20} color={palette.accent} strokeWidth={1.8} /></View><Text style={styles.shortcutLabel}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}><View style={styles.shortcutIcon}><IconComponent size={20} color={palette.accent} strokeWidth={1.8} /></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.shortcutLabel}>{label}</Text></Pressable>;
 }
 
 function ProfilePanel({ onClose, onNotifications }: { onClose: () => void; onNotifications: () => void }) {
@@ -270,44 +206,25 @@ const styles = StyleSheet.create({
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   notificationDot: { position: 'absolute', top: 10, right: 10, width: 6, height: 6, borderRadius: 3, backgroundColor: palette.accent },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
-  summaryHintRow: { alignItems: 'flex-end', marginTop: 12, marginBottom: 6 },
+  summaryHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
   sectionTitle: { color: palette.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   sectionHint: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
-  summaryCard: { height: 190, overflow: 'hidden', padding: 19, borderRadius: 22, backgroundColor: palette.accent, position: 'relative' },
+  summaryCard: { width: '100%', height: 174, overflow: 'hidden', padding: 19, borderRadius: 22, backgroundColor: palette.accent, position: 'relative' },
   summaryOrb: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -55, top: -60, backgroundColor: 'rgba(255,255,255,0.09)' },
   summaryOrbSmall: { position: 'absolute', width: 80, height: 80, borderRadius: 40, right: 36, bottom: -35, backgroundColor: 'rgba(255,255,255,0.08)' },
   summaryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
   summaryTitle: { marginTop: 15, color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-  summaryAmount: { marginTop: 2, color: '#FFFFFF', fontSize: 31, fontWeight: '900', letterSpacing: -1 },
   summaryStats: { flexDirection: 'row', alignItems: 'center', marginTop: 17 },
+  summaryStatBlock: { flex: 1, position: 'relative' },
   summaryStatLabel: { color: '#BFE3D0', fontSize: 10, fontWeight: '600' },
   summaryStatValue: { marginTop: 3, color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
-  summaryDivider: { width: 1, height: 30, marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.28)' },
-  pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 22 },
-  paginationDot: { height: 6, borderRadius: 3 },
-  paginationActive: { width: 24, backgroundColor: palette.accent },
-  paginationInactive: { width: 6, backgroundColor: '#B8C8BF' },
-  shortcutRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 8 },
-  shortcut: { flexGrow: 1, flexBasis: '45%', minHeight: 76, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
-  shortcutIcon: { width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
-  shortcutLabel: { marginTop: 6, color: palette.ink, fontSize: 11, fontWeight: '800' },
-  goalList: { gap: 12 },
-  goalCard: { width: 306, padding: 17, borderRadius: 20, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 10, elevation: 2 },
-  goalTop: { flexDirection: 'row', alignItems: 'center' },
-  goalIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
-  goalEmoji: { fontSize: 21 },
-  goalHeading: { flex: 1, marginLeft: 11 },
-  goalName: { color: palette.ink, fontSize: 15, fontWeight: '800' },
-  goalAmount: { marginTop: 4, color: palette.ink, fontSize: 14, fontWeight: '800' },
-  goalTarget: { color: palette.muted, fontWeight: '500' },
-  ring: { width: 56, height: 56, alignItems: 'center', justifyContent: 'center' },
-  ringText: { position: 'absolute', fontSize: 11, fontWeight: '900' },
-  goalTrack: { height: 8, marginTop: 17, overflow: 'hidden', borderRadius: 4, backgroundColor: palette.accentPale },
-  goalFill: { height: '100%', borderRadius: 4 },
-  goalFooter: { flexDirection: 'row', alignItems: 'center', marginTop: 10 },
-  goalMomentum: { flex: 1, color: palette.muted, fontSize: 12, fontWeight: '600' },
+  summaryDivider: { position: 'absolute', width: 1, height: 30, right: 10, top: 0, backgroundColor: 'rgba(255,255,255,0.28)' },
+  shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 2 },
+  shortcut: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 5, borderRadius: 12 },
+  shortcutIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
+  shortcutLabel: { width: '100%', marginTop: 6, color: palette.ink, fontSize: 10, fontWeight: '800', textAlign: 'center' },
   insightPreview: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 18, backgroundColor: palette.accentPale },
   insightIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface },
   insightCopy: { flex: 1, marginHorizontal: 11 },

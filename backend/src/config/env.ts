@@ -1,6 +1,8 @@
 import "dotenv/config";
 import { z } from "zod";
 
+export const expoWebPreviewOrigins = ["http://localhost:8081", "http://localhost:8082"] as const;
+
 const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
@@ -29,9 +31,20 @@ const envSchema = z.object({
   if (!local && !value.APP_URL.startsWith("https://")) {
     ctx.addIssue({ code: "custom", path: ["APP_URL"], message: "APP_URL must use https outside local development." });
   }
-  if (!local && !value.CORS_ORIGIN.split(",").every((origin) => origin.trim().startsWith("https://"))) {
-    ctx.addIssue({ code: "custom", path: ["CORS_ORIGIN"], message: "CORS_ORIGIN must use https outside local development." });
+  if (!local && !value.CORS_ORIGIN.split(",").every((origin) => {
+    const normalizedOrigin = origin.trim();
+    return normalizedOrigin.startsWith("https://") || expoWebPreviewOrigins.includes(normalizedOrigin as typeof expoWebPreviewOrigins[number]);
+  })) {
+    ctx.addIssue({ code: "custom", path: ["CORS_ORIGIN"], message: "CORS_ORIGIN must use https outside local development, except the explicit Expo web preview origins." });
   }
 });
 
 export const env = envSchema.parse(process.env);
+
+export function allowedCorsOrigins() {
+  return new Set([
+    ...env.CORS_ORIGIN.split(",").map((origin) => origin.trim()).filter(Boolean),
+    new URL(env.APP_URL).origin,
+    ...expoWebPreviewOrigins,
+  ]);
+}

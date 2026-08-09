@@ -54,7 +54,7 @@ This repository already contains:
 - TypeScript
 - Expo Router
 - StyleSheet-based screen styling and palette objects
-- Expo SecureStore-backed Supabase session persistence
+- Platform-aware Supabase session persistence: Expo SecureStore on iOS/Android and guarded `localStorage` for Expo web preview
 - Expo WebBrowser/Linking and Supabase PKCE settings for Google OAuth
 - `react-native-svg` for the landing feature carousel artwork
 - The current app contains a landing carousel, auth screens, and a tailored two-tab authenticated shell. The shared mobile API helper currently powers the authenticated Alalay chat-head's dashboard insight and AI chat; the remaining feature screens are still partial.
@@ -112,6 +112,7 @@ Mobile does not yet mirror this route list. Its current Expo Router inventory is
 - email/password and Google OAuth sign-in
 - authenticator-app TOTP two-factor verification
 - dashboard summary presentation (mobile Home currently uses mock display data, with a real authenticated AI insight/chat-head)
+- mobile Home fixed monthly overview card and compact finance shortcuts, with totals supplied by the shared dashboard summary API
 - mobile Budget category-limit view backed by the shared budget summary API
 - mobile Settings destination placeholder
 - bills management
@@ -134,6 +135,7 @@ This feature set is the target for both web and mobile. Mobile implementation st
 The backend exposes authenticated `/api/*` routes plus supporting endpoints, shared by both web and mobile clients. Notable implemented areas include:
 
 - auth and user profile APIs
+- dashboard preference APIs (`/api/users/me/dashboard-preferences`)
 - bills
 - subscriptions
 - expenses

@@ -40,6 +40,7 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 - Return dynamic chart current markers; do not hardcode month labels.
 - Distinguish loading, successful-empty, and error states; never turn failed queries into `₱0` or blank content.
 - Use migrations for schema/index/trigger changes and preserve RLS/backend auth.
+- Per-user mobile presentation preferences must use shared authenticated API contracts and RLS-backed storage; do not persist account-scoped choices only in an unscoped local cache.
 
 ## AI/OCR rules
 

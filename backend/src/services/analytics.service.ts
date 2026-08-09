@@ -1053,6 +1053,7 @@ export async function getDashboardSummary(userId: string) {
     total_bills_this_month: bills.reduce((sum, item) => sum + asNumber(item.amount), 0),
     bills_due_this_week: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd).reduce((sum, item) => sum + asNumber(item.amount), 0),
     monthly_expenses: monthlyExpenses,
+    subscription_spending: Number(subscriptionExpenses.toFixed(2)),
     monthly_expenses_delta_percent: previousTotal ? Math.round(((monthlyExpenses - previousTotal) / previousTotal) * 100) : 0,
     savings_progress_percent: savingsTarget ? Math.round((savingsCurrent / savingsTarget) * 100) : 0,
     savings_current: savingsCurrent,
