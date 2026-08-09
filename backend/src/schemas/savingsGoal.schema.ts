@@ -31,7 +31,7 @@ function checkCurrentWithinTarget(
 export const createSavingsGoalSchema = savingsGoalShape.superRefine(checkCurrentWithinTarget);
 
 export const updateSavingsGoalSchema = savingsGoalShape.partial().superRefine((value, ctx) => {
-  // Only enforce when the patch touches at least one of the two fields.
-  if (value.current_amount === undefined && value.target_amount === undefined) return;
-  checkCurrentWithinTarget(value, ctx);
+  // A target may be reduced below the amount already saved; that represents a reached goal.
+  // The saved amount is never reduced by a target edit.
+  if (value.current_amount !== undefined && value.target_amount !== undefined) checkCurrentWithinTarget(value, ctx);
 });
