@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, Building2, MoreHorizontal, Plus, Send, WalletCards } from 'lucide-react-native';
+import { ArrowLeft, ArrowUpRight, BriefcaseBusiness, Building2, ChevronLeft, ChevronRight, MoreHorizontal, Plus, Send, WalletCards } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { CategoryChipRow, DatePickerField, evaluateAmountExpression, FinanceFormSheet, FormTextInput, formPalette, IncomeFrequencyChips, type IncomeFrequency } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { fetchWallets } from '@/services/finance';
+import { FinancialOverviewCard } from '@/components/financial-overview-card';
 
 type Income = { id: string; source: string; type: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; wallet_id: string };
 
@@ -21,18 +22,45 @@ const incomeTypes = [
 
 const incomeTypeValues = { Salary: 'salary', Freelance: 'freelance', Business: 'business', Remittance: 'remittance', Other: 'other' } as const;
 
+function monthName(month: string) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(`${month}-01T12:00:00`)).toUpperCase();
+}
+
+function monthLabel(month: string) {
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(new Date(`${month}-01T12:00:00`));
+}
+
+function currentMonthKey() {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
+  return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}`;
+}
+
+function shiftMonth(month: string, amount: number) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const shifted = new Date(Date.UTC(year, monthNumber - 1 + amount, 1));
+  return `${shifted.getUTCFullYear()}-${String(shifted.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function monthRange(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const next = new Date(Date.UTC(year, monthNumber, 1));
+  return { from: `${year}-${String(monthNumber).padStart(2, '0')}-01`, to: `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, '0')}-01` };
+}
+
 export default function IncomeScreen() {
   const [rows, setRows] = useState<Income[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [month, setMonth] = useState(currentMonthKey);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
-      const [income, walletRows] = await Promise.all([authenticatedApiRequest<Income[]>('/api/income'), fetchWallets()]);
+      const { from, to } = monthRange(month);
+      const [income, walletRows] = await Promise.all([authenticatedApiRequest<Income[]>(`/api/income?from=${from}&to=${to}`), fetchWallets()]);
       setRows(income);
       setWallets(walletRows as Wallet[]);
     } catch (e) {
@@ -40,13 +68,15 @@ export default function IncomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [month]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
+  const monthTotal = rows.reduce((sum, row) => sum + Number(row.amount), 0);
+
   return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
     <View style={styles.header}><Pressable accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={styles.back}><ArrowLeft size={21} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>MONEY IN</Text><Text style={styles.title}>Income</Text></View><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [styles.add, pressed && styles.pressed]}><Plus size={20} color="#FFFFFF" /><Text style={styles.addText}>Add</Text></Pressable></View>
-    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={formPalette.accent} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>Add salary, freelance, business, remittance, or other income.</Text></View>}</ScrollView>}
+    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <><View style={styles.month}><Pressable accessibilityLabel="Previous month" onPress={() => setMonth((value) => shiftMonth(value, -1))} style={styles.monthButton}><ChevronLeft size={19} color={formPalette.ink} /></Pressable><Text style={styles.monthLabel}>{monthLabel(month)}</Text><Pressable accessibilityLabel="Next month" onPress={() => setMonth((value) => shiftMonth(value, 1))} style={styles.monthButton}><ChevronRight size={19} color={formPalette.ink} /></Pressable></View><ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><FinancialOverviewCard eyebrow="INCOME OVERVIEW" period={monthName(month)} primaryLabel="TOTAL INCOME" value={`₱${Math.round(monthTotal).toLocaleString('en-PH')}`} supportingText={rows.length ? `${rows.length} income transaction${rows.length === 1 ? '' : 's'} this month` : 'No income recorded this month'} /><View style={styles.listSection}><Text style={styles.sectionTitle}>Recent income</Text>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={formPalette.accent} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income recorded for {monthLabel(month)}.</Text></View>}</View></ScrollView></>}
     {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
   </SafeAreaView>;
 }
@@ -91,5 +121,5 @@ function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose:
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: formPalette.background }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line }, back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, titleWrap: { flex: 1, marginLeft: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' }, add: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 18, backgroundColor: formPalette.accent }, addText: { color: '#fff', fontWeight: '900' }, content: { padding: 20, paddingBottom: 40 }, row: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderRadius: 17, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: formPalette.accentPale }, main: { flex: 1, marginLeft: 11 }, rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 }, amount: { color: formPalette.accent, fontWeight: '900' }, muted: { marginTop: 5, color: formPalette.muted, fontSize: 12, lineHeight: 18 }, card: { margin: 20, padding: 18, borderRadius: 18, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, cardTitle: { color: formPalette.ink, fontSize: 16, fontWeight: '900' }, retry: { alignSelf: 'flex-start', marginTop: 14, padding: 10, borderRadius: 15, backgroundColor: formPalette.accentPale }, retryText: { color: formPalette.accent, fontWeight: '900' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, recurring: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: 15, borderRadius: 17, backgroundColor: formPalette.background }, recurringCopy: { flex: 1, paddingRight: 10 }, recurringTitle: { color: formPalette.ink, fontSize: 14, fontWeight: '900' }, pressed: { opacity: 0.72 },
+  safeArea: { flex: 1, backgroundColor: formPalette.background }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line }, back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, titleWrap: { flex: 1, marginLeft: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' }, add: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 18, backgroundColor: formPalette.accent }, addText: { color: '#fff', fontWeight: '900' }, month: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 15, marginTop: 16, marginHorizontal: 20, marginBottom: 20, padding: 8, borderRadius: 15, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, monthButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: formPalette.background }, monthLabel: { color: formPalette.ink, fontSize: 14, fontWeight: '900' }, content: { padding: 20, paddingTop: 0, paddingBottom: 40 }, listSection: { marginTop: 24 }, sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' }, row: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderRadius: 17, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: formPalette.accentPale }, main: { flex: 1, marginLeft: 11 }, rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 }, amount: { color: formPalette.accent, fontWeight: '900' }, muted: { marginTop: 5, color: formPalette.muted, fontSize: 12, lineHeight: 18 }, card: { marginTop: 0, padding: 18, borderRadius: 18, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, cardTitle: { color: formPalette.ink, fontSize: 16, fontWeight: '900' }, retry: { alignSelf: 'flex-start', marginTop: 14, padding: 10, borderRadius: 15, backgroundColor: formPalette.accentPale }, retryText: { color: formPalette.accent, fontWeight: '900' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, recurring: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: 15, borderRadius: 17, backgroundColor: formPalette.background }, recurringCopy: { flex: 1, paddingRight: 10 }, recurringTitle: { color: formPalette.ink, fontSize: 14, fontWeight: '900' }, pressed: { opacity: 0.72 },
 });

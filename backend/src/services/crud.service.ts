@@ -14,7 +14,10 @@ export async function listOwned(table: TableName, userId: string, filters?: Reco
     : query.order("created_at", { ascending: false });
 
   if (filters) {
-    for (const [key, value] of Object.entries(filters)) {
+    const { from, to, ...exactFilters } = filters;
+    if (typeof from === "string" && from) query = query.gte("date", from);
+    if (typeof to === "string" && to) query = query.lt("date", to);
+    for (const [key, value] of Object.entries(exactFilters)) {
       if (value !== undefined && value !== null && value !== "") {
         query = query.eq(key, value);
       }

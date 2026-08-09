@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, WalletCards } from 'lucide-react-native';
+import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, Wallet, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { authenticatedApiRequest } from '@/services/api';
@@ -134,7 +134,7 @@ export default function HomeScreen() {
 
         <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Your overview</Text></View>
         <SummaryCard summary={dashboardSummary} loading={financeLoading} />
-        <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
+        <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
         <View style={styles.listCard}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading bills…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={styles.errorText}>{financeError}</Text></View> : financeItems.length ? financeItems.slice(0, 5).map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />) : <View style={styles.inlineState}><Text style={styles.stateTitle}>No bills yet</Text><Text style={styles.stateText}>Use Add to create your first bill or subscription.</Text></View>}</View>
@@ -189,7 +189,7 @@ function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
 }
 
 function BottomNav({ bottom }: { bottom: number }) {
-  return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => router.push('/(tabs)/reports')} /></View>;
+  return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={Wallet} label="Wallet" onPress={() => router.replace('/(tabs)/wallets')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => router.push('/(tabs)/reports')} /></View>;
 }
 
 function NavItem({ icon: IconComponent, label, active = false, onPress }: { icon: Icon; label: string; active?: boolean; onPress: () => void }) {
@@ -238,10 +238,10 @@ const styles = StyleSheet.create({
   balanceValue: { marginTop: 9, color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.9 },
   balanceValueNegative: { color: '#FFF4F2' },
   balanceSubtitle: { marginTop: 13, color: '#D8EFE2', fontSize: 11, fontWeight: '700' },
-  shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 2 },
+  shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 0 },
   shortcut: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 5, borderRadius: 12 },
-  shortcutIcon: { width: 34, height: 34, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
-  shortcutLabel: { width: '100%', marginTop: 6, color: palette.ink, fontSize: 10, fontWeight: '800', textAlign: 'center' },
+  shortcutIcon: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
+  shortcutLabel: { width: '100%', marginTop: 6, color: palette.ink, fontSize: 9, fontWeight: '800', textAlign: 'center' },
   insightPreview: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 18, backgroundColor: palette.accentPale },
   insightIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface },
   insightCopy: { flex: 1, marginHorizontal: 11 },
