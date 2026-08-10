@@ -1,15 +1,14 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Image } from 'expo-image';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, Wallet, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
+import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { authenticatedApiRequest } from '@/services/api';
 import { derivedStatus, fetchExpenses, fetchFinanceItems, type ExpenseRecord, type FinanceItem } from '@/services/finance';
 import { getSupabaseClient } from '@/services/supabase';
-import { getUnreadNotificationCount } from '@/services/notifications';
 
 const palette = {
   background: '#F4F7F1',
@@ -64,8 +63,6 @@ export default function HomeScreen() {
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [firstName, setFirstName] = useState('there');
-  const [profileAvatar, setProfileAvatar] = useState<string | null>(null);
-  const [unreadNotifications, setUnreadNotifications] = useState(() => getUnreadNotificationCount());
 
   const refreshFinance = useCallback(async () => {
     setFinanceLoading(true);
@@ -97,7 +94,6 @@ export default function HomeScreen() {
       const fallback = data.user.email?.split('@')[0];
       void authenticatedApiRequest<{ name?: string | null; avatar_url?: string | null }>('/api/users/me').then((profile) => {
         const profileName = profile.name?.trim();
-        setProfileAvatar(profile.avatar_url ?? null);
         setFirstName((profileName || (typeof candidate === 'string' ? candidate : '') || fallback || 'there').split(' ')[0]);
       }).catch(() => setFirstName(((typeof candidate === 'string' ? candidate : '') || fallback || 'there').split(' ')[0]));
     });
@@ -105,7 +101,6 @@ export default function HomeScreen() {
   }, []);
 
   useFocusEffect(useCallback(() => { void refreshFinance(); }, [refreshFinance]));
-  useFocusEffect(useCallback(() => { setUnreadNotifications(getUnreadNotificationCount()); }, []));
 
   const recentExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
 
@@ -118,7 +113,7 @@ export default function HomeScreen() {
             <Text accessibilityRole="header" style={styles.greeting}><Text style={styles.greetingPrefix}>{getGreeting()} </Text><Text style={styles.greetingName}>{firstName}!</Text></Text>
           </View>
           <View style={styles.headerActions}>
-            <Pressable accessibilityRole="button" accessibilityLabel="Open profile" style={({ pressed }) => [styles.profileButton, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/profile')}>{profileAvatar ? <Image source={profileAvatar} style={styles.profileImage} contentFit="cover" /> : <UserCircle size={27} color={palette.ink} strokeWidth={1.7} />}{unreadNotifications > 0 && <View style={styles.notificationBadge}><Text style={styles.notificationBadgeText}>{unreadNotifications}</Text></View>}</Pressable>
+            <ProfileHeaderButton />
             {/* legacy notification/settings controls removed; profile owns both destinations */}
           </View>
           {/*
@@ -205,7 +200,7 @@ function Shortcut({ icon: IconComponent, label, onPress }: { icon: Icon; label: 
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}><View style={styles.shortcutIcon}><IconComponent size={20} color={palette.accent} strokeWidth={1.8} /></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.shortcutLabel}>{label}</Text></Pressable>;
 }
 
-function ProfilePanel({ onClose, onNotifications }: { onClose: () => void; onNotifications: () => void }) {
+export function ProfilePanel({ onClose, onNotifications }: { onClose: () => void; onNotifications: () => void }) {
   return <View style={styles.panelOverlay}><Pressable accessibilityLabel="Close profile menu" onPress={onClose} style={styles.panelDismiss} /><View style={styles.profilePanel}><Text style={styles.panelEyebrow}>ACCOUNT</Text><Text style={styles.panelTitle}>Your Alalay account</Text><Pressable style={styles.panelRow} onPress={() => { onClose(); router.push('/(tabs)/profile'); }}><UserCircle size={21} color={palette.accent} /><Text style={styles.panelRowText}>Profile</Text></Pressable><Pressable style={styles.panelRow} onPress={() => { onNotifications(); onClose(); router.push('/(tabs)/notifications'); }}><Text style={styles.panelBadge}>1</Text><Text style={styles.panelRowText}>Notifications</Text></Pressable><Pressable style={styles.panelRow} onPress={() => { onClose(); router.push('/(tabs)/settings'); }}><Text style={styles.panelGear}>⚙</Text><Text style={styles.panelRowText}>Settings</Text></Pressable></View></View>;
 }
 

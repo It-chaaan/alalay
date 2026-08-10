@@ -8,6 +8,7 @@ import { billCategories, CategoryChipRow, DatePickerField, evaluateAmountExpress
 import { authenticatedApiRequest } from '@/services/api';
 import { fetchExpenses, fetchWallets, type BillRecord, type ExpenseRecord } from '@/services/finance';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
+import { ProfileHeaderButton } from '@/components/profile-header-button';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
 type CategoryTotal = { category: string; amount: number; percent: number; color: string };
@@ -123,7 +124,7 @@ export default function ExpensesScreen() {
   const hasAnyExpenses = items.length > 0;
 
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><ArrowLeft size={21} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>SPENDING</Text><Text style={styles.title}>Expenses</Text></View><View style={styles.monthBadge}><Text style={styles.monthBadgeText}>{monthLabel(month).split(' ')[0]}</Text></View></View>
+    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><ArrowLeft size={21} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>SPENDING</Text><Text style={styles.title}>Expenses</Text></View><ProfileHeaderButton /></View>
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.heroCard}><View style={styles.heroOrb} /><View style={styles.heroHeader}><Text style={styles.heroEyebrow}>TOTAL SPENT</Text><Text style={styles.heroMonth}>{monthLabel(month).split(' ')[0].toUpperCase()}</Text></View><View style={styles.heroMeta}><Text style={styles.heroLabel}>THIS MONTH</Text>{summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? <Text style={[styles.heroTrend, summary.monthly_expenses_delta_percent > 0 ? styles.heroTrendUp : styles.heroTrendDown]}>{summary.monthly_expenses_delta_percent > 0 ? '↗' : summary.monthly_expenses_delta_percent < 0 ? '↘' : '→'} {Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month</Text> : null}</View><Text style={styles.heroValue}>{peso(total)}</Text><Text style={styles.heroSubtitle}>{monthItems.length} transaction{monthItems.length === 1 ? '' : 's'} this month</Text></View>
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
@@ -183,6 +184,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   safe: { flex: 1, backgroundColor: formPalette.background },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line },
   back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },

@@ -2,11 +2,13 @@ import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import Svg, { Circle, Line, Polyline } from 'react-native-svg';
+import Svg, { Line, Polyline } from 'react-native-svg';
 import { ArrowLeft, BarChart3, CalendarDays, ChevronRight, CircleDollarSign, WalletCards } from 'lucide-react-native';
 
 import { DatePickerField } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
+import { SegmentedRing } from '@/components/segmented-ring';
+import { ProfileHeaderButton } from '@/components/profile-header-button';
 
 const palette = {
   background: '#F4F7F1',
@@ -73,23 +75,12 @@ function sampleTrend(values: { date: string; amount: number }[]) {
 }
 
 function Donut({ categories }: { categories: Category[] }) {
-  const total = categories.reduce((sum, category) => sum + category.amount, 0);
-  const radius = 42;
-  const circumference = 2 * Math.PI * radius;
   const top = categories[0];
-  let offset = 0;
 
   return <View style={styles.donutWrap}>
-    <Svg width={148} height={148} viewBox="0 0 148 148">
-      <Circle cx="74" cy="74" r={radius} fill="none" stroke={palette.accentPale} strokeWidth="17" />
-      {total > 0 ? categories.map((category, index) => {
-        const length = (category.amount / total) * circumference;
-        const segment = <Circle key={category.name} cx="74" cy="74" r={radius} fill="none" stroke={categoryColors[index % categoryColors.length]} strokeWidth="17" strokeDasharray={`${length} ${circumference - length}`} strokeDashoffset={-offset} strokeLinecap="butt" rotation="-90" origin="74, 74" />;
-        offset += length;
-        return segment;
-      }) : null}
-    </Svg>
-    <View style={styles.donutCenter}><Text style={styles.donutPercent}>{top ? `${Math.round(top.percent)}%` : '0%'}</Text><Text style={styles.donutLabel}>{top ? top.name : 'No spend'}</Text></View>
+    <SegmentedRing radius={42} trackColor={palette.accentPale} segments={categories.map((category, index) => ({ key: category.name, value: category.amount, color: categoryColors[index % categoryColors.length] }))}>
+      <View style={styles.donutCenter}><Text style={styles.donutPercent}>{top ? `${Math.round(top.percent)}%` : '0%'}</Text><Text style={styles.donutLabel}>{top ? top.name : 'No spend'}</Text></View>
+    </SegmentedRing>
   </View>;
 }
 
@@ -141,7 +132,7 @@ export default function ReportsScreen() {
 
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={styles.back}><ArrowLeft size={21} color={palette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>INSIGHTS</Text><Text style={styles.title}>Reports</Text></View><View style={styles.headerIcon}><BarChart3 size={21} color={palette.accent} /></View></View>
+      <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={styles.back}><ArrowLeft size={21} color={palette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>INSIGHTS</Text><Text style={styles.title}>Reports</Text></View><View style={styles.headerActions}><View style={styles.headerIcon}><BarChart3 size={21} color={palette.accent} /></View><ProfileHeaderButton /></View></View>
       <Text style={styles.subtitle}>{report?.range.label ?? 'Your financial picture at a glance'}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.periods}>{periodOptions.map((option) => <Pressable key={option.value} onPress={() => setPeriod(option.value)} style={[styles.periodChip, period === option.value && styles.periodChipActive]}><Text style={[styles.periodText, period === option.value && styles.periodTextActive]}>{option.label}</Text></Pressable>)}</ScrollView>
       {period === 'custom' ? <View style={styles.customCard}><CalendarDays size={18} color={palette.accent} /><View style={styles.customDates}><DatePickerField label="From" value={customRange.from} onChange={(from) => setCustomRange((current) => ({ ...current, from }))} /><DatePickerField label="To" value={customRange.to} onChange={(to) => setCustomRange((current) => ({ ...current, to }))} /></View></View> : null}
@@ -159,6 +150,7 @@ export default function ReportsScreen() {
 }
 
 const styles = StyleSheet.create({
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   safe: { flex: 1, backgroundColor: palette.background },
   content: { padding: 24, paddingTop: 14, paddingBottom: 48, gap: 14 },
   header: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -190,7 +182,7 @@ const styles = StyleSheet.create({
   chartLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   donutRow: { marginTop: 14, flexDirection: 'row', alignItems: 'center', gap: 14 },
   donutWrap: { width: 148, height: 148, alignItems: 'center', justifyContent: 'center' },
-  donutCenter: { position: 'absolute', alignItems: 'center', maxWidth: 82 },
+  donutCenter: { alignItems: 'center', maxWidth: 82 },
   donutPercent: { color: palette.ink, fontSize: 20, fontWeight: '900' },
   donutLabel: { marginTop: 2, color: palette.muted, fontSize: 9, fontWeight: '800', textAlign: 'center' },
   legend: { flex: 1, gap: 9 },
