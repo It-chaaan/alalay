@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View, type DimensionValue } from 'react-native';
+import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, MoreHorizontal, Plus, Repeat, ScanLine, Search, ShoppingCart, Tag } from 'lucide-react-native';
+import { MoreHorizontal, Plus, Repeat, ScanLine, Search, ShoppingCart } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { billCategories, CategoryChipRow, DatePickerField, evaluateAmountExpression, expenseCategories, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
+import { billCategories, DatePickerField, parseAmount, expenseCategories, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
 import { fetchExpenses, fetchWallets, type BillRecord, type ExpenseRecord } from '@/services/finance';
-import { WalletPicker, type Wallet } from '@/components/wallet-picker';
+import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { FinancialScreenHeader } from '@/components/financial-screen-header';
+import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
-type CategoryTotal = { category: string; amount: number; percent: number; color: string };
 type ExpenseGroup = { date: string; subtotal: number; items: ExpenseItem[] };
 type DashboardSummary = { monthly_expenses: number; monthly_expenses_delta_percent: number | null };
 
@@ -76,6 +77,7 @@ function mergeExpenseRows(expenses: ExpenseRecord[], bills: BillRecord[]): Expen
 }
 
 export default function ExpensesScreen() {
+  const bottomNavClearance = useBottomNavClearance();
   const month = currentMonthKey();
   const [items, setItems] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,20 +117,14 @@ export default function ExpensesScreen() {
   }, [monthItems, query]);
   const rowTotal = monthItems.reduce((sum, item) => sum + Number(item.amount), 0);
   const total = summary?.monthly_expenses ?? rowTotal;
-  const categories = Array.from(new Set(monthItems.map((item) => item.category)));
-  const breakdown = useMemo<CategoryTotal[]>(() => categories.map((category, index) => {
-    const amount = monthItems.filter((item) => item.category === category).reduce((sum, item) => sum + Number(item.amount), 0);
-    return { category, amount, percent: total ? amount / total * 100 : 0, color: categoryColor(category, index) };
-  }).sort((left, right) => right.amount - left.amount), [categories, monthItems, total]);
   const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
   const hasAnyExpenses = items.length > 0;
 
   return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
-    <View style={styles.header}><Pressable accessibilityRole="button" accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={({ pressed }) => [styles.back, pressed && styles.pressed]}><ArrowLeft size={21} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>SPENDING</Text><Text style={styles.title}>Expenses</Text></View><ProfileHeaderButton /></View>
-    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+    <FinancialScreenHeader title="Expenses" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
+    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <View style={styles.heroCard}><View style={styles.heroOrb} /><View style={styles.heroHeader}><Text style={styles.heroEyebrow}>TOTAL SPENT</Text><Text style={styles.heroMonth}>{monthLabel(month).split(' ')[0].toUpperCase()}</Text></View><View style={styles.heroMeta}><Text style={styles.heroLabel}>THIS MONTH</Text>{summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? <Text style={[styles.heroTrend, summary.monthly_expenses_delta_percent > 0 ? styles.heroTrendUp : styles.heroTrendDown]}>{summary.monthly_expenses_delta_percent > 0 ? '↗' : summary.monthly_expenses_delta_percent < 0 ? '↘' : '→'} {Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month</Text> : null}</View><Text style={styles.heroValue}>{peso(total)}</Text><Text style={styles.heroSubtitle}>{monthItems.length} transaction{monthItems.length === 1 ? '' : 's'} this month</Text></View>
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
-      <View style={styles.breakdownCard}><View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Spending by category</Text><Text style={styles.sectionHint}>{monthLabel(month)}</Text></View><Tag size={18} color={formPalette.accent} /></View><View style={styles.segmentBar}>{breakdown.length ? breakdown.map((item) => <View key={item.category} style={[styles.segment, { width: (String(item.percent) + '%') as DimensionValue, backgroundColor: item.color }]} />) : <View style={[styles.segment, styles.emptySegment]} />}</View>{breakdown.length ? <View style={styles.legend}>{breakdown.map((item) => <View key={item.category} style={styles.legendItem}><View style={[styles.legendDot, { backgroundColor: item.color }]} /><View style={styles.legendCopy}><Text numberOfLines={1} style={styles.legendName}>{item.category}</Text><Text style={styles.legendAmount}>{peso(item.amount)} · {item.percent.toFixed(1)}%</Text></View></View>)}</View> : <Text style={styles.emptyBreakdown}>Log an expense to see where your money is going.</Text>}</View>
       <View style={styles.search}><Search size={17} color={formPalette.muted} /><TextInput accessibilityLabel="Search expenses" value={query} onChangeText={setQuery} placeholder="Search expenses" placeholderTextColor={formPalette.muted} style={styles.searchInput} /></View>
       {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} onEdit={() => item.source === 'expense' ? setEditing(item) : router.push('/(tabs)/bills')} onDeleted={refresh} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
     </ScrollView>}
@@ -141,30 +137,37 @@ function ExpenseRow({ item, onEdit, onDeleted }: { item: ExpenseItem; onEdit: ()
   const Icon = categoryIcon(item.category);
   const typeLabel = item.source === 'bill' ? 'Bill' : item.payment_method === 'other' ? 'Other' : item.payment_method;
   const remove = () => Alert.alert('Delete expense?', `${item.merchant} will be removed.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { await authenticatedApiRequest(`/api/${item.source === 'bill' ? 'bills' : 'expenses'}/${item.id}`, { method: 'DELETE' }); await onDeleted(); } catch (error) { Alert.alert('Could not delete', error instanceof Error ? error.message : 'Try again.'); } } }]);
-  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: categoryColor(item.category) + '22' }]}><Icon size={19} color={categoryColor(item.category)} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.category}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={() => Alert.alert('Expense options', item.merchant, [{ text: 'Edit', onPress: onEdit }, { text: 'Delete', style: 'destructive', onPress: remove }, { text: 'Cancel', style: 'cancel' }])} style={styles.moreButton}><MoreHorizontal size={20} color={formPalette.muted} /></Pressable></View>;
+  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: categoryColor(item.category) + '22' }]}><Icon size={19} color={categoryColor(item.category)} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || item.category}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={() => Alert.alert('Expense options', item.merchant, [{ text: 'Edit', onPress: onEdit }, { text: 'Delete', style: 'destructive', onPress: remove }, { text: 'Cancel', style: 'cancel' }])} style={styles.moreButton}><MoreHorizontal size={20} color={formPalette.muted} /></Pressable></View>;
 }
 
 function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; item?: ExpenseRecord; onClose: () => void; onSaved: () => Promise<void> }) {
   const [note, setNote] = useState(item?.merchant ?? '');
   const [amount, setAmount] = useState(item ? String(item.amount) : '');
-  const [category, setCategory] = useState(item?.category ?? 'Food');
+  const [category, setCategory] = useState(item?.category ?? '');
+  const [customCategory, setCustomCategory] = useState(item?.custom_category ?? '');
   const [date, setDate] = useState(item?.date ?? new Date().toISOString().slice(0, 10));
-  const [paymentMethod, setPaymentMethod] = useState(item?.payment_method ?? 'cash');
+  const [paymentMethod, setPaymentMethod] = useState(item?.payment_method ?? '');
   const [walletId, setWalletId] = useState<string | null>(item?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const quickFills = [{ label: 'Lunch', amount: '380', category: 'Food' }, { label: 'Groceries', amount: '1200', category: 'Groceries' }, { label: 'Grab ride', amount: '250', category: 'Transport' }];
-
   const save = async () => {
-    const value = evaluateAmountExpression(amount);
+    const value = parseAmount(amount);
     if (!note.trim() || value === null || value <= 0) {
       setError('Add a note and a valid amount.');
+      return;
+    }
+    if (!category || !walletId || !paymentMethod) {
+      setError('Choose a category, wallet, and payment method to continue.');
+      return;
+    }
+    if (category === 'Other' && !customCategory.trim()) {
+      setError('Please specify a category.');
       return;
     }
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, payment_method: paymentMethod, date, wallet_id: walletId }) });
+      await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, payment_method: paymentMethod, date, wallet_id: walletId }) });
       await onSaved();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not save this expense.');
@@ -175,12 +178,17 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
 
   return <FinanceFormSheet title="New expense" eyebrow="QUICK ENTRY" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save expense" onSave={() => void save()} onClose={onClose}>
     <FormTextInput label="Note" value={note} onChangeText={setNote} placeholder="e.g. Lunch with the team" />
-    <View style={styles.recent}><Text style={styles.formLabel}>Recent expenses</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.recentRow}>{quickFills.map((item) => <Pressable key={item.label} onPress={() => { setNote(item.label); setAmount(item.amount); setCategory(item.category); }} style={({ pressed }) => [styles.quickFill, pressed && styles.pressed]}><Text style={styles.quickLabel}>{item.label}</Text><Text style={styles.quickAmount}>{peso(Number(item.amount))}</Text></Pressable>)}</ScrollView></View>
-    <CategoryChipRow value={category} onChange={setCategory} options={expenseCategories} />
-    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} label="Paid from" />
+    <ExpenseCategoryPicker value={category} onChange={setCategory} customCategory={customCategory} onCustomCategoryChange={setCustomCategory} />
+    <ExpenseWalletField wallets={wallets} value={walletId} onChange={setWalletId} />
     <PaymentMethodChips value={paymentMethod} onChange={setPaymentMethod} />
-    <DatePickerField label="Date" value={date} onChange={setDate} />
+    <DatePickerField label="Date" value={date} onChange={setDate} compact />
   </FinanceFormSheet>;
+}
+
+function ExpenseWalletField({ wallets, value, onChange }: { wallets: Wallet[]; value: string | null; onChange: (value: string | null) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = wallets.find((wallet) => wallet.id === value);
+  return <View style={styles.walletField}><Text style={styles.formLabel}>Paid from</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.walletTrigger}><Text style={[styles.walletValue, !selected && styles.walletPlaceholder]}>{selected?.name ?? 'Select wallet'}</Text><Text style={styles.walletChevron}>{'›'}</Text></Pressable><WalletPickerModal visible={open} wallets={wallets} onClose={() => setOpen(false)} onChange={(walletId) => { onChange(walletId); setOpen(false); }} allowUnset /></View>;
 }
 
 const styles = StyleSheet.create({
@@ -211,21 +219,7 @@ const styles = StyleSheet.create({
   primaryActionText: { color: '#fff', fontSize: 12, fontWeight: '900' },
   secondaryAction: { flex: 1, minHeight: 50, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: 25, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.accent },
   secondaryActionText: { color: formPalette.accent, fontSize: 12, fontWeight: '900' },
-  breakdownCard: { marginTop: 18, padding: 16, borderRadius: 18, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: { color: formPalette.ink, fontSize: 16, fontWeight: '900' },
-  sectionHint: { marginTop: 4, color: formPalette.muted, fontSize: 11 },
-  segmentBar: { flexDirection: 'row', height: 24, marginTop: 16, overflow: 'hidden', borderRadius: 12, backgroundColor: formPalette.background },
-  segment: { height: '100%' },
-  emptySegment: { width: '100%', backgroundColor: formPalette.line },
-  legend: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 15 },
-  legendItem: { width: '47%', flexDirection: 'row', alignItems: 'center' },
-  legendDot: { width: 9, height: 9, marginRight: 7, borderRadius: 5 },
-  legendCopy: { flex: 1 },
-  legendName: { color: formPalette.ink, fontSize: 11, fontWeight: '800' },
-  legendAmount: { marginTop: 2, color: formPalette.muted, fontSize: 10 },
-  emptyBreakdown: { marginTop: 13, color: formPalette.muted, fontSize: 12 },
-  search: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginTop: 18, paddingHorizontal: 12, borderRadius: 14, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line },
+  search: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginTop: 22, paddingHorizontal: 12, borderRadius: 14, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line },
   searchInput: { flex: 1, color: formPalette.ink, fontSize: 13 },
   group: { marginTop: 20 },
   groupHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
@@ -254,11 +248,11 @@ const styles = StyleSheet.create({
   emptyCopy: { marginTop: 8, color: formPalette.muted, fontSize: 13, lineHeight: 20, textAlign: 'center' },
   emptyAction: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, minHeight: 50, marginTop: 18, paddingHorizontal: 22, borderRadius: 25, backgroundColor: formPalette.accent },
   emptyActionText: { color: '#fff', fontWeight: '900' },
-  recent: { marginTop: 15 },
+  walletField: { marginTop: 15 },
+  walletTrigger: { minHeight: 52, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, borderRadius: 14, backgroundColor: formPalette.background, borderWidth: 1, borderColor: formPalette.line },
+  walletValue: { flex: 1, color: formPalette.ink, fontSize: 13, fontWeight: '800' },
+  walletPlaceholder: { color: formPalette.muted, fontWeight: '600' },
+  walletChevron: { color: formPalette.muted, fontSize: 24, lineHeight: 24 },
   formLabel: { marginBottom: 9, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
-  recentRow: { gap: 8, paddingRight: 20 },
-  quickFill: { minWidth: 108, padding: 12, borderRadius: 15, backgroundColor: formPalette.background },
-  quickLabel: { color: formPalette.ink, fontSize: 12, fontWeight: '900' },
-  quickAmount: { marginTop: 5, color: formPalette.accent, fontSize: 12, fontWeight: '800' },
   pressed: { opacity: 0.72 },
 });

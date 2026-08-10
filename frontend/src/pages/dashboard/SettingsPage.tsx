@@ -35,7 +35,8 @@ function readLocalProfile(userId: string) {
 }
 
 function Field({ label, value, onChange, type = "text", error, placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; error?: string; placeholder?: string }) {
-  return <label className="block"><span className="text-xs font-semibold text-slate-950">{label}</span><input type={type} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`mt-2 h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 ${error ? "border-red-300" : "border-slate-200"}`} />{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>;
+  const readOnly = label === "Email address";
+  return <label className="block"><span className="text-xs font-semibold text-slate-950">{label}{readOnly ? " (managed by your sign-in provider)" : ""}</span><input type={type} value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`mt-2 h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 ${readOnly ? "bg-slate-50 text-slate-500" : ""} ${error ? "border-red-300" : "border-slate-200"}`} />{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>;
 }
 
 function SaveButton({ children, disabled, saving }: { children: string; disabled: boolean; saving: boolean }) {

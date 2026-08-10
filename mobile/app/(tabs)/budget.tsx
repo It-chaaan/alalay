@@ -2,13 +2,15 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { ArrowLeft, Pencil, PiggyBank, WalletCards } from 'lucide-react-native';
+import { Pencil, PiggyBank, WalletCards } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { CategoryChipRow, evaluateAmountExpression, FinanceFormSheet, budgetCategories, formPalette, savingsBudgetOption } from '@/components/finance-form';
+import { CategoryChipRow, parseAmount, FinanceFormSheet, budgetCategories, formPalette, savingsBudgetOption } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
 import { SegmentedRing } from '@/components/segmented-ring';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { FinancialScreenHeader } from '@/components/financial-screen-header';
+import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 
 type Category = { id: string; name: string; budget: number; spent: number; percent: number; color?: string; goal?: boolean };
 type GoalAlloc = { goal_id: string; title: string; amount: number; progress_percent: number };
@@ -40,6 +42,7 @@ function monthLabel(month: string) {
 }
 
 export default function Budget() {
+  const bottomNavClearance = useBottomNavClearance();
   const [month] = useState(currentManilaMonth);
   const [data, setData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,8 +68,8 @@ export default function Budget() {
   const spent = data?.spent_amount ?? 0;
 
   return <SafeAreaView style={styles.safe}>
-     <View style={styles.header}><Pressable accessibilityLabel="Back to dashboard" onPress={() => router.back()} style={styles.back}><ArrowLeft size={22} color={formPalette.ink} /></Pressable><View style={styles.titleWrap}><Text style={styles.eyebrow}>MONEY PLAN</Text><Text style={styles.title}>Budget</Text></View><ProfileHeaderButton /></View>
-    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading budget…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Budget unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : !data ? <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><BudgetRingSummary categories={[]} remaining={0} spent={0} budgeted={0} /><View style={styles.emptyCard}><View style={styles.emptyIcon}><WalletCards size={24} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>No budget set for {label} yet</Text><Text style={styles.emptyCopy}>Set category limits and a monthly savings budget to give this month a clear plan.</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.emptyAction}><Text style={styles.emptyActionText}>Create Budget</Text></Pressable></View></ScrollView> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+     <FinancialScreenHeader title="Budget" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
+    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading budget…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Budget unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : !data ? <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><BudgetRingSummary categories={[]} remaining={0} spent={0} budgeted={0} /><View style={styles.emptyCard}><View style={styles.emptyIcon}><WalletCards size={24} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>No budget set for {label} yet</Text><Text style={styles.emptyCopy}>Set category limits and a monthly savings budget to give this month a clear plan.</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.emptyAction}><Text style={styles.emptyActionText}>Create Budget</Text></Pressable></View></ScrollView> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <BudgetRingSummary categories={data.categories.filter((category) => !category.goal)} remaining={data.remaining_budget} spent={spent} budgeted={budgeted} />
       <View style={styles.tip}><WalletCards size={20} color="#fff" /><Text style={styles.tipText}>{data.unallocated_income >= 0 ? `${peso(data.unallocated_income)} of income is unallocated this month.` : `Budget is ${peso(Math.abs(data.unallocated_income))} above income.`}</Text></View>
       <Section title="Category budgets" action={<Pressable accessibilityRole="button" accessibilityLabel="Edit budget" onPress={() => setOpen(true)} style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}><Pencil size={14} color={formPalette.accent} /><Text style={styles.sectionActionText}>Edit Budget</Text></Pressable>}><View style={styles.categoryList}>{data.categories?.filter((category) => !category.goal).map((category) => <BudgetCategoryRow key={category.id} category={category} />)}<SavingsBudgetRow summary={data} /></View></Section>
@@ -142,8 +145,8 @@ function BudgetForm({ month, summary, onClose, onSaved }: { month: string; summa
     setSaving(true);
     setError('');
     try {
-      const categories = entries.map((entry) => ({ id: entry.id, name: entry.name, budget: evaluateAmountExpression(drafts[entry.id] ?? '') ?? 0 }));
-      categories.push({ id: 'savings', name: 'Monthly Savings Budget', budget: evaluateAmountExpression(savingsDraft) ?? 0 });
+      const categories = entries.map((entry) => ({ id: entry.id, name: entry.name, budget: parseAmount(drafts[entry.id] ?? '') ?? 0 }));
+      categories.push({ id: 'savings', name: 'Monthly Savings Budget', budget: parseAmount(savingsDraft) ?? 0 });
       await authenticatedApiRequest('/api/budget', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ month, categories, auto_distribute_savings: autoDistribute, remaining_savings_behavior: preference }) });
       await onSaved();
     } catch (e) {

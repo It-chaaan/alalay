@@ -5,6 +5,7 @@ export type BillRecord = {
   title: string;
   amount: number | string;
   category: string;
+  custom_category?: string | null;
   due_date: string;
   recurring: boolean;
   frequency: 'monthly' | 'weekly' | 'yearly' | 'quarterly' | null;
@@ -29,6 +30,7 @@ export type FinanceItem = {
   name: string;
   amount: number;
   category: string;
+  custom_category?: string | null;
   dueDate: string;
   recurring: boolean;
   frequency: BillRecord['frequency'] | SubscriptionRecord['billing_cycle'];
@@ -41,6 +43,8 @@ export type ExpenseRecord = {
   merchant: string;
   amount: number | string;
   category: string;
+  categories?: string[];
+  custom_category?: string | null;
   date: string;
   payment_method?: string;
   wallet_id?: string | null;
@@ -52,9 +56,17 @@ export function fetchWallets() {
   return authenticatedApiRequest<WalletRecord[]>('/api/wallets');
 }
 
+/** Uses the same server-computed wallet balances shown by Wallets Overview. */
+export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance'>[]) {
+  return wallets.reduce((sum, wallet) => {
+    const balance = Number(wallet.balance);
+    return sum + (Number.isFinite(balance) ? balance : 0);
+  }, 0);
+}
+
 export type SavingsDashboard = {
   overview: { totalSavings: number; goalSavings: number; activeGoals: number; monthlyContribution: number };
-  goals: Array<{ id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null }>;
+  goals: { id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null }[];
 };
 
 export function fetchExpenses() {
@@ -75,7 +87,7 @@ export async function fetchFinanceItems() {
   }
   const bills = billResult.status === 'fulfilled' ? billResult.value : [];
   const subscriptions = subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : [];
-  const billItems: FinanceItem[] = bills.map((bill) => ({ id: bill.id, source: 'bill', name: bill.title, amount: Number(bill.amount), category: bill.category, dueDate: bill.due_date, recurring: bill.recurring, frequency: bill.frequency, paid: bill.status === 'paid', wallet_id: bill.wallet_id }));
+  const billItems: FinanceItem[] = bills.map((bill) => ({ id: bill.id, source: 'bill', name: bill.title, amount: Number(bill.amount), category: bill.category, custom_category: bill.custom_category, dueDate: bill.due_date, recurring: bill.recurring, frequency: bill.frequency, paid: bill.status === 'paid', wallet_id: bill.wallet_id }));
   const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({ id: subscription.id, source: 'subscription', name: subscription.name, amount: Number(subscription.amount), category: 'Subscriptions', dueDate: subscription.renewal_date, recurring: true, frequency: subscription.billing_cycle, paid: false, wallet_id: subscription.wallet_id }));
   return [...billItems, ...subscriptionItems].sort((left, right) => left.dueDate.localeCompare(right.dueDate));
 }

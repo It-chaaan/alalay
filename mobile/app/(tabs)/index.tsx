@@ -1,13 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowUpRight, BarChart3, Camera, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, UserCircle, Wallet, WalletCards } from 'lucide-react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { NotificationHeaderButton } from '@/components/notification-header-button';
+import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
-import { derivedStatus, fetchExpenses, fetchFinanceItems, type ExpenseRecord, type FinanceItem } from '@/services/finance';
+import { derivedStatus, fetchExpenses, fetchFinanceItems, fetchWallets, totalWalletBalance, type ExpenseRecord, type FinanceItem, type WalletRecord } from '@/services/finance';
+import { walletInitials } from '@/constants/wallets';
 import { getSupabaseClient } from '@/services/supabase';
 
 const palette = {
@@ -56,17 +59,22 @@ function formatBalancePeso(value: number) {
 }
 
 export default function HomeScreen() {
-  const insets = useSafeAreaInsets();
+  const bottomNavClearance = useBottomNavClearance();
   const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const [financeError, setFinanceError] = useState('');
   const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
+  const [wallets, setWallets] = useState<WalletRecord[]>([]);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletError, setWalletError] = useState('');
   const [firstName, setFirstName] = useState('there');
 
   const refreshFinance = useCallback(async () => {
     setFinanceLoading(true);
+    setWalletLoading(true);
     setFinanceError('');
+    setWalletError('');
     try {
       const [items, expenseRows, summary] = await Promise.all([
         fetchFinanceItems(),
@@ -76,10 +84,18 @@ export default function HomeScreen() {
       setFinanceItems(items);
       setExpenses(expenseRows);
       setDashboardSummary(summary);
+      try {
+        setWallets(await fetchWallets());
+        setWalletError('');
+      } catch (walletFetchError) {
+        setWalletError(walletFetchError instanceof Error ? walletFetchError.message : 'Wallets could not load.');
+      }
     } catch (error) {
       setFinanceError(error instanceof Error ? error.message : 'Bills could not load.');
+      setWalletError('Wallets could not load.');
     } finally {
       setFinanceLoading(false);
+      setWalletLoading(false);
     }
   }, []);
 
@@ -106,14 +122,15 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
-      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: 132 + insets.bottom }]} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
         <View style={styles.topRow}>
-          <View>
+          <ProfileHeaderButton />
+          <View style={styles.greetingBlock}>
+            <Text accessibilityRole="header" style={styles.greeting}>{getGreeting()} <Text style={styles.greetingName}>{firstName}!</Text></Text>
             <Text style={styles.date}>{new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())}</Text>
-            <Text accessibilityRole="header" style={styles.greeting}><Text style={styles.greetingPrefix}>{getGreeting()} </Text><Text style={styles.greetingName}>{firstName}!</Text></Text>
           </View>
           <View style={styles.headerActions}>
-            <ProfileHeaderButton />
+            <NotificationHeaderButton />
             {/* legacy notification/settings controls removed; profile owns both destinations */}
           </View>
           {/*
@@ -127,9 +144,11 @@ export default function HomeScreen() {
           */}
         </View>
 
-        <View style={styles.summaryHintRow}><Text style={styles.sectionHint}>Your overview</Text></View>
-        <SummaryCard summary={dashboardSummary} loading={financeLoading} />
-        <View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View>
+        <SummaryCard summary={dashboardSummary} loading={financeLoading} wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
+        <View style={styles.shortcutContainer}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View></View>
+
+        <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Wallets</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={styles.link}>View all</Text></Pressable></View>
+        <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
 
         <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Upcoming</Text><Text style={styles.sectionHint}>{financeItems.length} items</Text></View>
         <View style={styles.listCard}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading bills…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={styles.errorText}>{financeError}</Text></View> : financeItems.length ? financeItems.slice(0, 5).map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />) : <View style={styles.inlineState}><Text style={styles.stateTitle}>No bills yet</Text><Text style={styles.stateText}>Use Add to create your first bill or subscription.</Text></View>}</View>
@@ -139,38 +158,38 @@ export default function HomeScreen() {
 
       </ScrollView>
 
-      <BottomNav bottom={12 + insets.bottom} />
       <AlalayChatHead />
     </SafeAreaView>
   );
 }
 
-function SummaryCard({ summary, loading }: { summary: DashboardSummary | null; loading: boolean }) {
-  const trend = summary?.net_savings_trend_percent ?? null;
-  const trendDirection = trend === null ? null : trend > 0 ? 'up' : trend < 0 ? 'down' : 'flat';
-  const trendMagnitude = Math.abs(trend ?? 0).toFixed(1);
-  const trendLabel = trendDirection === 'up'
-    ? String.fromCharCode(0x2197) + ' ' + trendMagnitude + '%'
-    : trendDirection === 'down'
-      ? String.fromCharCode(0x2198) + ' ' + trendMagnitude + '%'
-      : trendDirection === 'flat' ? String.fromCharCode(0x2192) + ' 0.0%' : null;
-  const hasActivity = Boolean(summary && (summary.monthly_income > 0 || summary.monthly_expenses > 0));
-  const isNegative = (summary?.net_savings ?? 0) < 0;
-  const insight = loading
-    ? 'Preparing your monthly view'
-    : !hasActivity
-      ? 'Add income or expenses to start tracking'
-      : isNegative
-        ? 'Spending is above income this month'
-        : 'Income is covering spending this month';
-
-  return <View style={styles.summaryCard}>
-    <View style={styles.summaryTop}><Text style={styles.summaryEyebrow}>{isNegative ? 'NET THIS MONTH' : 'NET SAVINGS THIS MONTH'}</Text></View>
-    <Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.balanceValue, isNegative && styles.balanceValueNegative]}>{loading ? 'Loading…' : !hasActivity ? String.fromCharCode(0x2014) : summary ? formatBalancePeso(summary.net_savings) : String.fromCharCode(0x2014)}</Text>
-    {trendLabel ? <Text style={[styles.balanceTrend, trendDirection === 'up' && styles.balanceTrendUp, trendDirection === 'down' && styles.balanceTrendDown]}>{trendLabel} vs last month</Text> : null}
-    <Text style={styles.balanceSubtitle}>{insight}</Text>
+function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: { summary: DashboardSummary | null; loading: boolean; wallets: WalletRecord[]; walletLoading: boolean; walletError: string }) {
+  const balanceUnavailable = walletError || walletLoading;
+  return <View style={styles.balanceStack}>
+    <View accessible={false} importantForAccessibility="no" style={styles.balanceRearCard} />
+    <View accessible accessibilityRole="summary" accessibilityLabel={`Total Balance ${balanceUnavailable ? walletLoading ? 'loading' : 'unavailable' : formatBalancePeso(totalWalletBalance(wallets))}. Expenses ${loading || !summary ? 'loading' : formatPeso(summary.monthly_expenses)}. Income ${loading || !summary ? 'loading' : formatPeso(summary.monthly_income)}.`} style={styles.summaryCard}>
+      <Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text>
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.balanceValue}>{balanceUnavailable ? walletLoading ? 'Loading…' : 'Unavailable' : formatBalancePeso(totalWalletBalance(wallets))}</Text>
+      <View style={styles.supportingMetrics}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={13} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_expenses)}</Text></View><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={13} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_income)}</Text></View></View>
+    </View>
   </View>;
 }
+
+function WalletQuickView({ wallets, loading, error }: { wallets: WalletRecord[]; loading: boolean; error: string }) {
+  if (loading) return <View style={styles.listCard}><View style={styles.inlineState}><ActivityIndicator color={palette.accent} /><Text style={styles.stateText}>Loading wallets…</Text></View></View>;
+  if (error) return <View style={styles.listCard}><View style={styles.inlineState}><Text style={styles.errorText}>Wallets unavailable. Your other dashboard sections are still available.</Text></View></View>;
+  return <View style={styles.listCard}>
+    {wallets.slice(0, 3).map((wallet, index) => <Pressable key={wallet.id} accessibilityRole="button" accessibilityLabel={`Open ${wallet.name} wallet`} onPress={() => router.push({ pathname: '/(tabs)/wallets', params: { walletId: wallet.id } })} style={({ pressed }) => [styles.walletRow, index === Math.min(wallets.length, 3) - 1 && styles.rowLast, pressed && styles.pressed]}>
+      <View style={[styles.walletIcon, { backgroundColor: `${wallet.color}22`, borderColor: `${wallet.color}55` }]}><Text style={[styles.walletInitial, { color: wallet.color }]}>{walletInitials(wallet.name)}</Text></View>
+      <View style={styles.rowMain}><Text numberOfLines={1} style={styles.rowTitle}>{wallet.name}</Text><Text style={styles.rowMeta}>{typeLabel(wallet.institution_type)} · PHP</Text></View>
+      <Text style={styles.walletBalance}>{formatBalancePeso(Number(wallet.balance))}</Text><ChevronRight size={18} color={palette.muted} />
+    </Pressable>)}
+    {!wallets.length ? <View style={styles.inlineState}><Text style={styles.stateTitle}>No wallets yet</Text><Text style={styles.stateText}>Your Cash wallet will appear here once it is ready.</Text></View> : null}
+    {wallets.length > 3 ? <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')} style={styles.moreWallets}><Text style={styles.moreWalletsText}>+ {wallets.length - 3} more wallet{wallets.length - 3 === 1 ? '' : 's'}</Text></Pressable> : null}
+  </View>;
+}
+
+function typeLabel(type: string) { return type === 'e_wallet' ? 'E-wallet' : type === 'digital_bank' ? 'Digital bank' : type === 'bank' ? 'Bank' : type === 'cash' ? 'Cash' : 'Other'; }
 
 function FinanceRow({ item }: { item: FinanceItem }) {
   const status = derivedStatus(item);
@@ -183,14 +202,6 @@ function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
   return <View style={styles.row}><View style={styles.rowIcon}><WalletCards size={18} color={palette.accent} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={styles.rowTitle}>{expense.merchant}</Text><Text style={styles.rowMeta}>{expense.category} · {expense.date}</Text></View><Text style={styles.expenseAmount}>-{formatPeso(Number(expense.amount))}</Text></View>;
 }
 
-function BottomNav({ bottom }: { bottom: number }) {
-  return <View style={[styles.bottomNav, { bottom }]}><NavItem icon={Home} label="Home" active onPress={() => router.replace('/(tabs)')} /><NavItem icon={Wallet} label="Wallet" onPress={() => router.replace('/(tabs)/wallets')} /><Pressable accessibilityRole="button" accessibilityLabel="Open OCR scanner" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, pressed && styles.pressed]}><Camera size={25} color="#FFFFFF" strokeWidth={2} /></Pressable><NavItem icon={WalletCards} label="Budget" onPress={() => router.push('/(tabs)/budget')} /><NavItem icon={BarChart3} label="Reports" onPress={() => router.push('/(tabs)/reports')} /></View>;
-}
-
-function NavItem({ icon: IconComponent, label, active = false, onPress }: { icon: Icon; label: string; active?: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="tab" accessibilityState={{ selected: active }} onPress={onPress} style={({ pressed }) => [styles.navItem, pressed && styles.pressed]}><IconComponent size={20} color={active ? palette.accent : palette.muted} strokeWidth={active ? 2.1 : 1.7} /><Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>{active && <View style={styles.navDot} />}</Pressable>;
-}
-
 function getGreeting() {
   const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', hour: '2-digit', hour12: false }).format(new Date()));
   return hour >= 5 && hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
@@ -200,49 +211,53 @@ function Shortcut({ icon: IconComponent, label, onPress }: { icon: Icon; label: 
   return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}><View style={styles.shortcutIcon}><IconComponent size={20} color={palette.accent} strokeWidth={1.8} /></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={styles.shortcutLabel}>{label}</Text></Pressable>;
 }
 
-export function ProfilePanel({ onClose, onNotifications }: { onClose: () => void; onNotifications: () => void }) {
-  return <View style={styles.panelOverlay}><Pressable accessibilityLabel="Close profile menu" onPress={onClose} style={styles.panelDismiss} /><View style={styles.profilePanel}><Text style={styles.panelEyebrow}>ACCOUNT</Text><Text style={styles.panelTitle}>Your Alalay account</Text><Pressable style={styles.panelRow} onPress={() => { onClose(); router.push('/(tabs)/profile'); }}><UserCircle size={21} color={palette.accent} /><Text style={styles.panelRowText}>Profile</Text></Pressable><Pressable style={styles.panelRow} onPress={() => { onNotifications(); onClose(); router.push('/(tabs)/notifications'); }}><Text style={styles.panelBadge}>1</Text><Text style={styles.panelRowText}>Notifications</Text></Pressable><Pressable style={styles.panelRow} onPress={() => { onClose(); router.push('/(tabs)/settings'); }}><Text style={styles.panelGear}>⚙</Text><Text style={styles.panelRowText}>Settings</Text></Pressable></View></View>;
-}
-
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.background },
   content: { paddingHorizontal: 24, paddingTop: 14 },
   topRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  greetingBlock: { width: '72%' },
+  greetingBlock: { flex: 1, marginHorizontal: 11 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  date: { color: palette.muted, fontSize: 13, fontWeight: '600' },
-  greeting: { marginTop: 8, color: palette.ink, lineHeight: 34, letterSpacing: -0.7 },
-  greetingPrefix: { fontSize: 22, fontWeight: '600' },
-  greetingName: { fontSize: 29, fontWeight: '900' },
+  date: { marginTop: 4, color: palette.muted, fontSize: 12, fontWeight: '600' },
+  greeting: { color: palette.ink, fontSize: 18, fontWeight: '600', letterSpacing: -0.3 },
+  greetingName: { fontWeight: '900' },
   profileButton: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
   profileImage: { width: 44, height: 44, borderRadius: 22 },
   notificationBadge: { position: 'absolute', top: -2, right: -2, minWidth: 17, height: 17, paddingHorizontal: 4, borderRadius: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: '#D92D20' },
   notificationBadgeText: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
   notificationDot: { position: 'absolute', top: 10, right: 10, width: 6, height: 6, borderRadius: 3, backgroundColor: palette.accent },
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 28, marginBottom: 12 },
-  summaryHintRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, marginBottom: 6 },
   sectionTitle: { color: palette.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   sectionHint: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
-  summaryCard: { width: '100%', minHeight: 158, justifyContent: 'center', padding: 21, borderRadius: 22, backgroundColor: palette.accent },
-  summaryTop: { flexDirection: 'row', alignItems: 'center' },
-  summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2 },
-  balanceTrend: { marginTop: 7, color: '#D8EFE2', fontSize: 11, fontWeight: '900' },
-  balanceTrendUp: { color: '#C4F5D5' },
-  balanceTrendDown: { color: '#FFD3D0' },
-  balanceValue: { marginTop: 9, color: '#FFFFFF', fontSize: 32, fontWeight: '900', letterSpacing: -0.9 },
-  balanceValueNegative: { color: '#FFF4F2' },
-  balanceSubtitle: { marginTop: 13, color: '#D8EFE2', fontSize: 11, fontWeight: '700' },
-  shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 8, paddingHorizontal: 0 },
-  shortcut: { flex: 1, minHeight: 68, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 5, borderRadius: 12 },
-  shortcutIcon: { width: 32, height: 32, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
-  shortcutLabel: { width: '100%', marginTop: 6, color: palette.ink, fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  balanceStack: { position: 'relative', marginTop: 18, paddingTop: 12 },
+  balanceRearCard: { position: 'absolute', top: 0, left: 14, right: 14, height: 38, borderRadius: 20, backgroundColor: '#63B995', opacity: 0.9 },
+  summaryCard: { width: '100%', minHeight: 172, justifyContent: 'center', paddingHorizontal: 21, paddingVertical: 23, borderRadius: 22, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.12, shadowRadius: 7, elevation: 3 },
+  summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textAlign: 'center' },
+  balanceValue: { marginTop: 10, color: '#FFFFFF', fontSize: 36, fontWeight: '900', letterSpacing: -1, textAlign: 'center' },
+  supportingMetrics: { flexDirection: 'row', alignItems: 'stretch', justifyContent: 'space-around', marginTop: 24 },
+  supportingMetric: { flex: 1, alignItems: 'center' },
+  metricLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  metricLabel: { color: '#D8EFE2', fontSize: 11, fontWeight: '800' },
+  expenseIcon: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: 'rgba(217,108,85,0.32)' },
+  incomeIcon: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: 'rgba(196,245,213,0.2)' },
+  metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  shortcutContainer: { marginTop: 18, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.62)', borderWidth: 1, borderColor: 'rgba(220,232,224,0.9)' },
+  shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
+  shortcut: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 7, borderRadius: 14 },
+  shortcutIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
+  shortcutLabel: { width: '100%', marginTop: 7, color: palette.ink, fontSize: 9, fontWeight: '800', textAlign: 'center' },
   insightPreview: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 18, backgroundColor: palette.accentPale },
   insightIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface },
   insightCopy: { flex: 1, marginHorizontal: 11 },
   insightTitle: { color: palette.ink, fontSize: 14, fontWeight: '800' },
   insightText: { marginTop: 3, color: palette.muted, fontSize: 12, lineHeight: 17 },
   listCard: { paddingHorizontal: 15, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
+  walletRow: { flexDirection: 'row', alignItems: 'center', minHeight: 70, borderBottomWidth: 1, borderBottomColor: palette.line },
+  walletIcon: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1 },
+  walletInitial: { fontSize: 11, fontWeight: '900' },
+  walletBalance: { marginRight: 4, color: palette.ink, fontSize: 13, fontWeight: '900' },
+  moreWallets: { alignItems: 'center', paddingVertical: 13 },
+  moreWalletsText: { color: palette.accent, fontSize: 12, fontWeight: '900' },
   inlineState: { alignItems: 'center', justifyContent: 'center', minHeight: 92, paddingVertical: 16 },
   inlineEmpty: { alignItems: 'center', marginTop: 8, padding: 16, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
   stateTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
@@ -300,14 +315,5 @@ const styles = StyleSheet.create({
   navLabelActive: { color: palette.accent, fontWeight: '900' },
   navDot: { width: 4, height: 4, borderRadius: 2, backgroundColor: palette.accent },
   addButton: { width: 58, height: 58, marginTop: -26, alignItems: 'center', justifyContent: 'center', borderRadius: 29, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.25, shadowRadius: 9, elevation: 8 },
-  panelOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 25, justifyContent: 'flex-end' },
-  panelDismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.28)' },
-  profilePanel: { padding: 22, paddingBottom: 32, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface },
-  panelEyebrow: { color: palette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  panelTitle: { marginTop: 5, marginBottom: 12, color: palette.ink, fontSize: 20, fontWeight: '900' },
-  panelRow: { minHeight: 52, flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderTopColor: palette.line },
-  panelRowText: { color: palette.ink, fontSize: 15, fontWeight: '800' },
-  panelBadge: { width: 21, height: 21, borderRadius: 11, color: '#FFFFFF', backgroundColor: '#D92D20', textAlign: 'center', fontSize: 12, fontWeight: '900', overflow: 'hidden', paddingTop: 2 },
-  panelGear: { width: 21, textAlign: 'center', color: palette.accent, fontSize: 20 },
   pressed: { opacity: 0.78 },
 });

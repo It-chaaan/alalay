@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { ArrowLeft, Bell, ChevronRight, LogOut, Settings, UserCircle } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { authenticatedApiRequest } from '@/services/api';
@@ -10,12 +10,14 @@ const p = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#
 type Profile = { name?: string | null; email?: string | null; avatar_url?: string | null };
 
 export default function ProfileScreen() {
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const [profile, setProfile] = useState<Profile>({});
   useEffect(() => { void authenticatedApiRequest<Profile>('/api/users/me').then(setProfile).catch(() => undefined); }, []);
   const name = profile.name?.trim() || 'Alalay user';
   const initials = name.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase();
   const signOut = async () => { await getSupabaseClient()?.auth.signOut(); router.replace('/auth'); };
-  return <SafeAreaView style={styles.safe}><View style={styles.header}><Pressable accessibilityLabel="Back" onPress={() => router.back()} style={styles.back}><ArrowLeft size={22} color={p.ink} /></Pressable><Text style={styles.headerTitle}>Profile</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.profileHeader}>{profile.avatar_url ? <Image source={{ uri: profile.avatar_url }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}<Pressable style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable><Text style={styles.name}>{name}</Text><Text style={styles.email}>{profile.email || 'Your account email'}</Text></View><Text style={styles.groupLabel}>ACCOUNT</Text><View style={styles.group}><Row icon={UserCircle} label="Profile" value="Personal information" onPress={() => Alert.alert('Profile', 'Profile editing is available from Settings.')} /><Row icon={Bell} label="Notifications" value="View updates and reminders" onPress={() => router.push('/(tabs)/notifications')} /><Row icon={Settings} label="Settings" value="Preferences and security" onPress={() => router.push('/(tabs)/settings')} /></View><Pressable onPress={() => void signOut()} style={styles.signOut}><LogOut size={19} color={p.danger} /><Text style={styles.signOutText}>Sign out</Text></Pressable></ScrollView></SafeAreaView>;
+  const goBack = () => returnTo ? router.replace(returnTo as Href) : router.back();
+  return <SafeAreaView style={styles.safe}><View style={styles.header}><Pressable accessibilityLabel="Back" onPress={goBack} style={styles.back}><ArrowLeft size={22} color={p.ink} /></Pressable><Text style={styles.headerTitle}>Profile</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.profileHeader}>{profile.avatar_url ? <Image source={{ uri: profile.avatar_url }} style={styles.avatar} /> : <View style={styles.avatarFallback}><Text style={styles.initials}>{initials}</Text></View>}<Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} style={styles.edit}><Text style={styles.editText}>Edit</Text></Pressable><Text style={styles.name}>{name}</Text><Text style={styles.email}>{profile.email || 'Your account email'}</Text></View><Text style={styles.groupLabel}>ACCOUNT</Text><View style={styles.group}><Row icon={UserCircle} label="Profile" value="Personal information" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} /><Row icon={Bell} label="Notifications" value="View updates and reminders" onPress={() => router.push('/(tabs)/notifications')} /><Row icon={Settings} label="Settings" value="Preferences and security" onPress={() => router.push('/(tabs)/settings')} /></View><Pressable onPress={() => void signOut()} style={styles.signOut}><LogOut size={19} color={p.danger} /><Text style={styles.signOutText}>Sign out</Text></Pressable></ScrollView></SafeAreaView>;
 }
 
 function Row({ icon: Icon, label, value, onPress }: { icon: typeof UserCircle; label: string; value: string; onPress: () => void }) { return <Pressable onPress={onPress} style={styles.row}><View style={styles.rowIcon}><Icon size={20} color={p.accent} /></View><View style={styles.rowCopy}><Text style={styles.rowLabel}>{label}</Text><Text style={styles.rowValue}>{value}</Text></View><ChevronRight size={18} color={p.muted} /></Pressable>; }

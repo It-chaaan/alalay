@@ -25,6 +25,8 @@ const ocrRawSchema = z.object({
 export const createExpenseSchema = z.object({
   amount: currencyAmount,
   category: z.string().trim().min(1).max(100),
+  custom_category: z.string().trim().max(100).nullable().optional(),
+  categories: z.array(z.string().trim().min(1).max(100)).min(1).max(20).optional(),
   merchant: z.string().trim().min(1).max(200),
   date: safeDate,
   payment_method: z.enum(["cash", "card", "gcash", "maya", "bank_transfer", "other"]).optional(),

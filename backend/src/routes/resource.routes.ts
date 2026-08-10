@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { z } from "zod";
 import { makeResourceController, savingsDashboard } from "../controllers/resource.controller.js";
 import type { TableName } from "../services/db.js";
 import { idParamSchema } from "../schemas/common.schema.js";
@@ -14,12 +15,14 @@ import { writeRateLimit } from "../middleware/rateLimit.js";
 export function resourceRouter(table: TableName) {
   const router = Router();
   const controller = makeResourceController(table);
+  const billCreateSchema = createExpenseSchema.extend({ wallet_id: z.string().uuid() });
+  const billUpdateSchema = billCreateSchema.partial();
   const schemaMap = {
     expenses: { query: expenseQuerySchema, create: createExpenseSchema, update: updateExpenseSchema },
     income: { query: incomeQuerySchema, create: createIncomeSchema, update: updateIncomeSchema },
     subscriptions: { query: undefined, create: createSubscriptionSchema, update: updateSubscriptionSchema },
     savings_goals: { query: undefined, create: createSavingsGoalSchema, update: updateSavingsGoalSchema },
-    bills: { query: undefined, create: createExpenseSchema, update: updateExpenseSchema },
+    bills: { query: undefined, create: billCreateSchema, update: billUpdateSchema },
   } as const;
   const schemas = schemaMap[table];
 
