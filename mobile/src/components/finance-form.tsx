@@ -54,6 +54,7 @@ import {
 } from 'lucide-react-native';
 
 import { useModalVisibility } from './modal-visibility';
+import { useAppTheme } from '@/theme/theme';
 
 export const formPalette = {
   background: '#F4F7F1',
@@ -136,6 +137,7 @@ export function formatAmountForDisplay(value: string) {
 
 const BACKSPACE_KEY = '\u232B';
 export function NumericKeypad({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const { colors } = useAppTheme();
   const press = (key: string) => {
     if (key === 'clear') {
       onChange('');
@@ -156,7 +158,7 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
   };
 
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', BACKSPACE_KEY];
-  return <View style={keypadStyles.wrap}>
+  return <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
     <View style={keypadStyles.row}>
       <Text style={keypadStyles.expression}>{formatAmountForDisplay(value)}</Text>
     </View>
@@ -169,9 +171,9 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
           accessibilityRole="button"
           accessibilityLabel={isBackspace ? 'Backspace' : key}
           onPress={() => press(key)}
-          style={({ pressed }) => [keypadStyles.key, action && keypadStyles.actionKey, pressed && keypadStyles.pressed]}
+          style={({ pressed }) => [keypadStyles.key, { backgroundColor: action ? colors.accentPale : colors.surfaceSecondary }, pressed && keypadStyles.pressed]}
         >
-          <Text style={[keypadStyles.keyText, action && keypadStyles.actionText]}>{isBackspace ? BACKSPACE_KEY : key}</Text>
+          <Text style={[keypadStyles.keyText, { color: action ? colors.accent : colors.ink }]}>{isBackspace ? BACKSPACE_KEY : key}</Text>
         </Pressable>;
       })}
     </View>
@@ -300,17 +302,20 @@ export function useKeyboardVisible() {
 type FinanceFormSheetProps = { title: string; eyebrow: string; amount: string; onAmountChange: (value: string) => void; children: ReactNode; error?: string; saving?: boolean; saveLabel: string; onSave: () => void; onClose: () => void };
 
 export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
+  const { colors } = useAppTheme();
   const keyboardVisible = useKeyboardVisible();
   const { setModalVisible } = useModalVisibility();
   useEffect(() => { setModalVisible(true); return () => setModalVisible(false); }, [setModalVisible]);
-  return <View style={sheetStyles.overlay}><Pressable accessibilityLabel="Close add form" onPress={onClose} style={sheetStyles.dismiss} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={sheetStyles.keyboard}>
-    <View style={sheetStyles.sheet}>
-      <View style={sheetStyles.header}><View><Text style={sheetStyles.eyebrow}>{eyebrow}</Text><Text style={sheetStyles.title}>{title}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={sheetStyles.closeButton}><Text style={sheetStyles.closeText}>×</Text></Pressable></View>
+  return <View style={sheetStyles.overlay}><Pressable accessibilityLabel="Close add form" onPress={onClose} style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={sheetStyles.keyboard}>
+    <View
+      style={[sheetStyles.sheet, { backgroundColor: colors.surface }]}
+    >
+      <View style={sheetStyles.header}><View><Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text><Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}><Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text></Pressable></View>
       <ScrollView contentContainerStyle={sheetStyles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={sheetStyles.amountBlock}><Text style={sheetStyles.amountPrefix}>₱</Text><Text style={sheetStyles.amount}>{formatAmountForDisplay(amount)}</Text></View>
+        <View style={sheetStyles.amountBlock}><Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text><Text style={[sheetStyles.amount, { color: colors.ink }]}>{formatAmountForDisplay(amount)}</Text></View>
         {children}
-        {error ? <Text style={sheetStyles.error}>{error}</Text> : null}
-        <Pressable accessibilityRole="button" disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <><Plus size={19} color="#FFFFFF" strokeWidth={2.4} /><Text style={sheetStyles.saveText}>{saveLabel}</Text></>}</Pressable>
+        {error ? <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text> : null}
+        <Pressable accessibilityRole="button" disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable>
       </ScrollView>
       {!keyboardVisible && <NumericKeypad value={amount} onChange={onAmountChange} />}
     </View>
@@ -320,7 +325,8 @@ export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, child
 export const formInputStyle = { minHeight: 54, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background, color: formPalette.ink, fontSize: 15 };
 
 export function FormTextInput({ label, placeholder, value, onChangeText, multiline = false }: { label?: string; placeholder: string; value: string; onChangeText: (value: string) => void; multiline?: boolean }) {
-  return <View style={inputStyles.wrap}>{label ? <Text style={inputStyles.label}>{label}</Text> : null}<TextInput accessibilityLabel={label ?? placeholder} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={formPalette.muted} style={[formInputStyle, multiline && inputStyles.multiline]} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} /></View>;
+  const { colors } = useAppTheme();
+  return <View style={inputStyles.wrap}>{label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}<TextInput accessibilityLabel={label ?? placeholder} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.subtle} style={[formInputStyle, { backgroundColor: colors.input, color: colors.ink }, multiline && inputStyles.multiline]} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} /></View>;
 }
 
 const keypadStyles = StyleSheet.create({

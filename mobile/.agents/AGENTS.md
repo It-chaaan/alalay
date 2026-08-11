@@ -157,7 +157,20 @@ Carry over anything from the web app's "Known implementation issues" list that a
 
 Mobile-specific issues should be tracked separately in this file as they're discovered, rather than mixed into the web app's list.
 
+### Current profile data flow
+
+- `mobile/src/services/profile.ts` normalizes Supabase Auth identity with the RLS-scoped `GET/PATCH /api/users/me` response.
+- `mobile/src/hooks/use-current-profile.ts` shares the current profile and publishes successful updates to Home, Settings, profile screens, and avatar controls.
+- Email remains read-only in mobile because Supabase Auth controls it; display name and optional phone persist through `public.users`.
+
 ## Documentation synchronization rules
+
+## Mobile MFA flow
+
+- Supabase Auth TOTP is authoritative for factor enrollment, assurance level, challenge verification, and unenrollment.
+- `mobile/src/services/mfa.ts` distinguishes an enabled factor from the current session's required AAL2 challenge.
+- Native trusted-device tokens are stored in SecureStore and sent through the authenticated `/api/trusted-device` contract; explicit logout clears the local token.
+- A valid restored AAL2/trusted session opens the app directly. Pending AAL2 sessions are routed to `/auth?mode=mfa` before protected tabs render.
 
 Whenever mobile architecture, navigation, auth flow, OCR approach, or environment config changes, update:
 

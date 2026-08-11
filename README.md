@@ -271,3 +271,9 @@ Implementation-facing AI documentation:
 - Mobile: [mobile/.agents/AGENTS.md](./mobile/.agents/AGENTS.md), [mobile/.agents/SKILL.md](./mobile/.agents/SKILL.md)
 
 These files must be updated whenever architecture, schema, AI flows, OCR flows, navigation, or financial logic changes, for the relevant client(s).
+
+## Profile data flow
+
+Supabase Auth owns the authenticated user identity and email. Application profile fields are stored in `public.users` and accessed through the authenticated shared `GET/PATCH /api/users/me` endpoint. Mobile screens share normalized profile state so saved display-name, phone, and avatar changes propagate to Home and Settings.
+
+Mobile appearance is persisted device-locally as `system`, `light`, or `dark` and resolved centrally by `mobile/src/theme/theme.tsx`.

@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { formPalette } from './finance-form';
+import { useAppTheme } from '@/theme/theme';
 
 type FinancialOverviewCardProps = {
   eyebrow: string;
@@ -12,8 +13,9 @@ type FinancialOverviewCardProps = {
 };
 
 export function FinancialOverviewCard({ eyebrow, period, primaryLabel, value, supportingText, supportingTone = 'normal', progressPercent }: FinancialOverviewCardProps) {
+  const { colors } = useAppTheme();
   const progress = progressPercent === undefined ? null : Math.min(100, Math.max(0, progressPercent));
-  return <View style={styles.card}><View style={styles.top}><Text style={styles.eyebrow}>{eyebrow}</Text>{period ? <Text style={styles.period}>{period}</Text> : null}</View><Text style={styles.label}>{primaryLabel}</Text><Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={styles.value}>{value}</Text>{supportingText ? <Text style={[styles.supporting, supportingTone === 'warning' && styles.supportingWarning]}>{supportingText}</Text> : null}{progress !== null ? <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View> : null}</View>;
+  return <View style={[styles.card, { backgroundColor: colors.accent }]}><View style={styles.top}><Text style={[styles.eyebrow, { color: colors.accentPale }]}>{eyebrow}</Text>{period ? <Text style={[styles.period, { color: colors.accentPale }]}>{period}</Text> : null}</View><Text style={[styles.label, { color: colors.accentPale }]}>{primaryLabel}</Text><Text adjustsFontSizeToFit minimumFontScale={0.78} numberOfLines={1} style={[styles.value, { color: colors.inverse }]}>{value}</Text>{supportingText ? <Text style={[styles.supporting, { color: colors.accentPale }, supportingTone === 'warning' && styles.supportingWarning]}>{supportingText}</Text> : null}{progress !== null ? <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%`, backgroundColor: colors.inverse }]} /></View> : null}</View>;
 }
 
 const styles = StyleSheet.create({

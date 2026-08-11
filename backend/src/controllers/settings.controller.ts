@@ -3,7 +3,7 @@ import { getNotificationPreferences, getOverviewPreferences, getProfile, updateN
 import { sendSuccess } from "../utils/api.js";
 
 export async function me(req: Request, res: Response) {
-  return sendSuccess(res, await getProfile(req.user!.id));
+  return sendSuccess(res, await getProfile(req.user!.id, req.user!.email, req.user!.user_metadata));
 }
 
 export async function updateMe(req: Request, res: Response) {

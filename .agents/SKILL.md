@@ -25,7 +25,7 @@ Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI
 
 ## Theme/accessibility rules
 
-- For web, respect Light/Dark/System via `AppPreferencesContext` and the root `dark` class. For mobile, inspect its own provider/hooks and palette; the current checked-in product intentionally forces light mode and does not yet expose persisted theme settings.
+- For web, respect Light/Dark/System via `AppPreferencesContext` and the root `dark` class. For mobile, use `AppThemeProvider`/`useAppTheme` and semantic tokens; appearance preference is device-local and resolves `system` from the live OS scheme.
 - Prefer existing web Tailwind surface/text classes or mobile StyleSheet palette tokens, with both-mode handling where that client supports it. Never add light-only cards, banners, inputs, alerts, toasts, badges, or empty states to a client that supports dark mode.
 - Use high-contrast shared shell title/subtitle styles and preserve visible focus states and practical WCAG AA contrast.
 - Report charts need keyboard-reachable value tooltips, and budget indicators must pair color with labels or values.
@@ -43,6 +43,12 @@ Wallet/account links are account-scoped: income records require `wallet_id`, out
 - Distinguish loading, successful-empty, and error states; never turn failed queries into `₱0` or blank content.
 - Use migrations for schema/index/trigger changes and preserve RLS/backend auth.
 - Per-user mobile presentation preferences must use shared authenticated API contracts and RLS-backed storage; do not persist account-scoped choices only in an unscoped local cache.
+
+## Profile data flow
+
+- Use Supabase Auth for user identity/email and `public.users` for application profile fields.
+- Use the shared current-user API (`/api/users/me`) rather than introducing client-specific profile endpoints.
+- Profile UI must distinguish loading, missing profile rows, and load errors; missing rows may be lazily initialized only for the authenticated user.
 
 ## AI/OCR rules
 

@@ -11,6 +11,7 @@ import { SegmentedRing } from '@/components/segmented-ring';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 type Category = { id: string; name: string; budget: number; spent: number; percent: number; color?: string; goal?: boolean };
 type GoalAlloc = { goal_id: string; title: string; amount: number; progress_percent: number };
@@ -42,6 +43,7 @@ function monthLabel(month: string) {
 }
 
 export default function Budget() {
+  const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const [month] = useState(currentManilaMonth);
   const [data, setData] = useState<Summary | null>(null);
@@ -67,7 +69,7 @@ export default function Budget() {
   const budgeted = data?.budget_amount ?? 0;
   const spent = data?.spent_amount ?? 0;
 
-  return <SafeAreaView style={styles.safe}>
+  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
      <FinancialScreenHeader title="Budget" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading budget…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Budget unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : !data ? <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><BudgetRingSummary categories={[]} remaining={0} spent={0} budgeted={0} /><View style={styles.emptyCard}><View style={styles.emptyIcon}><WalletCards size={24} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>No budget set for {label} yet</Text><Text style={styles.emptyCopy}>Set category limits and a monthly savings budget to give this month a clear plan.</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.emptyAction}><Text style={styles.emptyActionText}>Create Budget</Text></Pressable></View></ScrollView> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <BudgetRingSummary categories={data.categories.filter((category) => !category.goal)} remaining={data.remaining_budget} spent={spent} budgeted={budgeted} />

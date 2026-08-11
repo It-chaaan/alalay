@@ -23,8 +23,8 @@ function readCookie(header: string | undefined, name: string) {
   return null;
 }
 
-export async function isTrustedDevice(userId: string, cookieHeader: string | undefined) {
-  const token = readCookie(cookieHeader, trustedDeviceCookieName);
+export async function isTrustedDevice(userId: string, cookieHeader: string | undefined, headerToken?: string) {
+  const token = headerToken || readCookie(cookieHeader, trustedDeviceCookieName);
   if (!token) return false;
 
   const { data, error } = await getSupabase()

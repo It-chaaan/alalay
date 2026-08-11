@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
 import { CalendarDays } from 'lucide-react-native';
 
 import { DatePickerField } from '@/components/finance-form';
@@ -10,6 +10,7 @@ import { SegmentedRing } from '@/components/segmented-ring';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 const palette = {
   background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B',
@@ -108,6 +109,8 @@ function BudgetProgress({ total, spent, remaining }: { total: number; spent: num
   const color = percent > 100 ? palette.danger : percent >= 90 ? palette.expense : percent >= 70 ? palette.warning : palette.savings;
   return <View><View style={styles.budgetTrack}><View style={[styles.budgetFill, { width: `${fill}%`, backgroundColor: color }]} /></View><View style={styles.budgetMeta}><Text style={styles.budgetPercent}>{percent}% used</Text><Text style={styles.budgetRemaining}>{remaining >= 0 ? `${peso(remaining)} remaining` : `${peso(Math.abs(remaining))} over`}</Text></View></View>;
 }
+
+function SafeAreaView(props: SafeAreaViewProps) { const { colors } = useAppTheme(); return <NativeSafeAreaView {...props} style={[props.style, { backgroundColor: colors.background }]} />; }
 
 export default function ReportsScreen() {
   const bottomNavClearance = useBottomNavClearance(); const router = useRouter();

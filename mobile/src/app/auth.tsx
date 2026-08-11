@@ -10,14 +10,12 @@ import { ArrowLeft, CircleAlert, Lock, Mail, ShieldCheck, User } from 'lucide-re
 import { BrandLockup } from '@/components/brand-lockup';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { getSupabaseClient } from '@/services/supabase';
+import { useAppTheme } from '@/theme/theme';
+import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
 
-type AuthMode = 'signin' | 'create';
+type AuthMode = 'signin' | 'create' | 'mfa';
 type Palette = { background: string; surface: string; ink: string; muted: string; accent: string; accentSoft: string; line: string; danger: string };
 type FieldIcon = ComponentType<{ color?: string; size?: number; strokeWidth?: number }>;
-
-const lightPalette: Palette = {
-  background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentSoft: '#D8EFE2', line: '#DCE8E0', danger: '#B42318',
-};
 
 function getAuthError(message: string) {
   const lower = message.toLowerCase();
@@ -54,7 +52,7 @@ function AuthHeader({ palette, title, description, onBack }: { palette: Palette;
 
 export default function AuthScreen() {
   const { mode, provider } = useLocalSearchParams<{ mode?: string; provider?: string }>();
-  const initialMode: AuthMode = mode === 'create' ? 'create' : 'signin';
+  const initialMode: AuthMode = mode === 'create' ? 'create' : mode === 'mfa' ? 'mfa' : 'signin';
   const [screen, setScreen] = useState<AuthMode>(initialMode);
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
@@ -63,8 +61,10 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const googleFlowStarted = useRef(false);
-  const palette = lightPalette;
+  const { colors } = useAppTheme();
+  const palette: Palette = { ...colors, accentSoft: colors.accentPale };
   const isCreate = screen === 'create';
+  const isMfa = screen === 'mfa';
   const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const subtitle = useMemo(() => isCreate ? 'Create an account and make every peso count.' : 'Your calmer way to stay on top of money.', [isCreate]);
   const goToApp = useCallback(() => router.replace('/(tabs)'), []);
@@ -104,6 +104,8 @@ export default function AuthScreen() {
     googleFlowStarted.current = true;
     void handleGoogle();
   }, [handleGoogle, provider]);
+
+  if (isMfa) return <MfaVerification />;
 
   const handleSubmit = async () => {
     setError('');
@@ -162,6 +164,41 @@ export default function AuthScreen() {
   );
 }
 
+function MfaVerification() {
+  const { colors } = useAppTheme();
+  const [factorId, setFactorId] = useState<string | null>(null);
+  const [code, setCode] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    void getMfaState().then((state) => {
+      setFactorId(state.factor?.id ?? null);
+      if (!state.factor) setError('No verified authenticator was found for this account.');
+    }).catch(() => setError('Unable to start verification. Please sign in again.')).finally(() => setLoading(false));
+  }, []);
+
+  const verify = async () => {
+    if (!factorId || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; }
+    const client = getSupabaseClient();
+    if (!client) { setError('Authentication is unavailable right now.'); return; }
+    setVerifying(true); setError('');
+    try {
+      const result = await client.auth.mfa.challengeAndVerify({ factorId, code });
+      if (result.error) throw result.error;
+      try { await rememberTrustedDevice(); } catch { /* backend trust is best effort; the AAL2 session remains valid */ }
+      router.replace('/(tabs)');
+    } catch (verificationError) {
+      setError(verificationError instanceof Error ? verificationError.message : 'That code is not valid. Try again.');
+      setCode('');
+    } finally { setVerifying(false); }
+  };
+
+  const backToSignIn = async () => { await getSupabaseClient()?.auth.signOut(); router.replace({ pathname: '/auth', params: { mode: 'signin' } }); };
+  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}><StatusBar style={colors.background === '#17191C' ? 'light' : 'dark'} /><View style={styles.mfaContent}><Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => void backToSignIn()} style={styles.mfaBack}><ArrowLeft size={22} color={colors.textPrimary} /></Pressable><View style={[styles.mfaIcon, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={34} color={colors.primary} /></View><Text style={[styles.mfaTitle, { color: colors.textPrimary }]}>Verify it&apos;s you</Text><Text style={[styles.mfaDescription, { color: colors.textSecondary }]}>Enter the 6-digit code from your authenticator app to continue. You&apos;ll normally verify again when signing in on a new device.</Text><TextInput accessibilityLabel="Authenticator verification code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" placeholderTextColor={colors.textMuted} style={[styles.mfaInput, { color: colors.textPrimary, borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surfaceInput }]} />{error ? <Text accessibilityRole="alert" style={[styles.mfaError, { color: colors.danger }]}>{error}</Text> : null}<Pressable accessibilityRole="button" disabled={loading || verifying || code.length !== 6} onPress={() => void verify()} style={[styles.primaryButton, { backgroundColor: colors.primary }, (loading || verifying || code.length !== 6) && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Loading...' : verifying ? 'Verifying...' : 'Verify'}</Text></Pressable></View></SafeAreaView>;
+}
+
 const styles = StyleSheet.create({
   safeArea: { flex: 1 },
   primaryButton: { minHeight: 54, borderRadius: 28, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 22 },
@@ -191,4 +228,11 @@ const styles = StyleSheet.create({
   switchText: { fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.55 },
+  mfaContent: { flex: 1, paddingHorizontal: 28, paddingTop: 18 },
+  mfaBack: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  mfaIcon: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, marginTop: 70, alignSelf: 'center' },
+  mfaTitle: { marginTop: 24, textAlign: 'center', fontSize: 28, fontWeight: '900' },
+  mfaDescription: { marginTop: 10, textAlign: 'center', fontSize: 14, lineHeight: 21 },
+  mfaInput: { minHeight: 58, marginTop: 28, borderWidth: 1, borderRadius: 15, textAlign: 'center', letterSpacing: 8, fontSize: 24, fontWeight: '800' },
+  mfaError: { marginTop: 12, textAlign: 'center', fontSize: 13, fontWeight: '700' },
 });

@@ -11,6 +11,7 @@ import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
 type ExpenseGroup = { date: string; subtotal: number; items: ExpenseItem[] };
@@ -77,6 +78,7 @@ function mergeExpenseRows(expenses: ExpenseRecord[], bills: BillRecord[]): Expen
 }
 
 export default function ExpensesScreen() {
+  const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const month = currentMonthKey();
   const [items, setItems] = useState<ExpenseItem[]>([]);
@@ -120,7 +122,7 @@ export default function ExpensesScreen() {
   const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
   const hasAnyExpenses = items.length > 0;
 
-  return <SafeAreaView style={styles.safe} edges={['top', 'left', 'right']}>
+  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Expenses" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <View style={styles.heroCard}><View style={styles.heroOrb} /><View style={styles.heroHeader}><Text style={styles.heroEyebrow}>TOTAL SPENT</Text><Text style={styles.heroMonth}>{monthLabel(month).split(' ')[0].toUpperCase()}</Text></View><View style={styles.heroMeta}><Text style={styles.heroLabel}>THIS MONTH</Text>{summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? <Text style={[styles.heroTrend, summary.monthly_expenses_delta_percent > 0 ? styles.heroTrendUp : styles.heroTrendDown]}>{summary.monthly_expenses_delta_percent > 0 ? '↗' : summary.monthly_expenses_delta_percent < 0 ? '↘' : '→'} {Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month</Text> : null}</View><Text style={styles.heroValue}>{peso(total)}</Text><Text style={styles.heroSubtitle}>{monthItems.length} transaction{monthItems.length === 1 ? '' : 's'} this month</Text></View>

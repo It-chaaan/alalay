@@ -27,7 +27,7 @@ Finance add flows should reuse `src/components/finance-form.tsx` for the custom 
 
 ## Theme/accessibility rules
 
-- The current mobile product is intentionally light-only: `hooks/use-color-scheme.ts` is the single theme source and returns `light`, while the root navigation uses `DefaultTheme`. If user-selectable Light/Dark/System preferences are introduced later, persist them before re-enabling device appearance detection.
+- `src/theme/theme.tsx` is the single mobile appearance source. Use `useAppTheme()` for resolved theme and semantic colors; keep the `system` preference distinct from its current resolved light/dark value.
 - Use a single consistent styling approach (NativeWind or StyleSheet-based design tokens, matching whatever the project has already established) with explicit light/dark variants for every custom UI element. Never ship a light-only card, banner, input, alert, toast, badge, or empty state.
 - Maintain visible focus/pressed states for every interactive element and practical WCAG AA contrast in both themes. On mobile, also confirm minimum touch target sizes (44×44pt iOS / 48×48dp Android) are respected — this has no direct web equivalent and needs its own check.
 
@@ -53,6 +53,8 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 - Scope local profile storage by Supabase user ID, same principle as web (`alalay-profile:<userId>` pattern), but using secure/appropriate on-device storage rather than assuming a browser-equivalent key-value store.
 - Use Google provider metadata when available; otherwise use neutral initials, matching web. Never reuse a globally cached photo across accounts.
 - Keep avatar uniqueness/repair logic in shared migrations; never embed service-role credentials in the mobile app.
+
+- Current profile reads and updates use the shared authenticated `/api/users/me` contract. Do not add `/api/settings/me` client routes or an unscoped profile cache.
 
 ## Design taste rules (Emil Kowalski–inspired)
 
@@ -85,6 +87,10 @@ These rules exist to push mobile UI work past "functionally correct" toward genu
 - After building a screen, deliberately review it against this checklist before considering it done: Does every interactive element have a pressed/active state? Does every async action have a loading state? Does every list have a genuine empty state? Is spacing consistent with the rest of the app? Would this still look intentional with unusually long or unusually short real data?
 - When something feels "almost right but off," the cause is very often spacing, alignment, or timing — not color or content. Check those first before reaching for a bigger redesign.
 - Prefer showing a before/after or brief description of what changed when reporting UI work, so design decisions are visible and reviewable, not just asserted as done.
+
+## Mobile MFA flow
+
+- For mobile TOTP, use `getMfaState()`/`requiresMfa()` and the SecureStore-backed trusted-device service. Never gate every app launch on factor enrollment alone; distinguish a verified restored session from a pending AAL2 challenge.
 
 ## Validation
 

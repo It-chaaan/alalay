@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { MoreHorizontal, PiggyBank, Plus, Shield, TrendingUp, Home, Car, Laptop, Plane, PartyPopper, GraduationCap, HeartPulse, PawPrint, Gift, Dumbbell, Target } from 'lucide-react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
 
 import { DatePickerField, parseAmount, FinanceFormSheet, FormTextInput, formPalette } from '@/components/finance-form';
 import { SectionAddButton } from '@/components/header-add-button';
@@ -11,6 +11,7 @@ import { authenticatedApiRequest } from '@/services/api';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 type Goal = { id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null };
 type Dashboard = { overview: { totalSavings: number; goalSavings: number; activeGoals: number; monthlyContribution: number }; goals: Goal[] };
@@ -19,6 +20,8 @@ const goalIcons = ['emergency', 'savings', 'investment', 'home', 'car', 'motorcy
 const goalIconMap = { emergency: Shield, savings: PiggyBank, investment: TrendingUp, home: Home, car: Car, motorcycle: Car, technology: Laptop, travel: Plane, celebration: PartyPopper, education: GraduationCap, healthcare: HeartPulse, pet: PawPrint, gift: Gift, fitness: Dumbbell, general: Target } as const;
 function GoalIcon({ name }: { name: string }) { const Icon = goalIconMap[name as keyof typeof goalIconMap] ?? Target; return <Icon size={21} color={formPalette.accent} strokeWidth={2} />; }
 const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
+
+function SafeAreaView(props: SafeAreaViewProps) { const { colors } = useAppTheme(); return <NativeSafeAreaView {...props} style={[props.style, { backgroundColor: colors.background }]} />; }
 
 export default function Savings() {
   const [data, setData] = useState<Dashboard | null>(null);

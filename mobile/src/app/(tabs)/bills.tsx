@@ -14,6 +14,7 @@ import { CategoryChipRow, DatePickerField, parseAmount, FinanceFormSheet, Freque
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 const palette = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
 
@@ -30,6 +31,7 @@ function monthName(month: string) {
 }
 
 export default function BillsScreen() {
+  const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const [items, setItems] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,7 +67,7 @@ export default function BillsScreen() {
   const overdue = monthlyStatuses.filter((status) => status === 'Overdue').length;
   const unpaid = monthlyBills.filter((item) => derivedStatus(item) !== 'Paid').reduce((sum, item) => sum + item.amount, 0);
 
-  return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Bills" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={palette.accent} /><Text style={styles.centerCopy}>Loading bills and subscriptions…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load bills</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <FinancialOverviewCard eyebrow="BILLS OVERVIEW" period={monthName(month)} primaryLabel="TOTAL BILLS THIS MONTH" value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingText={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} />

@@ -1,3 +1,2 @@
-export function useColorScheme() {
-  return 'light' as const;
-}
+import { useAppTheme } from '@/theme/theme';
+export function useColorScheme() { return useAppTheme().resolvedTheme; }

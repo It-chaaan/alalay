@@ -45,7 +45,7 @@ supabase/   SQL migrations, config, generated types
 - Shared components/hooks: `components/`, `hooks/use-color-scheme.ts`, `hooks/use-theme-color.ts`, and `constants/theme.ts`
 - Native dependencies used by the current UI include Expo Image, Expo SecureStore, Expo WebBrowser, Expo Linking, React Navigation, React Native Reanimated, React Native SVG, safe-area-context, and vector icons
 - Supabase client: `mobile/src/services/supabase.ts`; it uses `@supabase/supabase-js` with SecureStore-backed native session persistence, a guarded `localStorage` fallback for Expo web preview, and PKCE OAuth settings
-- Theme: the current product code intentionally forces the shared color-scheme hook to `light`; no mobile Settings/preferences screen or three-way theme persistence is implemented
+- Theme: mobile now resolves persisted device-local `system`/`light`/`dark` appearance through `src/theme/theme.tsx`, with semantic light/dark tokens and themed navigation/status-bar surfaces.
 - The mobile app has a small authenticated API helper at `mobile/src/services/api.ts` for the Home chat-head's dashboard insight and AI chat; it does not yet contain the web client's query hooks, full dashboard data screen, or a mobile AuthContext equivalent
 
 ### Shared infrastructure
@@ -357,3 +357,10 @@ Whenever architecture, schema, APIs, AI flows, OCR behavior, financial logic, or
 - `mobile/.agents/AGENTS.md` and `mobile/.agents/SKILL.md` for mobile-specific architecture or workflow changes
 
 Do not leave implementation changes undocumented.
+
+## Profile architecture
+
+- Supabase Auth is authoritative for the authenticated user ID and email.
+- `public.users` is the application profile source for display name, phone, preferences, and app profile avatar metadata.
+- The shared current-user endpoint is `GET/PATCH /api/users/me`; ownership is derived from the bearer-token session and protected by RLS.
+- Mobile profile consumers use `mobile/src/services/profile.ts` and `mobile/src/hooks/use-current-profile.ts` so Home, Settings, and profile screens share normalized data and updates.

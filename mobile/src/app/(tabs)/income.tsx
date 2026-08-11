@@ -13,6 +13,7 @@ import { fetchWallets } from '@/services/finance';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 type Income = { id: string; source: string; type: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; wallet_id: string };
 type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
@@ -41,6 +42,7 @@ function monthName(month: string) {
 }
 
 export default function IncomeScreen() {
+  const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const [rows, setRows] = useState<Income[]>([]);
   const [summary, setSummary] = useState<IncomeSummary>({ this_month: 0, monthly_sources: 0, actual_transactions: 0 });
@@ -77,7 +79,7 @@ export default function IncomeScreen() {
       ? `${summary.actual_transactions} recorded income transaction${summary.actual_transactions === 1 ? '' : 's'} this month`
       : 'No income recorded this month';
 
-  return <SafeAreaView style={styles.safeArea} edges={['top', 'left', 'right']}>
+  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard eyebrow="INCOME OVERVIEW" period={monthName(currentMonth)} primaryLabel="TOTAL INCOME" value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingText={supportingText} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={formPalette.accent} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
     {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}

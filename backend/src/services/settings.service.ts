@@ -1,9 +1,29 @@
 import { client, requireUserId, throwIfError } from "./db.js";
 
-export async function getProfile(userId: string) {
-  const { data, error } = await client().from("users").select("*").eq("id", requireUserId(userId)).is("deleted_at", null).single();
+export async function getProfile(userId: string, authEmail?: string | null, userMetadata: Record<string, unknown> = {}) {
+  const id = requireUserId(userId);
+  const { data, error } = await client().from("users").select("*").eq("id", id).is("deleted_at", null).maybeSingle();
   throwIfError(error);
-  return data;
+  if (data) {
+    const providerAvatarUrl = getProviderAvatar(userMetadata);
+    return { ...data, email: authEmail || data.email, avatar_url: data.avatar_url || providerAvatarUrl || null, avatar_source: data.avatar_url ? "profile" : providerAvatarUrl ? "provider" : null };
+  }
+
+  const metadataName = [userMetadata.full_name, userMetadata.name].find((value) => typeof value === "string" && value.trim()) as string | undefined;
+  const fallbackName = authEmail?.split("@")[0] || "User";
+  const providerAvatar = [userMetadata.picture, userMetadata.avatar_url].find((value) => typeof value === "string" && value.trim()) as string | undefined;
+  const { data: created, error: createError } = await client().from("users").insert({
+    id,
+    name: metadataName || fallbackName,
+    email: authEmail || null,
+    avatar_url: providerAvatar || null,
+  }).select("*").single();
+  throwIfError(createError);
+  return { ...created, email: authEmail || created?.email || null, avatar_source: providerAvatar ? "provider" : null };
+}
+
+function getProviderAvatar(userMetadata: Record<string, unknown>) {
+  return [userMetadata.picture, userMetadata.avatar_url].find((value) => typeof value === "string" && value.trim()) as string | undefined;
 }
 
 export async function updateProfile(userId: string, payload: Record<string, unknown>) {

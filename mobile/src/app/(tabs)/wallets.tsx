@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { ChevronRight, MoreHorizontal, Plus, X } from 'lucide-react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
 
 import { DatePickerField, parseAmount, FinanceFormSheet, FormTextInput, formPalette } from '@/components/finance-form';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
@@ -13,6 +13,7 @@ import { fetchWallets, totalWalletBalance } from '@/services/finance';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
+import { useAppTheme } from '@/theme/theme';
 
 type WalletTransaction = { id: string; kind: 'income' | 'expense' | 'bill' | 'deposit'; label: string; date: string; amount: number };
 type WalletDetail = { wallet: Wallet; transactions: WalletTransaction[] };
@@ -24,6 +25,8 @@ function todayIso() {
 
 function peso(value: number | string) { return `₱${Math.round(Number(value)).toLocaleString('en-PH')}`; }
 function typeLabel(type: string) { return type === 'e_wallet' ? 'E-wallet' : type === 'digital_bank' ? 'Digital bank' : type === 'bank' ? 'Bank' : type === 'cash' ? 'Cash' : 'Other'; }
+
+function SafeAreaView(props: SafeAreaViewProps) { const { colors } = useAppTheme(); return <NativeSafeAreaView {...props} style={[props.style, { backgroundColor: colors.background }]} />; }
 
 export default function WalletsScreen() {
   const { walletId } = useLocalSearchParams<{ walletId?: string }>();

@@ -1,4 +1,5 @@
 import { getSupabaseClient } from './supabase';
+import { getTrustedDeviceToken } from './trusted-device';
 
 type ApiEnvelope<T> = {
   data?: T;
@@ -16,6 +17,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     data = refreshed.data;
   }
   const accessToken = data.session?.access_token;
+  const trustedDeviceToken = await getTrustedDeviceToken();
 
   if (!apiUrl || !accessToken) {
     throw new Error('Sign in again before using this feature.');
@@ -26,6 +28,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     headers: {
       Accept: 'application/json',
       Authorization: `Bearer ${accessToken}`,
+      ...(trustedDeviceToken ? { 'X-Trusted-Device': trustedDeviceToken } : {}),
       ...init.headers,
     },
   });
