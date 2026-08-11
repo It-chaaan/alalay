@@ -9,6 +9,7 @@ const budgetColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#b
 type BudgetCategoryInput = {
   id: string;
   name: string;
+  icon?: string;
   budget: number;
   auto_distribute?: boolean;
   last_distributed_month?: string | null;
@@ -126,6 +127,7 @@ function normalizeBudgetCategories(value: unknown): BudgetCategoryInput[] {
         id?: unknown;
         name?: unknown;
         budget?: unknown;
+        icon?: unknown;
         auto_distribute?: unknown;
         last_distributed_month?: unknown;
         last_distributed_amount?: unknown;
@@ -139,6 +141,7 @@ function normalizeBudgetCategories(value: unknown): BudgetCategoryInput[] {
       return {
         id: typeof category.id === "string" && category.id.trim() ? category.id.trim() : randomUUID(),
         name,
+        icon: typeof category.icon === "string" && category.icon.trim() ? category.icon.trim() : undefined,
         budget: asNumber(category.budget),
         auto_distribute: Boolean(category.auto_distribute),
         last_distributed_month: typeof category.last_distributed_month === "string" ? category.last_distributed_month : null,
@@ -466,6 +469,7 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
     .map((category) => ({
       id: category.id || randomUUID(),
       name: category.name.trim(),
+      ...(category.icon ? { icon: category.icon.trim() } : {}),
       budget: asNumber(category.budget),
       auto_distribute: Boolean(category.auto_distribute),
       last_distributed_month: category.last_distributed_month ?? null,
@@ -833,6 +837,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     return {
       id: category.id,
       name: category.name,
+      ...(category.icon ? { icon: category.icon } : {}),
       budget: Number(budget.toFixed(2)),
       spent: Number(spent.toFixed(2)),
       remaining: Number((budget - spent).toFixed(2)),

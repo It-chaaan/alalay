@@ -1,4 +1,4 @@
-import { client, requireUserId, throwIfError, asNumber } from "./db.js";
+import { client, requireUserId, throwIfError, asNumber, todayIso } from "./db.js";
 import { AppError } from "../utils/api.js";
 
 export type WalletPayload = { name: string; institution_type: string; institution_key: string; color?: string; icon?: string | null };
@@ -53,6 +53,7 @@ export async function createWallet(userId: string, payload: WalletPayload) {
 }
 
 export async function createWalletWithOpeningBalance(userId: string, payload: WalletPayload & { opening_balance: number }) {
+  const ownerId = requireUserId(userId);
   const { data, error } = await client().rpc("create_wallet_with_opening_balance", {
     wallet_name: payload.name,
     wallet_type: payload.institution_type,
@@ -61,6 +62,43 @@ export async function createWalletWithOpeningBalance(userId: string, payload: Wa
     wallet_icon: payload.icon ?? null,
     opening_amount: payload.opening_balance,
   });
+  // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
+  // rolling deployments PostgREST can briefly have an older schema cache. Use
+  // the same ledger tables as a compatibility path instead of creating a
+  // wallet without its opening balance.
+  if (error?.code === "PGRST202") {
+    const { data: wallet, error: walletError } = await client().from("wallets").insert({
+      user_id: ownerId,
+      name: payload.name,
+      institution_type: payload.institution_type,
+      institution_key: payload.institution_key,
+      color: payload.color ?? "#0F8A6B",
+      icon: payload.icon ?? null,
+      is_default_cash: false,
+    }).select("*").single();
+    throwIfError(walletError);
+
+    if (payload.opening_balance > 0) {
+      const { error: adjustmentError } = await client().from("wallet_adjustments").insert({
+        user_id: ownerId,
+        wallet_id: wallet.id,
+        amount: payload.opening_balance,
+        date: todayIso(),
+        note: "Opening balance",
+      });
+      if (adjustmentError) {
+        const { error: rollbackError } = await client().from("wallets").delete().eq("id", wallet.id).eq("user_id", ownerId);
+        if (rollbackError) {
+          throw new AppError(500, "wallet_opening_balance_rollback_failed", "Wallet creation could not be completed safely.");
+        }
+        throwIfError(adjustmentError);
+      }
+    }
+
+    const { data: refreshed, error: refreshError } = await client().from("wallets").select("*").eq("id", wallet.id).eq("user_id", ownerId).single();
+    throwIfError(refreshError);
+    return withBalance(refreshed);
+  }
   throwIfError(error);
   return withBalance(data as Record<string, unknown>);
 }

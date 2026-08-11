@@ -71,9 +71,12 @@ export function previousMonthRange(date = new Date()) {
   return monthRange(previous);
 }
 
-export function throwIfError(error: { message: string } | null) {
+export function throwIfError(error: { message: string; code?: string; details?: string } | null) {
   if (error) {
-    throw new AppError(500, "database_error", error.message);
+    const code = error.code ?? "unknown";
+    if (code === "23505") throw new AppError(409, "database_conflict", "This record already exists.", `${code}: ${error.message}`);
+    if (code === "23503" || code === "23514" || code.startsWith("22")) throw new AppError(400, "database_validation", "The submitted information could not be saved.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
+    throw new AppError(500, "database_error", "The database operation could not be completed.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
   }
 }
 

@@ -190,6 +190,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Philippine-focused wallet/account presets with a per-user default Cash wallet
 - Income requires a destination wallet; expenses, bills, and subscriptions may optionally reference a source wallet
 - Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
+- New wallet opening balances are recorded as `wallet_adjustments` ledger rows. Creation prefers the atomic `create_wallet_with_opening_balance` RPC and has a guarded rollback fallback during PostgREST schema-cache rollout gaps.
 
 ### Budget
 

@@ -107,13 +107,25 @@ export const expenseCategories: CategoryOption[] = [
 
 export const budgetCategories: CategoryOption[] = [
   { label: 'Food', icon: Utensils },
-  { label: 'Transport', icon: Receipt },
+  { label: 'Transport', icon: CarFront },
+  { label: 'Subscriptions', icon: Repeat },
   { label: 'Rent', icon: Home },
+  { label: 'Water', icon: Droplets },
   { label: 'Electricity', icon: Bolt },
   { label: 'Internet', icon: Wifi },
-  { label: 'Water', icon: Droplets },
-  { label: 'Subscriptions', icon: Repeat },
-  { label: 'Other', icon: MoreHorizontal },
+  { label: 'Groceries', icon: ShoppingBag },
+  { label: 'Healthcare', icon: HeartPulse },
+  { label: 'Education', icon: GraduationCap },
+  { label: 'Entertainment', icon: Film },
+  { label: 'Dining Out', icon: Utensils },
+  { label: 'Shopping', icon: ShoppingBag },
+  { label: 'Travel', icon: Plane },
+  { label: 'Insurance', icon: ShieldCheck },
+  { label: 'Debt / Loan', icon: CreditCard },
+  { label: 'Personal Care', icon: Sparkles },
+  { label: 'Gifts / Donations', icon: Gift },
+  { label: 'Family', icon: Users },
+  { label: 'Pets', icon: PawPrint },
 ];
 
 export const savingsBudgetOption: CategoryOption = { label: 'Savings budget', icon: PiggyBank };
@@ -186,6 +198,7 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
 }
 
 export function CategoryChipRow({ value, onChange, options, label = 'Category (optional)', customValue, onCustomValueChange, customLabel = 'Specify category *', showAllOptions = false, onAdd }: { value: string; onChange: (value: string) => void; options: CategoryOption[]; label?: string; customValue?: string; onCustomValueChange?: (value: string) => void; customLabel?: string; showAllOptions?: boolean; onAdd?: () => void }) {
+  const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
   return <View style={chipStyles.section}>
@@ -196,12 +209,12 @@ export function CategoryChipRow({ value, onChange, options, label = 'Category (o
         accessibilityRole="button"
         accessibilityState={{ selected: value === optionLabel }}
         onPress={() => onChange(optionLabel)}
-        style={({ pressed }) => [chipStyles.chip, value === optionLabel && chipStyles.active, pressed && chipStyles.pressed]}
+        style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, value === optionLabel && { backgroundColor: colors.primarySoft, borderColor: colors.primary }, pressed && chipStyles.pressed]}
       >
-        <Icon size={17} color={value === optionLabel ? formPalette.accent : formPalette.muted} strokeWidth={1.9} />
-        <Text style={[chipStyles.text, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
+        <Icon size={17} color={value === optionLabel ? colors.primary : colors.textSecondary} strokeWidth={1.9} />
+        <Text style={[chipStyles.text, { color: value === optionLabel ? colors.textPrimary : colors.textSecondary }, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
       </Pressable>)}
-      {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel="Add budget category" onPress={onAdd} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Plus size={17} color={formPalette.accent} /><Text style={chipStyles.text}>+ Add</Text></Pressable> : options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
+      {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel="Add budget category" onPress={onAdd} style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, pressed && chipStyles.pressed]}><Plus size={17} color={colors.primary} /><Text style={[chipStyles.text, { color: colors.primary }]}>+ Add</Text></Pressable> : options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
     </View>
     {value === 'Other' && onCustomValueChange ? <FormTextInput label={customLabel} placeholder="Specify what this means" value={customValue ?? ''} onChangeText={onCustomValueChange} /> : null}
     {options.length > 6 && !showAllOptions && !onAdd ? <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={pickerStyles.title}>{label.replace(' *', '')}</Text><Pressable accessibilityRole="button" onPress={() => setOpen(false)}><Text style={pickerStyles.close}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{options.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</ScrollView></Pressable></Pressable></Modal> : null}
@@ -244,6 +257,7 @@ function dateString(date: Date) {
 }
 
 export function DatePickerField({ label, value, onChange, compact = false }: { label: string; value: string; onChange: (value: string) => void; compact?: boolean }) {
+  const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const initial = toDate(value);
   const [month, setMonth] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1));
@@ -259,21 +273,22 @@ export function DatePickerField({ label, value, onChange, compact = false }: { l
 
   const today = dateString(new Date());
   const displayValue = value === today ? 'Today' : selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const rowSurface = { backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.border };
   return <>
-    <Pressable accessibilityRole="button" onPress={() => { setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(true); }} style={({ pressed }) => [compact ? dateStyles.rowField : dateStyles.field, pressed && dateStyles.pressed]}>
-      <CalendarDays size={19} color={formPalette.accent} />
-      <Text style={[dateStyles.label, compact && dateStyles.rowLabel]}>{label}</Text>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${displayValue}`} onPress={() => { setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(true); }} style={({ pressed }) => [compact ? dateStyles.rowField : dateStyles.field, rowSurface, compact && dateStyles.compactSurface, pressed && dateStyles.pressed]}>
+      <CalendarDays size={19} color={colors.primary} />
+      <Text style={[dateStyles.label, compact && dateStyles.rowLabel, { color: compact ? colors.textPrimary : colors.textSecondary }]}>{label}</Text>
       <View style={dateStyles.spacer} />
-      <Text style={dateStyles.value}>{displayValue}</Text>
-      {compact ? <ChevronRight size={18} color={formPalette.muted} /> : <ChevronDown size={18} color={formPalette.muted} />}
+      <Text style={[dateStyles.value, { color: colors.textPrimary }]}>{displayValue}</Text>
+      {compact ? <ChevronRight size={18} color={colors.textSecondary} /> : <ChevronDown size={18} color={colors.textSecondary} />}
     </Pressable>
     <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-      <View style={dateStyles.backdrop}><View style={dateStyles.modal}>
-        <View style={dateStyles.modalHeader}><Text style={dateStyles.modalTitle}>{label}</Text><Pressable accessibilityLabel="Close date picker" onPress={() => setOpen(false)}><Text style={dateStyles.close}>×</Text></Pressable></View>
-        <View style={dateStyles.monthHeader}><Pressable accessibilityLabel="Previous month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={dateStyles.arrow}><ArrowLeft size={17} color={formPalette.ink} /></Pressable><Text style={dateStyles.month}>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text><Pressable accessibilityLabel="Next month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={dateStyles.arrow}><ArrowRight size={17} color={formPalette.ink} /></Pressable></View>
-        <View style={dateStyles.weekRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={dateStyles.weekDay}>{day}</Text>)}</View>
-        <View style={dateStyles.calendar}>{cells.map((day, index) => day === null ? <View key={`empty-${index}`} style={dateStyles.day} /> : <Pressable key={day} onPress={() => choose(day)} style={[dateStyles.day, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && dateStyles.selected]}><Text style={[dateStyles.dayText, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && dateStyles.selectedText]}>{day}</Text></Pressable>)}</View>
-        <Pressable onPress={() => { onChange(dateString(new Date())); setOpen(false); }} style={dateStyles.today}><Text style={dateStyles.todayText}>Use today</Text></Pressable>
+      <View style={dateStyles.backdrop}><View style={[dateStyles.modal, { backgroundColor: colors.surface }] }>
+        <View style={dateStyles.modalHeader}><Text style={[dateStyles.modalTitle, { color: colors.textPrimary }]}>{label}</Text><Pressable accessibilityLabel="Close date picker" onPress={() => setOpen(false)}><Text style={[dateStyles.close, { color: colors.textPrimary }]}>×</Text></Pressable></View>
+        <View style={dateStyles.monthHeader}><Pressable accessibilityLabel="Previous month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}><ArrowLeft size={17} color={colors.textPrimary} /></Pressable><Text style={[dateStyles.month, { color: colors.textPrimary }]}>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text><Pressable accessibilityLabel="Next month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}><ArrowRight size={17} color={colors.textPrimary} /></Pressable></View>
+        <View style={dateStyles.weekRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={[dateStyles.weekDay, { color: colors.textSecondary }]}>{day}</Text>)}</View>
+        <View style={dateStyles.calendar}>{cells.map((day, index) => day === null ? <View key={`empty-${index}`} style={dateStyles.day} /> : <Pressable key={day} onPress={() => choose(day)} style={[dateStyles.day, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && { backgroundColor: colors.primary }]}><Text style={[dateStyles.dayText, { color: colors.textPrimary }, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && { color: colors.textOnPrimary, fontWeight: '900' }]}>{day}</Text></Pressable>)}</View>
+        <Pressable onPress={() => { onChange(dateString(new Date())); setOpen(false); }} style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}><Text style={[dateStyles.todayText, { color: colors.primary } ]}>Use today</Text></Pressable>
       </View></View>
     </Modal>
   </>;
@@ -343,7 +358,7 @@ const chipStyles = StyleSheet.create({ section: { marginTop: 15 }, labelRow: { f
 
 const pickerStyles = StyleSheet.create({ backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' }, sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { color: formPalette.ink, fontSize: 20, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28 }, list: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 18, paddingBottom: 20 } });
 
-const dateStyles = StyleSheet.create({ field: { flexDirection: 'row', alignItems: 'center', minHeight: 58, marginTop: 15, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background }, rowField: { flexDirection: 'row', alignItems: 'center', minHeight: 54, marginTop: 15, paddingHorizontal: 2 }, copy: { flex: 1, marginLeft: 11 }, spacer: { flex: 1 }, label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' }, rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.72 }, backdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(17,35,28,0.34)' }, modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 }, monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }, arrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background }, month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' }, weekRow: { flexDirection: 'row', marginTop: 14 }, weekDay: { width: '14.28%', color: formPalette.muted, textAlign: 'center', fontSize: 11, fontWeight: '900' }, calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }, day: { width: '14.28%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' }, selected: { backgroundColor: formPalette.accent }, selectedText: { color: '#FFFFFF', fontWeight: '900' }, today: { alignItems: 'center', marginTop: 12, paddingVertical: 12, borderRadius: 14, backgroundColor: formPalette.accentPale }, todayText: { color: formPalette.accentDark, fontWeight: '900' },
+const dateStyles = StyleSheet.create({ field: { flexDirection: 'row', alignItems: 'center', minHeight: 58, marginTop: 15, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background }, rowField: { flexDirection: 'row', alignItems: 'center', minHeight: 54, marginTop: 15, paddingHorizontal: 14, borderRadius: 14 }, compactSurface: { minHeight: 52 }, copy: { flex: 1, marginLeft: 11 }, spacer: { flex: 1 }, label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' }, rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.72 }, backdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(17,35,28,0.34)' }, modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 }, monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }, arrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background }, month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' }, weekRow: { flexDirection: 'row', marginTop: 14 }, weekDay: { width: '14.28%', color: formPalette.muted, textAlign: 'center', fontSize: 11, fontWeight: '900' }, calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }, day: { width: '14.28%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' }, selected: { backgroundColor: formPalette.accent }, selectedText: { color: '#FFFFFF', fontWeight: '900' }, today: { alignItems: 'center', marginTop: 12, paddingVertical: 12, borderRadius: 14, backgroundColor: formPalette.accentPale }, todayText: { color: formPalette.accentDark, fontWeight: '900' },
 });
 
 const sheetStyles = StyleSheet.create({ overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' }, dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' }, keyboard: { maxHeight: '96%' }, sheet: { maxHeight: '100%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' }, closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: formPalette.background }, closeText: { color: formPalette.ink, fontSize: 28, lineHeight: 29 }, scrollContent: { paddingHorizontal: 20, paddingBottom: 10 }, amountBlock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 76, marginBottom: 5 }, amountPrefix: { marginRight: 5, color: formPalette.accent, fontSize: 28, fontWeight: '900' }, amount: { maxWidth: '90%', color: formPalette.ink, fontSize: 42, fontWeight: '900', letterSpacing: -1.5 }, error: { marginTop: 12, color: formPalette.danger, fontSize: 12, fontWeight: '700' }, save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 56, marginTop: 18, borderRadius: 28, backgroundColor: formPalette.accent }, saveDisabled: { opacity: 0.6 }, saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.72 },
