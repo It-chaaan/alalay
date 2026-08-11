@@ -7,6 +7,9 @@ const savingsGoalShape = z.object({
   target_amount: currencyAmount,
   current_amount: currencyAmount.optional(),
   monthly_target: currencyAmount.optional(),
+  funding_method: z.enum(["manual", "monthly"]).optional(),
+  monthly_contribution: currencyAmount.optional(),
+  preferred_wallet_id: z.string().uuid().nullable().optional(),
   deadline: safeDate,
   completed_at: z.string().datetime().nullable().optional(),
 }).strict();

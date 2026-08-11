@@ -1,13 +1,13 @@
 import { env } from "../config/env.js";
 import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./db.js";
 import { getReports } from "./analytics.service.js";
-import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
-import { addBillingCycle, type SubscriptionBillingCycle } from "./subscription-billing.service.js";
+import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionFundingWarningEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
+import { addBillingCycle, projectWalletFundingWarnings, type SubscriptionBillingCycle, type UpcomingSubscription } from "./subscription-billing.service.js";
 
-type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean };
+type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
 type AuthUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
 
-const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, subscription_reminders: true, summaries: false };
+const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, subscription_reminders: true, summaries: false, overspending_alerts: true };
 
 function dateAfter(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
@@ -60,17 +60,20 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
 
 export async function runNotificationScheduler(now = new Date()) {
   const today = todayIso(now);
-  const [users, preferencesResult, billsResult, subscriptionsResult] = await Promise.all([
+  const [users, preferencesResult, billsResult, subscriptionsResult, walletsResult] = await Promise.all([
     authUsers(),
     client().from("notification_preferences").select("*"),
     client().from("bills").select("*").eq("status", "unpaid").is("deleted_at", null),
     client().from("subscriptions").select("*").eq("auto_renew", true).is("deleted_at", null),
+    client().from("wallets").select("id, user_id, name, balance"),
   ]);
   throwIfError(preferencesResult.error);
   throwIfError(billsResult.error);
   throwIfError(subscriptionsResult.error);
+  throwIfError(walletsResult.error);
   const preferences = new Map((preferencesResult.data ?? []).map((row) => [row.user_id, { ...defaults, ...row }]));
   const userMap = new Map(users.filter((user) => user.email).map((user) => [user.id, user]));
+  const walletMap = new Map((walletsResult.data ?? []).map((wallet) => [wallet.id, wallet]));
 
   for (const bill of billsResult.data ?? []) {
     const user = userMap.get(bill.user_id);
@@ -84,13 +87,45 @@ export async function runNotificationScheduler(now = new Date()) {
   for (const subscription of subscriptionsResult.data ?? []) {
     const user = userMap.get(subscription.user_id);
     const prefs = preferences.get(subscription.user_id) as Preferences | undefined;
-    if (!user?.email || !prefs?.subscription_reminders) continue;
+    if (!user?.email || !prefs) continue;
     let renewalDate = String(subscription.renewal_date);
     const cycle = (String(subscription.billing_cycle).toLowerCase() as SubscriptionBillingCycle);
     while (renewalDate < today) renewalDate = addBillingCycle(renewalDate, cycle);
-    const days = Number(prefs.bill_reminder_days);
-    if (!shouldSendReminder(prefs.subscription_reminders, renewalDate, today, days)) continue;
-    await sendLogged(user, "subscription_renewal", user.email, subscriptionRenewalEmail({ name: subscription.name, amount: asNumber(subscription.amount), renewal_date: renewalDate }, days), { related_subscription_id: subscription.id }, today);
+    const days = 3;
+    if (prefs.subscription_reminders && shouldSendReminder(true, renewalDate, today, days)) {
+      const wallet = subscription.wallet_id ? walletMap.get(subscription.wallet_id) : undefined;
+      await sendLogged(user, "subscription_renewal", user.email, subscriptionRenewalEmail({ name: subscription.name, amount: asNumber(subscription.amount), renewal_date: renewalDate, wallet_name: wallet?.name }, days), { related_subscription_id: subscription.id }, today, renewalDate);
+    }
+  }
+
+  const subscriptionsByUser = new Map<string, UpcomingSubscription[]>();
+  for (const subscription of subscriptionsResult.data ?? []) {
+    const rows = subscriptionsByUser.get(subscription.user_id) ?? [];
+    rows.push({
+      id: subscription.id,
+      name: String(subscription.name),
+      amount: asNumber(subscription.amount),
+      renewal_date: String(subscription.renewal_date),
+      billing_cycle: String(subscription.billing_cycle).toLowerCase() as SubscriptionBillingCycle,
+      wallet_id: subscription.wallet_id,
+      auto_renew: subscription.auto_renew,
+    });
+    subscriptionsByUser.set(subscription.user_id, rows);
+  }
+  for (const [userId, subscriptions] of subscriptionsByUser) {
+    const user = userMap.get(userId);
+    const prefs = preferences.get(userId) as Preferences | undefined;
+    if (!user?.email || !prefs?.overspending_alerts) continue;
+    const balances = new Map<string, number>();
+    for (const wallet of walletsResult.data ?? []) {
+      if (wallet.user_id === userId) balances.set(wallet.id, asNumber(wallet.balance));
+    }
+    const warnings = projectWalletFundingWarnings(subscriptions, balances, today, 3);
+    for (const warning of warnings) {
+      const wallet = walletMap.get(warning.walletId);
+      if (!wallet) continue;
+      await sendLogged(user, "subscription_funding_warning", user.email, subscriptionFundingWarningEmail({ wallet_name: wallet.name, total: warning.total, balance: warning.balance, shortfall: warning.shortfall, subscription_count: warning.subscriptionCount, renewal_date: warning.renewalDate }), { related_wallet_id: warning.walletId }, today, warning.renewalDate);
+    }
   }
 
   if (shouldSendMonthlySummary(true, today)) {

@@ -119,7 +119,7 @@ Mobile does not yet mirror this route list. Its current Expo Router inventory is
 - subscriptions management
 - expenses tracking
 - income tracking
-- savings goals
+- Goals (legacy internal route/table names may still use savings terminology)
 - budget planning
 - reports and analytics
   - Report expense totals reconcile with category breakdowns, and daily trends include zero-spend dates across the selected period.

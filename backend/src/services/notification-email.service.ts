@@ -29,8 +29,16 @@ export function billDueEmail(bill: { title: string; amount: number; due_date: st
   return { subject: `Bill due reminder: ${bill.title}`, html: layout("Bill due reminder", `${bill.title} is due in ${days} day${days === 1 ? "" : "s"}.`, `<div style="background:#f0fdf4;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(bill.title)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(bill.amount)}</strong><br>Due date: <strong>${escapeHtml(bill.due_date)}</strong></p></div>`) };
 }
 
-export function subscriptionRenewalEmail(subscription: { name: string; amount: number; renewal_date: string }, days: number) {
-  return { subject: `Subscription renewal reminder: ${subscription.name}`, html: layout("Subscription renewal reminder", `${subscription.name} is scheduled to renew in ${days} day${days === 1 ? "" : "s"}.`, `<div style="background:#f0fdf4;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(subscription.name)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(subscription.amount)}</strong><br>Renewal date: <strong>${escapeHtml(subscription.renewal_date)}</strong></p></div>`) };
+export function subscriptionRenewalEmail(subscription: { name: string; amount: number; renewal_date: string; wallet_name?: string | null }, days: number) {
+  const walletLine = subscription.wallet_name ? `<br>Paid from: <strong>${escapeHtml(subscription.wallet_name)}</strong>` : "";
+  return { subject: `Subscription renewal reminder: ${subscription.name}`, html: layout("Subscription renewal reminder", `${subscription.name} is scheduled to renew in ${days} day${days === 1 ? "" : "s"}.`, `<div style="background:#f0fdf4;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(subscription.name)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(subscription.amount)}</strong><br>Renewal date: <strong>${escapeHtml(subscription.renewal_date)}</strong>${walletLine}</p></div>`) };
+}
+
+export function subscriptionFundingWarningEmail(input: { wallet_name: string; total: number; balance: number; shortfall: number; subscription_count: number; renewal_date: string }) {
+  return {
+    subject: `${input.wallet_name} may not cover upcoming subscriptions`,
+    html: layout("Upcoming subscription balance warning", `${input.wallet_name} may not cover ${input.subscription_count} upcoming subscription${input.subscription_count === 1 ? "" : "s"}.`, `<div style="background:#fff7ed;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(input.wallet_name)} may need more funds</p><p style="margin:0;color:#475569"><strong>${money(input.total)}</strong> is due by <strong>${escapeHtml(input.renewal_date)}</strong>, but the current balance is <strong>${money(input.balance)}</strong>.<br>Projected shortfall: <strong>${money(input.shortfall)}</strong>.</p></div>`),
+  };
 }
 
 export function monthlySummaryEmail(summary: { month: string; income: number; expenses: number; billsPaid: number; billsOutstanding: number; savingsProgress: number; budgetPerformance: number }) {

@@ -78,7 +78,7 @@ The authenticated Home tab is implemented at `app/(tabs)/index.tsx` with shared 
 Mirror the web app's route list, adapted to mobile screens/tabs rather than URL paths. Suggested mapping (adjust to match whatever navigation library and structure the project actually uses):
 
 - Auth stack: Login, Register, (no working "forgot password" yet, matching web)
-- Main tab/stack: Dashboard (home), Bills, Subscriptions, Expenses, Income, Savings Goals, Budget, Reports, AI Assistant, OCR Scanner, Settings
+- Main tab/stack: Dashboard (home), Bills, Subscriptions, Expenses, Income, Goals, Budget, Reports, AI Assistant, OCR Scanner, Settings
 - Settings sub-screens: Profile, Preferences, Notifications, Security
 
 Confirm the actual current navigation structure in the codebase before assuming this mapping is already implemented — this is a target structure to build toward, not a description of existing code.

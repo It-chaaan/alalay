@@ -528,31 +528,31 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   const range = getBudgetRange(options);
   const plan = await getBudgetPlan(userId, range.start.slice(0, 7));
 
-  if (!plan) {
-    return null;
-  }
-
-  const [incomeSummaryData, expenses, bills, savingsGoals, savingsPreference] = await Promise.all([
+  const [incomeSummaryData, expenses, bills, savingsGoals] = await Promise.all([
     incomeForMonth(userId, range.start.slice(0, 7)),
     rowsFor("expenses", userId, "date", range.start, range.end),
     rowsFor("bills", userId, "due_date", range.start, range.end),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
-    getSavingsPreference(userId),
   ]);
 
   const savingsGoalsData = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
   if ("error" in savingsGoals) throwIfError(savingsGoals.error);
 
-  const categoriesData = normalizeBudgetCategories(plan.categories);
-  const savingsCategory = categoriesData.find(isSavingsCategory);
-  const monthlySavingsBudget = savingsCategory?.budget ?? 0;
-  const savingsAllocation = buildSavingsAllocationSummary(
-    monthlySavingsBudget,
-    Boolean(savingsCategory?.auto_distribute),
-    savingsGoalsData,
-    savingsPreference.remaining_savings_behavior,
-  );
-  const totalBudget = categoriesData.reduce((sum, item) => sum + item.budget, 0);
+  const categoriesData = normalizeBudgetCategories(plan?.categories ?? []).filter((category) => !isSavingsCategory(category));
+  const monthlyGoalAllocations: SavingsGoalAllocation[] = savingsGoalsData
+    .filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount))
+    .map((goal) => ({
+      goal_id: String(goal.id),
+      title: String(goal.title || "Goal"),
+      amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))),
+      progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0,
+    }))
+    .filter((allocation) => allocation.amount > 0);
+  const goalAllocationTotal = Number(monthlyGoalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0).toFixed(2));
+  if (!plan && monthlyGoalAllocations.length === 0) {
+    return null;
+  }
+  const totalBudget = categoriesData.reduce((sum, item) => sum + item.budget, 0) + goalAllocationTotal;
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
   const paidBills = bills.filter((bill) => bill.status === "paid");
@@ -574,21 +574,23 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   const unallocatedIncome = monthlyIncome - totalBudget;
   const categories = categoriesData.map((target, index) => {
     const spent = categoryTotals.get(normalizeCategoryKey(target.name)) ?? 0;
-    const goal = isSavingsCategory(target);
-
     return {
       ...target,
-      spent: goal ? 0 : spent,
-      percent: target.budget ? Math.round(((goal ? 0 : spent) / target.budget) * 100) : 0,
+      spent,
+      percent: target.budget ? Math.round((spent / target.budget) * 100) : 0,
       color: budgetColors[index % budgetColors.length],
-      goal,
+      goal: false,
     };
   });
+
+  for (const allocation of monthlyGoalAllocations) {
+    categories.push({ id: `goal-${allocation.goal_id}`, name: allocation.title, budget: allocation.amount, spent: 0, percent: 0, color: budgetColors[categories.length % budgetColors.length], goal: true });
+  }
 
   const plannedCategoryKeys = new Set(categoriesData.map((category) => normalizeCategoryKey(category.name)).filter(Boolean));
 
   for (const [key, spent] of categoryTotals.entries()) {
-    if (plannedCategoryKeys.has(key) || key === "savings") {
+    if (plannedCategoryKeys.has(key)) {
       continue;
     }
 
@@ -609,80 +611,69 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
     budget_amount: totalBudget,
     spent_amount: totalSpent,
     remaining_budget: remainingBudget,
-    saved_amount: savingsAllocation.monthly_savings_budget,
+    saved_amount: goalAllocationTotal,
     unallocated_income: unallocatedIncome,
     budget_health: {
       income: monthlyIncome,
       budgeted_percent: monthlyIncome ? Math.round((totalBudget / monthlyIncome) * 100) : 0,
       spent_percent: monthlyIncome ? Math.round((totalSpent / monthlyIncome) * 100) : totalBudget ? Math.round((totalSpent / totalBudget) * 100) : 0,
-      saved_percent: monthlyIncome ? Math.round((savingsAllocation.monthly_savings_budget / monthlyIncome) * 100) : 0,
+      saved_percent: monthlyIncome ? Math.round((goalAllocationTotal / monthlyIncome) * 100) : 0,
       remaining_percent: totalBudget ? Math.round((Math.max(0, remainingBudget) / totalBudget) * 100) : 0,
       unallocated_percent: monthlyIncome ? Math.round((unallocatedIncome / monthlyIncome) * 100) : 0,
     },
     savings_allocation_summary: {
-      monthly_savings_budget: savingsAllocation.monthly_savings_budget,
-      goal_allocation_total: savingsAllocation.goal_allocation_total,
-      general_savings: savingsAllocation.general_savings,
-      unallocated_savings: savingsAllocation.unallocated_savings,
-      goal_allocations: savingsAllocation.goal_allocations,
-      remaining_savings_behavior: savingsAllocation.remaining_savings_behavior,
-      remaining_savings_label: savingsAllocation.remaining_savings_label,
+      monthly_savings_budget: goalAllocationTotal,
+      goal_allocation_total: goalAllocationTotal,
+      general_savings: 0,
+      unallocated_savings: 0,
+      goal_allocations: monthlyGoalAllocations,
+      remaining_savings_behavior: "leave_unallocated",
+      remaining_savings_label: "Leave unallocated",
     },
     total_budget: totalBudget,
     total_spent: totalSpent,
     remaining: remainingBudget,
     used_percent: totalBudget ? Math.round((totalSpent / totalBudget) * 100) : 0,
     suggested_savings_move: Math.max(0, Math.round(totalBudget * 0.1)),
-    monthly_savings_budget: savingsAllocation.monthly_savings_budget,
-    goal_allocation_total: savingsAllocation.goal_allocation_total,
-    general_savings: savingsAllocation.general_savings,
-    unallocated_savings: savingsAllocation.unallocated_savings,
-    goal_allocations: savingsAllocation.goal_allocations,
-    remaining_savings_behavior: savingsAllocation.remaining_savings_behavior,
-    remaining_savings_label: savingsAllocation.remaining_savings_label,
-    savings_allocation: savingsAllocation.monthly_savings_budget,
-    savings_auto_distribute: Boolean(savingsCategory?.auto_distribute),
-    savings_last_distributed_month: savingsCategory?.last_distributed_month ?? null,
-    savings_last_distributed_amount: savingsCategory?.last_distributed_amount ?? 0,
-    savings_distributed_this_month: savingsCategory?.last_distributed_month === range.start.slice(0, 7),
+    monthly_savings_budget: goalAllocationTotal,
+    goal_allocation_total: goalAllocationTotal,
+    general_savings: 0,
+    unallocated_savings: 0,
+    goal_allocations: monthlyGoalAllocations,
+    remaining_savings_behavior: "leave_unallocated",
+    remaining_savings_label: "Leave unallocated",
+    savings_allocation: goalAllocationTotal,
+    savings_auto_distribute: false,
+    savings_last_distributed_month: null,
+    savings_last_distributed_amount: 0,
+    savings_distributed_this_month: false,
     categories,
   };
 }
 
 export async function getSavingsDashboard(userId: string) {
   await processSubscriptionBilling(userId);
-  const [savingsGoals, plan, incomeData, savingsPreference] = await Promise.all([
+  const [savingsGoals, incomeData] = await Promise.all([
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
-    getBudgetPlan(userId),
     incomeForMonth(userId),
-    getSavingsPreference(userId),
   ]);
 
   const goals = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
   if ("error" in savingsGoals) throwIfError(savingsGoals.error);
 
-  const budgetCategories = normalizeBudgetCategories(plan?.categories);
-  const savingsCategory = budgetCategories.find(isSavingsCategory);
-  const monthlySavingsBudget = savingsCategory?.budget ?? 0;
-  const savingsAllocation = buildSavingsAllocationSummary(
-    monthlySavingsBudget,
-    Boolean(savingsCategory?.auto_distribute),
-    goals,
-    savingsPreference.remaining_savings_behavior,
-  );
   const goalSavings = goals.reduce((sum, goal) => sum + asNumber(goal.current_amount), 0);
   const activeGoals = goals.filter((goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount));
   const completedGoals = goals.filter((goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount));
-  const monthlyContribution = monthlySavingsBudget || goals.reduce((sum, goal) => sum + asNumber(goal.monthly_target), 0);
-  const generalSavings = savingsAllocation.general_savings;
-  const totalSavings = goalSavings + generalSavings;
+  const monthlyContribution = goals.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount)).reduce((sum, goal) => sum + Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), 0);
+  const generalSavings = 0;
+  const totalSavings = goalSavings;
   const monthlyIncome = incomeData.this_month;
   const savingsRate = monthlyIncome ? Math.round((monthlyContribution / monthlyIncome) * 100) : 0;
-  const topGoalAllocation = savingsAllocation.goal_allocations[0];
+  const topGoalAllocation = goals.find((goal) => goal.funding_method === "monthly" && !goal.completed_at);
   const aiInsight = topGoalAllocation
-    ? `At your current savings plan, ${topGoalAllocation.title} receives ${Number(((topGoalAllocation.amount / Math.max(1, monthlyContribution)) * 100).toFixed(0))}% of this month's contribution.`
+    ? `At your current goal plan, ${topGoalAllocation.title} has ${Number(asNumber(topGoalAllocation.monthly_contribution).toFixed(2))} planned each month.`
     : monthlyContribution > 0
-      ? `You still have ${new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(Math.max(0, monthlyContribution - savingsAllocation.goal_allocation_total))} available for General Savings this month.`
+      ? `You have ${new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(monthlyContribution)} planned across your active monthly goals.`
       : "Create a monthly savings budget to see savings recommendations here.";
 
   return {
@@ -711,8 +702,13 @@ export async function getSavingsDashboard(userId: string) {
     ],
     futureSavingsTypes: ["Emergency Fund", "Cash Reserve", "Investment Pool", "Retirement Savings"],
     allocation: {
-      ...savingsAllocation,
-      monthly_savings_budget: Number(monthlySavingsBudget.toFixed(2)),
+      monthly_savings_budget: Number(monthlyContribution.toFixed(2)),
+      goal_allocation_total: Number(monthlyContribution.toFixed(2)),
+      general_savings: 0,
+      unallocated_savings: 0,
+      goal_allocations: goals.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount)).map((goal) => ({ goal_id: goal.id, title: goal.title, amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0 })),
+      remaining_savings_behavior: "leave_unallocated",
+      remaining_savings_label: "Leave unallocated",
     },
     aiInsight: {
       status: "available",
@@ -734,7 +730,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     return cached.data;
   }
 
-  const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights, savingsPreference] = await Promise.all([
+  const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights] = await Promise.all([
     rowsFor("expenses", userId, "date", range.start, range.end),
     range.period === "this_month" ? incomeForMonth(userId, range.start.slice(0, 7)) : incomeForRange(userId, range.start, range.end),
     rowsFor("bills", userId, "due_date", range.start, range.end),
@@ -748,7 +744,6 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       .eq("user_id", requireUserId(userId))
       .gte("created_at", `${range.start}T00:00:00.000Z`)
       .lte("created_at", `${range.end}T23:59:59.999Z`),
-    getSavingsPreference(userId),
   ]);
 
   const subscriptionsData = "data" in subscriptions ? subscriptions.data ?? [] : [];
@@ -819,23 +814,21 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   const nonZeroCategories = categories.filter((category) => category.amount > 0);
   const highestSpendingCategory = nonZeroCategories[0] ?? null;
   const lowestSpendingCategory = nonZeroCategories.length ? nonZeroCategories[nonZeroCategories.length - 1] : null;
-  const budgetCategories = normalizeBudgetCategories(plan?.categories);
-  const plannedBudget = budgetCategories.reduce((sum, category) => sum + category.budget, 0) * range.budgetMonths;
-  const monthlySavingsBudget = budgetCategories.find(isSavingsCategory)?.budget ?? 0;
-  const savingsAllocation = buildSavingsAllocationSummary(
-    monthlySavingsBudget,
-    Boolean(budgetCategories.find(isSavingsCategory)?.auto_distribute),
-    savingsGoalsData,
-    savingsPreference.remaining_savings_behavior,
-  );
-  const plannedSavingsAllocation = monthlySavingsBudget * range.budgetMonths;
-  const plannedGoalAllocation = savingsAllocation.goal_allocation_total * range.budgetMonths;
-  const plannedGeneralSavings = savingsAllocation.general_savings * range.budgetMonths;
-  const plannedUnallocatedSavings = savingsAllocation.unallocated_savings * range.budgetMonths;
+  const budgetCategories = normalizeBudgetCategories(plan?.categories).filter((category) => !isSavingsCategory(category));
+  const monthlyGoalAllocations: SavingsGoalAllocation[] = savingsGoalsData
+    .filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount))
+    .map((goal) => ({ goal_id: String(goal.id), title: String(goal.title || "Goal"), amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0 }))
+    .filter((allocation) => allocation.amount > 0);
+  const goalAllocationTotal = monthlyGoalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+  const plannedBudget = (budgetCategories.reduce((sum, category) => sum + category.budget, 0) + goalAllocationTotal) * range.budgetMonths;
+  const savingsAllocation = { monthly_savings_budget: goalAllocationTotal, goal_allocation_total: goalAllocationTotal, general_savings: 0, unallocated_savings: 0, goal_allocations: monthlyGoalAllocations, remaining_savings_behavior: "leave_unallocated" as const, remaining_savings_label: "Leave unallocated" };
+  const plannedSavingsAllocation = goalAllocationTotal * range.budgetMonths;
+  const plannedGoalAllocation = goalAllocationTotal * range.budgetMonths;
+  const plannedGeneralSavings = 0;
+  const plannedUnallocatedSavings = 0;
   const budgetRows = budgetCategories.map((category, index) => {
-    const isGoal = isSavingsCategory(category);
     const budget = category.budget * range.budgetMonths;
-    const spent = isGoal ? 0 : categoryTotals.get(normalizeCategoryKey(category.name)) ?? 0;
+    const spent = categoryTotals.get(normalizeCategoryKey(category.name)) ?? 0;
 
     return {
       id: category.id,
@@ -845,9 +838,13 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       remaining: Number((budget - spent).toFixed(2)),
       percent: budget ? Math.round((spent / budget) * 100) : spent > 0 ? 100 : 0,
       color: budgetColors[index % budgetColors.length],
-      goal: isGoal,
+      goal: false,
     };
   });
+  for (const allocation of monthlyGoalAllocations) {
+    const budget = allocation.amount * range.budgetMonths;
+    budgetRows.push({ id: `goal-${allocation.goal_id}`, name: allocation.title, budget, spent: 0, remaining: budget, percent: 0, color: budgetColors[budgetRows.length % budgetColors.length], goal: true });
+  }
   const plannedKeys = new Set(budgetCategories.map((category) => normalizeCategoryKey(category.name)).filter(Boolean));
 
   for (const [key, spent] of categoryTotals.entries()) {
@@ -871,7 +868,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   const savingsTarget = savingsGoalsData.reduce((sum, goal) => sum + asNumber(goal.target_amount), 0);
   const activeGoals = savingsGoalsData.filter((goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount));
   const completedGoals = savingsGoalsData.filter((goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount));
-  const monthlyContributions = savingsGoalsData.reduce((sum, goal) => sum + asNumber(goal.monthly_target), 0);
+  const monthlyContributions = savingsGoalsData.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at).reduce((sum, goal) => sum + asNumber(goal.monthly_contribution), 0);
   const monthKeys = monthKeysBetween(range.start, range.end);
   const result = {
     range,
