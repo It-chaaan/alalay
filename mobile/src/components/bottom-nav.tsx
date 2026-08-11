@@ -22,7 +22,7 @@ export function BottomNav() {
       <BlurView pointerEvents="none" intensity={38} tint={resolvedTheme} style={StyleSheet.absoluteFillObject} />
       <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.surfaceTranslucent, borderRadius: 28 }]} />
     <NavItem icon={Home} label="Home" active={pathname === '/' || pathname === '/(tabs)'} onPress={() => router.replace('/(tabs)')} />
-    <NavItem icon={Wallet} label="Wallet" active={isActive('/wallets')} onPress={() => router.replace('/(tabs)/wallets')} />
+    <NavItem icon={Wallet} label="Wallet" active={isActive('/wallets') || pathname === '/wallet-details'} onPress={() => router.replace('/(tabs)/wallets')} />
       <View style={styles.cameraSpacer} />
       <NavItem icon={WalletCards} label="Budget" active={isActive('/budget')} onPress={() => router.replace('/(tabs)/budget')} />
       <NavItem icon={BarChart3} label="Reports" active={isActive('/reports')} onPress={() => router.replace('/(tabs)/reports')} />

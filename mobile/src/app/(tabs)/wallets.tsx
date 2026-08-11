@@ -51,7 +51,7 @@ export default function WalletsScreen() {
   const loadWalletDetail = useCallback(async (id: string) => { setDetailLoading(true); setDetailError(''); try { setSelected(await authenticatedApiRequest<WalletDetail>(`/api/wallets/${id}`)); } catch (e) { setDetailError(e instanceof Error ? e.message : 'Wallet details could not load.'); } finally { setDetailLoading(false); } }, []);
   useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); if (selected) void loadWalletDetail(selected.wallet.id); }); }, [loadWalletDetail, refresh, selected]);
 
-  const openWallet = async (wallet: Wallet) => { await loadWalletDetail(wallet.id); };
+  const openWallet = (wallet: Wallet) => { router.push({ pathname: '/wallet-details', params: { walletId: wallet.id } }); };
   useEffect(() => {
     if (!walletId || loading) return;
     const wallet = wallets.find((row) => row.id === walletId);
@@ -90,7 +90,7 @@ function WalletDetailSheet({ detail, wallets = [], onClose, onDelete, onEdit, on
   </Modal>;
 }
 
-function EditWalletSheet({ wallet, onClose, onSaved }: { wallet: Wallet; onClose: () => void; onSaved: () => Promise<void> }) {
+export function EditWalletSheet({ wallet, onClose, onSaved }: { wallet: Wallet; onClose: () => void; onSaved: () => Promise<void> }) {
   const { colors } = useAppTheme();
   const [name, setName] = useState(wallet.name);
   const [error, setError] = useState('');
@@ -105,7 +105,7 @@ function EditWalletSheet({ wallet, onClose, onSaved }: { wallet: Wallet; onClose
   return <Modal visible transparent animationType="fade" onRequestClose={onClose}><View style={editStyles.overlay}><Pressable accessibilityLabel="Close edit wallet" onPress={onClose} style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.overlay }]} /><View style={[editStyles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}><View style={editStyles.header}><View><Text style={[editStyles.eyebrow, { color: colors.primary }]}>WALLET</Text><Text style={[editStyles.title, { color: colors.textPrimary }]}>Edit wallet</Text></View><Pressable accessibilityRole="button" onPress={onClose} style={[editStyles.close, { backgroundColor: colors.surfaceSecondary }]}><Text style={[editStyles.closeText, { color: colors.textPrimary }]}>×</Text></Pressable></View><Text style={[editStyles.label, { color: colors.textSecondary }]}>Wallet name</Text><TextInput accessibilityLabel="Wallet name" value={name} onChangeText={setName} placeholder="e.g. Payroll account" placeholderTextColor={colors.textMuted} style={[editStyles.input, { backgroundColor: colors.surfaceInput, borderColor: colors.border, color: colors.textPrimary }]} />{error ? <Text style={[editStyles.error, { color: colors.danger }]}>{error}</Text> : null}<Pressable accessibilityRole="button" disabled={saving} onPress={() => void save()} style={({ pressed }) => [editStyles.save, { backgroundColor: colors.primary }, pressed && editStyles.pressed, saving && editStyles.disabled]}><Text style={[editStyles.saveText, { color: colors.textOnPrimary }]}>{saving ? 'Saving…' : 'Save changes'}</Text></Pressable></View></View></Modal>;
 }
 
-function TransferForm({ wallets, initialFrom, onClose, onSaved }: { wallets: Wallet[]; initialFrom?: string; onClose: () => void; onSaved: () => Promise<void> }) {
+export function TransferForm({ wallets, initialFrom, onClose, onSaved }: { wallets: Wallet[]; initialFrom?: string; onClose: () => void; onSaved: () => Promise<void> }) {
   const [amount, setAmount] = useState('');
   const [fromId, setFromId] = useState<string | null>(initialFrom ?? wallets[0]?.id ?? null);
   const [toId, setToId] = useState<string | null>(wallets.find((wallet) => wallet.id !== (initialFrom ?? wallets[0]?.id))?.id ?? null);
@@ -139,7 +139,7 @@ function TransferForm({ wallets, initialFrom, onClose, onSaved }: { wallets: Wal
   </FinanceFormSheet>;
 }
 
-function DepositForm({ wallet, onClose, onSaved }: { wallet: Wallet; onClose: () => void; onSaved: () => Promise<void> }) {
+export function DepositForm({ wallet, onClose, onSaved }: { wallet: Wallet; onClose: () => void; onSaved: () => Promise<void> }) {
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayIso());
   const [note, setNote] = useState('');

@@ -80,9 +80,10 @@ function SessionGate() {
   useEffect(() => {
     if (checkingSession) return;
     const inTabs = segments[0] === '(tabs)';
+    const standaloneAppRoute = pathname === '/wallet-details';
     if (session && mfaPending && pathname !== '/auth') {
       router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
-    } else if (session && !mfaPending && !inTabs) {
+    } else if (session && !mfaPending && !inTabs && !standaloneAppRoute) {
       router.replace('/(tabs)');
     } else if (!session && inTabs) {
       router.replace({ pathname: '/auth', params: { mode: 'signin' } });
@@ -95,6 +96,7 @@ function SessionGate() {
     <Stack.Screen name="index" />
     <Stack.Screen name="auth" />
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+    <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
     <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
   </Stack>{session && !mfaPending ? <BottomNav /> : null}</View>;
 }

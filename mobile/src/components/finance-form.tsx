@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import {
   ActivityIndicator,
@@ -312,9 +312,11 @@ export function useKeyboardVisible() {
   return visible;
 }
 
+type FinanceFormInteraction = { deactivateAmount: () => void };
+const FinanceFormInteractionContext = createContext<FinanceFormInteraction | null>(null);
 type FinanceFormSheetProps = { title: string; eyebrow: string; amount: string; onAmountChange: (value: string) => void; children: ReactNode; error?: string; saving?: boolean; saveLabel: string; onSave: () => void; onClose: () => void };
 
-export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
+export function FinanceFormSheetLegacy({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
   const { colors } = useAppTheme();
   const keyboardVisible = useKeyboardVisible();
   const { setModalVisible } = useModalVisibility();
@@ -335,11 +337,35 @@ export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, child
   </KeyboardAvoidingView></View>;
 }
 
+export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
+  const { colors } = useAppTheme();
+  const keyboardVisible = useKeyboardVisible();
+  const { setModalVisible } = useModalVisibility();
+  // Keep the form discoverable on small screens. The keypad is opened explicitly
+  // when the user taps the amount instead of consuming the initial form viewport.
+  const [amountActive, setAmountActive] = useState(false);
+  useEffect(() => { setModalVisible(true); return () => setModalVisible(false); }, [setModalVisible]);
+  const deactivateAmount = () => setAmountActive(false);
+  const activateAmount = () => { Keyboard.dismiss(); setAmountActive(true); };
+  return <View style={sheetStyles.overlay}><Pressable accessibilityLabel="Close add form" onPress={onClose} style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={sheetStyles.keyboard}>
+    <View style={[sheetStyles.sheet, financeEntryStyles.sheet, { backgroundColor: colors.surface }]}>
+      <View style={sheetStyles.header}><View><Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text><Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}><Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text></Pressable></View>
+      <Pressable accessibilityRole="button" accessibilityLabel={`${title} amount, ${formatAmountForDisplay(amount)}`} onPress={activateAmount} style={sheetStyles.amountBlock}><Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text><Text style={[sheetStyles.amount, { color: amountActive ? colors.accent : colors.ink }]}>{formatAmountForDisplay(amount)}</Text></Pressable>
+      <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
+        <View style={financeEntryStyles.body} onTouchStart={() => { if (!keyboardVisible) deactivateAmount(); }}><ScrollView style={financeEntryStyles.scroll} contentContainerStyle={sheetStyles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{children}{error ? <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text> : null}</ScrollView></View>
+      </FinanceFormInteractionContext.Provider>
+      <View style={[financeEntryStyles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}><Pressable accessibilityRole="button" accessibilityLabel={saveLabel} disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable></View>
+      {amountActive && !keyboardVisible ? <NumericKeypad value={amount} onChange={onAmountChange} /> : null}
+    </View>
+  </KeyboardAvoidingView></View>;
+}
+
 export const formInputStyle = { minHeight: 54, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background, color: formPalette.ink, fontSize: 15 };
 
 export function FormTextInput({ label, placeholder, value, onChangeText, multiline = false }: { label?: string; placeholder: string; value: string; onChangeText: (value: string) => void; multiline?: boolean }) {
   const { colors } = useAppTheme();
-  return <View style={inputStyles.wrap}>{label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}<TextInput accessibilityLabel={label ?? placeholder} value={value} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.subtle} style={[formInputStyle, { backgroundColor: colors.input, color: colors.ink }, multiline && inputStyles.multiline]} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} /></View>;
+  const interaction = useContext(FinanceFormInteractionContext);
+  return <View style={inputStyles.wrap}>{label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}<TextInput accessibilityLabel={label ?? placeholder} value={value} onFocus={() => interaction?.deactivateAmount()} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.subtle} style={[formInputStyle, { backgroundColor: colors.input, color: colors.ink }, multiline && inputStyles.multiline]} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} /></View>;
 }
 
 const keypadStyles = StyleSheet.create({
@@ -354,7 +380,9 @@ const pickerStyles = StyleSheet.create({ backdrop: { flex: 1, justifyContent: 'f
 const dateStyles = StyleSheet.create({ field: { flexDirection: 'row', alignItems: 'center', minHeight: 58, marginTop: 15, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background }, rowField: { flexDirection: 'row', alignItems: 'center', minHeight: 54, marginTop: 15, paddingHorizontal: 14, borderRadius: 14 }, compactSurface: { minHeight: 52 }, copy: { flex: 1, marginLeft: 11 }, spacer: { flex: 1 }, label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' }, rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.72 }, backdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(17,35,28,0.34)' }, modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 }, monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }, arrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background }, month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' }, weekRow: { flexDirection: 'row', marginTop: 14 }, weekDay: { width: '14.28%', color: formPalette.muted, textAlign: 'center', fontSize: 11, fontWeight: '900' }, calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }, day: { width: '14.28%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' }, selected: { backgroundColor: formPalette.accent }, selectedText: { color: '#FFFFFF', fontWeight: '900' }, today: { alignItems: 'center', marginTop: 12, paddingVertical: 12, borderRadius: 14, backgroundColor: formPalette.accentPale }, todayText: { color: formPalette.accentDark, fontWeight: '900' },
 });
 
-const sheetStyles = StyleSheet.create({ overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' }, dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' }, keyboard: { maxHeight: '96%' }, sheet: { maxHeight: '100%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' }, closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: formPalette.background }, closeText: { color: formPalette.ink, fontSize: 28, lineHeight: 29 }, scrollContent: { paddingHorizontal: 20, paddingBottom: 10 }, amountBlock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 76, marginBottom: 5 }, amountPrefix: { marginRight: 5, color: formPalette.accent, fontSize: 28, fontWeight: '900' }, amount: { maxWidth: '90%', color: formPalette.ink, fontSize: 42, fontWeight: '900', letterSpacing: -1.5 }, error: { marginTop: 12, color: formPalette.danger, fontSize: 12, fontWeight: '700' }, save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 56, marginTop: 18, borderRadius: 28, backgroundColor: formPalette.accent }, saveDisabled: { opacity: 0.6 }, saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.72 },
+const sheetStyles = StyleSheet.create({ overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' }, dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' }, keyboard: { flex: 1, justifyContent: 'flex-end' }, sheet: { height: '96%', maxHeight: '96%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' }, closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: formPalette.background }, closeText: { color: formPalette.ink, fontSize: 28, lineHeight: 29 }, scrollContent: { paddingHorizontal: 20, paddingBottom: 16 }, amountBlock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 68, marginBottom: 2 }, amountPrefix: { marginRight: 5, color: formPalette.accent, fontSize: 28, fontWeight: '900' }, amount: { maxWidth: '90%', color: formPalette.ink, fontSize: 42, fontWeight: '900', letterSpacing: -1.5 }, error: { marginTop: 12, color: formPalette.danger, fontSize: 12, fontWeight: '700' }, save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 56, marginTop: 12, borderRadius: 28, backgroundColor: formPalette.accent }, saveDisabled: { opacity: 0.6 }, saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.72 },
 });
+
+const financeEntryStyles = StyleSheet.create({ sheet: { flex: 1, minHeight: 0 }, body: { flex: 1, minHeight: 0 }, scroll: { flex: 1 }, footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth }, });
 
 const inputStyles = StyleSheet.create({ wrap: { marginTop: 12 }, label: { marginBottom: 7, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 }, multiline: { minHeight: 84, paddingTop: 15 }, });
