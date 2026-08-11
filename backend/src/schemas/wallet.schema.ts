@@ -26,3 +26,12 @@ export const walletDepositSchema = z.object({
   date: safeDate,
   note: z.string().trim().max(500).nullable().optional(),
 }).strict();
+
+export const walletTransferSchema = z.object({
+  from_wallet_id: z.string().uuid(),
+  to_wallet_id: z.string().uuid(),
+  amount: currencyAmount.refine((value) => value > 0, "Transfer amount must be greater than zero."),
+  date: safeDate,
+  note: z.string().trim().max(500).nullable().optional(),
+  idempotency_key: z.string().trim().min(16).max(100),
+}).strict();
