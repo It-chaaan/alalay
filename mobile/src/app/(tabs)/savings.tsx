@@ -10,7 +10,7 @@ import { SectionAddButton } from '@/components/header-add-button';
 import { ItemManagementSheet } from '@/components/item-management-sheet';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
-import { fetchWallets } from '@/services/finance';
+import { fetchWallets, notifyFinancialMutation, subscribeFinancialMutations } from '@/services/finance';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
@@ -46,9 +46,9 @@ export default function Goals() {
   const [deleteError, setDeleteError] = useState('');
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
   const refresh = useCallback(async () => { setLoading(true); setError(''); try { setData(await authenticatedApiRequest<Dashboard>('/api/savings-goals/summary')); } catch (e) { setError(e instanceof Error ? e.message : 'Goals could not load.'); } finally { setLoading(false); } }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
   const goals = data?.goals.filter((goal) => !goal.completed_at) ?? [];
-  const remove = async (goal: Goal) => { setDeleting(true); setDeleteError(''); try { await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, { method: 'DELETE' }); setManaging(null); await refresh(); } catch (e) { setDeleteError(e instanceof Error ? e.message : 'Goal could not be deleted.'); } finally { setDeleting(false); } };
+  const remove = async (goal: Goal) => { setDeleting(true); setDeleteError(''); try { await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, { method: 'DELETE' }); notifyFinancialMutation(); setManaging(null); await refresh(); } catch (e) { setDeleteError(e instanceof Error ? e.message : 'Goal could not be deleted.'); throw e; } finally { setDeleting(false); } };
   return <SafeAreaView style={styles.safe}><FinancialScreenHeader title="Goals" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />{loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading goals…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Goals unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}><View style={styles.sectionHeader}><View style={styles.sectionHeaderCopy}><Text style={styles.sectionTitle}>Your goals</Text><Text style={styles.sectionHint}>{goals.length} active goal{goals.length === 1 ? '' : 's'}</Text></View><SectionAddButton label="Create goal" onPress={() => setOpen(true)} /></View>{goals.length ? <View style={styles.goalsGrid}>{goals.map((goal) => <GoalCard key={goal.id} goal={goal} onAdd={() => setContributionGoal(goal)} onManage={() => { setDeleteError(''); setManaging(goal); }} />)}</View> : <View style={styles.emptyCard}><Text style={styles.cardTitle}>{data?.goals.length ? 'No active goals' : 'No goals yet'}</Text><Text style={styles.muted}>Create a goal for something you want to save for.</Text><SectionAddButton label="Create goal" onPress={() => setOpen(true)} /></View>}</ScrollView>}{open && <GoalForm onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}{editing && <GoalForm initial={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}{contributionGoal && <WalletContributionForm goal={contributionGoal} onClose={() => setContributionGoal(null)} onSaved={async () => { setContributionGoal(null); await refresh(); }} />}{managing && <ItemManagementSheet visible title="Goal" itemName={managing.title} deleteDescription="This goal will be removed. Its progress will be released without changing wallet balances." onClose={() => setManaging(null)} onEdit={() => setEditing(managing)} onDelete={() => remove(managing)} deleting={deleting} error={deleteError} />}</SafeAreaView>;
 }
 
@@ -104,6 +104,7 @@ function GoalForm({ onClose, onSaved, initial }: { onClose: () => void; onSaved:
     try {
       const path = initial ? `/api/savings-goals/${initial.id}` : '/api/savings-goals';
       await authenticatedApiRequest(path, { method: initial ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), emoji, target_amount: value, ...(initial ? {} : { current_amount: 0 }), deadline: date, funding_method: fundingMethod, monthly_contribution: fundingMethod === 'monthly' ? monthly : 0, monthly_target: fundingMethod === 'monthly' ? monthly : 0 }) });
+      notifyFinancialMutation();
       await onSaved();
     } catch (e) { setError(e instanceof Error ? e.message : 'Could not save this goal.'); } finally { setSaving(false); }
   };
@@ -127,7 +128,7 @@ function GoalForm({ onClose, onSaved, initial }: { onClose: () => void; onSaved:
   </FinanceFormSheet>;
 }
 
-function ContributionForm({ goal, onClose, onSaved }: { goal: Goal; onClose: () => void; onSaved: () => Promise<void> }) { const [amount, setAmount] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const save = async () => { const value = parseAmount(amount); if (value === null || value <= 0) { setError('Enter a valid amount to add.'); return; } setSaving(true); setError(''); try { const nextAmount = Number(goal.current_amount) + value; await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_amount: nextAmount }) }); await onSaved(); } catch (e) { setError(e instanceof Error ? e.message : 'Could not update this goal.'); } finally { setSaving(false); } }; return <FinanceFormSheet title={`Add to ${goal.title}`} eyebrow="SAVINGS GOAL" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Add money" onSave={() => void save()} onClose={onClose}><Text style={styles.contributionHint}>{peso(Number(goal.current_amount))} saved of {peso(Number(goal.target_amount))}</Text></FinanceFormSheet>; }
+function ContributionForm({ goal, onClose, onSaved }: { goal: Goal; onClose: () => void; onSaved: () => Promise<void> }) { const [amount, setAmount] = useState(''); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const save = async () => { const value = parseAmount(amount); if (value === null || value <= 0) { setError('Enter a valid amount to add.'); return; } setSaving(true); setError(''); try { const nextAmount = Number(goal.current_amount) + value; await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current_amount: nextAmount }) }); notifyFinancialMutation(); await onSaved(); } catch (e) { setError(e instanceof Error ? e.message : 'Could not update this goal.'); } finally { setSaving(false); } }; return <FinanceFormSheet title={`Add to ${goal.title}`} eyebrow="SAVINGS GOAL" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Add money" onSave={() => void save()} onClose={onClose}><Text style={styles.contributionHint}>{peso(Number(goal.current_amount))} saved of {peso(Number(goal.target_amount))}</Text></FinanceFormSheet>; }
 
 function WalletContributionForm({ goal, onClose, onSaved }: { goal: Goal; onClose: () => void; onSaved: () => Promise<void> }) {
   const [amount, setAmount] = useState('');
@@ -141,7 +142,7 @@ function WalletContributionForm({ goal, onClose, onSaved }: { goal: Goal; onClos
     if (value === null || value <= 0) { setError('Enter a valid amount to add.'); return; }
     if (!walletId) { setError('Choose the wallet where this money is held.'); return; }
     setSaving(true); setError('');
-    try { await authenticatedApiRequest(`/api/savings-goals/${goal.id}/contributions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallet_id: walletId, amount: value }) }); await onSaved(); }
+    try { await authenticatedApiRequest(`/api/savings-goals/${goal.id}/contributions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ wallet_id: walletId, amount: value }) }); notifyFinancialMutation(); await onSaved(); }
     catch (e) { setError(e instanceof Error ? e.message : 'Could not add money to this goal.'); }
     finally { setSaving(false); }
   };

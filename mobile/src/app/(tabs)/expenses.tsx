@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { MoreHorizontal, Plus, Repeat, ScanLine, Search, ShoppingCart } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { billCategories, DatePickerField, parseAmount, expenseCategories, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
+import { RecordActionSheet } from '@/components/record-action-sheet';
 import { authenticatedApiRequest } from '@/services/api';
 import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type BillRecord, type ExpenseRecord } from '@/services/finance';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
@@ -86,6 +87,7 @@ export default function ExpensesScreen() {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<ExpenseRecord | null>(null);
+  const [managing, setManaging] = useState<ExpenseItem | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
@@ -127,18 +129,22 @@ export default function ExpensesScreen() {
       <FinancialOverviewCard title="EXPENSES OVERVIEW" context={monthLabel(month).split(' ')[0].toUpperCase()} value={peso(total)} supportingInfo={`${monthItems.length} transaction${monthItems.length === 1 ? '' : 's'} this month${summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? ` · ${summary.monthly_expenses_delta_percent > 0 ? '↑' : summary.monthly_expenses_delta_percent < 0 ? '↓' : '→'} ${Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month` : ''}`} accessibilityLabel={`Expenses overview. Total spent: ${peso(total)}.`} />
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
       <View style={styles.search}><Search size={17} color={formPalette.muted} /><TextInput accessibilityLabel="Search expenses" value={query} onChangeText={setQuery} placeholder="Search expenses" placeholderTextColor={formPalette.muted} style={styles.searchInput} /></View>
-      {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} onEdit={() => item.source === 'expense' ? setEditing(item) : router.push('/(tabs)/bills')} onDeleted={refresh} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
+      {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} onManage={() => setManaging(item)} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
     </ScrollView>}
     {creating && <ExpenseForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
     {editing && <ExpenseForm wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
+    {managing && <RecordActionSheet visible title="Expense options" recordName={managing.merchant} onClose={() => setManaging(null)} actions={[
+      { label: 'Edit', onPress: () => { setManaging(null); if (managing.source === 'expense') setEditing(managing); else router.push('/(tabs)/bills'); } },
+      ...(managing.source === 'expense' ? [{ label: 'Delete', tone: 'destructive' as const, confirm: { title: `Delete ${managing.merchant}?`, message: 'This expense will be removed from your financial history.' }, onPress: async () => { await authenticatedApiRequest(`/api/expenses/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); } }] : []),
+    ]} />}
   </SafeAreaView>;
 }
 
-function ExpenseRow({ item, onEdit, onDeleted }: { item: ExpenseItem; onEdit: () => void; onDeleted: () => Promise<void> }) {
+function ExpenseRow({ item, onManage }: { item: ExpenseItem; onManage: () => void }) {
+  const { colors } = useAppTheme();
   const Icon = categoryIcon(item.category);
   const typeLabel = item.source === 'bill' ? 'Bill' : item.payment_method === 'other' ? 'Other' : item.payment_method;
-  const remove = () => Alert.alert('Delete expense?', `${item.merchant} will be removed.`, [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: async () => { try { await authenticatedApiRequest(`/api/${item.source === 'bill' ? 'bills' : 'expenses'}/${item.id}`, { method: 'DELETE' }); await onDeleted(); } catch (error) { Alert.alert('Could not delete', error instanceof Error ? error.message : 'Try again.'); } } }]);
-  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: categoryColor(item.category) + '22' }]}><Icon size={19} color={categoryColor(item.category)} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || item.category}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={() => Alert.alert('Expense options', item.merchant, [{ text: 'Edit', onPress: onEdit }, { text: 'Delete', style: 'destructive', onPress: remove }, { text: 'Cancel', style: 'cancel' }])} style={styles.moreButton}><MoreHorizontal size={20} color={formPalette.muted} /></Pressable></View>;
+  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: categoryColor(item.category) + '22' }]}><Icon size={19} color={categoryColor(item.category)} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || item.category}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={onManage} style={styles.moreButton}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>;
 }
 
 function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; item?: ExpenseRecord; onClose: () => void; onSaved: () => Promise<void> }) {

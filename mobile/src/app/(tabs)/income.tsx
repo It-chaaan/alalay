@@ -9,13 +9,14 @@ import { SectionAddButton } from '@/components/header-add-button';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
-import { fetchWallets } from '@/services/finance';
+import { dateKeyInManila, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations } from '@/services/finance';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { RecordActionSheet } from '@/components/record-action-sheet';
 
-type Income = { id: string; source: string; type: string; amount: number | string; date: string; is_recurring: boolean; frequency?: string; wallet_id: string };
+type Income = { id: string; source: string; type: string; custom_type?: string | null; amount: number | string; date: string; is_recurring: boolean; frequency?: string | null; wallet_id: string };
 type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
 
 const incomeTypes = [
@@ -50,6 +51,8 @@ export default function IncomeScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Income | null>(null);
+  const [managing, setManaging] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
 
   const refresh = useCallback(async () => {
@@ -71,7 +74,7 @@ export default function IncomeScreen() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
 
   const currentMonth = currentMonthKey();
   const supportingText = summary.monthly_sources > 0
@@ -82,20 +85,23 @@ export default function IncomeScreen() {
 
   return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
-    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={formPalette.accent} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
+    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={colors.primary} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${row.source}`} onPress={() => setManaging(row)} style={styles.more}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
     {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
+    {editing && <IncomeForm initial={editing} wallets={wallets} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
+    {managing && <RecordActionSheet visible title="Income options" recordName={managing.source} onClose={() => setManaging(null)} actions={[{ label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } }, { label: 'Delete', tone: 'destructive', confirm: { title: `Delete ${managing.source}?`, message: 'This income will be removed and its wallet balance will be recomputed.' }, onPress: async () => { await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); } }]} />}
   </SafeAreaView>;
 }
 
-function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {
-  const [source, setSource] = useState('');
-  const [amount, setAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [typeLabel, setTypeLabel] = useState('Salary');
-  const [customType, setCustomType] = useState('');
+function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void>; initial?: Income }) {
+  const [source, setSource] = useState(initial?.source ?? '');
+  const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
+  const initialType = incomeTypes.find((option) => incomeTypeValues[option.label] === initial?.type)?.label ?? (initial?.custom_type ? 'Other' : 'Salary');
+  const [date, setDate] = useState(initial?.date ?? dateKeyInManila());
+  const [typeLabel, setTypeLabel] = useState(initialType);
+  const [customType, setCustomType] = useState(initial?.custom_type ?? '');
   const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
-  const [recurring, setRecurring] = useState(true);
-  const [walletId, setWalletId] = useState<string | null>(null);
+  const [recurring, setRecurring] = useState(initial?.is_recurring ?? true);
+  const [walletId, setWalletId] = useState<string | null>(initial?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -109,7 +115,9 @@ function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose:
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest('/api/income', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel], custom_type: typeLabel === 'Other' ? customType.trim() : null, amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
+      const path = initial ? `/api/income/${initial.id}` : '/api/income';
+      await authenticatedApiRequest(path, { method: initial ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel], custom_type: typeLabel === 'Other' ? customType.trim() : null, amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
+      notifyFinancialMutation();
       await onSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this income.');
@@ -118,7 +126,7 @@ function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose:
     }
   };
 
-  return <FinanceFormSheet title="Add income" eyebrow="MONEY IN" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save income" onSave={() => void save()} onClose={onClose}>
+  return <FinanceFormSheet title={initial ? 'Edit income' : 'Add income'} eyebrow="MONEY IN" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel={initial ? 'Save changes' : 'Save income'} onSave={() => void save()} onClose={onClose}>
     <FormTextInput label="Source" value={source} onChangeText={setSource} placeholder="e.g. Freelance client" />
     <CategoryChipRow label="Income type" value={typeLabel} onChange={setTypeLabel} options={incomeTypes} />
     {typeLabel === 'Other' && <FormTextInput label="Specify income type *" value={customType} onChangeText={setCustomType} placeholder="e.g. Scholarship" />}
@@ -130,6 +138,6 @@ function IncomeForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose:
 }
 
 function makeStyles(themePalette: typeof formPalette) { const formPalette = themePalette; return StyleSheet.create({ sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 11 },
-  safeArea: { flex: 1, backgroundColor: formPalette.background }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line }, back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, titleWrap: { flex: 1, marginLeft: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' }, content: { padding: 20, paddingTop: 20, paddingBottom: 40 }, listSection: { marginTop: 24 }, sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' }, row: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderRadius: 17, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: formPalette.accentPale }, main: { flex: 1, marginLeft: 11 }, rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 }, amount: { color: formPalette.accent, fontWeight: '900' }, muted: { marginTop: 5, color: formPalette.muted, fontSize: 12, lineHeight: 18 }, card: { marginTop: 0, padding: 18, borderRadius: 18, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, cardTitle: { color: formPalette.ink, fontSize: 16, fontWeight: '900' }, retry: { alignSelf: 'flex-start', marginTop: 14, padding: 10, borderRadius: 15, backgroundColor: formPalette.accentPale }, retryText: { color: formPalette.accent, fontWeight: '900' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, recurring: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: 15, borderRadius: 17, backgroundColor: formPalette.background }, recurringCopy: { flex: 1, paddingRight: 10 }, recurringTitle: { color: formPalette.ink, fontSize: 14, fontWeight: '900' }, pressed: { opacity: 0.72 },
+  safeArea: { flex: 1, backgroundColor: formPalette.background }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line }, back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, titleWrap: { flex: 1, marginLeft: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' }, content: { padding: 20, paddingTop: 20, paddingBottom: 40 }, listSection: { marginTop: 24 }, sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' }, row: { flexDirection: 'row', alignItems: 'center', padding: 14, marginBottom: 10, borderRadius: 17, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, icon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: formPalette.accentPale }, main: { flex: 1, marginLeft: 11 }, rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 }, amount: { color: formPalette.accent, fontWeight: '900' }, more: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 8, borderRadius: 21, backgroundColor: formPalette.background }, muted: { marginTop: 5, color: formPalette.muted, fontSize: 12, lineHeight: 18 }, card: { marginTop: 0, padding: 18, borderRadius: 18, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line }, cardTitle: { color: formPalette.ink, fontSize: 16, fontWeight: '900' }, retry: { alignSelf: 'flex-start', marginTop: 14, padding: 10, borderRadius: 15, backgroundColor: formPalette.accentPale }, retryText: { color: formPalette.accent, fontWeight: '900' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, recurring: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 16, padding: 15, borderRadius: 17, backgroundColor: formPalette.background }, recurringCopy: { flex: 1, paddingRight: 10 }, recurringTitle: { color: formPalette.ink, fontSize: 14, fontWeight: '900' }, pressed: { opacity: 0.72 },
 }); }
 let styles = makeStyles(formPalette);
