@@ -12,6 +12,7 @@ import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { getCategoryMeta } from '@/constants/categories';
 
 type Category = { id: string; name: string; budget: number; spent: number; percent: number; color?: string; icon?: string; goal?: boolean };
 type GoalAlloc = { goal_id: string; title: string; amount: number; progress_percent: number };
@@ -26,7 +27,6 @@ const customCategoryIcons: { key: string; label: string; icon: LucideIcon }[] = 
   { key: 'home', label: 'Home', icon: Home }, { key: 'car', label: 'Car', icon: Car },
 ];
 
-const categoryColors: Record<string, string> = { Food: '#E8775D', Transport: '#5D8FC4', Rent: '#4D9A73', Electricity: '#D89B1D', Internet: '#4778C7', Water: '#5DA9D6', Subscriptions: '#8D70AD' };
 const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
 
 function currentManilaMonth() {
@@ -41,7 +41,7 @@ function categoryIcon(name: string, iconKey?: string) {
     const custom = customCategoryIcons.find((option) => option.key === iconKey);
     if (custom) return custom.icon;
   }
-  return budgetCategories.find((option) => option.label.toLowerCase() === name.toLowerCase())?.icon ?? budgetCategories[budgetCategories.length - 1].icon;
+  return getCategoryMeta(name).icon;
 }
 
 function monthLabel(month: string) {
@@ -89,7 +89,7 @@ export default function Budget() {
 }
 
 function BudgetRingSummary({ categories, remaining, spent, budgeted }: { categories: Category[]; remaining: number; spent: number; budgeted: number }) {
-  const colorFor = (category: Category) => category.color ?? categoryColors[category.name] ?? formPalette.accent;
+  const colorFor = (category: Category) => getCategoryMeta(category.name).color;
   const segments = categories.filter((category) => category.spent > 0).map((category) => ({ key: category.id, value: category.spent, color: colorFor(category) }));
   return <View style={styles.ringSummary} accessibilityLabel={budgeted > 0 ? `${peso(remaining)} remaining. ${peso(spent)} spent of ${peso(budgeted)} budgeted.` : 'No category budgeted yet.'}>
     <Text style={styles.ringEyebrow}>BUDGET OVERVIEW</Text>
@@ -103,7 +103,7 @@ function BudgetRingSummary({ categories, remaining, spent, budgeted }: { categor
 
 function BudgetCategoryRow({ category }: { category: Category }) {
   const over = category.spent > category.budget;
-  const color = category.color ?? categoryColors[category.name] ?? formPalette.accent;
+  const color = getCategoryMeta(category.name).color;
   const CategoryIcon = categoryIcon(category.name, category.icon);
   const tone = over ? formPalette.danger : color;
   return <BudgetProgressRow icon={<CategoryIcon size={19} color={tone} />} title={category.name} detail={`${peso(category.spent)} / ${peso(category.budget)} · ${category.percent}%`} percent={category.percent} color={tone} warning={over ? `This category is short by ${peso(category.spent - category.budget)} this month.` : undefined} />;
@@ -202,7 +202,7 @@ function BudgetCategoryPicker({ visible, options, onClose, onSelect, onCustom }:
         <View style={styles.addCategoryHeader}><View><Text style={[styles.addCategoryTitle, { color: colors.textPrimary }]}>Add budget category</Text><Text style={[styles.muted, { color: colors.textSecondary }]}>Choose a category to add to this budget.</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close add category" onPress={onClose} style={styles.iconClose}><X size={20} color={colors.textPrimary} /></Pressable></View>
         <View style={[styles.categorySearch, { backgroundColor: colors.surfaceInput, borderColor: colors.border }]}><Search size={18} color={colors.textSecondary} /><TextInput value={query} onChangeText={setQuery} placeholder="Search categories" placeholderTextColor={colors.textSecondary} style={[styles.categorySearchInput, { color: colors.textPrimary }]} autoCapitalize="words" /></View>
         <ScrollView contentContainerStyle={styles.addCategoryList} keyboardShouldPersistTaps="handled">
-          {filtered.map(({ label, icon: Icon }) => <Pressable key={label} accessibilityRole="button" onPress={() => onSelect(label)} style={({ pressed }) => [styles.addCategoryOption, { backgroundColor: colors.surfaceInput, borderColor: colors.border }, pressed && styles.pressed]}><Icon size={18} color={colors.primary} /><Text style={[styles.addCategoryText, { color: colors.textPrimary }]}>{label}</Text><Plus size={16} color={colors.primary} /></Pressable>)}
+          {filtered.map(({ label, icon: Icon }) => <Pressable key={label} accessibilityRole="button" onPress={() => onSelect(label)} style={({ pressed }) => [styles.addCategoryOption, { backgroundColor: colors.surfaceInput, borderColor: colors.border }, pressed && styles.pressed]}><Icon size={18} color={getCategoryMeta(label).color} /><Text style={[styles.addCategoryText, { color: colors.textPrimary }]}>{label}</Text><Plus size={16} color={colors.primary} /></Pressable>)}
           {!filtered.length ? <Text style={[styles.muted, { color: colors.textSecondary }]}>No categories match your search.</Text> : null}
           <Pressable accessibilityRole="button" onPress={onCustom} style={({ pressed }) => [styles.addCategoryOption, styles.customCategoryOption, { backgroundColor: colors.primarySoft, borderColor: colors.primary }, pressed && styles.pressed]}><Plus size={18} color={colors.primary} /><Text style={[styles.addCategoryText, { color: colors.primary }]}>Other / Custom</Text></Pressable>
         </ScrollView>

@@ -16,7 +16,6 @@ import {
 import {
   ArrowLeft,
   ArrowRight,
-  Banknote,
   Bolt,
   CarFront,
   CalendarDays,
@@ -55,6 +54,7 @@ import {
 
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
+import { getCategoryMeta } from '@/constants/categories';
 
 export const formPalette = {
   background: '#F4F7F1',
@@ -130,12 +130,6 @@ export const budgetCategories: CategoryOption[] = [
 
 export const savingsBudgetOption: CategoryOption = { label: 'Savings budget', icon: PiggyBank };
 
-export const paymentMethods = [
-  { label: 'Cash', value: 'cash', icon: Banknote },
-  { label: 'Card', value: 'card', icon: CreditCard },
-  { label: 'GCash', value: 'gcash', icon: Smartphone },
-] as const;
-
 export function parseAmount(value: string): number | null {
   const cleaned = value.replace(/,/g, '').trim();
   if (!cleaned || !/^\d+(?:\.\d{0,2})?$/.test(cleaned)) return null;
@@ -204,16 +198,16 @@ export function CategoryChipRow({ value, onChange, options, label = 'Category (o
   return <View style={chipStyles.section}>
     <Text style={chipStyles.label}>{label}</Text>
     <View style={chipStyles.wrap}>
-      {visibleOptions.map(({ label: optionLabel, icon: Icon }) => <Pressable
+      {visibleOptions.map(({ label: optionLabel }) => { const meta = getCategoryMeta(optionLabel); const Icon = meta.icon; return <Pressable
         key={optionLabel}
         accessibilityRole="button"
         accessibilityState={{ selected: value === optionLabel }}
         onPress={() => onChange(optionLabel)}
         style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, value === optionLabel && { backgroundColor: colors.primarySoft, borderColor: colors.primary }, pressed && chipStyles.pressed]}
       >
-        <Icon size={17} color={value === optionLabel ? colors.primary : colors.textSecondary} strokeWidth={1.9} />
-        <Text style={[chipStyles.text, { color: value === optionLabel ? colors.textPrimary : colors.textSecondary }, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
-      </Pressable>)}
+        <Icon size={17} color={value === optionLabel ? meta.color : colors.textSecondary} strokeWidth={1.9} />
+        <Text style={[chipStyles.text, { color: value === optionLabel ? meta.color : colors.textSecondary }, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
+      </Pressable>; })}
       {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel="Add budget category" onPress={onAdd} style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, pressed && chipStyles.pressed]}><Plus size={17} color={colors.primary} /><Text style={[chipStyles.text, { color: colors.primary }]}>+ Add</Text></Pressable> : options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
     </View>
     {value === 'Other' && onCustomValueChange ? <FormTextInput label={customLabel} placeholder="Specify what this means" value={customValue ?? ''} onChangeText={onCustomValueChange} /> : null}
@@ -228,7 +222,9 @@ export function ExpenseCategoryPicker({ value, onChange, customCategory, onCusto
 }
 
 function CategoryButton({ label, Icon, selected, onPress }: { label: string; Icon: LucideIcon; selected: boolean; onPress: () => void }) {
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [chipStyles.chip, selected && chipStyles.active, pressed && chipStyles.pressed]}><Icon size={17} color={selected ? formPalette.accent : formPalette.muted} strokeWidth={1.9} /><Text style={[chipStyles.text, selected && chipStyles.activeText]}>{label}</Text></Pressable>;
+  const meta = getCategoryMeta(label);
+  const CategoryIcon = meta.icon;
+  return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [chipStyles.chip, selected && chipStyles.active, pressed && chipStyles.pressed]}><CategoryIcon size={17} color={selected ? meta.color : formPalette.muted} strokeWidth={1.9} /><Text style={[chipStyles.text, selected && { color: meta.color, fontWeight: '900' }]}>{label}</Text></Pressable>;
 }
 
 export function MultiCategoryChipRow({ value, onChange, options, label = 'Category' }: { value: string[]; onChange: (value: string[]) => void; options: CategoryOption[]; label?: string }) {
@@ -305,9 +301,6 @@ export function IncomeFrequencyChips({ value, onChange }: { value: IncomeFrequen
   return <View style={chipStyles.section}><Text style={chipStyles.label}>Frequency</Text><View style={chipStyles.wrap}>{(['weekly', 'monthly', 'biweekly', 'yearly'] as const).map((item) => <Pressable key={item} onPress={() => onChange(item)} style={({ pressed }) => [chipStyles.frequency, value === item && chipStyles.active, pressed && chipStyles.pressed]}><Text style={[chipStyles.text, value === item && chipStyles.activeText]}>{item[0].toUpperCase() + item.slice(1)}</Text></Pressable>)}</View></View>;
 }
 
-export function PaymentMethodChips({ value, onChange }: { value: string; onChange: (value: string) => void }) {
-  return <View style={chipStyles.section}><Text style={chipStyles.label}>Payment method</Text><View style={chipStyles.wrap}>{paymentMethods.map(({ label, value: method, icon: Icon }) => <Pressable key={method} onPress={() => onChange(method)} style={({ pressed }) => [chipStyles.frequency, value === method && chipStyles.active, pressed && chipStyles.pressed]}><Icon size={16} color={value === method ? formPalette.accent : formPalette.muted} /><Text style={[chipStyles.text, value === method && chipStyles.activeText]}>{label}</Text></Pressable>)}</View></View>;
-}
 
 export function useKeyboardVisible() {
   const [visible, setVisible] = useState(false);

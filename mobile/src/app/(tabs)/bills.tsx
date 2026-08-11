@@ -116,7 +116,7 @@ function BillPaymentSheet({ item, wallets, onClose, onSaved }: { item: FinanceIt
         <ScrollView contentContainerStyle={styles.paymentSheet} keyboardShouldPersistTaps="handled">
           <View style={styles.editorHeader}><View><Text style={styles.eyebrow}>BILL PAYMENT</Text><Text style={styles.editorTitle}>Mark as paid</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.paymentClose}><X size={20} color={palette.ink} /></Pressable></View>
           <View style={styles.paymentSummary}><Text style={styles.paymentName}>{item.name}</Text><Text style={styles.paymentAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text><Text style={styles.paymentMeta}>{item.custom_category || item.category} · Due {item.dueDate}</Text></View>
-          <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Paid from" />
+          <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Payment method" />
           <DatePickerField label="Payment date" value={paymentDate} onChange={setPaymentDate} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           <Pressable accessibilityRole="button" accessibilityLabel={`Confirm payment for ${item.name}`} disabled={saving || !walletId} onPress={() => void confirm()} style={({ pressed }) => [styles.saveButton, (!walletId || saving) && styles.disabledButton, pressed && styles.pressed]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Confirm payment</Text>}</Pressable>
@@ -187,7 +187,7 @@ function NewBillForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose
   return <FinanceFormSheet title="Add bill" eyebrow="BILLS" amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Save bill" onSave={() => void save()} onClose={onClose}>
     <FormTextInput label="Biller name" value={name} onChangeText={setName} placeholder="e.g. Meralco" />
     <CategoryChipRow value={category} onChange={setCategory} options={billCategories} label="Category *" customValue={customCategory} onCustomValueChange={setCustomCategory} customLabel="Specify category *" />
-    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Paid from" />
+    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Payment method" />
     <DatePickerField label="Due date" value={date} onChange={setDate} />
     <FrequencyChips value={frequency} onChange={setFrequency} includeOneTime />
   </FinanceFormSheet>;
@@ -202,3 +202,4 @@ function makeStyles(themePalette: typeof palette) { const palette = themePalette
   more: { width: 42, height: 42, marginLeft: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.background },
 }); }
 let styles = makeStyles(palette);
+styles = { ...styles, more: { ...styles.more, backgroundColor: 'transparent' } };

@@ -1,7 +1,7 @@
-import { Car, Droplet, House, Repeat, Tag, Utensils, Wifi, Zap } from "lucide-react";
+import { Car, Droplet, Gamepad2, Gift, GraduationCap, HeartPulse, House, PawPrint, Plane, Repeat, Shield, ShoppingBag, ShoppingBasket, Sparkles, Tag, Utensils, Wifi, Zap } from "lucide-react";
 import { getCategoryDefinition } from "../../utils/categoryDefinitions";
 
-const icons = { utensils: Utensils, car: Car, house: House, zap: Zap, wifi: Wifi, droplet: Droplet, repeat: Repeat, tag: Tag };
+const icons = { utensils: Utensils, "shopping-basket": ShoppingBasket, car: Car, repeat: Repeat, house: House, droplet: Droplet, zap: Zap, wifi: Wifi, "heart-pulse": HeartPulse, "graduation-cap": GraduationCap, "gamepad-2": Gamepad2, "shopping-bag": ShoppingBag, plane: Plane, shield: Shield, sparkles: Sparkles, gift: Gift, "paw-print": PawPrint, tag: Tag };
 
 export function CategoryIcon({ category, size = "sm" }: { category: string; size?: "sm" | "md" }) {
   const definition = getCategoryDefinition(category);

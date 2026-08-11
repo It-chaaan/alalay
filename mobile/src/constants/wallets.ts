@@ -1,5 +1,36 @@
 export type WalletPreset = { key: string; name: string; type: 'e_wallet' | 'digital_bank' | 'bank' | 'cash' | 'other'; color: string; group: string };
 
+export type WalletVisual = { mark: string; watermark: string };
+
+export const walletVisuals: Record<string, WalletVisual> = {
+  cash: { mark: 'C', watermark: '◈' },
+  gcash: { mark: 'G', watermark: '◌' },
+  maya: { mark: 'M', watermark: 'M' },
+  gotyme: { mark: 'GT', watermark: '◫' },
+  shopeepay: { mark: 'S', watermark: '◇' },
+  coins_ph: { mark: '₿', watermark: '◉' },
+  maribank: { mark: 'M', watermark: '◈' },
+  cimb_ph: { mark: 'C', watermark: '◌' },
+  tonik: { mark: 'T', watermark: '◫' },
+  ing_ph: { mark: 'I', watermark: '◈' },
+  uno_digital: { mark: 'U', watermark: '◉' },
+  bpi: { mark: 'BPI', watermark: '◫' },
+  bdo: { mark: 'BDO', watermark: '◫' },
+  metrobank: { mark: 'M', watermark: '◈' },
+  unionbank: { mark: 'U', watermark: '◌' },
+  rcbc: { mark: 'RC', watermark: '◫' },
+  landbank: { mark: 'L', watermark: '◈' },
+  pnb: { mark: 'P', watermark: '◉' },
+  security_bank: { mark: 'SB', watermark: '◫' },
+  eastwest: { mark: 'EW', watermark: '◈' },
+  china_bank: { mark: 'CB', watermark: '◌' },
+  custom: { mark: 'W', watermark: '◈' },
+};
+
+export function walletVisualFor(key: string): WalletVisual {
+  return walletVisuals[key] ?? walletVisuals.custom;
+}
+
 export const walletPresets: WalletPreset[] = [
   { key: 'gcash', name: 'GCash', type: 'e_wallet', color: '#1976D2', group: 'E-wallets' },
   { key: 'maya', name: 'Maya', type: 'e_wallet', color: '#00A878', group: 'E-wallets' },

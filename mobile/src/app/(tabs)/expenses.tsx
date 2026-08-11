@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { MoreHorizontal, Plus, Repeat, ScanLine, Search, ShoppingCart } from 'lucide-react-native';
+import { MoreHorizontal, Plus, ScanLine, Search, ShoppingCart } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { billCategories, DatePickerField, parseAmount, expenseCategories, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
+import { DatePickerField, parseAmount, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette } from '@/components/finance-form';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { authenticatedApiRequest } from '@/services/api';
 import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type BillRecord, type ExpenseRecord } from '@/services/finance';
@@ -14,12 +14,12 @@ import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { getCategoryMeta } from '@/constants/categories';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
 type ExpenseGroup = { date: string; subtotal: number; items: ExpenseItem[] };
 type DashboardSummary = { monthly_expenses: number; monthly_expenses_delta_percent: number | null };
 
-const categoryColors: Record<string, string> = { Food: '#E8775D', Groceries: '#D89B1D', Transport: '#5D8FC4', Bills: '#0F8A6B', Entertainment: '#8D70AD', Home: '#4D9A73', Other: '#8B8B8B' };
 
 function peso(value: number) { return '₱' + Math.round(value).toLocaleString('en-PH'); }
 
@@ -36,13 +36,11 @@ function monthLabel(month: string) {
 }
 
 function categoryIcon(name: string) {
-  const normalized = name.toLowerCase();
-  if (normalized === 'subscriptions') return Repeat;
-  return [...expenseCategories, ...billCategories].find((option) => option.label.toLowerCase() === normalized)?.icon ?? MoreHorizontal;
+  return getCategoryMeta(name).icon;
 }
 
-function categoryColor(name: string, index = 0) {
-  return categoryColors[name] ?? [formPalette.accent, '#5D8FC4', '#8D70AD', '#D89B1D'][index % 4];
+function categoryColor(name: string) {
+  return getCategoryMeta(name).color;
 }
 
 function groupByDate(items: ExpenseItem[]): ExpenseGroup[] {
@@ -129,7 +127,7 @@ export default function ExpensesScreen() {
       <FinancialOverviewCard title="EXPENSES OVERVIEW" context={monthLabel(month).split(' ')[0].toUpperCase()} value={peso(total)} supportingInfo={`${monthItems.length} transaction${monthItems.length === 1 ? '' : 's'} this month${summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? ` · ${summary.monthly_expenses_delta_percent > 0 ? '↑' : summary.monthly_expenses_delta_percent < 0 ? '↓' : '→'} ${Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month` : ''}`} accessibilityLabel={`Expenses overview. Total spent: ${peso(total)}.`} />
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
       <View style={styles.search}><Search size={17} color={formPalette.muted} /><TextInput accessibilityLabel="Search expenses" value={query} onChangeText={setQuery} placeholder="Search expenses" placeholderTextColor={formPalette.muted} style={styles.searchInput} /></View>
-      {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} onManage={() => setManaging(item)} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
+      {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} wallets={wallets} onManage={() => setManaging(item)} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
     </ScrollView>}
     {creating && <ExpenseForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
     {editing && <ExpenseForm wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
@@ -140,10 +138,11 @@ export default function ExpensesScreen() {
   </SafeAreaView>;
 }
 
-function ExpenseRow({ item, onManage }: { item: ExpenseItem; onManage: () => void }) {
+function ExpenseRow({ item, wallets, onManage }: { item: ExpenseItem; wallets: Wallet[]; onManage: () => void }) {
   const { colors } = useAppTheme();
   const Icon = categoryIcon(item.category);
-  const typeLabel = item.source === 'bill' ? 'Bill' : item.payment_method === 'other' ? 'Other' : item.payment_method;
+  const walletName = item.wallet_id ? wallets.find((wallet) => wallet.id === item.wallet_id)?.name : undefined;
+  const typeLabel = walletName ?? (item.source === 'bill' ? 'Bill' : item.payment_method === 'other' ? 'Other' : item.payment_method);
   return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: categoryColor(item.category) + '22' }]}><Icon size={19} color={categoryColor(item.category)} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || item.category}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={onManage} style={styles.moreButton}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>;
 }
 
@@ -153,7 +152,6 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
   const [category, setCategory] = useState(item?.category ?? '');
   const [customCategory, setCustomCategory] = useState(item?.custom_category ?? '');
   const [date, setDate] = useState(item?.date ?? dateKeyInManila());
-  const [paymentMethod, setPaymentMethod] = useState(item?.payment_method ?? '');
   const [walletId, setWalletId] = useState<string | null>(item?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -163,7 +161,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
       setError('Add a note and a valid amount.');
       return;
     }
-    if (!category || !paymentMethod) {
+    if (!category || !walletId) {
       setError('Choose a category and payment method to continue.');
       return;
     }
@@ -174,7 +172,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, payment_method: paymentMethod, date, wallet_id: walletId }) });
+      await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, date, wallet_id: walletId }) });
       notifyFinancialMutation();
       await onSaved();
     } catch (requestError) {
@@ -188,7 +186,6 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
     <FormTextInput label="Note" value={note} onChangeText={setNote} placeholder="e.g. Lunch with the team" />
     <ExpenseCategoryPicker value={category} onChange={setCategory} customCategory={customCategory} onCustomCategoryChange={setCustomCategory} />
     <ExpenseWalletField wallets={wallets} value={walletId} onChange={setWalletId} />
-    <PaymentMethodChips value={paymentMethod} onChange={setPaymentMethod} />
     <DatePickerField label="Date" value={date} onChange={setDate} compact />
   </FinanceFormSheet>;
 }
@@ -196,7 +193,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
 function ExpenseWalletField({ wallets, value, onChange }: { wallets: Wallet[]; value: string | null; onChange: (value: string | null) => void }) {
   const [open, setOpen] = useState(false);
   const selected = wallets.find((wallet) => wallet.id === value);
-  return <View style={styles.walletField}><Text style={styles.formLabel}>Paid from</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.walletTrigger}><Text style={[styles.walletValue, !selected && styles.walletPlaceholder]}>{selected?.name ?? 'Select wallet'}</Text><Text style={styles.walletChevron}>{'›'}</Text></Pressable><WalletPickerModal visible={open} wallets={wallets} onClose={() => setOpen(false)} onChange={(walletId) => { onChange(walletId); setOpen(false); }} allowUnset /></View>;
+  return <View style={styles.walletField}><Text style={styles.formLabel}>Payment method</Text><Pressable accessibilityRole="button" accessibilityLabel={`Choose payment method${selected ? `, ${selected.name}` : ''}`} onPress={() => setOpen(true)} style={styles.walletTrigger}><Text style={[styles.walletValue, !selected && styles.walletPlaceholder]}>{selected?.name ?? 'Select wallet'}</Text><Text style={styles.walletChevron}>{'›'}</Text></Pressable><WalletPickerModal visible={open} wallets={wallets} onClose={() => setOpen(false)} onChange={(walletId) => { onChange(walletId); setOpen(false); }} allowUnset={false} /></View>;
 }
 
 function makeStyles(themePalette: typeof formPalette) { const formPalette = themePalette; return StyleSheet.create({
