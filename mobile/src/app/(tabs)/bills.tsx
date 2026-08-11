@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { FileText, Pencil, Repeat, Search, Trash2 } from 'lucide-react-native';
+import { FileText, Pencil, Repeat, Search, Trash2, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authenticatedApiRequest } from '@/services/api';
@@ -32,6 +32,7 @@ function monthName(month: string) {
 
 export default function BillsScreen() {
   const { colors } = useAppTheme();
+  styles = makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentPale: colors.primarySoft, line: colors.border, danger: colors.danger });
   const bottomNavClearance = useBottomNavClearance();
   const [items, setItems] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,6 +42,7 @@ export default function BillsScreen() {
   const [filter, setFilter] = useState<BillFilter>('All');
   const [query, setQuery] = useState('');
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [paymentBill, setPaymentBill] = useState<FinanceItem | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,18 +72,61 @@ export default function BillsScreen() {
   return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Bills" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={palette.accent} /><Text style={styles.centerCopy}>Loading bills and subscriptions…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load bills</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
-      <FinancialOverviewCard eyebrow="BILLS OVERVIEW" period={monthName(month)} primaryLabel="TOTAL BILLS THIS MONTH" value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingText={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} />
+      <FinancialOverviewCard title="BILLS OVERVIEW" context={monthName(month)} value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingInfo={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} accessibilityLabel={`Bills overview. Total bills this month: ₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}.`} />
       <View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={({ pressed }) => [styles.filter, filter === value && styles.filterActive, pressed && styles.filterPressed]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View></View>
-      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onPaid={() => void markPaid(item)} onEdit={() => setEditing(item)} onDelete={() => remove(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}</View>
+      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onPaid={() => item.source === 'bill' ? setPaymentBill(item) : void markPaid(item)} onEdit={() => setEditing(item)} onDelete={() => remove(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}</View>
     </ScrollView>}
     {editing && <BillEditor wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {creating && <NewBillForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
+    {paymentBill && <BillPaymentSheet item={paymentBill} wallets={wallets} onClose={() => setPaymentBill(null)} onSaved={async () => { setPaymentBill(null); await refresh(); }} />}
   </SafeAreaView>;
 }
 
 function BillCard({ item, onPaid, onEdit, onDelete }: { item: FinanceItem; onPaid: () => void; onEdit: () => void; onDelete: () => void }) {
   const status = derivedStatus(item);
   return <View style={styles.billCard}><View style={styles.billTop}><View style={styles.billIcon}>{item.source === 'subscription' ? <Repeat size={19} color={palette.accent} /> : <FileText size={19} color={palette.accent} />}</View><View style={styles.billMain}><Text style={styles.billName}>{item.name}</Text><Text style={styles.billMeta}>{item.source === 'subscription' ? 'Subscription' : item.custom_category || item.category} · Due {item.dueDate}</Text></View><Text style={styles.billAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text></View><View style={styles.billBottom}><Text style={[styles.status, status === 'Overdue' && styles.statusOverdue, status === 'Paid' && styles.statusPaid]}>{status}</Text><View style={styles.actions}><Pressable accessibilityRole="button" accessibilityLabel={`Edit ${item.name}`} onPress={onEdit} style={styles.actionButton}><Pencil size={16} color={palette.muted} /></Pressable><Pressable accessibilityRole="button" accessibilityLabel={`Delete ${item.name}`} onPress={onDelete} style={styles.actionButton}><Trash2 size={16} color={palette.danger} /></Pressable>{status !== 'Paid' && <Pressable accessibilityRole="button" onPress={onPaid} style={styles.paidButton}><Text style={styles.paidText}>{item.source === 'subscription' ? 'Mark renewed' : 'Mark paid'}</Text></Pressable>}</View></View></View>;
+}
+
+function BillPaymentSheet({ item, wallets, onClose, onSaved }: { item: FinanceItem; wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const confirm = async () => {
+    if (!walletId) { setError('Select the wallet used to pay this bill.'); return; }
+    setSaving(true);
+    setError('');
+    try {
+      await authenticatedApiRequest(`/api/bills/${item.id}/pay`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ wallet_id: walletId, payment_date: paymentDate }),
+      });
+      await onSaved();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Unable to mark this bill as paid. Please try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+    <View style={styles.paymentOverlay}>
+      <Pressable accessibilityLabel="Close payment sheet" onPress={onClose} style={styles.dismiss} />
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.paymentKeyboard}>
+        <ScrollView contentContainerStyle={styles.paymentSheet} keyboardShouldPersistTaps="handled">
+          <View style={styles.editorHeader}><View><Text style={styles.eyebrow}>BILL PAYMENT</Text><Text style={styles.editorTitle}>Mark as paid</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={styles.paymentClose}><X size={20} color={palette.ink} /></Pressable></View>
+          <View style={styles.paymentSummary}><Text style={styles.paymentName}>{item.name}</Text><Text style={styles.paymentAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text><Text style={styles.paymentMeta}>{item.custom_category || item.category} · Due {item.dueDate}</Text></View>
+          <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Paid from" />
+          <DatePickerField label="Payment date" value={paymentDate} onChange={setPaymentDate} />
+          {error ? <Text style={styles.error}>{error}</Text> : null}
+          <Pressable accessibilityRole="button" accessibilityLabel={`Confirm payment for ${item.name}`} disabled={saving || !walletId} onPress={() => void confirm()} style={({ pressed }) => [styles.saveButton, (!walletId || saving) && styles.disabledButton, pressed && styles.pressed]}>{saving ? <ActivityIndicator color="#FFFFFF" /> : <Text style={styles.saveText}>Confirm payment</Text>}</Pressable>
+          <Pressable accessibilityRole="button" disabled={saving} onPress={onClose} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></Pressable>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
+  </Modal>;
 }
 
 function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets: Wallet[] }) {
@@ -150,9 +195,11 @@ function NewBillForm({ wallets, onClose, onSaved }: { wallets: Wallet[]; onClose
   </FinanceFormSheet>;
 }
 
-const styles = StyleSheet.create({
+function makeStyles(themePalette: typeof palette) { const palette = themePalette; return StyleSheet.create({
   sectionHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 11 },
   addButton: { flexDirection: 'row', alignItems: 'center', gap: 4, padding: 10, borderRadius: 18, backgroundColor: palette.accent }, addText: { color: '#fff', fontWeight: '900' },
-  stats: { flexDirection: 'row', gap: 8, marginBottom: 12 }, stat: { flex: 1, padding: 12, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, statLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' }, statValue: { marginTop: 6, color: palette.ink, fontSize: 15, fontWeight: '900' }, controls: { marginTop: 22 }, search: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginBottom: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, searchInput: { flex: 1, color: palette.ink, fontSize: 13 }, filters: { flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 21, backgroundColor: 'rgba(255,255,255,0.68)', borderWidth: 1, borderColor: 'rgba(220,232,224,0.9)', overflow: 'hidden' }, filter: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderRadius: 18 }, filterActive: { backgroundColor: palette.accent }, filterPressed: { opacity: 0.8 }, filterText: { color: palette.muted, fontSize: 11, fontWeight: '800' }, filterTextActive: { color: '#FFFFFF' }, listSection: { marginTop: 24 }, sectionTitle: { marginBottom: 11, color: palette.ink, fontSize: 16, fontWeight: '900' },
+  stats: { flexDirection: 'row', gap: 8, marginBottom: 12 }, stat: { flex: 1, padding: 12, borderRadius: 15, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, statLabel: { color: palette.muted, fontSize: 10, fontWeight: '700' }, statValue: { marginTop: 6, color: palette.ink, fontSize: 15, fontWeight: '900' }, controls: { marginTop: 22 }, search: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginBottom: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, searchInput: { flex: 1, color: palette.ink, fontSize: 13 }, filters: { flexDirection: 'row', alignItems: 'center', padding: 3, borderRadius: 21, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, overflow: 'hidden' }, filter: { flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5, borderRadius: 18 }, filterActive: { backgroundColor: palette.accentPale }, filterPressed: { opacity: 0.8 }, filterText: { color: palette.muted, fontSize: 11, fontWeight: '800' }, filterTextActive: { color: palette.ink }, listSection: { marginTop: 24 }, sectionTitle: { marginBottom: 11, color: palette.ink, fontSize: 16, fontWeight: '900' },
   safeArea: { flex: 1, backgroundColor: palette.background }, header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingTop: 14, paddingBottom: 22, backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.line }, backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 }, titleWrap: { flex: 1, marginLeft: 8 }, eyebrow: { color: palette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 3, color: palette.ink, fontSize: 24, fontWeight: '900' }, iconCircle: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.accentPale }, content: { padding: 20, paddingBottom: 36 }, intro: { marginBottom: 16, color: palette.muted, fontSize: 14, lineHeight: 20 }, billCard: { marginBottom: 12, padding: 15, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, billTop: { flexDirection: 'row', alignItems: 'center' }, billIcon: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: palette.accentPale }, billMain: { flex: 1, marginLeft: 11 }, billName: { color: palette.ink, fontSize: 14, fontWeight: '900' }, billMeta: { marginTop: 4, color: palette.muted, fontSize: 11 }, billAmount: { color: palette.ink, fontSize: 14, fontWeight: '900' }, billBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 13 }, status: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 9, color: palette.accent, backgroundColor: palette.accentPale, fontSize: 10, fontWeight: '900', overflow: 'hidden' }, statusOverdue: { color: palette.danger, backgroundColor: '#FCE8E6' }, statusPaid: { color: palette.muted, backgroundColor: '#EEF2EF' }, actions: { flexDirection: 'row', alignItems: 'center', gap: 5 }, actionButton: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: palette.background }, paidButton: { minHeight: 34, paddingHorizontal: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 17, backgroundColor: palette.accent }, paidText: { color: '#FFFFFF', fontSize: 10, fontWeight: '900' }, center: { flex: 1, alignItems: 'center', justifyContent: 'center' }, centerCopy: { marginTop: 10, color: palette.muted, fontSize: 13 }, card: { margin: 20, padding: 18, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line }, cardTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' }, cardCopy: { marginTop: 8, color: palette.muted, fontSize: 14, lineHeight: 21 }, retry: { alignSelf: 'flex-start', marginTop: 14, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 16, backgroundColor: palette.accentPale }, retryText: { color: palette.accent, fontSize: 12, fontWeight: '900' }, overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' }, dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.28)' }, editorKeyboard: { maxHeight: '88%' }, editor: { padding: 20, paddingBottom: 30, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface }, editorHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 }, editorTitle: { marginTop: 4, color: palette.ink, fontSize: 20, fontWeight: '900' }, closeText: { color: palette.ink, fontSize: 30, lineHeight: 30 }, input: { minHeight: 50, marginBottom: 11, paddingHorizontal: 15, borderRadius: 14, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.background, color: palette.ink, fontSize: 14 }, frequencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 11 }, frequencyChip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 14, backgroundColor: palette.background, borderWidth: 1, borderColor: palette.line }, frequencyActive: { backgroundColor: palette.accentPale, borderColor: palette.accent }, frequencyText: { color: palette.muted, fontSize: 12, fontWeight: '700' }, frequencyTextActive: { color: palette.accent, fontWeight: '900' }, error: { marginBottom: 10, color: palette.danger, fontSize: 12, fontWeight: '700' }, saveButton: { minHeight: 52, alignItems: 'center', justifyContent: 'center', borderRadius: 26, backgroundColor: palette.accent }, saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.76 },
-});
+  paymentOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.28)' }, paymentKeyboard: { maxHeight: '88%' }, paymentSheet: { padding: 20, paddingBottom: 30, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface }, paymentClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.background }, paymentSummary: { marginBottom: 4, padding: 15, borderRadius: 15, backgroundColor: palette.background, borderWidth: 1, borderColor: palette.line }, paymentName: { color: palette.ink, fontSize: 16, fontWeight: '900' }, paymentAmount: { marginTop: 8, color: palette.ink, fontSize: 23, fontWeight: '900' }, paymentMeta: { marginTop: 5, color: palette.muted, fontSize: 12 }, disabledButton: { opacity: 0.45 }, cancelButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
+}); }
+let styles = makeStyles(palette);

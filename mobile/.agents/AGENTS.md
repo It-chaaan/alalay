@@ -172,6 +172,13 @@ Mobile-specific issues should be tracked separately in this file as they're disc
 - Native trusted-device tokens are stored in SecureStore and sent through the authenticated `/api/trusted-device` contract; explicit logout clears the local token.
 - A valid restored AAL2/trusted session opens the app directly. Pending AAL2 sessions are routed to `/auth?mode=mfa` before protected tabs render.
 
+## Goals and wallet allocations
+
+- The mobile Savings route remains internally named `savings` for routing and API compatibility, but the user-facing feature is `Goals`.
+- Goals no longer render a global Savings balance; Wallets remain the source of truth for actual money.
+- New goal contributions use `POST /api/savings-goals/:id/contributions` with a wallet source. The shared backend validates wallet ownership, goal ownership, target limits, and unallocated wallet balance.
+- Existing `savings_goals.current_amount` values remain preserved as legacy/unattributed progress until explicitly represented by wallet-backed contributions.
+
 Whenever mobile architecture, navigation, auth flow, OCR approach, or environment config changes, update:
 
 - This file (`.agents/AGENTS.md` in the mobile repo, or the equivalent path)

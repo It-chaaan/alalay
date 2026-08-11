@@ -96,7 +96,7 @@ function SessionGate() {
     <Stack.Screen name="auth" />
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-  </Stack>{session ? <BottomNav /> : null}</View>;
+  </Stack>{session && !mfaPending ? <BottomNav /> : null}</View>;
 }
 
 function SessionLoadingScreen() {

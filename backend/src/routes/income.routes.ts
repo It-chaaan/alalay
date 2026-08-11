@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { incomeForMonth } from "../services/financial-summary.service.js";
+import { incomeForMonth, incomeForRange } from "../services/financial-summary.service.js";
+import { addDaysIso, todayIso } from "../services/db.js";
 import { sendSuccess } from "../utils/api.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { resourceRouter } from "./resource.routes.js";
@@ -17,6 +18,13 @@ incomeRouter.get("/summary", asyncHandler(async (req, res) => {
     monthly_sources: new Set(summary.rows.filter((row) => Boolean(row.is_recurring) && String(row.frequency ?? "monthly").toLowerCase() === "monthly").map((row) => row.source)).size,
     actual_transactions: summary.actualRows.length,
   });
+}));
+
+incomeRouter.get("/occurrences", asyncHandler(async (req, res) => {
+  const from = typeof req.query.from === "string" ? req.query.from : addDaysIso(-90);
+  const to = typeof req.query.to === "string" ? req.query.to : todayIso();
+  const summary = await incomeForRange(req.user!.id, from, to);
+  return sendSuccess(res, summary.rows);
 }));
 
 incomeRouter.use("/", resourceRouter("income"));

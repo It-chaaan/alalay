@@ -28,6 +28,6 @@ export async function remove(req: Request, res: Response) {
 }
 
 export async function pay(req: Request, res: Response) {
-  const data = await payBill(req.user!.id, (req.validated?.params as { id: string }).id);
+  const data = await payBill(req.user!.id, (req.validated?.params as { id: string }).id, req.validated?.body as { wallet_id: string; payment_date: string });
   return sendSuccess(res, data);
 }

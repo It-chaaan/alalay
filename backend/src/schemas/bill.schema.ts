@@ -38,3 +38,8 @@ export const updateBillSchema = billShape.partial().superRefine((value, ctx) => 
   if (value.recurring === undefined && value.frequency === undefined) return;
   checkRecurringFrequency(value, ctx);
 });
+
+export const billPaymentSchema = z.object({
+  wallet_id: z.string().uuid(),
+  payment_date: safeDate,
+}).strict();

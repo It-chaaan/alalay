@@ -1,3 +1,31 @@
-import { router } from 'expo-router'; import { ArrowLeft, Bell } from 'lucide-react-native'; import { Pressable, StyleSheet, Text, View } from 'react-native'; import { SafeAreaView } from 'react-native-safe-area-context'; import { markNotificationsRead } from '@/services/notifications';
-const p={background:'#F4F7F1',surface:'#FFF',ink:'#11231C',muted:'#5D6C65',accent:'#0F8A6B',line:'#DCE8E0'};
-export default function Notifications(){ markNotificationsRead(); return <SafeAreaView style={s.safe}><View style={s.header}><Pressable onPress={()=>router.back()}><ArrowLeft size={22} color={p.ink}/></Pressable><Text style={s.title}>Notifications</Text></View><View style={s.card}><Bell size={30} color={p.accent}/><Text style={s.cardTitle}>You’re all caught up</Text><Text style={s.copy}>New bill reminders and account updates will appear here.</Text></View></SafeAreaView>}; const s=StyleSheet.create({safe:{flex:1,backgroundColor:p.background},header:{flexDirection:'row',alignItems:'center',gap:12,padding:20,backgroundColor:p.surface,borderBottomWidth:1,borderBottomColor:p.line},title:{fontSize:22,fontWeight:'900',color:p.ink},card:{margin:20,padding:22,alignItems:'center',borderRadius:20,backgroundColor:p.surface,borderWidth:1,borderColor:p.line},cardTitle:{marginTop:12,fontSize:18,fontWeight:'900',color:p.ink},copy:{marginTop:8,textAlign:'center',color:p.muted,lineHeight:20}});
+import { router } from 'expo-router';
+import { Bell } from 'lucide-react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { GlassSurface } from '@/components/glass-surface';
+import { FinancialScreenHeader } from '@/components/financial-screen-header';
+import { markNotificationsRead } from '@/services/notifications';
+import { useAppTheme } from '@/theme/theme';
+
+export default function Notifications() {
+  const { colors } = useAppTheme();
+  markNotificationsRead();
+
+  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
+    <FinancialScreenHeader title="Notifications" onBack={() => router.back()} />
+    <GlassSurface style={styles.card} padding={22}>
+      <View style={[styles.iconCircle, { backgroundColor: colors.primarySoft }]}><Bell size={30} color={colors.primary} strokeWidth={1.9} /></View>
+      <Text style={[styles.cardTitle, { color: colors.textPrimary }]}>You’re all caught up</Text>
+      <Text style={[styles.copy, { color: colors.textSecondary }]}>New bill reminders and account updates will appear here.</Text>
+    </GlassSurface>
+  </SafeAreaView>;
+}
+
+const styles = StyleSheet.create({
+  safe: { flex: 1 },
+  card: { margin: 20, alignItems: 'center', borderRadius: 24 },
+  iconCircle: { width: 62, height: 62, alignItems: 'center', justifyContent: 'center', borderRadius: 31 },
+  cardTitle: { marginTop: 14, fontSize: 18, fontWeight: '900', textAlign: 'center' },
+  copy: { maxWidth: 280, marginTop: 8, textAlign: 'center', fontSize: 13, lineHeight: 20 },
+});

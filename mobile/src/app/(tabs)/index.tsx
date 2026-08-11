@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, Droplets, FileText, Home, PiggyBank, Receipt, Repeat, ShoppingCart, WalletCards } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, Droplets, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
-import { derivedStatus, fetchExpenses, fetchFinanceItems, fetchWallets, totalWalletBalance, type ExpenseRecord, type FinanceItem, type WalletRecord } from '@/services/finance';
+import { combineRecentTransactions, derivedStatus, fetchExpenses, fetchFinanceItems, fetchRecentIncome, fetchWallets, totalWalletBalance, type FinanceItem, type RecentTransaction, type WalletRecord } from '@/services/finance';
 import { walletInitials } from '@/constants/wallets';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
@@ -37,12 +37,6 @@ const goals = [
 ];
 */
 
-/* const recentExpenses = [
-  { name: 'Lunch at Salcedo', category: 'Food & dining · Today', amount: '−₱380', icon: Utensils },
-  { name: 'Grocery run', category: 'Essentials · Aug 7', amount: '−₱2,145', icon: ShoppingBag },
-  { name: 'Grab ride', category: 'Transport · Aug 6', amount: '−₱240', icon: ArrowUpRight },
-]; */
-
 type Icon = typeof Home;
 type DashboardSummary = {
   total_bills_this_month: number;
@@ -67,7 +61,7 @@ export default function HomeScreen() {
   const [financeItems, setFinanceItems] = useState<FinanceItem[]>([]);
   const [financeLoading, setFinanceLoading] = useState(true);
   const [financeError, setFinanceError] = useState('');
-  const [expenses, setExpenses] = useState<ExpenseRecord[]>([]);
+  const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
   const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
@@ -80,13 +74,14 @@ export default function HomeScreen() {
     setFinanceError('');
     setWalletError('');
     try {
-      const [items, expenseRows, summary] = await Promise.all([
+      const [items, expenseRows, incomeRows, summary] = await Promise.all([
         fetchFinanceItems(),
         fetchExpenses(),
+        fetchRecentIncome(),
         authenticatedApiRequest<DashboardSummary>('/api/dashboard/summary'),
       ]);
       setFinanceItems(items);
-      setExpenses(expenseRows);
+      setRecentTransactions(combineRecentTransactions(expenseRows, incomeRows));
       setDashboardSummary(summary);
       try {
         setWallets(await fetchWallets());
@@ -107,7 +102,7 @@ export default function HomeScreen() {
 
   useFocusEffect(useCallback(() => { void refreshFinance(); }, [refreshFinance]));
 
-  const recentExpenseRows = expenses.slice().sort((a, b) => b.date.localeCompare(a.date)).slice(0, 5);
+  const recentTransactionRows = recentTransactions.slice(0, 5);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
@@ -134,7 +129,7 @@ export default function HomeScreen() {
         </View>
 
         <SummaryCard summary={dashboardSummary} loading={financeLoading} wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
-        <GlassSurface style={styles.shortcutContainer} padding={8}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={PiggyBank} label="Savings" onPress={() => router.push('/(tabs)/savings')} /></View></GlassSurface>
+          <GlassSurface style={styles.shortcutContainer} padding={8}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={Target} label="Goals" onPress={() => router.push('/(tabs)/savings')} /></View></GlassSurface>
 
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Wallets</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={[styles.link, { color: colors.primary }]}>View all</Text></Pressable></View>
         <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
@@ -142,8 +137,8 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upcoming</Text><Text style={[styles.sectionHint, { color: colors.textSecondary }]}>{financeItems.length} items</Text></View>
         <GlassSurface style={styles.listCard} padding={0}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={colors.primary} /><Text style={[styles.stateText, { color: colors.textSecondary }]}>Loading bills…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={[styles.errorText, { color: colors.danger }]}>{financeError}</Text></View> : financeItems.length ? financeItems.slice(0, 5).map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />) : <View style={styles.inlineState}><Text style={[styles.stateTitle, { color: colors.textPrimary }]}>No bills yet</Text><Text style={[styles.stateText, { color: colors.textSecondary }]}>Use Add to create your first bill or subscription.</Text></View>}</GlassSurface>
 
-        <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent expenses</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/expenses')}><Text style={[styles.link, { color: colors.primary }]}>See all</Text></Pressable></View>
-        <GlassSurface style={styles.listCard} padding={0}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={colors.primary} /><Text style={[styles.stateText, { color: colors.textSecondary }]}>Loading expenses…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={[styles.errorText, { color: colors.danger }]}>{financeError}</Text></View> : recentExpenseRows.length ? recentExpenseRows.map((expense) => <ExpenseRow key={expense.id} expense={expense} />) : <View style={styles.inlineState}><Text style={[styles.stateTitle, { color: colors.textPrimary }]}>No expenses yet</Text><Text style={[styles.stateText, { color: colors.textSecondary }]}>Your recent purchases will appear here.</Text></View>}</GlassSurface>
+        <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Recent transactions</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/expenses')}><Text style={[styles.link, { color: colors.primary }]}>See all</Text></Pressable></View>
+        <GlassSurface style={styles.listCard} padding={0}>{financeLoading ? <View style={styles.inlineState}><ActivityIndicator color={colors.primary} /><Text style={[styles.stateText, { color: colors.textSecondary }]}>Loading transactions…</Text></View> : financeError ? <View style={styles.inlineState}><Text style={[styles.errorText, { color: colors.danger }]}>{financeError}</Text></View> : recentTransactionRows.length ? recentTransactionRows.map((transaction) => <RecentTransactionRow key={transaction.id} transaction={transaction} />) : <View style={styles.inlineState}><Text style={[styles.stateTitle, { color: colors.textPrimary }]}>No transactions yet</Text><Text style={[styles.stateText, { color: colors.textSecondary }]}>Your recent income and expenses will appear here.</Text></View>}</GlassSurface>
 
       </ScrollView>
 
@@ -190,9 +185,16 @@ function FinanceRow({ item }: { item: FinanceItem }) {
   return <View style={styles.row}><View style={styles.rowIcon}><FinanceIcon size={18} color={status === 'Overdue' ? colors.danger : colors.primary} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.name}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><View style={styles.rowRight}><Text style={[styles.rowAmount, { color: colors.textPrimary }]}>{formatPeso(item.amount)}</Text><Text style={[styles.status, status === 'Overdue' ? styles.statusDanger : status === 'Paid' ? styles.statusPaid : styles.statusUpcoming]}>{status}</Text></View></View>;
 }
 
-function ExpenseRow({ expense }: { expense: ExpenseRecord }) {
+function RecentTransactionRow({ transaction }: { transaction: RecentTransaction }) {
   const { colors } = useAppTheme();
-  return <View style={styles.row}><View style={styles.rowIcon}><WalletCards size={18} color={colors.primary} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{expense.merchant}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{expense.category} · {expense.date}</Text></View><Text style={[styles.expenseAmount, { color: colors.danger }]}>-{formatPeso(Number(expense.amount))}</Text></View>;
+  const isIncome = transaction.sourceType === 'income';
+  const Icon = isIncome ? ArrowUpRight : WalletCards;
+  return <View style={styles.row}><View style={[styles.rowIcon, { backgroundColor: isIncome ? colors.primarySoft : colors.accentMuted }]}><Icon size={18} color={isIncome ? colors.primary : colors.danger} strokeWidth={2.2} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{transaction.title}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{transaction.category} · {isIncome ? 'Income' : 'Expense'} · {formatTransactionDate(transaction.occurredAt)}</Text></View><Text style={[styles.expenseAmount, { color: isIncome ? colors.primary : colors.danger }]}>{isIncome ? '+' : '−'}{formatPeso(Math.abs(transaction.amount))}</Text></View>;
+}
+
+function formatTransactionDate(value: string) {
+  const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
+  return Number.isNaN(parsed.getTime()) ? value : new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(parsed);
 }
 
 function getGreeting() {

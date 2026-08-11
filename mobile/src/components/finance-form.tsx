@@ -58,6 +58,11 @@ import { useAppTheme } from '@/theme/theme';
 
 export const formPalette = {
   background: '#F4F7F1',
+  balance: '#0F8A6B',
+  progressTrack: '#D8EFE2',
+  progressFill: '#0F8A6B',
+  secondarySurface: '#E8F5EE',
+  secondaryText: '#08654E',
   surface: '#FFFFFF',
   ink: '#11231C',
   muted: '#5D6C65',
@@ -160,7 +165,7 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', BACKSPACE_KEY];
   return <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
     <View style={keypadStyles.row}>
-      <Text style={keypadStyles.expression}>{formatAmountForDisplay(value)}</Text>
+      <Text style={[keypadStyles.expression, { color: colors.textPrimary }]}>{formatAmountForDisplay(value)}</Text>
     </View>
     <View style={keypadStyles.grid}>
       {keys.map((key) => {
@@ -173,16 +178,16 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
           onPress={() => press(key)}
           style={({ pressed }) => [keypadStyles.key, { backgroundColor: action ? colors.accentPale : colors.surfaceSecondary }, pressed && keypadStyles.pressed]}
         >
-          <Text style={[keypadStyles.keyText, { color: action ? colors.accent : colors.ink }]}>{isBackspace ? BACKSPACE_KEY : key}</Text>
+          <Text style={[keypadStyles.keyText, { color: action ? colors.accent : colors.textPrimary }]}>{isBackspace ? BACKSPACE_KEY : key}</Text>
         </Pressable>;
       })}
     </View>
   </View>;
 }
 
-export function CategoryChipRow({ value, onChange, options, label = 'Category (optional)', customValue, onCustomValueChange, customLabel = 'Specify category *' }: { value: string; onChange: (value: string) => void; options: CategoryOption[]; label?: string; customValue?: string; onCustomValueChange?: (value: string) => void; customLabel?: string }) {
+export function CategoryChipRow({ value, onChange, options, label = 'Category (optional)', customValue, onCustomValueChange, customLabel = 'Specify category *', showAllOptions = false, onAdd }: { value: string; onChange: (value: string) => void; options: CategoryOption[]; label?: string; customValue?: string; onCustomValueChange?: (value: string) => void; customLabel?: string; showAllOptions?: boolean; onAdd?: () => void }) {
   const [open, setOpen] = useState(false);
-  const visibleOptions = options.length > 6 ? options.slice(0, 4) : options;
+  const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
   return <View style={chipStyles.section}>
     <Text style={chipStyles.label}>{label}</Text>
     <View style={chipStyles.wrap}>
@@ -196,10 +201,10 @@ export function CategoryChipRow({ value, onChange, options, label = 'Category (o
         <Icon size={17} color={value === optionLabel ? formPalette.accent : formPalette.muted} strokeWidth={1.9} />
         <Text style={[chipStyles.text, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
       </Pressable>)}
-      {options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
+      {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel="Add budget category" onPress={onAdd} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Plus size={17} color={formPalette.accent} /><Text style={chipStyles.text}>+ Add</Text></Pressable> : options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
     </View>
     {value === 'Other' && onCustomValueChange ? <FormTextInput label={customLabel} placeholder="Specify what this means" value={customValue ?? ''} onChangeText={onCustomValueChange} /> : null}
-    {options.length > 6 ? <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={pickerStyles.title}>{label.replace(' *', '')}</Text><Pressable accessibilityRole="button" onPress={() => setOpen(false)}><Text style={pickerStyles.close}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{options.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</ScrollView></Pressable></Pressable></Modal> : null}
+    {options.length > 6 && !showAllOptions && !onAdd ? <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={pickerStyles.title}>{label.replace(' *', '')}</Text><Pressable accessibilityRole="button" onPress={() => setOpen(false)}><Text style={pickerStyles.close}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{options.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</ScrollView></Pressable></Pressable></Modal> : null}
   </View>;
 }
 

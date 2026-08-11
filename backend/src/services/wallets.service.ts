@@ -41,7 +41,7 @@ export async function getWallet(userId: string, id: string) {
     ...(income.data ?? []).map((row) => ({ ...row, kind: "income", label: row.source, date: row.date, amount: asNumber(row.amount) })),
     ...(expenses.data ?? []).map((row) => ({ ...row, kind: "expense", label: row.merchant, date: row.date, amount: -asNumber(row.amount) })),
     ...(bills.data ?? []).map((row) => ({ ...row, kind: "bill", label: row.title, date: row.paid_at ?? row.due_date, amount: -asNumber(row.amount) })),
-    ...(adjustments.data ?? []).map((row) => ({ ...row, kind: "deposit", label: row.note || "Wallet deposit", date: row.date, amount: asNumber(row.amount) })),
+    ...(adjustments.data ?? []).map((row) => ({ ...row, kind: row.note === "Opening balance" ? "opening_balance" : "deposit", label: row.note || "Wallet deposit", date: row.date, amount: asNumber(row.amount) })),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
   return { wallet: withBalance(wallet), transactions };
 }
@@ -50,6 +50,19 @@ export async function createWallet(userId: string, payload: WalletPayload) {
   const { data, error } = await client().from("wallets").insert({ ...payload, user_id: requireUserId(userId), color: payload.color ?? "#0F8A6B", is_default_cash: false }).select("*").single();
   throwIfError(error);
   return withBalance(data);
+}
+
+export async function createWalletWithOpeningBalance(userId: string, payload: WalletPayload & { opening_balance: number }) {
+  const { data, error } = await client().rpc("create_wallet_with_opening_balance", {
+    wallet_name: payload.name,
+    wallet_type: payload.institution_type,
+    wallet_key: payload.institution_key,
+    wallet_color: payload.color ?? "#0F8A6B",
+    wallet_icon: payload.icon ?? null,
+    opening_amount: payload.opening_balance,
+  });
+  throwIfError(error);
+  return withBalance(data as Record<string, unknown>);
 }
 
 export async function createWalletDeposit(userId: string, walletId: string, payload: { amount: number; date: string; note?: string | null }) {

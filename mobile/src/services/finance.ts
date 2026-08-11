@@ -50,6 +50,30 @@ export type ExpenseRecord = {
   wallet_id?: string | null;
 };
 
+export type IncomeRecord = {
+  id: string;
+  source: string;
+  type: string;
+  amount: number | string;
+  date: string;
+  is_recurring: boolean;
+  frequency?: string | null;
+  wallet_id?: string | null;
+  is_scheduled?: boolean;
+};
+
+export type RecentTransaction = {
+  id: string;
+  sourceType: 'income' | 'expense';
+  title: string;
+  category: string;
+  amount: number;
+  occurredAt: string;
+  walletId?: string | null;
+  frequency?: string | null;
+  isRecurringOccurrence?: boolean;
+};
+
 export type WalletRecord = { id: string; name: string; institution_type: string; institution_key: string; balance: number | string; color: string; icon?: string | null; is_default_cash: boolean };
 
 export function fetchWallets() {
@@ -69,8 +93,47 @@ export type SavingsDashboard = {
   goals: { id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null }[];
 };
 
-export function fetchExpenses() {
-  return authenticatedApiRequest<ExpenseRecord[]>('/api/expenses');
+function recentRange() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - 90);
+  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+}
+
+export function fetchExpenses(range = recentRange()) {
+  return authenticatedApiRequest<ExpenseRecord[]>(`/api/expenses?from=${range.from}&to=${range.to}`);
+}
+
+export function fetchIncome() {
+  return authenticatedApiRequest<IncomeRecord[]>('/api/income');
+}
+
+export function fetchRecentIncome(range = recentRange()) {
+  return authenticatedApiRequest<IncomeRecord[]>(`/api/income/occurrences?from=${range.from}&to=${range.to}`);
+}
+
+export function combineRecentTransactions(expenses: ExpenseRecord[], income: IncomeRecord[]) {
+  const expenseTransactions: RecentTransaction[] = expenses.map((expense) => ({
+    id: `expense-${expense.id}`,
+    sourceType: 'expense',
+    title: expense.merchant,
+    category: expense.custom_category ?? expense.category,
+    amount: -Math.abs(Number(expense.amount) || 0),
+    occurredAt: expense.date,
+    walletId: expense.wallet_id,
+  }));
+  const incomeTransactions: RecentTransaction[] = income.map((entry) => ({
+    id: `income-${entry.id}`,
+    sourceType: 'income',
+    title: entry.source,
+    category: entry.type,
+    amount: Math.abs(Number(entry.amount) || 0),
+    occurredAt: entry.date,
+    walletId: entry.wallet_id,
+    frequency: entry.frequency,
+    isRecurringOccurrence: entry.is_scheduled === true,
+  }));
+  return [...expenseTransactions, ...incomeTransactions].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
 }
 
 export function fetchSavingsDashboard() {

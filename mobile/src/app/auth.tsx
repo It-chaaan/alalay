@@ -9,6 +9,7 @@ import { ArrowLeft, CircleAlert, Lock, Mail, ShieldCheck, User } from 'lucide-re
 
 import { BrandLockup } from '@/components/brand-lockup';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
+import { OtpInput } from '@/components/otp-input';
 import { getSupabaseClient } from '@/services/supabase';
 import { useAppTheme } from '@/theme/theme';
 import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
@@ -171,6 +172,7 @@ function MfaVerification() {
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
+  const [expired, setExpired] = useState(false);
 
   useEffect(() => {
     void getMfaState().then((state) => {
@@ -183,20 +185,23 @@ function MfaVerification() {
     if (!factorId || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; }
     const client = getSupabaseClient();
     if (!client) { setError('Authentication is unavailable right now.'); return; }
-    setVerifying(true); setError('');
+    setVerifying(true); setError(''); setExpired(false);
     try {
       const result = await client.auth.mfa.challengeAndVerify({ factorId, code });
       if (result.error) throw result.error;
       try { await rememberTrustedDevice(); } catch { /* backend trust is best effort; the AAL2 session remains valid */ }
       router.replace('/(tabs)');
     } catch (verificationError) {
-      setError(verificationError instanceof Error ? verificationError.message : 'That code is not valid. Try again.');
+      const message = verificationError instanceof Error ? verificationError.message.toLowerCase() : '';
+      const challengeExpired = message.includes('expired') || message.includes('jwt') || message.includes('challenge');
+      setExpired(challengeExpired);
+      setError(challengeExpired ? 'This verification request expired. Please sign in again.' : 'That code isn\'t valid. Try again.');
       setCode('');
     } finally { setVerifying(false); }
   };
 
   const backToSignIn = async () => { await getSupabaseClient()?.auth.signOut(); router.replace({ pathname: '/auth', params: { mode: 'signin' } }); };
-  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}><StatusBar style={colors.background === '#17191C' ? 'light' : 'dark'} /><View style={styles.mfaContent}><Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => void backToSignIn()} style={styles.mfaBack}><ArrowLeft size={22} color={colors.textPrimary} /></Pressable><View style={[styles.mfaIcon, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={34} color={colors.primary} /></View><Text style={[styles.mfaTitle, { color: colors.textPrimary }]}>Verify it&apos;s you</Text><Text style={[styles.mfaDescription, { color: colors.textSecondary }]}>Enter the 6-digit code from your authenticator app to continue. You&apos;ll normally verify again when signing in on a new device.</Text><TextInput accessibilityLabel="Authenticator verification code" value={code} onChangeText={(value) => setCode(value.replace(/\D/g, '').slice(0, 6))} keyboardType="number-pad" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" placeholderTextColor={colors.textMuted} style={[styles.mfaInput, { color: colors.textPrimary, borderColor: error ? colors.danger : colors.border, backgroundColor: colors.surfaceInput }]} />{error ? <Text accessibilityRole="alert" style={[styles.mfaError, { color: colors.danger }]}>{error}</Text> : null}<Pressable accessibilityRole="button" disabled={loading || verifying || code.length !== 6} onPress={() => void verify()} style={[styles.primaryButton, { backgroundColor: colors.primary }, (loading || verifying || code.length !== 6) && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Loading...' : verifying ? 'Verifying...' : 'Verify'}</Text></Pressable></View></SafeAreaView>;
+  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}><StatusBar style={colors.background === '#17191C' ? 'light' : 'dark'} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mfaFlex}><ScrollView contentContainerStyle={styles.mfaContent} keyboardShouldPersistTaps="handled"><Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => void backToSignIn()} style={styles.mfaBack}><ArrowLeft size={22} color={colors.textPrimary} /></Pressable><Text style={[styles.mfaStep, { color: colors.textSecondary }]}>STEP 2 OF 2</Text><View style={[styles.mfaIcon, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={34} color={colors.primary} /></View><Text style={[styles.mfaTitle, { color: colors.textPrimary }]}>Verify it&apos;s you</Text><Text style={[styles.mfaDescription, { color: colors.textSecondary }]}>Enter the 6-digit code from your authenticator app.</Text><OtpInput value={code} onChange={setCode} error={Boolean(error)} autoFocus={!loading} disabled={loading || verifying || expired} />{error ? <Text accessibilityRole="alert" style={[styles.mfaError, { color: colors.danger }]}>{error}</Text> : null}{expired ? <Pressable accessibilityRole="button" onPress={() => void backToSignIn()}><Text style={[styles.mfaSecondaryAction, { color: colors.primary }]}>Back to sign in</Text></Pressable> : null}<Pressable accessibilityRole="button" disabled={loading || verifying || expired || code.length !== 6} onPress={() => void verify()} style={[styles.primaryButton, { backgroundColor: colors.primary }, (loading || verifying || expired || code.length !== 6) && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Loading...' : verifying ? 'Verifying...' : 'Verify'}</Text></Pressable><View style={[styles.trustNote, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={17} color={colors.primary} /><Text style={[styles.trustText, { color: colors.textSecondary }]}>You won&apos;t need a code every time you open the app on this verified device.</Text></View><Pressable accessibilityRole="button" onPress={() => Alert.alert('Having trouble?', 'Open your authenticator app and make sure your device time is set automatically. Codes refresh periodically.')} style={styles.helpButton}><Text style={[styles.helpText, { color: colors.primary }]}>Having trouble?</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -229,10 +234,17 @@ const styles = StyleSheet.create({
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.55 },
   mfaContent: { flex: 1, paddingHorizontal: 28, paddingTop: 18 },
+  mfaFlex: { flex: 1 },
   mfaBack: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  mfaStep: { marginTop: 12, textAlign: 'center', fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
   mfaIcon: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, marginTop: 70, alignSelf: 'center' },
   mfaTitle: { marginTop: 24, textAlign: 'center', fontSize: 28, fontWeight: '900' },
   mfaDescription: { marginTop: 10, textAlign: 'center', fontSize: 14, lineHeight: 21 },
   mfaInput: { minHeight: 58, marginTop: 28, borderWidth: 1, borderRadius: 15, textAlign: 'center', letterSpacing: 8, fontSize: 24, fontWeight: '800' },
   mfaError: { marginTop: 12, textAlign: 'center', fontSize: 13, fontWeight: '700' },
+  mfaSecondaryAction: { marginTop: 12, textAlign: 'center', fontSize: 13, fontWeight: '800' },
+  trustNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22, padding: 12, borderRadius: 16 },
+  trustText: { flex: 1, fontSize: 12, lineHeight: 18 },
+  helpButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
+  helpText: { fontSize: 13, fontWeight: '800' },
 });

@@ -10,13 +10,15 @@ export type IncomeSummaryRange = {
   scheduledTotal: number;
 };
 
-async function allIncomeRows(userId: string) {
-  const { data, error } = await client()
+async function allIncomeRows(userId: string, from?: string, to?: string) {
+  let query = client()
     .from("income")
     .select("*")
     .eq("user_id", requireUserId(userId))
     .is("deleted_at", null)
     .order("date", { ascending: false });
+  if (from && to) query = query.or(`date.gte.${from},is_recurring.eq.true`).lte("date", to);
+  const { data, error } = await query;
   throwIfError(error);
   return data ?? [];
 }
@@ -39,7 +41,7 @@ function summarize(rows: Array<Record<string, any>>): IncomeSummaryRange {
 
 /** Single source of truth for income in any selected date range. */
 export async function incomeForRange(userId: string, from: string, to: string) {
-  const rows = await allIncomeRows(userId);
+  const rows = await allIncomeRows(userId, from, to);
   return summarize(expandIncomeRows(rows, from, to));
 }
 

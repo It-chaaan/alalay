@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { billCategories, DatePickerField, parseAmount, expenseCategories, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
 import { fetchExpenses, fetchWallets, type BillRecord, type ExpenseRecord } from '@/services/finance';
+import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
@@ -79,6 +80,7 @@ function mergeExpenseRows(expenses: ExpenseRecord[], bills: BillRecord[]): Expen
 
 export default function ExpensesScreen() {
   const { colors } = useAppTheme();
+  styles = makeStyles({ ...formPalette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, balance: colors.balance, line: colors.border });
   const bottomNavClearance = useBottomNavClearance();
   const month = currentMonthKey();
   const [items, setItems] = useState<ExpenseItem[]>([]);
@@ -125,7 +127,7 @@ export default function ExpensesScreen() {
   return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Expenses" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
-      <View style={styles.heroCard}><View style={styles.heroOrb} /><View style={styles.heroHeader}><Text style={styles.heroEyebrow}>TOTAL SPENT</Text><Text style={styles.heroMonth}>{monthLabel(month).split(' ')[0].toUpperCase()}</Text></View><View style={styles.heroMeta}><Text style={styles.heroLabel}>THIS MONTH</Text>{summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? <Text style={[styles.heroTrend, summary.monthly_expenses_delta_percent > 0 ? styles.heroTrendUp : styles.heroTrendDown]}>{summary.monthly_expenses_delta_percent > 0 ? '↗' : summary.monthly_expenses_delta_percent < 0 ? '↘' : '→'} {Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month</Text> : null}</View><Text style={styles.heroValue}>{peso(total)}</Text><Text style={styles.heroSubtitle}>{monthItems.length} transaction{monthItems.length === 1 ? '' : 's'} this month</Text></View>
+      <FinancialOverviewCard title="EXPENSES OVERVIEW" context={monthLabel(month).split(' ')[0].toUpperCase()} value={peso(total)} supportingInfo={`${monthItems.length} transaction${monthItems.length === 1 ? '' : 's'} this month${summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? ` · ${summary.monthly_expenses_delta_percent > 0 ? '↑' : summary.monthly_expenses_delta_percent < 0 ? '↓' : '→'} ${Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month` : ''}`} accessibilityLabel={`Expenses overview. Total spent: ${peso(total)}.`} />
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
       <View style={styles.search}><Search size={17} color={formPalette.muted} /><TextInput accessibilityLabel="Search expenses" value={query} onChangeText={setQuery} placeholder="Search expenses" placeholderTextColor={formPalette.muted} style={styles.searchInput} /></View>
       {groups.length ? groups.map((group) => <View key={group.date} style={styles.group}><View style={styles.groupHeader}><Text style={styles.groupDate}>{dateLabel(group.date)}</Text><Text style={styles.groupTotal}>{peso(group.subtotal)}</Text></View><View style={styles.listCard}>{group.items.map((item) => <ExpenseRow key={item.source + '-' + item.id} item={item} onEdit={() => item.source === 'expense' ? setEditing(item) : router.push('/(tabs)/bills')} onDeleted={refresh} />)}</View></View>) : <View style={styles.emptyCard}><View style={styles.emptyIcon}><ShoppingCart size={25} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>{hasAnyExpenses ? 'No expenses in ' + monthLabel(month) : 'No expenses yet'}</Text><Text style={styles.emptyCopy}>{hasAnyExpenses ? 'Log a new expense to start tracking this month.' : 'Log an expense to get started and see your spending here.'}</Text><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={styles.emptyAction}><Plus size={17} color="#fff" /><Text style={styles.emptyActionText}>Log expense</Text></Pressable></View>}
@@ -193,7 +195,7 @@ function ExpenseWalletField({ wallets, value, onChange }: { wallets: Wallet[]; v
   return <View style={styles.walletField}><Text style={styles.formLabel}>Paid from</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.walletTrigger}><Text style={[styles.walletValue, !selected && styles.walletPlaceholder]}>{selected?.name ?? 'Select wallet'}</Text><Text style={styles.walletChevron}>{'›'}</Text></Pressable><WalletPickerModal visible={open} wallets={wallets} onClose={() => setOpen(false)} onChange={(walletId) => { onChange(walletId); setOpen(false); }} allowUnset /></View>;
 }
 
-const styles = StyleSheet.create({
+function makeStyles(themePalette: typeof formPalette) { const formPalette = themePalette; return StyleSheet.create({
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   safe: { flex: 1, backgroundColor: formPalette.background },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line },
@@ -204,8 +206,8 @@ const styles = StyleSheet.create({
   monthBadge: { paddingHorizontal: 10, paddingVertical: 8, borderRadius: 16, backgroundColor: formPalette.accentPale },
   monthBadgeText: { color: formPalette.accent, fontSize: 11, fontWeight: '900' },
   content: { padding: 20, paddingBottom: 42 },
-  heroCard: { minHeight: 176, overflow: 'hidden', padding: 19, borderRadius: 22, backgroundColor: formPalette.accent, position: 'relative' },
-  heroOrb: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -55, top: -62, backgroundColor: 'rgba(255,255,255,0.09)' },
+  heroCard: { minHeight: 176, overflow: 'hidden', padding: 19, borderRadius: 22, backgroundColor: formPalette.balance, position: 'relative' },
+  heroOrb: { position: 'absolute', width: 180, height: 180, borderRadius: 90, right: -55, top: -62, backgroundColor: 'rgba(255,255,255,0.045)' },
   heroHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   heroEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   heroMonth: { color: '#BFE3D0', fontSize: 10, fontWeight: '800', letterSpacing: 0.8 },
@@ -257,4 +259,5 @@ const styles = StyleSheet.create({
   walletChevron: { color: formPalette.muted, fontSize: 24, lineHeight: 24 },
   formLabel: { marginBottom: 9, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
   pressed: { opacity: 0.72 },
-});
+}); }
+let styles = makeStyles(formPalette);

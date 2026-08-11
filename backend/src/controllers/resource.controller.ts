@@ -3,9 +3,21 @@ import { makeResourceService } from "../services/resource.service.js";
 import { getSavingsDashboard } from "../services/analytics.service.js";
 import type { TableName } from "../services/db.js";
 import { sendSuccess } from "../utils/api.js";
+import { client, throwIfError } from "../services/db.js";
 
 export async function savingsDashboard(req: Request, res: Response) {
   return sendSuccess(res, await getSavingsDashboard(req.user!.id));
+}
+
+export async function addGoalContribution(req: Request, res: Response) {
+  const body = req.validated?.body as { wallet_id: string; amount: number };
+  const { data, error } = await client().rpc("add_goal_contribution", {
+    target_goal_id: (req.validated?.params as { id: string }).id,
+    source_wallet_id: body.wallet_id,
+    contribution_amount: body.amount,
+  });
+  throwIfError(error);
+  return sendSuccess(res, data);
 }
 
 export function makeResourceController(table: TableName) {
