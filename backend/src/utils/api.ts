@@ -8,11 +8,13 @@ export class AppError extends Error {
   status: number;
   code: string;
   details?: string;
+  expose: boolean;
 
-  constructor(status: number, code: string, message: string, details?: string) {
+  constructor(status: number, code: string, message: string, details?: string, expose = false) {
     super(message);
     this.status = status;
     this.code = code;
     this.details = details;
+    this.expose = expose;
   }
 }

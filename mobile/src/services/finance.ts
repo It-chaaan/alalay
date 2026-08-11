@@ -48,6 +48,7 @@ export type ExpenseRecord = {
   date: string;
   payment_method?: string;
   wallet_id?: string | null;
+  created_at?: string;
 };
 
 export type IncomeRecord = {
@@ -94,10 +95,40 @@ export type SavingsDashboard = {
 };
 
 function recentRange() {
-  const end = new Date();
-  const start = new Date(end);
-  start.setDate(start.getDate() - 90);
-  return { from: start.toISOString().slice(0, 10), to: end.toISOString().slice(0, 10) };
+  const end = dateKeyInManila();
+  const [year, month, day] = end.split('-').map(Number);
+  const start = new Date(Date.UTC(year, month - 1, day - 90));
+  return { from: start.toISOString().slice(0, 10), to: end };
+}
+
+export function dateKeyInManila(date = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+const isDevelopment = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
+export function normalizeExpense(expense: ExpenseRecord): RecentTransaction {
+  const occurredAt = expense.date?.slice(0, 10) || expense.created_at?.slice(0, 10) || '1970-01-01';
+  if (!expense.date && isDevelopment) console.warn('[finance] Expense missing authoritative date', { id: expense.id });
+  return {
+    id: `expense-${expense.id}`,
+    sourceType: 'expense',
+    title: expense.merchant || 'Expense',
+    category: expense.custom_category ?? expense.category ?? 'Uncategorized',
+    amount: -Math.abs(Number(expense.amount) || 0),
+    occurredAt,
+    walletId: expense.wallet_id,
+  };
+}
+
+const financialMutationListeners = new Set<() => void>();
+export function subscribeFinancialMutations(listener: () => void) {
+  financialMutationListeners.add(listener);
+  return () => { financialMutationListeners.delete(listener); };
+}
+export function notifyFinancialMutation() {
+  financialMutationListeners.forEach((listener) => listener());
 }
 
 export function fetchExpenses(range = recentRange()) {
@@ -113,15 +144,7 @@ export function fetchRecentIncome(range = recentRange()) {
 }
 
 export function combineRecentTransactions(expenses: ExpenseRecord[], income: IncomeRecord[]) {
-  const expenseTransactions: RecentTransaction[] = expenses.map((expense) => ({
-    id: `expense-${expense.id}`,
-    sourceType: 'expense',
-    title: expense.merchant,
-    category: expense.custom_category ?? expense.category,
-    amount: -Math.abs(Number(expense.amount) || 0),
-    occurredAt: expense.date,
-    walletId: expense.wallet_id,
-  }));
+  const expenseTransactions = expenses.map(normalizeExpense);
   const incomeTransactions: RecentTransaction[] = income.map((entry) => ({
     id: `income-${entry.id}`,
     sourceType: 'income',
@@ -155,7 +178,7 @@ export async function fetchFinanceItems() {
   return [...billItems, ...subscriptionItems].sort((left, right) => left.dueDate.localeCompare(right.dueDate));
 }
 
-export function derivedStatus(item: FinanceItem, today = new Date().toISOString().slice(0, 10)) {
+export function derivedStatus(item: FinanceItem, today = dateKeyInManila()) {
   if (item.paid) return 'Paid' as const;
   return item.dueDate < today ? 'Overdue' as const : 'Upcoming' as const;
 }
@@ -175,12 +198,17 @@ export function addRecurrence(date: string, frequency: Exclude<FinanceItem['freq
   return next.toISOString().slice(0, 10);
 }
 
-export async function markFinanceItemPaid(item: FinanceItem) {
+export async function markFinanceItemPaid(item: FinanceItem, payment?: { wallet_id: string; payment_date: string }) {
   if (item.source === 'bill') {
-    return authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, { method: 'PATCH' });
+    if (!payment) throw new Error('Select a payment wallet and date.');
+    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payment) });
+    notifyFinancialMutation();
+    return result;
   }
   const nextDate = addRecurrence(item.dueDate, item.frequency ?? 'monthly');
-  return authenticatedApiRequest<SubscriptionRecord>(`/api/subscriptions/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ renewal_date: nextDate }) });
+  const result = await authenticatedApiRequest<SubscriptionRecord>(`/api/subscriptions/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ renewal_date: nextDate }) });
+  notifyFinancialMutation();
+  return result;
 }
 
 export async function deleteFinanceItem(item: FinanceItem) {

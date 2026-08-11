@@ -18,7 +18,7 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
   }
 
   if (error instanceof AppError) {
-    const isServerError = error.status >= 500;
+    const isServerError = error.status >= 500 && !error.expose;
     res.status(error.status).json({
       success: false,
       error: {

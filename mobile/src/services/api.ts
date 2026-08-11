@@ -90,7 +90,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     throw new Error(messageForResponse(response.status));
   }
 
-  logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: payload.error?.code });
+  logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: payload.error?.code, message: payload.error?.message });
   if (!response.ok || payload.data === undefined) {
     throw new Error(messageForResponse(response.status, payload.error?.message));
   }

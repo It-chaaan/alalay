@@ -40,6 +40,7 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 - Report totals and breakdowns must use the same spending dataset as what the backend returns; don't visually rescale chart values in a way that contradicts their labels.
 - Return dynamic chart current markers from the backend; do not hardcode month/date labels client-side.
 - Distinguish loading, successful-empty, and error states explicitly in every screen; never turn a failed request into a silent ₱0 or blank screen — mobile users are more likely to be on unreliable network connections than web users, so this matters more here, not less.
+- Bill payments must send an owned wallet ID and Manila-local payment date through the shared finance mutation service; successful mutations publish the shared refresh notification instead of relying on local status changes.
 - Use migrations (in the shared repo) for schema/index/trigger changes and preserve RLS/backend auth — mobile never gets its own divergent schema path.
 
 ## AI/OCR rules

@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, Droplets, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
@@ -9,7 +9,7 @@ import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
-import { combineRecentTransactions, derivedStatus, fetchExpenses, fetchFinanceItems, fetchRecentIncome, fetchWallets, totalWalletBalance, type FinanceItem, type RecentTransaction, type WalletRecord } from '@/services/finance';
+import { combineRecentTransactions, derivedStatus, fetchExpenses, fetchFinanceItems, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type RecentTransaction, type WalletRecord } from '@/services/finance';
 import { walletInitials } from '@/constants/wallets';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
@@ -101,6 +101,7 @@ export default function HomeScreen() {
   const firstName = profile ? getProfileFirstName(profile.name) : 'there';
 
   useFocusEffect(useCallback(() => { void refreshFinance(); }, [refreshFinance]));
+  useEffect(() => subscribeFinancialMutations(() => { void refreshFinance(); }), [refreshFinance]);
 
   const recentTransactionRows = recentTransactions.slice(0, 5);
 

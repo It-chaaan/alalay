@@ -244,6 +244,8 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 The current mobile implementation calls Supabase Auth directly for its auth screens and persists sessions with SecureStore. `mobile/src/services/api.ts` attaches the current access token for the Home chat-head's dashboard insight and AI chat calls; full query/mutation hooks are not yet present. Future mobile feature screens should reuse the shared authenticated backend/API contracts rather than duplicate business logic.
 
+Financial transaction reads use inclusive `YYYY-MM-DD` ranges with `Asia/Manila` date-only semantics. Mobile Home and Expenses share the finance service's expense normalization and mutation notification so successful expense writes refresh mounted consumers; backend report caches are invalidated after resource mutations.
+
 ## Financial logic ownership
 
 Financial calculations should stay centralized in backend services unless a calculation is purely presentational.

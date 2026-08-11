@@ -65,6 +65,13 @@ const reportCache = new Map<string, { expiresAt: number; data: unknown }>();
 const reportCacheTtlMs = 15_000;
 const defaultSavingsPreferenceBehavior: SavingsPreferenceBehavior = "auto_general";
 
+export function invalidateReportsForUser(userId: string) {
+  const prefix = `${requireUserId(userId)}:`;
+  for (const key of reportCache.keys()) {
+    if (key.startsWith(prefix)) reportCache.delete(key);
+  }
+}
+
 function normalizeCategoryKey(value: string) {
   const normalized = value.trim().toLowerCase();
 

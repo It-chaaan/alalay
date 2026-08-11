@@ -43,6 +43,7 @@ Wallet/account links are account-scoped: income records require `wallet_id`, out
 - Distinguish loading, successful-empty, and error states; never turn failed queries into `₱0` or blank content.
 - Use migrations for schema/index/trigger changes and preserve RLS/backend auth.
 - Per-user mobile presentation preferences must use shared authenticated API contracts and RLS-backed storage; do not persist account-scoped choices only in an unscoped local cache.
+- Expense reads must use inclusive Manila-local date ranges and the shared mobile finance normalizer/mutation notification so Expenses and Home Recent Transactions observe the same persisted record after save.
 
 ## Profile data flow
 

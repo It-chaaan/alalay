@@ -91,6 +91,8 @@ Same feature scope as the web app's feature map (Auth, Dashboard, Bills, Expense
 
 ## Data flow
 
+Expense and bill payment mutations use the shared finance service. Bill payment sends the selected `wallet_id` and Manila-local `payment_date` through the atomic backend RPC, then publishes the shared financial mutation notification so Home, Expenses, Bills, and other focused finance screens refresh authoritative data.
+
 1. Mobile screen calls the shared `useApiQuery`/`useApiMutation` hooks (ported from web).
 2. Requests go through the shared API client module, pointed at the backend's base URL (see Environment variables).
 3. Backend auth middleware resolves the current user from the Supabase token, same as web — the mobile client must attach the token the same way web does (`Authorization: Bearer <token>`), since the backend doesn't currently have a separate mobile-specific auth path.

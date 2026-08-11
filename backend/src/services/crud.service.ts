@@ -16,7 +16,9 @@ export async function listOwned(table: TableName, userId: string, filters?: Reco
   if (filters) {
     const { from, to, ...exactFilters } = filters;
     if (typeof from === "string" && from) query = query.gte("date", from);
-    if (typeof to === "string" && to) query = query.lt("date", to);
+    // Date ranges are inclusive. Clients pass `to` as the last local
+    // calendar day, so a strict upper bound drops today's transactions.
+    if (typeof to === "string" && to) query = query.lte("date", to);
     for (const [key, value] of Object.entries(exactFilters)) {
       if (value !== undefined && value !== null && value !== "") {
         query = query.eq(key, value);

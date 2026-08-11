@@ -1,6 +1,7 @@
 import { addDaysIso, client, requireUserId, throwIfError, todayIso } from "./db.js";
 import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from "./crud.service.js";
 import { AppError } from "../utils/api.js";
+import { invalidateReportsForUser } from "./analytics.service.js";
 
 export async function listBills(userId: string, query: { status?: string; due_within_days?: number; category?: string }) {
   let request = client().from("bills").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null).order("due_date", { ascending: true });
@@ -26,11 +27,16 @@ export async function payBill(userId: string, id: string, payment: { wallet_id: 
   });
   if (error) {
     const message = error.message.toLowerCase();
+    if (error.code === "pgrst202" || message.includes("could not find the function") || message.includes("function public.mark_bill_paid")) {
+      throw new AppError(503, "bill_payment_rpc_unavailable", "Bill payment is not available because the payment service migration is not deployed.", error.message, true);
+    }
+    if (message.includes("authentication required")) throw new AppError(401, "unauthorized", "Your session is no longer valid.");
     if (message.includes("bill not found")) throw new AppError(404, "not_found", "Bill not found.");
     if (message.includes("already paid")) throw new AppError(409, "conflict", "This bill has already been marked as paid.");
     if (message.includes("wallet does not belong")) throw new AppError(403, "forbidden", "That wallet is not available.");
-    throw new AppError(500, "database_error", "Unable to mark this bill as paid.");
+    throw new AppError(500, "database_error", "Unable to mark this bill as paid.", error.message);
   }
+  invalidateReportsForUser(userId);
   return data;
 }
 

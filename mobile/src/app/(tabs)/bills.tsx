@@ -5,7 +5,7 @@ import { FileText, Pencil, Repeat, Search, Trash2, X } from 'lucide-react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { authenticatedApiRequest } from '@/services/api';
-import { fetchWallets } from '@/services/finance';
+import { dateKeyInManila, fetchWallets, subscribeFinancialMutations } from '@/services/finance';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { SectionAddButton } from '@/components/header-add-button';
@@ -50,7 +50,7 @@ export default function BillsScreen() {
     try { const [financeItems, walletRows] = await Promise.all([fetchFinanceItems(), fetchWallets()]); setItems(financeItems); setWallets(walletRows as Wallet[]); } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Bills could not load.'); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
 
   const markPaid = async (item: FinanceItem) => {
     try { await markFinanceItemPaid(item); await refresh(); } catch (requestError) { Alert.alert('Could not update', requestError instanceof Error ? requestError.message : 'Try again.'); }
@@ -89,7 +89,7 @@ function BillCard({ item, onPaid, onEdit, onDelete }: { item: FinanceItem; onPai
 
 function BillPaymentSheet({ item, wallets, onClose, onSaved }: { item: FinanceItem; wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {
   const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
-  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const [paymentDate, setPaymentDate] = useState(dateKeyInManila());
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -98,11 +98,7 @@ function BillPaymentSheet({ item, wallets, onClose, onSaved }: { item: FinanceIt
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest(`/api/bills/${item.id}/pay`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet_id: walletId, payment_date: paymentDate }),
-      });
+      await markFinanceItemPaid(item, { wallet_id: walletId, payment_date: paymentDate });
       await onSaved();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to mark this bill as paid. Please try again.');

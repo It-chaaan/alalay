@@ -32,7 +32,7 @@ export async function getWallet(userId: string, id: string) {
   if (error || !wallet) throw new AppError(404, "not_found", "Wallet not found.");
   const [income, expenses, bills, adjustments] = await Promise.all([
     client().from("income").select("id, source, amount, date, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).is("deleted_at", null),
-    client().from("expenses").select("id, merchant, category, amount, date, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).is("deleted_at", null),
+    client().from("expenses").select("id, merchant, category, amount, date, wallet_id, source_bill_id").eq("user_id", ownerId).eq("wallet_id", id).is("deleted_at", null),
     client().from("bills").select("id, title, category, amount, due_date, paid_at, status, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).eq("status", "paid").is("deleted_at", null),
     client().from("wallet_adjustments").select("id, amount, date, note, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).order("date", { ascending: false }),
   ]);
@@ -40,7 +40,7 @@ export async function getWallet(userId: string, id: string) {
   const transactions = [
     ...(income.data ?? []).map((row) => ({ ...row, kind: "income", label: row.source, date: row.date, amount: asNumber(row.amount) })),
     ...(expenses.data ?? []).map((row) => ({ ...row, kind: "expense", label: row.merchant, date: row.date, amount: -asNumber(row.amount) })),
-    ...(bills.data ?? []).map((row) => ({ ...row, kind: "bill", label: row.title, date: row.paid_at ?? row.due_date, amount: -asNumber(row.amount) })),
+    ...(bills.data ?? []).filter((bill) => !(expenses.data ?? []).some((expense) => expense.source_bill_id === bill.id)).map((row) => ({ ...row, kind: "bill", label: row.title, date: row.paid_at ?? row.due_date, amount: -asNumber(row.amount) })),
     ...(adjustments.data ?? []).map((row) => ({ ...row, kind: row.note === "Opening balance" ? "opening_balance" : "deposit", label: row.note || "Wallet deposit", date: row.date, amount: asNumber(row.amount) })),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
   return { wallet: withBalance(wallet), transactions };

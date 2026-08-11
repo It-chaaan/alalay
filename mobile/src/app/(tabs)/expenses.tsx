@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { billCategories, DatePickerField, parseAmount, expenseCategories, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette, PaymentMethodChips } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
-import { fetchExpenses, fetchWallets, type BillRecord, type ExpenseRecord } from '@/services/finance';
+import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type BillRecord, type ExpenseRecord } from '@/services/finance';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
@@ -23,10 +23,7 @@ const categoryColors: Record<string, string> = { Food: '#E8775D', Groceries: '#D
 function peso(value: number) { return '₱' + Math.round(value).toLocaleString('en-PH'); }
 
 function currentMonthKey() {
-  const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
-  const year = parts.find((part) => part.type === 'year')?.value ?? String(new Date().getFullYear());
-  const month = parts.find((part) => part.type === 'month')?.value ?? String(new Date().getMonth() + 1).padStart(2, '0');
-  return year + '-' + month;
+  return dateKeyInManila().slice(0, 7);
 }
 
 function dateLabel(date: string) {
@@ -112,7 +109,7 @@ export default function ExpensesScreen() {
     }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
 
   const monthItems = useMemo(() => items.filter((item) => item.date.slice(0, 7) === month), [items, month]);
   const filteredItems = useMemo(() => {
@@ -149,7 +146,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
   const [amount, setAmount] = useState(item ? String(item.amount) : '');
   const [category, setCategory] = useState(item?.category ?? '');
   const [customCategory, setCustomCategory] = useState(item?.custom_category ?? '');
-  const [date, setDate] = useState(item?.date ?? new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(item?.date ?? dateKeyInManila());
   const [paymentMethod, setPaymentMethod] = useState(item?.payment_method ?? '');
   const [walletId, setWalletId] = useState<string | null>(item?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
@@ -160,8 +157,8 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
       setError('Add a note and a valid amount.');
       return;
     }
-    if (!category || !walletId || !paymentMethod) {
-      setError('Choose a category, wallet, and payment method to continue.');
+    if (!category || !paymentMethod) {
+      setError('Choose a category and payment method to continue.');
       return;
     }
     if (category === 'Other' && !customCategory.trim()) {
@@ -172,6 +169,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
     setError('');
     try {
       await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, payment_method: paymentMethod, date, wallet_id: walletId }) });
+      notifyFinancialMutation();
       await onSaved();
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not save this expense.');
