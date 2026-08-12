@@ -4,6 +4,7 @@ import { addDaysIso, todayIso } from "../services/db.js";
 import { sendSuccess } from "../utils/api.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { resourceRouter } from "./resource.routes.js";
+import { nextPayday } from "../services/payday.service.js";
 
 export const incomeRouter = Router();
 
@@ -25,6 +26,10 @@ incomeRouter.get("/occurrences", asyncHandler(async (req, res) => {
   const to = typeof req.query.to === "string" ? req.query.to : todayIso();
   const summary = await incomeForRange(req.user!.id, from, to);
   return sendSuccess(res, summary.rows);
+}));
+
+incomeRouter.get("/next-payday", asyncHandler(async (req, res) => {
+  return sendSuccess(res, await nextPayday(req.user!.id));
 }));
 
 incomeRouter.use("/", resourceRouter("income"));

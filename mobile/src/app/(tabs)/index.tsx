@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDown, ArrowUp, ArrowUpRight, ChevronRight, Droplets, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
-import { combineRecentTransactions, derivedStatus, fetchExpenses, fetchFinanceItems, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type RecentTransaction, type WalletRecord } from '@/services/finance';
+import { combineRecentTransactions, dateKeyInManila, derivedStatus, fetchExpenses, fetchFinanceItems, fetchNextPayday, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type Payday, type RecentTransaction, type WalletRecord } from '@/services/finance';
 import { walletInitials } from '@/constants/wallets';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
@@ -66,6 +66,9 @@ export default function HomeScreen() {
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
+  const [payday, setPayday] = useState<Payday | null>(null);
+  const [paydayLoading, setPaydayLoading] = useState(true);
+  const [paydayError, setPaydayError] = useState(false);
   const { profile } = useCurrentProfile();
 
   const refreshFinance = useCallback(async () => {
@@ -73,6 +76,9 @@ export default function HomeScreen() {
     setWalletLoading(true);
     setFinanceError('');
     setWalletError('');
+    setPaydayLoading(true);
+    setPaydayError(false);
+    void fetchNextPayday().then(setPayday).catch(() => { setPayday(null); setPaydayError(true); }).finally(() => setPaydayLoading(false));
     try {
       const [items, expenseRows, incomeRows, summary] = await Promise.all([
         fetchFinanceItems(),
@@ -130,7 +136,8 @@ export default function HomeScreen() {
         </View>
 
         <SummaryCard summary={dashboardSummary} loading={financeLoading} wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
-          <GlassSurface style={styles.shortcutContainer} padding={8}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={Target} label="Goals" onPress={() => router.push('/(tabs)/savings')} /></View></GlassSurface>
+        <PaydayCard payday={payday} loading={paydayLoading} error={paydayError} />
+        <GlassSurface style={styles.shortcutContainer} padding={8}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={Target} label="Goals" onPress={() => router.push('/(tabs)/savings')} /></View></GlassSurface>
 
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Wallets</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={[styles.link, { color: colors.primary }]}>View all</Text></Pressable></View>
         <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
@@ -159,6 +166,29 @@ function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: 
       <View style={styles.supportingMetrics}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={13} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_expenses)}</Text></View><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={13} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_income)}</Text></View></View>
     </View>
   </View>;
+}
+
+function PaydayCard({ payday, loading, error }: { payday: Payday | null; loading: boolean; error: boolean }) {
+  const { colors } = useAppTheme();
+  const today = dateKeyInManila();
+  const days = payday ? calendarDaysBetween(today, payday.date) : null;
+  const date = payday ? formatPaydayDate(payday.date) : '';
+  const title = loading ? 'Loading payday…' : error ? 'Payday unavailable' : payday ? days === 0 ? 'Payday today' : `Payday in ${days} ${days === 1 ? 'day' : 'days'}` : 'Set your payday';
+  const detail = loading ? 'Checking your recurring income schedule.' : error ? 'Try again when your income schedule is available.' : payday ? `${date}${payday.amount ? ` · ${payday.source} · ${formatPeso(payday.amount)}` : ''}` : 'Add recurring income to see your next payday countdown.';
+  return <Pressable accessibilityRole="button" accessibilityLabel={loading ? 'Loading payday schedule' : payday ? `${title}, ${date}${payday.amount ? `, expected ${formatPeso(payday.amount)}` : ''}` : title} onPress={() => router.push('/(tabs)/income')} style={({ pressed }) => [styles.paydayCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}>
+    <View style={[styles.paydayIcon, { backgroundColor: colors.accentPale }]}><CalendarDays size={22} color={colors.primary} strokeWidth={2} /></View>
+    <View style={styles.paydayMain}><Text style={[styles.paydayEyebrow, { color: colors.primary }]}>{payday ? 'PAYDAY' : 'PAYDAY SETUP'}</Text><Text style={[styles.paydayTitle, { color: colors.textPrimary }]}>{title}</Text><Text style={[styles.paydayDetail, { color: colors.textSecondary }]}>{detail}</Text></View><ChevronRight size={20} color={colors.textSecondary} />
+  </Pressable>;
+}
+
+function calendarDaysBetween(from: string, to: string) {
+  const [fy, fm, fd] = from.split('-').map(Number); const [ty, tm, td] = to.split('-').map(Number);
+  return Math.max(0, Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000));
+}
+
+function formatPaydayDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
 function WalletQuickView({ wallets, loading, error }: { wallets: WalletRecord[]; loading: boolean; error: string }) {
@@ -239,6 +269,12 @@ const styles = StyleSheet.create({
   incomeIcon: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: 'rgba(196,245,213,0.2)' },
   metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   shortcutContainer: { marginTop: 18, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 24, backgroundColor: 'transparent', borderWidth: 0 },
+  paydayCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, padding: 16, minHeight: 96, borderRadius: 22, borderWidth: 1, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 7, elevation: 2 },
+  paydayIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  paydayMain: { flex: 1, marginHorizontal: 13 },
+  paydayEyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  paydayTitle: { marginTop: 3, fontSize: 20, fontWeight: '900', letterSpacing: -0.4 },
+  paydayDetail: { marginTop: 4, fontSize: 12, fontWeight: '600' },
   shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   shortcut: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 7, borderRadius: 14 },
   shortcutIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },

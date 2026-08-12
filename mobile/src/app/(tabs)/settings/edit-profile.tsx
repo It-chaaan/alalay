@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { SettingsHeader, settingsStyles as s } from '@/components/settings-ui';
+import { SettingsHeader, useSettingsStyles } from '@/components/settings-ui';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileInitials, updateCurrentProfile } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
 
 export default function EditProfileScreen() {
   const { colors } = useAppTheme();
+  const s = useSettingsStyles();
   const { profile, loading, error: loadError, retry } = useCurrentProfile();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');

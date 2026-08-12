@@ -1,5 +1,5 @@
 type IncomeFrequency = "monthly" | "weekly" | "biweekly" | "yearly";
-type IncomeRow = Record<string, any>;
+export type IncomeRow = Record<string, any>;
 
 function parseDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
@@ -19,8 +19,20 @@ function frequencyOf(row: IncomeRow): IncomeFrequency {
   return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" ? frequency : "monthly";
 }
 
-function isRecurring(row: IncomeRow) {
+export function isRecurring(row: IncomeRow) {
   return row.is_recurring === true || row.is_recurring === 1 || String(row.is_recurring).toLowerCase() === "true";
+}
+
+export function nextOccurrenceDate(row: IncomeRow, from: string) {
+  const dates = occurrenceDates(row, from, addDays(from, 400));
+  return dates[0] ?? null;
+}
+
+function addDays(date: string, days: number) {
+  const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+  const value = new Date(Date.UTC(year, month - 1, day));
+  value.setUTCDate(value.getUTCDate() + days);
+  return dateKey(value);
 }
 
 function occurrenceDates(row: IncomeRow, from: string, to: string) {

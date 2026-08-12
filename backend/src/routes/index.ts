@@ -9,6 +9,7 @@ import { resourceRouter } from "./resource.routes.js";
 import { settingsRouter } from "./settings.routes.js";
 import { trustedDeviceRouter } from "./trusted-device.routes.js";
 import { walletsRouter } from "./wallets.routes.js";
+import { notificationsRouter } from "./notifications.routes.js";
 
 export const apiRouter = Router();
 
@@ -26,3 +27,4 @@ apiRouter.use("/ai", aiRouter);
 apiRouter.use("/ocr", ocrRouter);
 apiRouter.use("/trusted-device", trustedDeviceRouter);
 apiRouter.use("/wallets", walletsRouter);
+apiRouter.use("/notifications", notificationsRouter);

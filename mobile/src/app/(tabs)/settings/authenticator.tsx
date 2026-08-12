@@ -5,7 +5,7 @@ import { ShieldCheck } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSupabaseClient } from '@/services/supabase';
 import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
-import { SettingsHeader, settingsStyles as s } from '@/components/settings-ui';
+import { SettingsHeader, useSettingsStyles } from '@/components/settings-ui';
 import { useAppTheme } from '@/theme/theme';
 import { OtpInput } from '@/components/otp-input';
 
@@ -14,6 +14,7 @@ type Enrollment = { id: string; qr: string; secret: string };
 
 export default function AuthenticatorScreen() {
   const { colors } = useAppTheme();
+  const s = useSettingsStyles();
   const client = getSupabaseClient();
   const [factor, setFactor] = useState<Factor | null>(null);
   const [setup, setSetup] = useState<Enrollment | null>(null);

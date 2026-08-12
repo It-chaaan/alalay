@@ -3,6 +3,7 @@ import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./
 import { getReports } from "./analytics.service.js";
 import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionFundingWarningEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
 import { addBillingCycle, projectWalletFundingWarnings, type SubscriptionBillingCycle, type UpcomingSubscription } from "./subscription-billing.service.js";
+import { createInAppNotification } from "./notifications.service.js";
 
 type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
 type AuthUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
@@ -45,6 +46,8 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
   const { data: existing, error: existingError } = await query.limit(1);
   throwIfError(existingError);
   if (existing?.length) return false;
+
+  await createInAppNotification({ userId: user.id, type, title: input.subject, body: input.subject, related_bill_id: typeof related.related_bill_id === "string" ? related.related_bill_id : null, related_subscription_id: typeof related.related_subscription_id === "string" ? related.related_subscription_id : null, related_wallet_id: typeof related.related_wallet_id === "string" ? related.related_wallet_id : null, period_key: periodKey ?? null });
 
   try {
     await sendEmail({ to: email, ...input });

@@ -159,7 +159,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 - Summary cards and finance overview
 - Recent activity and high-level metrics
-- Mobile Home uses one fixed monthly overview card backed by the shared dashboard summary API; it shows the Reports-consistent monthly Net Savings (income minus expenses and paid bills), an optional month-over-month trend, plus total expenses, bills, and subscription spending.
+- Mobile Home uses the shared dashboard summary API for its overview and the authenticated `GET /api/income/next-payday` endpoint for the dynamic payday indicator. The payday endpoint derives the next occurrence from recurring income through `income-recurrence.service.ts`; it prefers salary/payroll-labelled recurring income and otherwise uses the earliest next recurring source with a stable ID tie-breaker.
 
 ### Bills
 
@@ -245,7 +245,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 The current mobile implementation calls Supabase Auth directly for its auth screens and persists sessions with SecureStore. `mobile/src/services/api.ts` attaches the current access token for the Home chat-head's dashboard insight and AI chat calls; full query/mutation hooks are not yet present. Future mobile feature screens should reuse the shared authenticated backend/API contracts rather than duplicate business logic.
 
-Financial transaction reads use inclusive `YYYY-MM-DD` ranges with `Asia/Manila` date-only semantics. Mobile Home and Expenses share the finance service's expense normalization and mutation notification so successful expense writes refresh mounted consumers; backend report caches are invalidated after resource mutations.
+Financial transaction reads use inclusive `YYYY-MM-DD` ranges with `Asia/Manila` date-only semantics. Mobile Home and Expenses share the finance service's expense normalization and mutation notification so successful expense writes refresh mounted consumers; Home refocus and financial mutations also refresh payday data. The payday card is presentational and never creates an income transaction.
 
 ## Financial logic ownership
 

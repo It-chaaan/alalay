@@ -63,6 +63,8 @@ export type IncomeRecord = {
   is_scheduled?: boolean;
 };
 
+export type Payday = { date: string; amount: number; source: string };
+
 export type RecentTransaction = {
   id: string;
   sourceType: 'income' | 'expense';
@@ -137,6 +139,29 @@ export function fetchExpenses(range = recentRange()) {
 
 export function fetchIncome() {
   return authenticatedApiRequest<IncomeRecord[]>('/api/income');
+}
+
+export async function fetchNextPayday() {
+  try {
+    return await authenticatedApiRequest<Payday | null>('/api/income/next-payday');
+  } catch (error) {
+    // Older backend deployments do not have the semantic endpoint yet. Fall
+    // back to the existing occurrence API, whose rows are expanded by the
+    // shared backend recurrence engine.
+    if (!(error instanceof Error) || !('status' in error) || (error as { status?: number }).status !== 404) throw error;
+    const from = dateKeyInManila();
+    const [year, month, day] = from.split('-').map(Number);
+    const end = new Date(Date.UTC(year, month - 1, day));
+    end.setUTCDate(end.getUTCDate() + 400);
+    const to = end.toISOString().slice(0, 10);
+    const rows = await authenticatedApiRequest<IncomeRecord[]>(`/api/income/occurrences?from=${from}&to=${to}`);
+    const candidates = rows.filter((row) => row.is_scheduled && row.is_recurring && row.date >= from);
+    const salary = candidates.filter((row) => String(row.type ?? '').toLowerCase() === 'salary' || /payroll/i.test(row.source));
+    const eligible = salary.length ? salary : candidates;
+    eligible.sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id));
+    const selected = eligible[0];
+    return selected ? { date: selected.date.slice(0, 10), amount: Number(selected.amount) || 0, source: selected.source || 'Income' } : null;
+  }
 }
 
 export function fetchRecentIncome(range = recentRange()) {
