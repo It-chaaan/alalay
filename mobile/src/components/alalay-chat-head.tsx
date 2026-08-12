@@ -13,6 +13,7 @@ const CHAT_HEAD_SIZE = 54;
 const DRAG_THRESHOLD = 8;
 
 type ChatMessage = { id: string; role: 'assistant' | 'user'; content: string };
+type PendingAction = { action: 'create_expense' | 'create_income' | 'create_transfer' | 'create_bill' | 'create_subscription'; fields: Record<string, unknown> };
 
 type DashboardInsight = {
   ai_insight: {
@@ -160,6 +161,7 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -183,12 +185,13 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     setDraft('');
     setSending(true);
     try {
-      const response = await authenticatedApiRequest<{ message: string; financialMutation?: boolean }>('/api/ai/chat', {
+      const response = await authenticatedApiRequest<{ message: string; financialMutation?: boolean; pendingAction?: PendingAction | null }>('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, request_id: newRequestId(), history }),
+        body: JSON.stringify({ message: content, request_id: newRequestId(), pending_action: pendingAction, history }),
       });
       if (response.financialMutation) notifyFinancialMutation();
+      if (response.pendingAction !== undefined) setPendingAction(response.pendingAction);
       const reply = response.message;
       setMessages((current) => [...current, { id: `assistant-${Date.now()}`, role: 'assistant', content: reply }]);
     } catch (error) {
@@ -200,7 +203,7 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
   };
 
   return <SafeAreaView style={styles.chatScreen} edges={[]}>
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.chatBody, !keyboardVisible && { paddingBottom: bottomNavClearance }]} keyboardVerticalOffset={0}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.chatBody} keyboardVerticalOffset={0}>
     <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} /></Pressable>
       <View style={styles.chatTitleWrap}><Text style={styles.chatTitle}>Ask Alalay</Text><Text style={styles.chatSubtitle}>Your financial companion</Text></View>
@@ -211,6 +214,7 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
       {sending && <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}><ActivityIndicator size="small" color={colors.accent} /><Text style={styles.typingText}>Alalay is thinking…</Text></View>}
     </ScrollView>
     <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={sendMessage} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={colors.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={sendMessage} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color={colors.textOnPrimary} strokeWidth={2} /></Pressable></View>
+    {!keyboardVisible && <View pointerEvents="none" style={{ height: bottomNavClearance }} />}
     </KeyboardAvoidingView>
   </SafeAreaView>;
 }

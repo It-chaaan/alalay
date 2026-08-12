@@ -16,11 +16,11 @@ const date = { type: "STRING", description: "Calendar date in YYYY-MM-DD format.
 const walletName = { type: "STRING", description: "The user's wallet name, never an ID." };
 
 export const aiToolDefinitions: AiToolDefinition[] = [
-  { name: "create_expense", description: "Log a confirmed expense. Required: amount, category, merchant, date. Wallet is optional unless the user specifies one.", parameters: { type: "OBJECT", properties: { amount, category: { type: "STRING" }, merchant: { type: "STRING" }, date, wallet_name: walletName }, required: ["amount", "category", "merchant", "date"] } },
-  { name: "create_income", description: "Log confirmed income. A destination wallet is required by the application.", parameters: { type: "OBJECT", properties: { amount, source: { type: "STRING" }, type: { type: "STRING" }, date, wallet_name: walletName }, required: ["amount", "source", "date", "wallet_name"] } },
-  { name: "create_transfer", description: "Transfer funds atomically between two wallets owned by the user.", parameters: { type: "OBJECT", properties: { amount, from_wallet_name: walletName, to_wallet_name: walletName, date, note: { type: "STRING" } }, required: ["amount", "from_wallet_name", "to_wallet_name", "date"] } },
-  { name: "create_bill", description: "Add a bill schedule. Required: title, amount, category, due date.", parameters: { type: "OBJECT", properties: { title: { type: "STRING" }, amount, category: { type: "STRING" }, due_date: date, recurring: { type: "BOOLEAN" }, frequency: { type: "STRING", enum: ["weekly", "monthly", "quarterly", "yearly"] }, notes: { type: "STRING" }, wallet_name: walletName }, required: ["title", "amount", "category", "due_date"] } },
-  { name: "create_subscription", description: "Add a recurring subscription. A payment wallet is required by the application.", parameters: { type: "OBJECT", properties: { name: { type: "STRING" }, amount, category: { type: "STRING" }, renewal_date: date, billing_cycle: { type: "STRING", enum: ["weekly", "monthly", "quarterly", "yearly"] }, wallet_name: walletName }, required: ["name", "amount", "category", "renewal_date", "billing_cycle", "wallet_name"] } },
+  { name: "create_expense", description: "Log a confirmed expense. Required: amount, category, merchant, date. Wallet is optional unless the user specifies one.", parameters: { type: "OBJECT", properties: { amount, category: { type: "STRING" }, merchant: { type: "STRING" }, date, wallet_name: walletName } } },
+  { name: "create_income", description: "Log confirmed income. A destination wallet is required by the application.", parameters: { type: "OBJECT", properties: { amount, source: { type: "STRING" }, type: { type: "STRING" }, date, wallet_name: walletName } } },
+  { name: "create_transfer", description: "Transfer funds atomically between two wallets owned by the user.", parameters: { type: "OBJECT", properties: { amount, from_wallet_name: walletName, to_wallet_name: walletName, date, note: { type: "STRING" } } } },
+  { name: "create_bill", description: "Add a bill schedule. Required: title, amount, category, due date.", parameters: { type: "OBJECT", properties: { title: { type: "STRING" }, amount, category: { type: "STRING" }, due_date: date, recurring: { type: "BOOLEAN" }, frequency: { type: "STRING", enum: ["weekly", "monthly", "quarterly", "yearly"] }, notes: { type: "STRING" }, wallet_name: walletName } } },
+  { name: "create_subscription", description: "Add a recurring subscription. A payment wallet is required by the application.", parameters: { type: "OBJECT", properties: { name: { type: "STRING" }, amount, category: { type: "STRING" }, renewal_date: date, billing_cycle: { type: "STRING", enum: ["weekly", "monthly", "quarterly", "yearly"] }, wallet_name: walletName } } },
 ];
 
 type ActionInput = { userId: string; requestId: string; name: string; args: Record<string, unknown> };
@@ -61,12 +61,17 @@ function resolveDate(value: unknown) {
 
 function normalize(value: string) { return value.toLocaleLowerCase().replace(/[^a-z0-9]+/g, "").trim(); }
 
+export function matchWalletNames(wallets: Array<{ id: string; name: string }>, requested: string) {
+  const key = normalize(requested);
+  const exactMatches = wallets.filter((wallet) => normalize(String(wallet.name)) === key);
+  return exactMatches.length ? exactMatches : wallets.filter((wallet) => normalize(String(wallet.name)).includes(key) || key.includes(normalize(String(wallet.name))));
+}
+
 async function walletForName(userId: string, name: unknown) {
   const requested = text(name);
   if (!requested) throw new AppError(400, "wallet_required", "Which wallet should I use?", undefined, true);
   const wallets = await listWallets(userId) as unknown as Array<{ id: string; name: string }>;
-  const key = normalize(requested);
-  const matches = wallets.filter((wallet) => normalize(String(wallet.name)).includes(key) || key.includes(normalize(String(wallet.name))));
+  const matches = matchWalletNames(wallets, requested);
   if (!matches.length) throw new AppError(400, "wallet_not_found", `I couldn't find a wallet named ${requested}. Available wallets: ${wallets.map((wallet) => wallet.name).join(", ")}.`, undefined, true);
   if (matches.length > 1) throw new AppError(400, "wallet_ambiguous", `I found more than one matching wallet: ${matches.map((wallet) => wallet.name).join(", ")}. Which one did you mean?`, undefined, true);
   return matches[0];
@@ -123,7 +128,7 @@ async function performAiAction(input: ActionInput): Promise<Record<string, unkno
     }
     return { success: false, code: "unsupported_action", user_message: "I can't perform that financial action." };
   } catch (error) {
-    return safeFailure(error);
+    return { ...safeFailure(error), pending_action: { action: input.name, fields: input.args } };
   }
 }
 

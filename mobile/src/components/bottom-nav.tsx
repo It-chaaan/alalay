@@ -1,5 +1,6 @@
 import { router, usePathname } from 'expo-router';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
 import { BarChart3, Home, ScanLine, Wallet, WalletCards } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_BOTTOM_OFFSET, BOTTOM_NAV_HEIGHT } from './bottom-nav-clearance';
@@ -15,7 +16,13 @@ export function BottomNav() {
   const insets = useSafeAreaInsets();
   const pathname = usePathname();
   const { modalCount } = useModalVisibility();
-  if (modalCount > 0) return null;
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
+  if (modalCount > 0 || keyboardVisible) return null;
   const isActive = (route: string) => pathname === route || pathname.startsWith(`${route}/`) || pathname === `/(tabs)${route}` || pathname.startsWith(`/(tabs)${route}/`);
   return <View style={[styles.bottomNavOuter, { bottom: BOTTOM_NAV_BOTTOM_OFFSET + insets.bottom }]}>
     <View style={[styles.glassNavSurface, { borderColor: colors.border, shadowColor: colors.shadow }]}>

@@ -13,6 +13,7 @@ export type AiProviderRequest = {
   language: "en" | "fil";
   history: AiMessage[];
   financialContext: Record<string, unknown>;
+  pendingAction?: { action: string; fields: Record<string, unknown> } | null;
 };
 
 export type AiToolDefinition = {
@@ -65,7 +66,7 @@ function systemInstruction(language: "en" | "fil") {
     "For affordability questions, consider cash flow, remaining budget, upcoming bills, subscriptions, and savings goals.",
     "For overspending questions, identify categories, recent transactions, risk alerts, and practical adjustments.",
     "You may use the provided financial action tools only when the user clearly asks to create or log a record. Never use them for questions, advice, hypotheticals, or analysis.",
-    "Before using a tool, collect every required field. Never invent a wallet, amount, date, or other required value.",
+    "When a clearly requested financial action is missing a required field, use the matching tool with the fields you did understand so the server can return a targeted clarification and pending state. Never invent a wallet, amount, date, or other required value.",
     "After a tool call, rely only on its structured result. Say an action was completed only when success is true; for failure, explain the provided user_message and do not claim anything was added.",
     languageInstruction,
   ].join("\n");
@@ -86,6 +87,7 @@ function toGeminiContents(request: AiProviderRequest): GeminiContent[] {
           text: [
             "Financial context JSON:",
             JSON.stringify(request.financialContext, null, 2),
+            ...(request.pendingAction ? ["Pending financial action state (merge new user details into this; do not discard collected fields):", JSON.stringify(request.pendingAction, null, 2)] : []),
             "",
             `User question: ${request.message}`,
           ].join("\n"),
