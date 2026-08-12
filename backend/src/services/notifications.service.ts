@@ -32,6 +32,6 @@ export async function unreadNotificationCount(userId: string) {
 }
 
 export async function markNotificationsRead(userId: string) {
-  const { error } = await client().from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", requireUserId(userId)).is("read_at", null);
+  const { error } = await client().from("notifications").update({ read: true, read_at: new Date().toISOString() }).eq("user_id", requireUserId(userId)).is("read_at", null);
   throwIfError(error);
 }
