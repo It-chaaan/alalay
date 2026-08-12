@@ -1,20 +1,13 @@
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, PanResponder, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Bot, Send, X } from 'lucide-react-native';
 
 import { authenticatedApiRequest } from '@/services/api';
-
-const palette = {
-  background: '#F4F7F1',
-  surface: '#FFFFFF',
-  ink: '#11231C',
-  muted: '#5D6C65',
-  accent: '#0F8A6B',
-  accentPale: '#D8EFE2',
-  line: '#DCE8E0',
-};
+import { notifyFinancialMutation } from '@/services/finance';
+import { useAppTheme } from '@/theme/theme';
+import { useBottomNavClearance } from './bottom-nav-clearance';
 
 const CHAT_HEAD_SIZE = 54;
 const DRAG_THRESHOLD = 8;
@@ -32,7 +25,17 @@ const initialMessages: ChatMessage[] = [
   { id: 'welcome', role: 'assistant', content: 'Hi! I’m Alalay. Ask me about your bills, spending, savings, or budget.' },
 ];
 
+function newRequestId() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
+    const random = Math.random() * 16 | 0;
+    const value = character === 'x' ? random : (random & 0x3 | 0x8);
+    return value.toString(16);
+  });
+}
+
 export function AlalayChatHead() {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   // Start docked near the lower right, above the floating nav and away from cards.
@@ -133,7 +136,7 @@ export function AlalayChatHead() {
 
   return <>
     {popupVisible && <Animated.View style={[styles.popup, popupStyle, { opacity: popupOpacity, transform: [{ scale: popupOpacity.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }] }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss Alalay insight" onPress={hidePopup} style={styles.popupClose}><X size={15} color={palette.muted} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Dismiss Alalay insight" onPress={hidePopup} style={styles.popupClose}><X size={15} color={colors.muted} /></Pressable>
       <Text style={styles.popupTitle}>Alalay insight</Text>
       <Text numberOfLines={4} style={styles.popupCopy}>{insight}</Text>
     </Animated.View>}
@@ -143,18 +146,33 @@ export function AlalayChatHead() {
       accessibilityLabel="Open Alalay assistant"
       {...panResponder.panHandlers}
       style={[styles.chatHead, { left: initialPosition.x, top: initialPosition.y, transform: pan.getTranslateTransform() }]}>
-      <Bot size={28} color="#FFFFFF" strokeWidth={1.9} />
+      <Bot size={28} color={colors.textOnPrimary} strokeWidth={1.9} />
     </Animated.View>
     {chatOpen && <AlalayChat onClose={() => setChatOpen(false)} />}
   </>;
 }
 
 function AlalayChat({ onClose }: { onClose: () => void }) {
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
+  const bottomNavClearance = useBottomNavClearance();
   const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
+    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
+    return () => {
+      showSubscription.remove();
+      hideSubscription.remove();
+    };
+  }, []);
 
   const sendMessage = async () => {
     const content = draft.trim();
@@ -165,11 +183,12 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     setDraft('');
     setSending(true);
     try {
-      const response = await authenticatedApiRequest<{ message: string }>('/api/ai/chat', {
+      const response = await authenticatedApiRequest<{ message: string; financialMutation?: boolean }>('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, history }),
+        body: JSON.stringify({ message: content, request_id: newRequestId(), history }),
       });
+      if (response.financialMutation) notifyFinancialMutation();
       const reply = response.message;
       setMessages((current) => [...current, { id: `assistant-${Date.now()}`, role: 'assistant', content: reply }]);
     } catch (error) {
@@ -180,46 +199,52 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     }
   };
 
-  return <SafeAreaView style={styles.chatScreen} edges={['top', 'bottom']}>
+  return <SafeAreaView style={styles.chatScreen} edges={[]}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={[styles.chatBody, !keyboardVisible && { paddingBottom: bottomNavClearance }]} keyboardVerticalOffset={0}>
     <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
-      <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}><ArrowLeft size={22} color={palette.ink} strokeWidth={1.8} /></Pressable>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} /></Pressable>
       <View style={styles.chatTitleWrap}><Text style={styles.chatTitle}>Ask Alalay</Text><Text style={styles.chatSubtitle}>Your financial companion</Text></View>
       <View style={styles.headerLogo}><Image source={require('@/assets/images/alalay.svg')} style={styles.headerLogoImage} contentFit="contain" /></View>
     </View>
-    <ScrollView ref={scrollRef} contentContainerStyle={styles.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
+    <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
       {messages.map((message) => <View key={message.id} style={[styles.messageBubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}><Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : styles.assistantMessageText]}>{message.content}</Text></View>)}
-      {sending && <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}><ActivityIndicator size="small" color={palette.accent} /><Text style={styles.typingText}>Alalay is thinking…</Text></View>}
+      {sending && <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}><ActivityIndicator size="small" color={colors.accent} /><Text style={styles.typingText}>Alalay is thinking…</Text></View>}
     </ScrollView>
-    <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={sendMessage} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={palette.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={sendMessage} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color="#FFFFFF" strokeWidth={2} /></Pressable></View>
+    <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={sendMessage} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={colors.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={sendMessage} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color={colors.textOnPrimary} strokeWidth={2} /></Pressable></View>
+    </KeyboardAvoidingView>
   </SafeAreaView>;
 }
 
-const styles = StyleSheet.create({
-  chatHead: { position: 'absolute', zIndex: 12, width: CHAT_HEAD_SIZE, height: CHAT_HEAD_SIZE, borderRadius: CHAT_HEAD_SIZE / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.24, shadowRadius: 10, elevation: 8 },
-  popup: { position: 'absolute', zIndex: 11, width: 250, padding: 15, borderRadius: 17, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line, shadowColor: '#063224', shadowOpacity: 0.14, shadowRadius: 12, elevation: 6 },
+function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
+  return StyleSheet.create({
+  chatHead: { position: 'absolute', zIndex: 12, width: CHAT_HEAD_SIZE, height: CHAT_HEAD_SIZE, borderRadius: CHAT_HEAD_SIZE / 2, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, shadowColor: colors.shadow, shadowOpacity: 0.24, shadowRadius: 10, elevation: 8 },
+  popup: { position: 'absolute', zIndex: 11, width: 250, padding: 15, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, shadowColor: colors.shadow, shadowOpacity: 0.14, shadowRadius: 12, elevation: 6 },
   popupClose: { position: 'absolute', top: 8, right: 8, width: 28, height: 28, alignItems: 'center', justifyContent: 'center' },
-  popupTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
-  popupCopy: { marginTop: 7, paddingRight: 14, color: palette.muted, fontSize: 12, lineHeight: 18 },
-  chatScreen: { ...StyleSheet.absoluteFillObject, zIndex: 30, backgroundColor: palette.background },
-  chatHeader: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 12, backgroundColor: palette.surface, borderBottomWidth: 1, borderBottomColor: palette.line },
+  popupTitle: { color: colors.ink, fontSize: 14, fontWeight: '900' },
+  popupCopy: { marginTop: 7, paddingRight: 14, color: colors.muted, fontSize: 12, lineHeight: 18 },
+  chatScreen: { ...StyleSheet.absoluteFillObject, zIndex: 30, backgroundColor: colors.background },
+  chatBody: { flex: 1 },
+  chatHeader: { minHeight: 76, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 18, paddingBottom: 12, backgroundColor: colors.surface, borderBottomWidth: 1, borderBottomColor: colors.line },
   headerButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   chatTitleWrap: { flex: 1, marginLeft: 7 },
-  chatTitle: { color: palette.ink, fontSize: 17, fontWeight: '900' },
-  chatSubtitle: { marginTop: 2, color: palette.muted, fontSize: 11 },
-  headerLogo: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
+  chatTitle: { color: colors.ink, fontSize: 17, fontWeight: '900' },
+  chatSubtitle: { marginTop: 2, color: colors.muted, fontSize: 11 },
+  headerLogo: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accentPale },
   headerLogoImage: { width: 29, height: 29 },
-  messages: { flexGrow: 1, padding: 20, gap: 10 },
+  messageList: { flex: 1 },
+  messages: { flexGrow: 1, padding: 20, paddingBottom: 12, gap: 10 },
   messageBubble: { maxWidth: '84%', paddingHorizontal: 14, paddingVertical: 11, borderRadius: 17 },
-  assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
-  userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4, backgroundColor: palette.accent },
+  assistantBubble: { alignSelf: 'flex-start', borderBottomLeftRadius: 4, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.line },
+  userBubble: { alignSelf: 'flex-end', borderBottomRightRadius: 4, backgroundColor: colors.accent },
   messageText: { fontSize: 14, lineHeight: 20 },
-  assistantMessageText: { color: palette.ink },
-  userMessageText: { color: '#FFFFFF' },
+  assistantMessageText: { color: colors.ink },
+  userMessageText: { color: colors.textOnPrimary },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  typingText: { color: palette.muted, fontSize: 12, fontWeight: '600' },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: palette.surface, borderTopWidth: 1, borderTopColor: palette.line },
-  composerInput: { flex: 1, minHeight: 46, maxHeight: 108, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 18, backgroundColor: palette.background, color: palette.ink, fontSize: 14 },
-  sendButton: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accent },
+  typingText: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
+  composerInput: { flex: 1, minHeight: 46, maxHeight: 108, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 18, backgroundColor: colors.surfaceInput, color: colors.ink, fontSize: 14 },
+  sendButton: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },
   sendDisabled: { opacity: 0.45 },
   pressed: { opacity: 0.76 },
-});
+  });
+}

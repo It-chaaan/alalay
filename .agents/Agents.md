@@ -270,7 +270,7 @@ Frontend should render server results and only perform UI-level formatting or tr
 - `EXPO_PUBLIC_SUPABASE_URL`
 - `EXPO_PUBLIC_SUPABASE_ANON_KEY`
 
-The current mobile Supabase auth client reads the two Supabase variables. Mobile API usage is not yet implemented in the checked-in client.
+The current mobile Supabase auth client reads the two Supabase variables. Mobile Ask Alalay calls the authenticated `POST /api/ai/chat` endpoint with bounded history and a per-message `request_id`. The backend exposes only controlled `create_expense`, `create_income`, `create_transfer`, `create_bill`, and `create_subscription` actions, reusing existing validated domain services and authenticated wallet resolution. Successful AI mutations return `financialMutation` so mobile finance consumers can refresh through the existing mutation notification.
 
 `frontend/.env.example` is currently incomplete and should include this.
 

@@ -1,10 +1,13 @@
 import { env } from "../config/env.js";
 import { buildFinancialContext } from "./ai.context.service.js";
 import { type AiMessage, getAiProvider } from "./ai.providers.js";
+import { executeAiAction, aiToolDefinitions } from "./ai.actions.js";
+import { randomUUID } from "node:crypto";
 
 export type AiChatRequest = {
   userId: string;
   message: string;
+  requestId?: string;
   language?: "en" | "fil";
   history?: AiMessage[];
 };
@@ -35,18 +38,24 @@ export async function chat(request: AiChatRequest) {
   const provider = getAiProvider();
   const language = detectLanguage(request.message, request.language);
   const financialContext = await buildFinancialContext(request.userId, request.message);
+  let financialMutation = false;
   const reply = await provider.generate({
     message: request.message,
     language,
     history: request.history ?? [],
     financialContext,
-  });
+  }, { tools: aiToolDefinitions, executeTool: async (name, args) => {
+    const result = await executeAiAction({ userId: request.userId, requestId: request.requestId ?? randomUUID(), name, args });
+    financialMutation = financialMutation || result.success === true;
+    return result;
+  } });
 
   return {
     status: "ok",
     provider: provider.name,
     model: env.GEMINI_MODEL,
     language,
+    financialMutation,
     message: reply,
   };
 }

@@ -54,6 +54,7 @@ Wallet/account links are account-scoped: income records require `wallet_id`, out
 ## AI/OCR rules
 
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`; never expose keys or move prompts/data calls to the client.
+- Conversational financial writes use only the backend's controlled Gemini tool surface (`create_expense`, `create_income`, `create_transfer`, `create_bill`, `create_subscription`). Resolve wallets by authenticated-user-owned names server-side, invoke existing domain services, and require structured success results before confirmation. Preserve request IDs for idempotency; never retry an uncertain financial write blindly.
 - The dashboard AI card remains a placeholder and must not be given fake text. Define data, prompt contract, endpoint, refresh, caching, and error behavior before wiring it.
 - OCR currently runs in-browser with `tesseract.js`; do not describe it as a backend extraction pipeline.
 - Mobile OCR is not currently implemented and requires a React Native-compatible approach; do not copy the browser/WASM implementation into `mobile/`.

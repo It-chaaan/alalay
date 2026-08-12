@@ -45,6 +45,8 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 
 ## AI/OCR rules
 
+Ask Alalay financial actions remain backend-only tool calls with server-side wallet ownership resolution, existing domain-service validation, and request-ID deduplication. Publish `notifyFinancialMutation()` only when the backend reports a successful mutation.
+
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`, same as web — never expose keys or move prompts/data calls to the mobile client.
 - The dashboard AI card must not show fake/placeholder text dressed up as a real insight, matching the web app's rule — if the mobile AI card isn't wired to real data yet, treat it as a visible placeholder state, not filler copy.
 - OCR does **not** carry over from web as-is. `tesseract.js` is a browser/WASM library and isn't a valid mobile solution. Before implementing, decide and document whether mobile OCR uses an on-device native OCR library or sends captures to a (new) backend OCR endpoint — do not silently assume either approach without confirming it in `AGENTS.md` first.

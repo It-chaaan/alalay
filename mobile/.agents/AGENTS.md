@@ -59,6 +59,8 @@ If the mobile app lives in its own repository separate from the web app, treat `
 
 ### AI
 
+Ask Alalay sends bounded history and a stable per-submission request ID to the authenticated backend chat endpoint. Financial creation actions remain server-side controlled tool calls; the backend resolves wallets against the authenticated user, reuses existing domain services, and returns a mutation flag for mobile financial refresh notifications.
+
 - Provider: Google Gemini Flash — same backend routes as web (`/api/ai/status`, `/api/ai/chat`, `/api/ai/chat/stream`).
 - Never call Gemini directly from the mobile client and never embed API keys in the mobile app bundle — same rule as web, and it applies even more strictly on mobile since app bundles are easier to decompile/inspect than a web app's network traffic.
 - Assistant responses are rendered as markdown on web; confirm/port an equivalent React Native markdown renderer for mobile (e.g. `react-native-markdown-display`) rather than rendering raw markdown text.

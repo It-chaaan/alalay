@@ -15,14 +15,22 @@ export type AiProviderRequest = {
   financialContext: Record<string, unknown>;
 };
 
+export type AiToolDefinition = {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+};
+
+export type AiToolExecutor = (name: string, args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+
 export type AiProvider = {
   name: string;
   isConfigured: () => boolean;
-  generate: (request: AiProviderRequest) => Promise<string>;
+  generate: (request: AiProviderRequest, options?: { tools?: AiToolDefinition[]; executeTool?: AiToolExecutor }) => Promise<string>;
   stream: (request: AiProviderRequest, onToken: (token: string) => void | Promise<void>) => Promise<string>;
 };
 
-type GeminiPart = { text: string };
+type GeminiPart = { text?: string; functionCall?: { name: string; args?: Record<string, unknown> }; functionResponse?: { name: string; response: Record<string, unknown> } };
 type GeminiContent = { role: "user" | "model"; parts: GeminiPart[] };
 type GeminiResponse = {
   candidates?: Array<{
@@ -56,6 +64,9 @@ function systemInstruction(language: "en" | "fil") {
     "Give concise, actionable advice. Prefer bullets for multi-step recommendations.",
     "For affordability questions, consider cash flow, remaining budget, upcoming bills, subscriptions, and savings goals.",
     "For overspending questions, identify categories, recent transactions, risk alerts, and practical adjustments.",
+    "You may use the provided financial action tools only when the user clearly asks to create or log a record. Never use them for questions, advice, hypotheticals, or analysis.",
+    "Before using a tool, collect every required field. Never invent a wallet, amount, date, or other required value.",
+    "After a tool call, rely only on its structured result. Say an action was completed only when success is true; for failure, explain the provided user_message and do not claim anything was added.",
     languageInstruction,
   ].join("\n");
 }
@@ -177,7 +188,7 @@ export function createGeminiProvider(): AiProvider {
   const baseUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}`;
   const supportsThinkingBudget = /^gemini-2\.5/i.test(model);
 
-  function requestBody(request: AiProviderRequest) {
+  function requestBody(request: AiProviderRequest, tools?: AiToolDefinition[]) {
     const generationConfig: {
       temperature: number;
       topP: number;
@@ -202,6 +213,7 @@ export function createGeminiProvider(): AiProvider {
         parts: [{ text: systemInstruction(request.language) }],
       },
       contents: toGeminiContents(request),
+      ...(tools?.length ? { tools: [{ functionDeclarations: tools }] } : {}),
       generationConfig,
     };
   }
@@ -233,12 +245,34 @@ export function createGeminiProvider(): AiProvider {
   return {
     name: "Google Gemini Flash",
     isConfigured: () => Boolean(env.GEMINI_API_KEY),
-    generate: async (request) => {
+    generate: async (request, options) => {
       if (!env.GEMINI_API_KEY) {
         throw new AppError(503, "ai_not_configured", "Gemini is not configured. Add GEMINI_API_KEY in backend/.env.");
       }
 
-      return generateText(request);
+      if (!options?.tools?.length || !options.executeTool) return generateText(request);
+
+      const contents = toGeminiContents(request);
+      for (let attempt = 0; attempt < 4; attempt += 1) {
+        const response = await fetch(`${baseUrl}:generateContent`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": env.GEMINI_API_KEY! },
+          body: JSON.stringify({ ...requestBody(request, options.tools), contents }),
+        });
+        const payload = await response.json() as GeminiResponse;
+        if (!response.ok) throw new AppError(response.status, "ai_provider_error", getGeminiError(payload));
+        const candidate = payload.candidates?.[0];
+        const functionCall = candidate?.content?.parts?.find((part) => part.functionCall)?.functionCall;
+        if (!functionCall) {
+          const text = extractText(payload).trim();
+          if (!text) throw new AppError(502, "ai_empty_response", getEmptyResponseReason(payload));
+          return text;
+        }
+        contents.push({ role: "model", parts: candidate?.content?.parts ?? [{ functionCall }] });
+        const result = await options.executeTool(functionCall.name, functionCall.args ?? {});
+        contents.push({ role: "user", parts: [{ functionResponse: { name: functionCall.name, response: result } }] });
+      }
+      throw new AppError(502, "ai_action_loop", "The assistant could not finish processing that action.");
     },
     stream: async (request, onToken) => {
       if (!env.GEMINI_API_KEY) {

@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 
 type ValidatedAiBody = {
   message: string;
+  request_id?: string;
   language?: "en" | "fil";
   history?: AiChatRequest["history"];
 };
@@ -19,6 +20,7 @@ export async function sendMessage(req: Request, res: Response) {
   return sendSuccess(res, await chat({
     userId: req.user!.id,
     message: body.message,
+    requestId: body.request_id,
     language: body.language,
     history: body.history,
   }));
