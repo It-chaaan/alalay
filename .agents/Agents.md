@@ -113,6 +113,7 @@ supabase/   SQL migrations, config, generated types
   - `frontend/src/hooks/useAiAssistant.ts`
   - `frontend/src/pages/dashboard/AiAssistantPage.tsx`
 - Assistant responses are rendered as markdown in the frontend.
+- Ask Alalay's mobile chat contract carries multi-turn state as validated camelCase `pendingAction`; this is application state and is translated into supported provider context rather than sent as an unsupported provider field. Financial action failures are structured and technical errors are normalized before reaching chat UI.
 
 ### OCR
 
@@ -120,7 +121,7 @@ supabase/   SQL migrations, config, generated types
 - Main page: `frontend/src/pages/dashboard/OcrScannerPage.tsx`
 - Engine: `tesseract.js`
 - Backend OCR routes currently expose capabilities/demo endpoints only.
-- Mobile OCR is not implemented; browser `tesseract.js` must not be copied into React Native without a separate compatible approach.
+- Mobile OCR uses Expo Camera and native ML Kit through a platform-specific adapter; browser `tesseract.js` remains the web-only OCR provider. Native dependency changes require a rebuilt Expo development/native client.
 
 ## Frontend routing
 

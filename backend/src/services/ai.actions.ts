@@ -128,7 +128,7 @@ async function performAiAction(input: ActionInput): Promise<Record<string, unkno
     }
     return { success: false, code: "unsupported_action", user_message: "I can't perform that financial action." };
   } catch (error) {
-    return { ...safeFailure(error), pending_action: { action: input.name, fields: input.args } };
+    return { ...safeFailure(error), pendingAction: { action: input.name, fields: input.args } };
   }
 }
 

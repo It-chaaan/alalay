@@ -4,7 +4,7 @@ import { ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, PanRespond
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Bot, Send, X } from 'lucide-react-native';
 
-import { authenticatedApiRequest } from '@/services/api';
+import { authenticatedApiRequest, chatErrorMessage } from '@/services/api';
 import { notifyFinancialMutation } from '@/services/finance';
 import { useAppTheme } from '@/theme/theme';
 import { useBottomNavClearance } from './bottom-nav-clearance';
@@ -188,14 +188,14 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
       const response = await authenticatedApiRequest<{ message: string; financialMutation?: boolean; pendingAction?: PendingAction | null }>('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: content, request_id: newRequestId(), pending_action: pendingAction, history }),
+        body: JSON.stringify({ message: content, request_id: newRequestId(), pendingAction, history }),
       });
       if (response.financialMutation) notifyFinancialMutation();
       if (response.pendingAction !== undefined) setPendingAction(response.pendingAction);
       const reply = response.message;
       setMessages((current) => [...current, { id: `assistant-${Date.now()}`, role: 'assistant', content: reply }]);
     } catch (error) {
-      setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'assistant', content: error instanceof Error ? error.message : 'Alalay could not respond right now.' }]);
+      setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'assistant', content: chatErrorMessage(error) }]);
     } finally {
       setSending(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));

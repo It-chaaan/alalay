@@ -57,7 +57,7 @@ Wallet/account links are account-scoped: income records require `wallet_id`, out
 - Conversational financial writes use only the backend's controlled Gemini tool surface (`create_expense`, `create_income`, `create_transfer`, `create_bill`, `create_subscription`). Resolve wallets by authenticated-user-owned names server-side, invoke existing domain services, and require structured success results before confirmation. Preserve request IDs for idempotency; never retry an uncertain financial write blindly.
 - The dashboard AI card remains a placeholder and must not be given fake text. Define data, prompt contract, endpoint, refresh, caching, and error behavior before wiring it.
 - OCR currently runs in-browser with `tesseract.js`; do not describe it as a backend extraction pipeline.
-- Mobile OCR is not currently implemented and requires a React Native-compatible approach; do not copy the browser/WASM implementation into `mobile/`.
+- Mobile OCR uses Expo Camera and native ML Kit through a platform-specific adapter; browser `tesseract.js` remains web-only. Native dependency changes require a rebuilt Expo development/native client.
 
 ## Profile/avatar rules
 

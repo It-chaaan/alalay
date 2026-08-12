@@ -6,6 +6,13 @@ type ApiEnvelope<T> = {
   error?: { code?: string; message?: string; correlationId?: string };
 };
 
+export class ApiRequestError extends Error {
+  constructor(message: string, public readonly status: number, public readonly code: string, public readonly correlationId?: string) {
+    super(message);
+    this.name = 'ApiRequestError';
+  }
+}
+
 function messageForResponse(status: number, serverMessage?: string) {
   if (status === 401) return 'Your session expired. Please sign in again.';
   if (status === 403) return "You don't have permission to perform this action.";
@@ -13,6 +20,18 @@ function messageForResponse(status: number, serverMessage?: string) {
   if (status === 409) return serverMessage ?? 'This change conflicts with existing data.';
   if (status >= 500) return 'The service is temporarily unavailable. Please try again.';
   return serverMessage ?? 'Something went wrong while saving. Please try again.';
+}
+
+export function chatErrorMessage(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.code === 'network_error' || error.code === 'network_error_after_refresh') return "I couldn't reach Alalay right now. Check your connection and try again.";
+    if (error.status === 401 || error.code === 'unauthorized' || error.code === 'auth_required') return 'Your session has expired. Please sign in again.';
+    if (error.code === 'validation_error' || error.code === 'invalid_json') return "I couldn't process that request right now. Please try again.";
+    if (error.code === 'ai_provider_error' || error.code === 'ai_empty_response' || error.code === 'ai_action_loop' || error.code === 'ai_not_configured') return "I couldn't process that message right now. Please try again.";
+    if (error.status >= 500) return "I couldn't complete that right now. Please try again.";
+    return "I couldn't complete that request. Please check the details and try again.";
+  }
+  return "I couldn't complete that right now. Please try again.";
 }
 
 function requestPath(url: string) {
@@ -47,7 +66,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
   const trustedDeviceToken = await getTrustedDeviceToken();
 
   if (!apiUrl || !accessToken) {
-    throw new Error('Sign in again before using this feature.');
+    throw new ApiRequestError('Sign in again before using this feature.', 401, 'auth_required');
   }
 
   const url = `${normalizeApiBaseUrl(apiUrl)}${path}`;
@@ -64,7 +83,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     response = await send();
   } catch {
     logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> network_error`);
-    throw new Error('The service is temporarily unavailable. Please try again.');
+    throw new ApiRequestError('The service is temporarily unavailable. Please try again.', 0, 'network_error');
   }
 
   // A persisted mobile session can outlive its access token. Refresh once,
@@ -77,7 +96,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
         response = await fetch(url, { ...init, headers: { ...headers, Authorization: `Bearer ${refreshedToken}` } });
       } catch {
         logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> network_error_after_refresh`);
-        throw new Error('The service is temporarily unavailable. Please try again.');
+        throw new ApiRequestError('The service is temporarily unavailable. Please try again.', 0, 'network_error_after_refresh');
       }
     }
   }
@@ -87,12 +106,12 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     payload = await response.json() as ApiEnvelope<T>;
   } catch {
     logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: 'invalid_response' });
-    throw new Error(messageForResponse(response.status));
+    throw new ApiRequestError(messageForResponse(response.status), response.status, 'invalid_response');
   }
 
   logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: payload.error?.code, message: payload.error?.message });
   if (!response.ok || payload.data === undefined) {
-    throw new Error(messageForResponse(response.status, payload.error?.message));
+    throw new ApiRequestError(messageForResponse(response.status, payload.error?.message), response.status, payload.error?.code ?? 'api_error', payload.error?.correlationId);
   }
 
   return payload.data;

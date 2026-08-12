@@ -50,6 +50,8 @@ Ask Alalay financial actions remain backend-only tool calls with server-side wal
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`, same as web — never expose keys or move prompts/data calls to the mobile client.
 - The dashboard AI card must not show fake/placeholder text dressed up as a real insight, matching the web app's rule — if the mobile AI card isn't wired to real data yet, treat it as a visible placeholder state, not filler copy.
 - OCR does **not** carry over from web as-is. `tesseract.js` is a browser/WASM library and isn't a valid mobile solution. Before implementing, decide and document whether mobile OCR uses an on-device native OCR library or sends captures to a (new) backend OCR endpoint — do not silently assume either approach without confirming it in `AGENTS.md` first.
+- Mobile OCR uses Expo Camera plus native ML Kit through the mobile OCR adapter. Native dependency changes require a rebuilt development/native client; Expo Go and Metro reloads alone cannot provide the module. Never silently fall back to web Tesseract.
+- Mobile OCR uses Expo Camera plus native ML Kit through the mobile OCR adapter. Native dependency changes require a rebuilt development/native client; Expo Go and Metro reloads alone cannot provide the module. Never silently fall back to web Tesseract.
 
 ## Profile/avatar rules
 
@@ -102,3 +104,5 @@ These rules exist to push mobile UI work past "functionally correct" toward genu
 - Test dates near timezone/month boundaries (Asia/Manila) and assert dynamic markers change correctly, same discipline as web.
 - Verify email/password, Google OAuth deep-link callback, Google-only password setup, and TOTP paths separately — each has a genuinely different flow on mobile than web and needs its own check.
 - Report unavailable device/simulator/build checks honestly, and mark incomplete features as partial or needing verification rather than reporting them as done.
+
+Ask Alalay sends validated camelCase `pendingAction` state to the shared `/api/ai/chat` contract. Chat rendering must use the centralized safe error mapper; never render `Error.message`, backend bodies, provider payloads, or raw validation details directly as assistant content.

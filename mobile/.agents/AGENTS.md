@@ -72,6 +72,8 @@ Ask Alalay sends bounded history and a stable per-submission request ID to the a
   - An Expo/React Native-compatible on-device OCR library (e.g. an ML Kit-based wrapper), or
   - Sending captured images to the backend for server-side OCR processing (which would be a new backend capability — check the web app's `AGENTS.md`, which notes current backend OCR routes are capability/demo endpoints only, not a real extraction pipeline).
 - Do not silently reuse or assume `tesseract.js` works on mobile without validating this first — treat OCR as a genuinely separate implementation task, not a straightforward port.
+- Mobile receipt OCR now uses Expo Camera plus `@infinitered/react-native-mlkit-text-recognition` 5.x through a native adapter. It requires a rebuilt Expo development/native client; Expo Go and stale binaries do not contain the ML Kit native module.
+- Mobile receipt OCR now uses Expo Camera plus `@infinitered/react-native-mlkit-text-recognition` 5.x through a native adapter. It requires a rebuilt Expo development/native client; Expo Go and stale binaries do not contain the ML Kit native module.
 
 ## Mobile navigation map
 

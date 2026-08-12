@@ -14,3 +14,8 @@ assert.deepEqual(completed, { amount: 750, to_wallet_name: "gcash", from_wallet_
 
 const reversed = transferDraftFor({ userId: "user", message: "Transfer 750 from GCash to Cash today", pendingAction: null });
 assert.deepEqual(reversed, { amount: 750, from_wallet_name: "GCash", to_wallet_name: "Cash", date: "today" });
+
+const descriptive = transferDraftFor({ userId: "user", message: "I want to transfer ₱750 money from my cash wallet to GCash e-wallet", pendingAction: null });
+assert.equal(descriptive.amount, 750);
+assert.equal(descriptive.from_wallet_name, "cash");
+assert.equal(descriptive.to_wallet_name, "GCash");

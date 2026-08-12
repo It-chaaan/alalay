@@ -15,13 +15,28 @@ export type AiChatRequest = {
 
 type TransferDraft = { amount?: number; from_wallet_name?: string; to_wallet_name?: string; date?: string };
 
+function isCancellation(message: string) {
+  return /^(?:never\s+mind|cancel|cancel\s+that|stop|no,?\s+thanks)\s*[.!]?$/i.test(message.trim());
+}
+
+function isTransferContinuation(message: string) {
+  return /\b(?:from|to|transfer|move|send|wallet|account|cash|gcash|maya|today|yesterday|tomorrow|amount|peso|php)\b/i.test(message)
+    || /^\s*(?:₱|php)?\s*\d[\d,]*(?:\.\d{1,2})?\s*$/i.test(message);
+}
+
 function transferMutationMessage(message: string, pendingAction: AiChatRequest["pendingAction"]) {
-  if (pendingAction?.action === "create_transfer") return true;
+  if (pendingAction?.action === "create_transfer") return isTransferContinuation(message);
   return /\b(transfer|move|send)\b/i.test(message) && !/\b(what if|can i|should i|would it)\b/i.test(message);
 }
 
 function cleanWalletPhrase(value: string) {
-  return value.replace(/[,.!?]+$/g, "").replace(/\s+(?:and\s+)?(?:date|on)\s+(?:today|yesterday|tomorrow|\w+\s+\d{1,2})\b.*$/i, "").trim();
+  return value
+    .replace(/[,.!?]+$/g, "")
+    .replace(/\s+(?:and\s+)?(?:date|on)\s+(?:today|yesterday|tomorrow|\w+\s+\d{1,2})\b.*$/i, "")
+    .replace(/\b(?:my|the)\b/gi, " ")
+    .replace(/\b(?:e[-\s]?wallet|wallet|account)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function transferDraftFor(request: AiChatRequest): TransferDraft {
@@ -93,6 +108,10 @@ export async function aiStatus() {
 export async function chat(request: AiChatRequest) {
   const provider = getAiProvider();
   const language = detectLanguage(request.message, request.language);
+  if (request.pendingAction?.action === "create_transfer" && isCancellation(request.message)) {
+    return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: null, message: "No problem — I cancelled that transfer." };
+  }
+  const pendingTransferContinues = request.pendingAction?.action === "create_transfer" && transferMutationMessage(request.message, request.pendingAction);
   if (transferMutationMessage(request.message, request.pendingAction)) {
     const draft = transferDraftFor(request);
     const pendingBase = { action: "create_transfer" as const, fields: draft as Record<string, unknown> };
@@ -113,11 +132,11 @@ export async function chat(request: AiChatRequest) {
     language,
     history: request.history ?? [],
     financialContext,
-    pendingAction: request.pendingAction,
+    pendingAction: pendingTransferContinues ? request.pendingAction : null,
   }, { tools: aiToolDefinitions, executeTool: async (name, args) => {
     const result = await executeAiAction({ userId: request.userId, requestId: request.requestId ?? randomUUID(), name, args });
     financialMutation = financialMutation || result.success === true;
-    if (result.pending_action && typeof result.pending_action === "object") pendingAction = result.pending_action as AiChatRequest["pendingAction"];
+    if (result.pendingAction && typeof result.pendingAction === "object") pendingAction = result.pendingAction as AiChatRequest["pendingAction"];
     return result;
   } });
 

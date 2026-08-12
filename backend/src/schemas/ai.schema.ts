@@ -3,7 +3,7 @@ import { z } from "zod";
 export const aiChatSchema = z.object({
   message: z.string().trim().min(1).max(10_000),
   request_id: z.string().uuid().optional(),
-  pending_action: z.object({
+  pendingAction: z.object({
     action: z.enum(["create_expense", "create_income", "create_transfer", "create_bill", "create_subscription"]),
     fields: z.record(z.string(), z.unknown()),
   }).nullable().optional(),

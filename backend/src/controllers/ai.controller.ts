@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 type ValidatedAiBody = {
   message: string;
   request_id?: string;
-  pending_action?: { action: "create_expense" | "create_income" | "create_transfer" | "create_bill" | "create_subscription"; fields: Record<string, unknown> } | null;
+  pendingAction?: { action: "create_expense" | "create_income" | "create_transfer" | "create_bill" | "create_subscription"; fields: Record<string, unknown> } | null;
   language?: "en" | "fil";
   history?: AiChatRequest["history"];
 };
@@ -22,7 +22,7 @@ export async function sendMessage(req: Request, res: Response) {
     userId: req.user!.id,
     message: body.message,
     requestId: body.request_id,
-    pendingAction: body.pending_action,
+    pendingAction: body.pendingAction,
     language: body.language,
     history: body.history,
   }));
