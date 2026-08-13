@@ -36,7 +36,7 @@ export function FinancialScreenHeader({
 }
 
 const styles = StyleSheet.create({
-  header: { alignSelf: 'stretch', minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, overflow: 'hidden', backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line },
+  header: { alignSelf: 'stretch', minHeight: 64, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, overflow: 'visible', backgroundColor: formPalette.surface, borderBottomWidth: 1, borderBottomColor: formPalette.line },
   sideSlot: { zIndex: 2, width: 44, minHeight: 42, justifyContent: 'center' },
   rightSlot: { alignItems: 'flex-end' },
   back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 },

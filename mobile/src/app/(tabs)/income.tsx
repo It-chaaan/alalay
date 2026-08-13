@@ -10,11 +10,12 @@ import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
 import { dateKeyInManila, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations } from '@/services/finance';
-import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { RecordActionSheet } from '@/components/record-action-sheet';
+import { useToast } from '@/components/toast-provider';
 
 type Income = { id: string; source: string; type: string; custom_type?: string | null; amount: number | string; date: string; is_recurring: boolean; frequency?: string | null; wallet_id: string };
 type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
@@ -44,6 +45,7 @@ function monthName(month: string) {
 
 export default function IncomeScreen() {
   const { colors } = useAppTheme();
+  const toast = useToast();
   styles = makeStyles({ ...formPalette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, balance: colors.balance, line: colors.border });
   const bottomNavClearance = useBottomNavClearance();
   const [rows, setRows] = useState<Income[]>([]);
@@ -84,15 +86,16 @@ export default function IncomeScreen() {
       : 'No income recorded this month';
 
   return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-    <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
+    <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={colors.primary} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${row.source}`} onPress={() => setManaging(row)} style={styles.more}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
     {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
     {editing && <IncomeForm initial={editing} wallets={wallets} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
-    {managing && <RecordActionSheet visible title="Income options" recordName={managing.source} onClose={() => setManaging(null)} actions={[{ label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } }, { label: 'Delete', tone: 'destructive', confirm: { title: `Delete ${managing.source}?`, message: 'This income will be removed and its wallet balance will be recomputed.' }, onPress: async () => { await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); } }]} />}
+    {managing && <RecordActionSheet visible title="Income options" recordName={managing.source} onClose={() => setManaging(null)} actions={[{ label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } }, { label: 'Delete', tone: 'destructive', confirm: { title: `Delete ${managing.source}?`, message: 'This income will be removed and its wallet balance will be recomputed.' }, onPress: async () => { await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); toast.success('Income deleted successfully'); } }]} />}
   </SafeAreaView>;
 }
 
 function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void>; initial?: Income }) {
+  const toast = useToast();
   const [source, setSource] = useState(initial?.source ?? '');
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
   const initialType = incomeTypes.find((option) => incomeTypeValues[option.label] === initial?.type)?.label ?? (initial?.custom_type ? 'Other' : 'Salary');
@@ -119,6 +122,7 @@ function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[];
       await authenticatedApiRequest(path, { method: initial ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel], custom_type: typeLabel === 'Other' ? customType.trim() : null, amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
       notifyFinancialMutation();
       await onSaved();
+      toast.success(initial ? 'Income updated successfully' : 'Income added successfully');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this income.');
     } finally {

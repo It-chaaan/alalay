@@ -10,11 +10,12 @@ import { authenticatedApiRequest } from '@/services/api';
 import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type BillRecord, type ExpenseRecord } from '@/services/finance';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
-import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta } from '@/constants/categories';
+import { useToast } from '@/components/toast-provider';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
 type ExpenseGroup = { date: string; subtotal: number; items: ExpenseItem[] };
@@ -76,6 +77,7 @@ function mergeExpenseRows(expenses: ExpenseRecord[], bills: BillRecord[]): Expen
 
 export default function ExpensesScreen() {
   const { colors } = useAppTheme();
+  const toast = useToast();
   styles = makeStyles({ ...formPalette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, balance: colors.balance, line: colors.border });
   const bottomNavClearance = useBottomNavClearance();
   const month = currentMonthKey();
@@ -122,7 +124,7 @@ export default function ExpensesScreen() {
   const hasAnyExpenses = items.length > 0;
 
   return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
-    <FinancialScreenHeader title="Expenses" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
+    <FinancialScreenHeader title="Expenses" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.centerCopy}>Loading expenses…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Expenses unavailable</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <FinancialOverviewCard title="EXPENSES OVERVIEW" context={monthLabel(month).split(' ')[0].toUpperCase()} value={peso(total)} supportingInfo={`${monthItems.length} transaction${monthItems.length === 1 ? '' : 's'} this month${summary?.monthly_expenses_delta_percent !== null && summary?.monthly_expenses_delta_percent !== undefined ? ` · ${summary.monthly_expenses_delta_percent > 0 ? '↑' : summary.monthly_expenses_delta_percent < 0 ? '↓' : '→'} ${Math.abs(summary.monthly_expenses_delta_percent).toFixed(1)}% vs last month` : ''}`} accessibilityLabel={`Expenses overview. Total spent: ${peso(total)}.`} />
       <View style={styles.actionRow}><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/ocr')} style={({ pressed }) => [styles.secondaryAction, pressed && styles.pressed]}><ScanLine size={17} color={formPalette.accent} /><Text style={styles.secondaryActionText}>Scan receipt</Text></Pressable><Pressable accessibilityRole="button" onPress={() => setCreating(true)} style={({ pressed }) => [styles.primaryAction, pressed && styles.pressed]}><Plus size={18} color="#fff" /><Text style={styles.primaryActionText}>Log expense</Text></Pressable></View>
@@ -133,7 +135,7 @@ export default function ExpensesScreen() {
     {editing && <ExpenseForm wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {managing && <RecordActionSheet visible title="Expense options" recordName={managing.merchant} onClose={() => setManaging(null)} actions={[
       { label: 'Edit', onPress: () => { setManaging(null); if (managing.source === 'expense') setEditing(managing); else router.push('/(tabs)/bills'); } },
-      ...(managing.source === 'expense' ? [{ label: 'Delete', tone: 'destructive' as const, confirm: { title: `Delete ${managing.merchant}?`, message: 'This expense will be removed from your financial history.' }, onPress: async () => { await authenticatedApiRequest(`/api/expenses/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); } }] : []),
+      ...(managing.source === 'expense' ? [{ label: 'Delete', tone: 'destructive' as const, confirm: { title: `Delete ${managing.merchant}?`, message: 'This expense will be removed from your financial history.' }, onPress: async () => { await authenticatedApiRequest(`/api/expenses/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); toast.success('Expense deleted successfully'); } }] : []),
     ]} />}
   </SafeAreaView>;
 }
@@ -147,6 +149,7 @@ function ExpenseRow({ item, wallets, onManage }: { item: ExpenseItem; wallets: W
 }
 
 function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; item?: ExpenseRecord; onClose: () => void; onSaved: () => Promise<void> }) {
+  const toast = useToast();
   const [note, setNote] = useState(item?.merchant ?? '');
   const [amount, setAmount] = useState(item ? String(item.amount) : '');
   const [category, setCategory] = useState(item?.category ?? '');
@@ -175,6 +178,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
       await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, date, wallet_id: walletId }) });
       notifyFinancialMutation();
       await onSaved();
+      toast.success(item ? 'Expense updated successfully' : 'Expense recorded successfully');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not save this expense.');
     } finally {

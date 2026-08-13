@@ -10,6 +10,7 @@ import { BrandLockup } from '@/components/brand-lockup';
 import { BottomNav } from '@/components/bottom-nav';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { ModalVisibilityProvider, useModalVisibility } from '@/components/modal-visibility';
+import { ToastProvider } from '@/components/toast-provider';
 import { getSupabaseClient } from '@/services/supabase';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme';
 import { requiresMfa } from '@/services/mfa';
@@ -23,7 +24,7 @@ function ThemedRoot() {
   if (!ready) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} /></View>;
   const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
   const navigationTheme = { ...base, colors: { ...base.colors, background: colors.background, card: colors.surface, text: colors.ink, border: colors.line, primary: colors.accent } };
-  return <ThemeProvider value={navigationTheme}><ModalVisibilityProvider><SessionGate /></ModalVisibilityProvider><StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} backgroundColor={colors.background} /></ThemeProvider>;
+  return <ThemeProvider value={navigationTheme}><ModalVisibilityProvider><ToastProvider><SessionGate /></ToastProvider></ModalVisibilityProvider><StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} backgroundColor={colors.background} /></ThemeProvider>;
 }
 
 function SessionGate() {
@@ -80,7 +81,7 @@ function SessionGate() {
   useEffect(() => {
     if (checkingSession) return;
     const inTabs = segments[0] === '(tabs)';
-    const standaloneAppRoute = pathname === '/wallet-details';
+    const standaloneAppRoute = pathname === '/wallet-details' || pathname === '/notifications';
     if (session && mfaPending && pathname !== '/auth') {
       router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
     } else if (session && !mfaPending && !inTabs && !standaloneAppRoute) {
@@ -97,6 +98,7 @@ function SessionGate() {
     <Stack.Screen name="auth" />
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
+    <Stack.Screen name="notifications" options={{ headerShown: false }} />
     <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
   </Stack>{session && !mfaPending ? <BottomNav /> : null}</View>;
 }

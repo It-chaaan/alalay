@@ -55,6 +55,7 @@ import {
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta } from '@/constants/categories';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const formPalette = {
   background: '#F4F7F1',
@@ -339,6 +340,7 @@ export function FinanceFormSheetLegacy({ title, eyebrow, amount, onAmountChange,
 
 export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardVisible();
   const { setModalVisible } = useModalVisibility();
   // Keep the form discoverable on small screens. The keypad is opened explicitly
@@ -354,7 +356,7 @@ export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, child
       <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
         <View style={financeEntryStyles.body} onTouchStart={() => { if (!keyboardVisible) deactivateAmount(); }}><ScrollView style={financeEntryStyles.scroll} contentContainerStyle={sheetStyles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{children}{error ? <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text> : null}</ScrollView></View>
       </FinanceFormInteractionContext.Provider>
-      <View style={[financeEntryStyles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border }]}><Pressable accessibilityRole="button" accessibilityLabel={saveLabel} disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable></View>
+      <View style={[financeEntryStyles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(10, insets.bottom + 8) }]}><Pressable accessibilityRole="button" accessibilityLabel={saveLabel} disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable></View>
       {amountActive && !keyboardVisible ? <NumericKeypad value={amount} onChange={onAmountChange} /> : null}
     </View>
   </KeyboardAvoidingView></View>;

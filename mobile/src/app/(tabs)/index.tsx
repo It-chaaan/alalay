@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, Eye, EyeOff, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
@@ -10,11 +10,13 @@ import { NotificationHeaderButton } from '@/components/notification-header-butto
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
 import { combineRecentTransactions, dateKeyInManila, derivedStatus, fetchExpenses, fetchFinanceItems, fetchNextPayday, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type Payday, type RecentTransaction, type WalletRecord } from '@/services/finance';
-import { walletInitials } from '@/constants/wallets';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
 import { GlassSurface } from '@/components/glass-surface';
+import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
+import { StatusBadge } from '@/components/status-badge';
+import { BrandLogo } from '@/components/brand-logo';
 
 const palette = {
   background: '#F4F7F1',
@@ -157,13 +159,22 @@ export default function HomeScreen() {
 
 function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: { summary: DashboardSummary | null; loading: boolean; wallets: WalletRecord[]; walletLoading: boolean; walletError: string }) {
   const { colors } = useAppTheme();
+  const { visible, toggle } = useBalanceVisibility();
   const balanceUnavailable = walletError || walletLoading;
+  const amountsVisible = visible === true;
+  const mask = '••••••';
+  const balanceLabel = balanceUnavailable ? walletLoading ? 'loading' : 'unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : 'hidden';
+  const expensesLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_expenses) : 'hidden';
+  const incomeLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_income) : 'hidden';
   return <View style={styles.balanceStack}>
     <View accessible={false} importantForAccessibility="no" style={[styles.balanceRearCard, { backgroundColor: colors.balanceRear }]} />
-    <View accessible accessibilityRole="summary" accessibilityLabel={`Total Balance ${balanceUnavailable ? walletLoading ? 'loading' : 'unavailable' : formatBalancePeso(totalWalletBalance(wallets))}. Expenses ${loading || !summary ? 'loading' : formatPeso(summary.monthly_expenses)}. Income ${loading || !summary ? 'loading' : formatPeso(summary.monthly_income)}.`} style={[styles.summaryCard, { backgroundColor: colors.balance }]}>
-      <Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text>
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.balanceValue}>{balanceUnavailable ? walletLoading ? 'Loading…' : 'Unavailable' : formatBalancePeso(totalWalletBalance(wallets))}</Text>
-      <View style={styles.supportingMetrics}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={13} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_expenses)}</Text></View><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={13} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text style={styles.metricValue}>{loading || !summary ? 'Loading…' : formatPeso(summary.monthly_income)}</Text></View></View>
+    <View accessible accessibilityRole="summary" accessibilityLabel={`Total Balance ${balanceLabel}. Expenses ${expensesLabel}. Income ${incomeLabel}.`} style={[styles.summaryCard, { backgroundColor: colors.balance, borderColor: colors.primary }] }>
+      <View pointerEvents="none" accessible={false} importantForAccessibility="no" style={styles.walletDecoration}>
+        <View style={styles.walletBack} /><View style={styles.walletFront}><View style={styles.walletSlot} /><View style={styles.walletButton} /></View>
+      </View>
+      <View style={styles.balanceHeader}><Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text><Pressable accessibilityRole="button" accessibilityLabel={amountsVisible ? 'Hide financial amounts' : 'Show financial amounts'} hitSlop={8} onPress={toggle} style={({ pressed }) => [styles.visibilityButton, { backgroundColor: 'rgba(255,255,255,0.10)', borderColor: 'rgba(216,239,226,0.24)' }, pressed && styles.pressed]}>{amountsVisible ? <Eye size={20} color="#D8EFE2" strokeWidth={1.9} /> : <EyeOff size={20} color="#D8EFE2" strokeWidth={1.9} />}</Pressable></View>
+      <Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} adjustsFontSizeToFit minimumFontScale={0.58} numberOfLines={1} style={styles.balanceValue}>{balanceUnavailable ? walletLoading ? 'Loading…' : 'Unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : mask}</Text>
+      <View style={[styles.supportingMetrics, { backgroundColor: 'rgba(5,43,32,0.28)', borderColor: 'rgba(216,239,226,0.18)' }]}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={15} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_expenses) : mask}</Text></View><View style={styles.metricDivider} /><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={15} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_income) : mask}</Text></View></View>
     </View>
   </View>;
 }
@@ -197,7 +208,7 @@ function WalletQuickView({ wallets, loading, error }: { wallets: WalletRecord[];
   if (error) return <GlassSurface style={styles.listCard} padding={0}><View style={styles.inlineState}><Text style={[styles.errorText, { color: colors.danger }]}>Wallets unavailable. Your other dashboard sections are still available.</Text></View></GlassSurface>;
   return <GlassSurface style={styles.listCard} padding={0}>
     {wallets.slice(0, 3).map((wallet, index) => <Pressable key={wallet.id} accessibilityRole="button" accessibilityLabel={`Open ${wallet.name} wallet`} onPress={() => router.push({ pathname: '/(tabs)/wallets', params: { walletId: wallet.id } })} style={({ pressed }) => [styles.walletRow, index === Math.min(wallets.length, 3) - 1 && styles.rowLast, pressed && styles.pressed]}>
-      <View style={[styles.walletIcon, { backgroundColor: `${wallet.color}22`, borderColor: `${wallet.color}55` }]}><Text style={[styles.walletInitial, { color: wallet.color }]}>{walletInitials(wallet.name)}</Text></View>
+      <BrandLogo name={wallet.name} entity="wallet" institutionKey={wallet.institution_key} category={wallet.institution_type} size={36} />
       <View style={styles.rowMain}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{wallet.name}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{typeLabel(wallet.institution_type)} · PHP</Text></View>
       <Text style={[styles.walletBalance, { color: colors.textPrimary }]}>{formatBalancePeso(Number(wallet.balance))}</Text><ChevronRight size={18} color={colors.textSecondary} />
     </Pressable>)}
@@ -213,7 +224,7 @@ function FinanceRow({ item }: { item: FinanceItem }) {
   const status = derivedStatus(item);
   const icon = item.source === 'subscription' ? Repeat : item.category.toLowerCase().includes('water') ? Droplets : FileText;
   const FinanceIcon = icon;
-  return <View style={styles.row}><View style={styles.rowIcon}><FinanceIcon size={18} color={status === 'Overdue' ? colors.danger : colors.primary} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.name}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><View style={styles.rowRight}><Text style={[styles.rowAmount, { color: colors.textPrimary }]}>{formatPeso(item.amount)}</Text><Text style={[styles.status, status === 'Overdue' ? styles.statusDanger : status === 'Paid' ? styles.statusPaid : styles.statusUpcoming]}>{status}</Text></View></View>;
+  return <View style={styles.row}><View style={styles.rowIcon}><FinanceIcon size={18} color={status === 'Overdue' ? colors.danger : colors.primary} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.name}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><View style={styles.rowRight}><Text style={[styles.rowAmount, { color: colors.textPrimary }]}>{formatPeso(item.amount)}</Text><StatusBadge status={status} /></View></View>;
 }
 
 function RecentTransactionRow({ transaction }: { transaction: RecentTransaction }) {
@@ -258,15 +269,23 @@ const styles = StyleSheet.create({
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
   balanceStack: { position: 'relative', marginTop: 18, paddingTop: 12 },
   balanceRearCard: { position: 'absolute', top: 0, left: 14, right: 14, height: 38, borderRadius: 20, backgroundColor: '#63B995', opacity: 0.9 },
-  summaryCard: { width: '100%', minHeight: 172, justifyContent: 'center', paddingHorizontal: 21, paddingVertical: 23, borderRadius: 22, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.12, shadowRadius: 7, elevation: 3 },
+  summaryCard: { position: 'relative', width: '100%', minHeight: 214, overflow: 'hidden', paddingHorizontal: 17, paddingTop: 19, paddingBottom: 14, borderRadius: 24, borderWidth: 1, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
+  walletDecoration: { position: 'absolute', right: 8, bottom: 66, width: 122, height: 126, opacity: 0.2, transform: [{ rotate: '-18deg' }] },
+  walletBack: { position: 'absolute', top: 5, right: 6, width: 92, height: 72, borderRadius: 17, backgroundColor: '#6FC39B', transform: [{ rotate: '-18deg' }] },
+  walletFront: { position: 'absolute', right: 0, bottom: 3, width: 112, height: 76, borderRadius: 18, borderWidth: 2, borderColor: '#B4E4C9', backgroundColor: '#174D3D', transform: [{ rotate: '18deg' }] },
+  walletSlot: { position: 'absolute', left: 15, right: 15, top: 17, height: 22, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#8ED2AE' },
+  walletButton: { position: 'absolute', right: 12, bottom: -14, width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: '#B4E4C9', backgroundColor: '#2B7458' },
+  balanceHeader: { zIndex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 30 },
+  visibilityButton: { position: 'absolute', right: 0, width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, borderWidth: 1 },
   summaryEyebrow: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.2, textAlign: 'center' },
-  balanceValue: { marginTop: 10, color: '#FFFFFF', fontSize: 36, fontWeight: '900', letterSpacing: -1, textAlign: 'center' },
-  supportingMetrics: { flexDirection: 'row', alignItems: 'stretch', justifyContent: 'space-around', marginTop: 24 },
+  balanceValue: { zIndex: 1, marginTop: 13, color: '#FFFFFF', fontSize: 36, fontWeight: '900', letterSpacing: -1, textAlign: 'center' },
+  supportingMetrics: { zIndex: 1, flexDirection: 'row', alignItems: 'stretch', justifyContent: 'space-around', minHeight: 70, marginTop: 21, paddingVertical: 12, borderRadius: 19, borderWidth: 1 },
   supportingMetric: { flex: 1, alignItems: 'center' },
   metricLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   metricLabel: { color: '#D8EFE2', fontSize: 11, fontWeight: '800' },
-  expenseIcon: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: 'rgba(217,108,85,0.32)' },
-  incomeIcon: { width: 21, height: 21, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: 'rgba(196,245,213,0.2)' },
+  metricDivider: { width: 1, marginVertical: 2, backgroundColor: 'rgba(216,239,226,0.22)' },
+  expenseIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(217,108,85,0.34)' },
+  incomeIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(196,245,213,0.22)' },
   metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
   shortcutContainer: { marginTop: 18, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 24, backgroundColor: 'transparent', borderWidth: 0 },
   paydayCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, padding: 16, minHeight: 96, borderRadius: 22, borderWidth: 1, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 7, elevation: 2 },
@@ -305,10 +324,6 @@ const styles = StyleSheet.create({
   rowMeta: { marginTop: 4, color: palette.muted, fontSize: 11 },
   rowRight: { alignItems: 'flex-end' },
   rowAmount: { color: palette.ink, fontSize: 13, fontWeight: '800' },
-  status: { marginTop: 5, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, fontSize: 9, fontWeight: '800', overflow: 'hidden' },
-  statusDanger: { color: palette.danger, backgroundColor: '#FCE8E6' },
-  statusUpcoming: { color: palette.accent, backgroundColor: palette.accentPale },
-  statusPaid: { color: palette.muted, backgroundColor: '#EEF2EF' },
   expenseAmount: { color: palette.ink, fontSize: 13, fontWeight: '800' },
   quickAdd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 54, marginTop: 16, borderRadius: 17, borderWidth: 1.5, borderStyle: 'dashed', borderColor: palette.accentSoft },
   quickAddText: { marginLeft: 8, color: palette.accent, fontSize: 13, fontWeight: '800' },

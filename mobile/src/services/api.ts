@@ -13,9 +13,11 @@ export class ApiRequestError extends Error {
   }
 }
 
-function messageForResponse(status: number, serverMessage?: string) {
+function messageForResponse(status: number, serverMessage?: string, code?: string) {
   if (status === 401) return 'Your session expired. Please sign in again.';
   if (status === 403) return "You don't have permission to perform this action.";
+  if (status === 404) return 'This record no longer exists.';
+  if ((status === 400 || status === 422) && code === 'validation_error') return 'Check the information and try again.';
   if (status === 400 || status === 422) return serverMessage ?? 'Check the information and try again.';
   if (status === 409) return serverMessage ?? 'This change conflicts with existing data.';
   if (status >= 500) return 'The service is temporarily unavailable. Please try again.';
@@ -111,7 +113,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
 
   logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: payload.error?.code, message: payload.error?.message });
   if (!response.ok || payload.data === undefined) {
-    throw new ApiRequestError(messageForResponse(response.status, payload.error?.message), response.status, payload.error?.code ?? 'api_error', payload.error?.correlationId);
+    throw new ApiRequestError(messageForResponse(response.status, payload.error?.message, payload.error?.code), response.status, payload.error?.code ?? 'api_error', payload.error?.correlationId);
   }
 
   return payload.data;

@@ -68,7 +68,6 @@ export default function AuthScreen() {
   const isMfa = screen === 'mfa';
   const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const subtitle = useMemo(() => isCreate ? 'Create an account and make every peso count.' : 'Your calmer way to stay on top of money.', [isCreate]);
-  const goToApp = useCallback(() => router.replace('/(tabs)'), []);
 
   const handleGoogle = useCallback(async () => {
     setError('');
@@ -92,13 +91,12 @@ export default function AuthScreen() {
       if (!code) throw new Error('Google sign-in did not return a valid session.');
       const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
       if (exchangeError) throw exchangeError;
-      goToApp();
     } catch (oauthError) {
       setError(getAuthError(oauthError instanceof Error ? oauthError.message : 'Google sign-in failed.'));
     } finally {
       setLoading(false);
     }
-  }, [goToApp]);
+  }, []);
 
   useEffect(() => {
     if (provider !== 'google' || googleFlowStarted.current) return;
@@ -120,14 +118,12 @@ export default function AuthScreen() {
     setLoading(true);
     try {
       if (isCreate) {
-        const { data, error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } });
+        const { error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } });
         if (signUpError) throw signUpError;
-        if (data.session) goToApp();
         else Alert.alert('Check your email', 'Your account was created. Confirm your email before signing in.');
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
         if (signInError) throw signInError;
-        goToApp();
       }
     } catch (authError) {
       setError(getAuthError(authError instanceof Error ? authError.message : 'Authentication failed.'));
@@ -190,7 +186,9 @@ function MfaVerification() {
       const result = await client.auth.mfa.challengeAndVerify({ factorId, code });
       if (result.error) throw result.error;
       try { await rememberTrustedDevice(); } catch { /* backend trust is best effort; the AAL2 session remains valid */ }
-      router.replace('/(tabs)');
+      // SessionGate owns the post-auth redirect. challengeAndVerify updates
+      // the session assurance level, and navigating here would race the root
+      // stack while it is being refreshed.
     } catch (verificationError) {
       const message = verificationError instanceof Error ? verificationError.message.toLowerCase() : '';
       const challengeExpired = message.includes('expired') || message.includes('jwt') || message.includes('challenge');
@@ -201,7 +199,8 @@ function MfaVerification() {
   };
 
   const backToSignIn = async () => { await getSupabaseClient()?.auth.signOut(); router.replace({ pathname: '/auth', params: { mode: 'signin' } }); };
-  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}><StatusBar style={colors.background === '#17191C' ? 'light' : 'dark'} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.mfaFlex}><ScrollView contentContainerStyle={styles.mfaContent} keyboardShouldPersistTaps="handled"><Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => void backToSignIn()} style={styles.mfaBack}><ArrowLeft size={22} color={colors.textPrimary} /></Pressable><Text style={[styles.mfaStep, { color: colors.textSecondary }]}>STEP 2 OF 2</Text><View style={[styles.mfaIcon, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={34} color={colors.primary} /></View><Text style={[styles.mfaTitle, { color: colors.textPrimary }]}>Verify it&apos;s you</Text><Text style={[styles.mfaDescription, { color: colors.textSecondary }]}>Enter the 6-digit code from your authenticator app.</Text><OtpInput value={code} onChange={setCode} error={Boolean(error)} autoFocus={!loading} disabled={loading || verifying || expired} />{error ? <Text accessibilityRole="alert" style={[styles.mfaError, { color: colors.danger }]}>{error}</Text> : null}{expired ? <Pressable accessibilityRole="button" onPress={() => void backToSignIn()}><Text style={[styles.mfaSecondaryAction, { color: colors.primary }]}>Back to sign in</Text></Pressable> : null}<Pressable accessibilityRole="button" disabled={loading || verifying || expired || code.length !== 6} onPress={() => void verify()} style={[styles.primaryButton, { backgroundColor: colors.primary }, (loading || verifying || expired || code.length !== 6) && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Loading...' : verifying ? 'Verifying...' : 'Verify'}</Text></Pressable><View style={[styles.trustNote, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={17} color={colors.primary} /><Text style={[styles.trustText, { color: colors.textSecondary }]}>You won&apos;t need a code every time you open the app on this verified device.</Text></View><Pressable accessibilityRole="button" onPress={() => Alert.alert('Having trouble?', 'Open your authenticator app and make sure your device time is set automatically. Codes refresh periodically.')} style={styles.helpButton}><Text style={[styles.helpText, { color: colors.primary }]}>Having trouble?</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
+  const canVerify = !loading && !verifying && !expired && code.length === 6;
+  return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]}><StatusBar style={colors.background === '#17191C' ? 'light' : 'dark'} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={styles.mfaFlex}><ScrollView contentContainerStyle={styles.mfaContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}><Pressable accessibilityRole="button" accessibilityLabel="Back to sign in" onPress={() => void backToSignIn()} style={styles.mfaBack}><ArrowLeft size={22} color={colors.textPrimary} /></Pressable><Text style={[styles.mfaStep, { color: colors.textSecondary }]}>STEP 2 OF 2</Text><View style={[styles.mfaIcon, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={34} color={colors.primary} /></View><Text style={[styles.mfaTitle, { color: colors.textPrimary }]}>Verify it&apos;s you</Text><Text style={[styles.mfaDescription, { color: colors.textSecondary }]}>Enter the 6-digit code from your authenticator app.</Text><View style={styles.mfaOtp}><OtpInput value={code} onChange={(next) => { setCode(next); if (error) { setError(''); setExpired(false); } }} error={Boolean(error)} autoFocus={!loading} disabled={loading || verifying || expired} /></View>{error ? <Text accessibilityRole="alert" style={[styles.mfaError, { color: colors.danger }]}>{error}</Text> : null}{expired ? <Pressable accessibilityRole="button" onPress={() => void backToSignIn()}><Text style={[styles.mfaSecondaryAction, { color: colors.primary }]}>Back to sign in</Text></Pressable> : null}<Pressable accessibilityRole="button" disabled={!canVerify} onPress={() => void verify()} style={[styles.mfaVerifyButton, { backgroundColor: canVerify ? colors.primary : colors.surfaceSecondary }, !canVerify && styles.disabled]}><Text style={[styles.mfaVerifyText, { color: canVerify ? colors.textOnPrimary : colors.textSecondary }]}>{loading ? 'Loading...' : verifying ? 'Verifying...' : 'Verify'}</Text></Pressable><View style={[styles.trustNote, { backgroundColor: colors.primarySoft }]}><ShieldCheck size={17} color={colors.primary} /><Text style={[styles.trustText, { color: colors.textSecondary }]}>You won&apos;t need a code every time you open the app on this verified device.</Text></View><Pressable accessibilityRole="button" onPress={() => Alert.alert('Having trouble?', 'Open your authenticator app and make sure your device time is set automatically. Codes refresh periodically.')} style={styles.helpButton}><Text style={[styles.helpText, { color: colors.primary }]}>Having trouble?</Text></Pressable></ScrollView></KeyboardAvoidingView></SafeAreaView>;
 }
 
 const styles = StyleSheet.create({
@@ -233,17 +232,20 @@ const styles = StyleSheet.create({
   switchText: { fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },
   disabled: { opacity: 0.55 },
-  mfaContent: { flex: 1, paddingHorizontal: 28, paddingTop: 18 },
+  mfaContent: { flexGrow: 1, paddingHorizontal: 28, paddingTop: 18, paddingBottom: 32 },
   mfaFlex: { flex: 1 },
   mfaBack: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   mfaStep: { marginTop: 12, textAlign: 'center', fontSize: 11, fontWeight: '900', letterSpacing: 1.4 },
   mfaIcon: { width: 72, height: 72, alignItems: 'center', justifyContent: 'center', borderRadius: 36, marginTop: 70, alignSelf: 'center' },
   mfaTitle: { marginTop: 24, textAlign: 'center', fontSize: 28, fontWeight: '900' },
   mfaDescription: { marginTop: 10, textAlign: 'center', fontSize: 14, lineHeight: 21 },
+  mfaOtp: { marginTop: 28 },
   mfaInput: { minHeight: 58, marginTop: 28, borderWidth: 1, borderRadius: 15, textAlign: 'center', letterSpacing: 8, fontSize: 24, fontWeight: '800' },
   mfaError: { marginTop: 12, textAlign: 'center', fontSize: 13, fontWeight: '700' },
   mfaSecondaryAction: { marginTop: 12, textAlign: 'center', fontSize: 13, fontWeight: '800' },
-  trustNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 22, padding: 12, borderRadius: 16 },
+  mfaVerifyButton: { minHeight: 56, marginTop: 28, paddingHorizontal: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 28 },
+  mfaVerifyText: { fontSize: 15, fontWeight: '800' },
+  trustNote: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 24, padding: 12, borderRadius: 16 },
   trustText: { flex: 1, fontSize: 12, lineHeight: 18 },
   helpButton: { minHeight: 46, alignItems: 'center', justifyContent: 'center', marginTop: 8 },
   helpText: { fontSize: 13, fontWeight: '800' },

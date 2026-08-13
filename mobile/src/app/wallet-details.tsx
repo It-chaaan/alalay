@@ -5,11 +5,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
-import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
 import { RecordActionSheet } from '@/components/record-action-sheet';
+import { BrandLogo } from '@/components/brand-logo';
 import { type Wallet } from '@/components/wallet-picker';
-import { walletVisualFor } from '@/constants/wallets';
 import { fetchWallets, notifyFinancialMutation } from '@/services/finance';
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
@@ -54,7 +54,6 @@ export default function WalletDetailsScreen() {
   useEffect(() => { void load(); }, [load]);
 
   const wallet = detail?.wallet;
-  const visual = wallet ? walletVisualFor(wallet.institution_key) : walletVisualFor('custom');
   const transactions = useMemo(() => (detail?.transactions ?? []).slice(0, 5), [detail?.transactions]);
   const finishMutation = async () => { notifyFinancialMutation(); await load(); };
   const goBack = () => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/wallets'); };
@@ -66,11 +65,11 @@ export default function WalletDetailsScreen() {
   };
 
   return <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safe, { backgroundColor: colors.background }]}> 
-    <FinancialScreenHeader title="Wallet details" onBack={goBack} rightAction={<ProfileHeaderButton />} />
+    <FinancialScreenHeader title="Wallet details" onBack={goBack} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={colors.primary} /><Text style={[styles.muted, { color: colors.textSecondary }]}>Loading wallet details…</Text></View> : error || !wallet ? <View style={styles.center}><Text style={[styles.title, { color: colors.textPrimary }]}>Wallet details unavailable</Text><Text style={[styles.muted, { color: colors.textSecondary }]}>{error || 'Wallet not found.'}</Text><Pressable onPress={() => void load()} style={[styles.retry, { backgroundColor: colors.primary }]}><Text style={{ color: colors.textOnPrimary, fontWeight: '800' }}>Try again</Text></Pressable></View> : <>
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: BOTTOM_NAV_CLEARANCE }]} showsVerticalScrollIndicator={false}>
         <View style={[styles.balanceCard, { backgroundColor: wallet.color, borderColor: colors.border }]}>
-          <View style={[styles.mark, { backgroundColor: 'rgba(255,255,255,0.20)' }]}><Text style={styles.markText}>{visual.mark}</Text></View>
+          <BrandLogo name={wallet.name} entity="wallet" institutionKey={wallet.institution_key} category={wallet.institution_type} size={48} />
           <WalletCards size={22} color="#FFFFFF" style={styles.cardIcon} />
           <Pressable accessibilityRole="button" accessibilityLabel="Wallet options" onPress={() => setActionOpen(true)} style={styles.options}><MoreHorizontal size={22} color="#FFFFFF" /></Pressable>
           <Text style={styles.walletName}>{wallet.name}</Text>
@@ -111,5 +110,5 @@ function TransactionRow({ transaction, colors }: { transaction: WalletTransactio
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1 }, content: { padding: 16, gap: 16 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }, title: { fontSize: 20, fontWeight: '900', textAlign: 'center' }, muted: { fontSize: 12, lineHeight: 18 }, retry: { marginTop: 10, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18 }, balanceCard: { minHeight: 274, padding: 20, borderRadius: 24, borderWidth: 1 }, mark: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, markText: { color: '#FFFFFF', fontSize: 20, fontWeight: '900' }, cardIcon: { position: 'absolute', top: 22, right: 20 }, options: { position: 'absolute', top: 14, right: 52, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 }, walletName: { marginTop: 18, color: '#FFFFFF', fontSize: 24, fontWeight: '900' }, walletMeta: { marginTop: 5, color: 'rgba(255,255,255,0.78)', fontSize: 14, fontWeight: '600' }, cardDivider: { height: 1, marginTop: 18, backgroundColor: 'rgba(255,255,255,0.24)' }, balanceLabel: { marginTop: 20, color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, balance: { marginTop: 6, color: '#FFFFFF', fontSize: 36, fontWeight: '900' }, actions: { flexDirection: 'row', gap: 12 }, action: { flex: 1, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 29 }, actionText: { fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.74 }, sectionTitle: { marginTop: 4, marginBottom: -6, fontSize: 18, fontWeight: '900' }, infoCard: { paddingHorizontal: 16, borderRadius: 18, borderWidth: 1 }, infoRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth }, infoValue: { fontSize: 14, fontWeight: '800' }, sectionHeader: { marginTop: 2 }, transaction: { minHeight: 82, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, borderWidth: 1, gap: 12 }, transactionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, transactionCopy: { flex: 1, minWidth: 0 }, transactionName: { fontSize: 14, fontWeight: '900' }, transactionAmount: { fontSize: 14, fontWeight: '900' }, emptyCard: { padding: 18, borderRadius: 18, borderWidth: 1 }, emptyTitle: { marginBottom: 3, fontSize: 14, fontWeight: '900' }, retryLink: { marginTop: 8, fontSize: 13, fontWeight: '900' },
+  safe: { flex: 1 }, content: { padding: 16, gap: 16 }, center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 }, title: { fontSize: 20, fontWeight: '900', textAlign: 'center' }, muted: { fontSize: 12, lineHeight: 18 }, retry: { marginTop: 10, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 18 }, balanceCard: { minHeight: 274, padding: 20, borderRadius: 24, borderWidth: 1 }, cardIcon: { position: 'absolute', top: 22, right: 20 }, options: { position: 'absolute', top: 14, right: 52, width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19 }, walletName: { marginTop: 18, color: '#FFFFFF', fontSize: 24, fontWeight: '900' }, walletMeta: { marginTop: 5, color: 'rgba(255,255,255,0.78)', fontSize: 14, fontWeight: '600' }, cardDivider: { height: 1, marginTop: 18, backgroundColor: 'rgba(255,255,255,0.24)' }, balanceLabel: { marginTop: 20, color: 'rgba(255,255,255,0.72)', fontSize: 11, fontWeight: '900', letterSpacing: 1.2 }, balance: { marginTop: 6, color: '#FFFFFF', fontSize: 36, fontWeight: '900' }, actions: { flexDirection: 'row', gap: 12 }, action: { flex: 1, minHeight: 58, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 29 }, actionText: { fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.74 }, sectionTitle: { marginTop: 4, marginBottom: -6, fontSize: 18, fontWeight: '900' }, infoCard: { paddingHorizontal: 16, borderRadius: 18, borderWidth: 1 }, infoRow: { minHeight: 46, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, borderBottomWidth: StyleSheet.hairlineWidth }, infoValue: { fontSize: 14, fontWeight: '800' }, sectionHeader: { marginTop: 2 }, transaction: { minHeight: 82, flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 18, borderWidth: 1, gap: 12 }, transactionIcon: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 14 }, transactionCopy: { flex: 1, minWidth: 0 }, transactionName: { fontSize: 14, fontWeight: '900' }, transactionAmount: { fontSize: 14, fontWeight: '900' }, emptyCard: { padding: 18, borderRadius: 18, borderWidth: 1 }, emptyTitle: { marginBottom: 3, fontSize: 14, fontWeight: '900' }, retryLink: { marginTop: 8, fontSize: 13, fontWeight: '900' },
 });

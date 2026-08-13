@@ -11,7 +11,7 @@ export function NotificationHeaderButton() {
   const [unread, setUnread] = useState(0);
   useFocusEffect(useCallback(() => { let active = true; void getUnreadNotificationCount().then((count) => { if (active) setUnread(count); }).catch(() => { if (active) setUnread(0); }); return () => { active = false; }; }, []));
 
-  return <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'} style={({ pressed }) => [styles.button, { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border }, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/notifications')}>
+  return <Pressable accessibilityRole="button" accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'} style={({ pressed }) => [styles.button, { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border }, pressed && styles.pressed]} onPress={() => router.push('/notifications')}>
     <Bell size={21} color={colors.textPrimary} strokeWidth={1.9} />
     {unread > 0 ? <View style={styles.badge}><Text style={styles.badgeText}>{unread > 9 ? '9+' : unread}</Text></View> : null}
   </Pressable>;

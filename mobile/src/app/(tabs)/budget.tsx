@@ -8,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { CategoryChipRow, parseAmount, FinanceFormSheet, budgetCategories, formPalette } from '@/components/finance-form';
 import { authenticatedApiRequest } from '@/services/api';
 import { SegmentedRing } from '@/components/segmented-ring';
-import { ProfileHeaderButton } from '@/components/profile-header-button';
+import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
@@ -77,7 +77,7 @@ export default function Budget() {
   const spent = data?.spent_amount ?? 0;
 
   return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-     <FinancialScreenHeader title="Budget" onBack={() => router.back()} rightAction={<ProfileHeaderButton />} />
+     <FinancialScreenHeader title="Budget" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading budget…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Budget unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : !data ? <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><BudgetRingSummary categories={[]} remaining={0} spent={0} budgeted={0} /><View style={styles.emptyCard}><View style={styles.emptyIcon}><WalletCards size={24} color={formPalette.accent} /></View><Text style={styles.emptyTitle}>No budget set for {label} yet</Text><Text style={styles.emptyCopy}>Set category limits and a monthly savings budget to give this month a clear plan.</Text><Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={styles.emptyAction}><Text style={styles.emptyActionText}>Create Budget</Text></Pressable></View></ScrollView> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <BudgetRingSummary categories={data.categories.filter((category) => !category.goal)} remaining={data.remaining_budget} spent={spent} budgeted={budgeted} />
       <View style={styles.tip}><WalletCards size={20} color="#fff" /><Text style={styles.tipText}>{data.unallocated_income >= 0 ? `${peso(data.unallocated_income)} of income is unallocated this month.` : `Budget is ${peso(Math.abs(data.unallocated_income))} above income.`}</Text></View>

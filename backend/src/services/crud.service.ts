@@ -56,9 +56,14 @@ export async function updateOwned(table: TableName, userId: string, id: string, 
 }
 
 export async function softDeleteOwned(table: TableName, userId: string, id: string) {
-  const { data, error } = await client().from(table).update({ deleted_at: new Date().toISOString() }).eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).select("id, deleted_at").single();
-  if (error) {
-    throw new AppError(404, "not_found", "Record not found.");
-  }
-  return data;
+  const ownerId = requireUserId(userId);
+  const { data: existing, error: lookupError } = await client().from(table).select("id").eq("user_id", ownerId).eq("id", id).is("deleted_at", null).maybeSingle();
+  if (lookupError || !existing) throw new AppError(404, "not_found", "Record not found.");
+
+  // Do not select the updated row here. Once deleted_at is set, the active-row
+  // SELECT policy intentionally hides it, which makes PostgREST report zero
+  // returned rows even though the soft delete succeeded.
+  const { error } = await client().from(table).update({ deleted_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id).is("deleted_at", null);
+  if (error) throwIfError(error);
+  return { id: existing.id };
 }

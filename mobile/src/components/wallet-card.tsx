@@ -1,19 +1,18 @@
 import { MoreHorizontal } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useAppTheme } from '@/theme/theme';
-import { walletVisualFor } from '@/constants/wallets';
+import { BrandLogo } from '@/components/brand-logo';
 import type { Wallet } from './wallet-picker';
 
 type WalletCardProps = { wallet: Wallet; onPress: () => void; onManage: () => void; formatBalance: (value: number | string) => string; typeLabel: (type: string) => string };
 
 export function WalletCard({ wallet, onPress, onManage, formatBalance, typeLabel }: WalletCardProps) {
   const { colors } = useAppTheme();
-  const visual = walletVisualFor(wallet.institution_key);
   return <Pressable accessibilityRole="button" accessibilityLabel={`${wallet.name}, ${typeLabel(wallet.institution_type)}, balance ${formatBalance(wallet.balance)}`} onPress={onPress} style={({ pressed }) => [styles.card, { backgroundColor: wallet.color, borderColor: `${wallet.color}CC` }, pressed && styles.pressed]}>
-    <View style={styles.topRow}><View style={styles.mark}><Text style={styles.markText}>{visual.mark}</Text></View><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${wallet.name}`} hitSlop={8} onPress={(event) => { event.stopPropagation(); onManage(); }} style={styles.more}><MoreHorizontal size={22} color="rgba(255,255,255,0.94)" /></Pressable></View>
+    <View style={styles.topRow}><BrandLogo name={wallet.name} entity="wallet" institutionKey={wallet.institution_key} category={wallet.institution_type} size={40} /><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${wallet.name}`} hitSlop={8} onPress={(event) => { event.stopPropagation(); onManage(); }} style={styles.more}><MoreHorizontal size={22} color="rgba(255,255,255,0.94)" /></Pressable></View>
     <View style={styles.identity}><Text numberOfLines={2} style={styles.name}>{wallet.name}</Text><Text style={styles.meta}>{typeLabel(wallet.institution_type)} · PHP</Text></View>
     <View><Text style={styles.balanceLabel}>BALANCE</Text><Text numberOfLines={1} adjustsFontSizeToFit style={styles.balance}>{formatBalance(wallet.balance)}</Text></View>
-    <Text pointerEvents="none" style={styles.watermark}>{visual.watermark}</Text>
+    <Text pointerEvents="none" style={styles.watermark}>◆</Text>
     <View pointerEvents="none" style={[styles.highlight, { backgroundColor: colors.textOnPrimary }]} />
   </Pressable>;
 }
