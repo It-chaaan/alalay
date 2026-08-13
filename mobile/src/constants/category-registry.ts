@@ -1,32 +1,103 @@
-export type SharedCategoryMeta = { key: string; label: string; iconKey: string; color: string; tint: string };
+export type CategoryGroup = 'everyday' | 'home' | 'transportation' | 'health' | 'education' | 'financial' | 'lifestyle' | 'family' | 'work' | 'other';
 
-export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = {
-  food: { key: 'food', label: 'Food', iconKey: 'utensils', color: '#E8775D', tint: '#FBE3DC' },
-  groceries: { key: 'groceries', label: 'Groceries', iconKey: 'shopping-basket', color: '#5B9B73', tint: '#E3F2E8' },
-  transport: { key: 'transport', label: 'Transport', iconKey: 'car', color: '#5D8FC4', tint: '#E2EFFB' },
-  subscriptions: { key: 'subscriptions', label: 'Subscriptions', iconKey: 'repeat', color: '#6FBF9A', tint: '#E1F4EA' },
-  rent: { key: 'rent', label: 'Rent', iconKey: 'house', color: '#C98228', tint: '#FFF0D8' },
-  water: { key: 'water', label: 'Water', iconKey: 'droplet', color: '#8D70AD', tint: '#EEE6F7' },
-  electricity: { key: 'electricity', label: 'Electricity', iconKey: 'zap', color: '#D8A21B', tint: '#FFF5C9' },
-  internet: { key: 'internet', label: 'Internet', iconKey: 'wifi', color: '#2D9C95', tint: '#DDF3F0' },
-  healthcare: { key: 'healthcare', label: 'Healthcare', iconKey: 'heart-pulse', color: '#D96C80', tint: '#FBE3E8' },
-  education: { key: 'education', label: 'Education', iconKey: 'graduation-cap', color: '#6675C7', tint: '#E8EAFF' },
-  entertainment: { key: 'entertainment', label: 'Entertainment', iconKey: 'gamepad-2', color: '#9B6BD6', tint: '#F0E6FF' },
-  shopping: { key: 'shopping', label: 'Shopping', iconKey: 'shopping-bag', color: '#C95C9D', tint: '#F9E4F1' },
-  travel: { key: 'travel', label: 'Travel', iconKey: 'plane', color: '#55A7D9', tint: '#E2F2FB' },
-  insurance: { key: 'insurance', label: 'Insurance', iconKey: 'shield', color: '#60758A', tint: '#E7EDF2' },
-  'personal-care': { key: 'personal-care', label: 'Personal Care', iconKey: 'sparkles', color: '#D77C9E', tint: '#FAE6EF' },
-  gifts: { key: 'gifts', label: 'Gifts', iconKey: 'gift', color: '#A66BB8', tint: '#F0E5F5' },
-  pets: { key: 'pets', label: 'Pets', iconKey: 'paw-print', color: '#B5784C', tint: '#F4E7DC' },
-  other: { key: 'other', label: 'Other', iconKey: 'tag', color: '#8B8B8B', tint: '#ECECEC' },
-  bills: { key: 'bills', label: 'Bills', iconKey: 'credit-card', color: '#60758A', tint: '#E7EDF2' },
+export type SharedCategoryMeta = {
+  key: string;
+  label: string;
+  iconKey: string;
+  color: string;
+  tint: string;
+  group: CategoryGroup;
 };
 
+const palettes: Record<CategoryGroup, Pick<SharedCategoryMeta, 'color' | 'tint'>> = {
+  everyday: { color: '#5B9B73', tint: '#E3F2E8' }, home: { color: '#C98228', tint: '#FFF0D8' },
+  transportation: { color: '#5D8FC4', tint: '#E2EFFB' }, health: { color: '#D96C80', tint: '#FBE3E8' },
+  education: { color: '#6675C7', tint: '#E8EAFF' }, financial: { color: '#60758A', tint: '#E7EDF2' },
+  lifestyle: { color: '#9B6BD6', tint: '#F0E6FF' }, family: { color: '#A66BB8', tint: '#F0E5F5' },
+  work: { color: '#2D9C95', tint: '#DDF3F0' }, other: { color: '#8B8B8B', tint: '#ECECEC' },
+};
+
+function category(key: string, label: string, iconKey: string, group: CategoryGroup): SharedCategoryMeta {
+  return { key, label, iconKey, group, ...palettes[group] };
+}
+
+/**
+ * The cross-client category catalog. API records serialize `label` for backwards
+ * compatibility; `key` is the stable local identity used for lookup and grouping.
+ */
+export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.fromEntries([
+  category('essentials', 'Essentials', 'package', 'everyday'),
+  category('food', 'Food', 'utensils', 'everyday'),
+  category('groceries', 'Groceries', 'shopping-basket', 'everyday'),
+  category('dining-out', 'Dining Out', 'utensils', 'everyday'),
+  category('coffee-cafes', 'Coffee / Cafes', 'coffee', 'everyday'),
+  category('household', 'Household', 'package', 'everyday'),
+  category('clothing', 'Clothing', 'shirt', 'everyday'),
+  category('shopping', 'Shopping', 'shopping-bag', 'everyday'),
+  category('personal-care', 'Personal Care', 'sparkles', 'everyday'),
+  category('housing-rent', 'Housing / Rent', 'house', 'home'),
+  category('rent', 'Rent', 'house', 'home'),
+  category('mortgage', 'Mortgage', 'house', 'home'),
+  category('utilities', 'Utilities', 'utility-pole', 'home'),
+  category('electricity', 'Electricity', 'zap', 'home'),
+  category('water', 'Water', 'droplet', 'home'),
+  category('internet', 'Internet', 'wifi', 'home'),
+  category('mobile-phone', 'Mobile / Phone', 'smartphone', 'home'),
+  category('home-maintenance', 'Home Maintenance', 'wrench', 'home'),
+  category('furniture-appliances', 'Furniture / Appliances', 'sofa', 'home'),
+  category('transport', 'Transport', 'car', 'transportation'),
+  category('fuel-gas', 'Fuel / Gas', 'fuel', 'transportation'),
+  category('public-transport', 'Public Transport', 'bus', 'transportation'),
+  category('taxi-ride-hailing', 'Taxi / Ride Hailing', 'taxi', 'transportation'),
+  category('parking', 'Parking', 'parking', 'transportation'),
+  category('tolls', 'Tolls', 'road', 'transportation'),
+  category('vehicle-maintenance', 'Vehicle Maintenance', 'wrench', 'transportation'),
+  category('vehicle-payment', 'Vehicle Payment', 'car', 'transportation'),
+  category('healthcare', 'Healthcare', 'heart-pulse', 'health'),
+  category('medicine-pharmacy', 'Medicine / Pharmacy', 'pill', 'health'),
+  category('doctor-medical', 'Doctor / Medical', 'stethoscope', 'health'),
+  category('dental', 'Dental', 'heart-pulse', 'health'),
+  category('fitness', 'Fitness', 'dumbbell', 'health'),
+  category('wellness', 'Wellness', 'activity', 'health'),
+  category('education', 'Education', 'graduation-cap', 'education'),
+  category('tuition', 'Tuition', 'school', 'education'),
+  category('books-supplies', 'Books / Supplies', 'book-open', 'education'),
+  category('courses-training', 'Courses / Training', 'presentation', 'education'),
+  category('bills', 'Bills', 'receipt', 'financial'),
+  category('subscriptions', 'Subscriptions', 'repeat', 'financial'),
+  category('insurance', 'Insurance', 'shield', 'financial'),
+  category('debt-loan', 'Debt / Loan', 'credit-card', 'financial'),
+  category('bank-fees', 'Bank Fees', 'landmark', 'financial'),
+  category('taxes', 'Taxes', 'receipt', 'financial'),
+  category('savings', 'Savings', 'piggy-bank', 'financial'),
+  category('investments', 'Investments', 'trending-up', 'financial'),
+  category('financial-other', 'Financial / Other', 'hand-coins', 'financial'),
+  category('lifestyle', 'Lifestyle', 'sparkles', 'lifestyle'),
+  category('entertainment', 'Entertainment', 'ticket', 'lifestyle'),
+  category('movies-streaming', 'Movies / Streaming', 'film', 'lifestyle'),
+  category('games', 'Games', 'gamepad-2', 'lifestyle'),
+  category('hobbies', 'Hobbies', 'palette', 'lifestyle'),
+  category('sports', 'Sports', 'trophy', 'lifestyle'),
+  category('travel', 'Travel', 'plane', 'lifestyle'),
+  category('vacation', 'Vacation', 'luggage', 'lifestyle'),
+  category('events', 'Events', 'calendar-days', 'lifestyle'),
+  category('family', 'Family', 'users', 'family'),
+  category('children', 'Children', 'baby', 'family'),
+  category('pets', 'Pets', 'paw-print', 'family'),
+  category('gifts', 'Gifts', 'gift', 'family'),
+  category('gifts-donations', 'Gifts / Donations', 'gift', 'family'),
+  category('donations-charity', 'Donations / Charity', 'heart-handshake', 'family'),
+  category('work-business', 'Work / Business', 'briefcase', 'work'),
+  category('office-supplies', 'Office Supplies', 'clipboard-list', 'work'),
+  category('professional-services', 'Professional Services', 'briefcase', 'work'),
+  category('other', 'Other', 'shapes', 'other'),
+].map((item) => [item.key, item]));
+
 export const CATEGORY_ALIASES: Record<string, string> = {
-  transportation: 'transport', subscription: 'subscriptions', housing: 'rent', 'housing-rent': 'rent',
-  utilities: 'electricity', utility: 'electricity', 'mobile-phone': 'internet', 'mobile-phone-internet': 'internet',
-  'gifts-donations': 'gifts', 'personal-care': 'personal-care', custom: 'other', 'other-custom': 'other',
-  'financial-other': 'other', 'debt-loan': 'other',
+  transportation: 'transport', housing: 'housing-rent', 'housing-rent': 'housing-rent', utility: 'utilities',
+  'mobile-phone-internet': 'mobile-phone', gas: 'fuel-gas', 'taxi-ride-hailing': 'taxi-ride-hailing',
+  subscription: 'subscriptions', streaming: 'movies-streaming', 'gifts-donations': 'gifts-donations',
+  custom: 'other', 'other-custom': 'other',
 };
 
 export function normalizeCategoryKey(value: string | null | undefined) {
@@ -37,3 +108,6 @@ export function getSharedCategoryMeta(value: string | null | undefined): SharedC
   const normalized = normalizeCategoryKey(value);
   return CATEGORY_DEFINITIONS[CATEGORY_ALIASES[normalized] ?? normalized];
 }
+
+export const categoryDefinitions = Object.values(CATEGORY_DEFINITIONS);
+export const categoryLabels = categoryDefinitions.map((item) => item.label);

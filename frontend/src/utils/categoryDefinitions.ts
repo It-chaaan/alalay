@@ -4,7 +4,7 @@ export type CategoryDefinition = { name: string; icon: string; color: string };
 
 export const expenseCategoryDefinitions: CategoryDefinition[] = categoryDefinitions.map((category) => ({
   name: category.label,
-  icon: category.icon,
+  icon: category.iconKey,
   color: category.color,
 }));
 

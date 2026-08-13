@@ -2,7 +2,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, Eye, EyeOff, FileText, Home, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, Eye, EyeOff, FileText, Home, MoreHorizontal, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
@@ -17,6 +17,8 @@ import { GlassSurface } from '@/components/glass-surface';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
+import { RecordActionSheet } from '@/components/record-action-sheet';
+import { splitQuickActions } from '@/utils/quick-action-overflow';
 
 const palette = {
   background: '#F4F7F1',
@@ -139,7 +141,6 @@ export default function HomeScreen() {
 
         <SummaryCard summary={dashboardSummary} loading={financeLoading} wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
         <PaydayCard payday={payday} loading={paydayLoading} error={paydayError} />
-        <GlassSurface style={styles.shortcutContainer} padding={8}><View style={styles.shortcutRow}><Shortcut icon={ShoppingCart} label="Expense" onPress={() => router.push('/(tabs)/expenses')} /><Shortcut icon={ArrowUpRight} label="Income" onPress={() => router.push('/(tabs)/income')} /><Shortcut icon={Receipt} label="Bills" onPress={() => router.push('/(tabs)/bills')} /><Shortcut icon={Repeat} label="Subscription" onPress={() => router.push('/(tabs)/subscriptions')} /><Shortcut icon={Target} label="Goals" onPress={() => router.push('/(tabs)/savings')} /></View></GlassSurface>
 
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Wallets</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={[styles.link, { color: colors.primary }]}>View all</Text></Pressable></View>
         <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
@@ -160,12 +161,22 @@ export default function HomeScreen() {
 function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: { summary: DashboardSummary | null; loading: boolean; wallets: WalletRecord[]; walletLoading: boolean; walletError: string }) {
   const { colors } = useAppTheme();
   const { visible, toggle } = useBalanceVisibility();
+  const [actionAreaWidth, setActionAreaWidth] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
   const balanceUnavailable = walletError || walletLoading;
   const amountsVisible = visible === true;
   const mask = '••••••';
   const balanceLabel = balanceUnavailable ? walletLoading ? 'loading' : 'unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : 'hidden';
   const expensesLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_expenses) : 'hidden';
   const incomeLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_income) : 'hidden';
+  const actions: QuickAction[] = [
+    { id: 'expense', label: 'Expense', icon: ShoppingCart, onPress: () => router.push('/(tabs)/expenses') },
+    { id: 'income', label: 'Income', icon: ArrowUpRight, onPress: () => router.push('/(tabs)/income') },
+    { id: 'bills', label: 'Bills', icon: Receipt, onPress: () => router.push('/(tabs)/bills') },
+    { id: 'subscription', label: 'Subscription', icon: Repeat, onPress: () => router.push('/(tabs)/subscriptions') },
+    { id: 'goals', label: 'Goals', icon: Target, onPress: () => router.push('/(tabs)/savings') },
+  ];
+  const { visibleActions, overflowActions } = splitQuickActions(actions, actionAreaWidth);
   return <View style={styles.balanceStack}>
     <View accessible={false} importantForAccessibility="no" style={[styles.balanceRearCard, { backgroundColor: colors.balanceRear }]} />
     <View accessible accessibilityRole="summary" accessibilityLabel={`Total Balance ${balanceLabel}. Expenses ${expensesLabel}. Income ${incomeLabel}.`} style={[styles.summaryCard, { backgroundColor: colors.balance, borderColor: colors.primary }] }>
@@ -175,9 +186,17 @@ function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: 
       <View style={styles.balanceHeader}><Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text><Pressable accessibilityRole="button" accessibilityLabel={amountsVisible ? 'Hide financial amounts' : 'Show financial amounts'} hitSlop={8} onPress={toggle} style={({ pressed }) => [styles.visibilityButton, { backgroundColor: 'rgba(255,255,255,0.10)', borderColor: 'rgba(216,239,226,0.24)' }, pressed && styles.pressed]}>{amountsVisible ? <Eye size={20} color="#D8EFE2" strokeWidth={1.9} /> : <EyeOff size={20} color="#D8EFE2" strokeWidth={1.9} />}</Pressable></View>
       <Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} adjustsFontSizeToFit minimumFontScale={0.58} numberOfLines={1} style={styles.balanceValue}>{balanceUnavailable ? walletLoading ? 'Loading…' : 'Unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : mask}</Text>
       <View style={[styles.supportingMetrics, { backgroundColor: 'rgba(5,43,32,0.28)', borderColor: 'rgba(216,239,226,0.18)' }]}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={15} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_expenses) : mask}</Text></View><View style={styles.metricDivider} /><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={15} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_income) : mask}</Text></View></View>
+      <View style={styles.actionDivider} />
+      <View onLayout={(event) => setActionAreaWidth(event.nativeEvent.layout.width)} style={styles.quickActionArea}>
+        <Text style={styles.quickActionTitle}>QUICK ACTIONS</Text>
+        <View style={styles.shortcutRow}>{visibleActions.map((action) => <Shortcut key={action.id} icon={action.icon} label={action.label} onPress={action.onPress} />)}{overflowActions.length ? <Shortcut icon={MoreHorizontal} label="More" onPress={() => setMoreOpen(true)} /> : null}</View>
+      </View>
     </View>
+    <RecordActionSheet visible={moreOpen} title="More actions" recordName="Choose an action" onClose={() => setMoreOpen(false)} actions={overflowActions.map((action) => { const ActionIcon = action.icon; return { label: action.label, icon: <ActionIcon size={19} color={colors.primary} strokeWidth={2} />, onPress: action.onPress }; })} />
   </View>;
 }
+
+type QuickAction = { id: string; label: string; icon: Icon; onPress: () => void };
 
 function PaydayCard({ payday, loading, error }: { payday: Payday | null; loading: boolean; error: boolean }) {
   const { colors } = useAppTheme();
@@ -269,8 +288,8 @@ const styles = StyleSheet.create({
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
   balanceStack: { position: 'relative', marginTop: 18, paddingTop: 12 },
   balanceRearCard: { position: 'absolute', top: 0, left: 14, right: 14, height: 38, borderRadius: 20, backgroundColor: '#63B995', opacity: 0.9 },
-  summaryCard: { position: 'relative', width: '100%', minHeight: 214, overflow: 'hidden', paddingHorizontal: 17, paddingTop: 19, paddingBottom: 14, borderRadius: 24, borderWidth: 1, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
-  walletDecoration: { position: 'absolute', right: 8, bottom: 66, width: 122, height: 126, opacity: 0.2, transform: [{ rotate: '-18deg' }] },
+  summaryCard: { position: 'relative', width: '100%', minHeight: 302, overflow: 'hidden', paddingHorizontal: 17, paddingTop: 19, paddingBottom: 14, borderRadius: 24, borderWidth: 1, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
+  walletDecoration: { position: 'absolute', right: 8, bottom: 128, width: 122, height: 126, opacity: 0.13, transform: [{ rotate: '-18deg' }] },
   walletBack: { position: 'absolute', top: 5, right: 6, width: 92, height: 72, borderRadius: 17, backgroundColor: '#6FC39B', transform: [{ rotate: '-18deg' }] },
   walletFront: { position: 'absolute', right: 0, bottom: 3, width: 112, height: 76, borderRadius: 18, borderWidth: 2, borderColor: '#B4E4C9', backgroundColor: '#174D3D', transform: [{ rotate: '18deg' }] },
   walletSlot: { position: 'absolute', left: 15, right: 15, top: 17, height: 22, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#8ED2AE' },
@@ -287,6 +306,9 @@ const styles = StyleSheet.create({
   expenseIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(217,108,85,0.34)' },
   incomeIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(196,245,213,0.22)' },
   metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
+  actionDivider: { zIndex: 1, height: StyleSheet.hairlineWidth, marginTop: 17, backgroundColor: 'rgba(216,239,226,0.27)' },
+  quickActionArea: { zIndex: 1, marginTop: 12 },
+  quickActionTitle: { marginBottom: 7, color: '#D8EFE2', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
   shortcutContainer: { marginTop: 18, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 24, backgroundColor: 'transparent', borderWidth: 0 },
   paydayCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, padding: 16, minHeight: 96, borderRadius: 22, borderWidth: 1, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 7, elevation: 2 },
   paydayIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },

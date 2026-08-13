@@ -54,6 +54,12 @@ supabase/   SQL migrations, config, generated types
 - `supabase/` contains the single shared Postgres schema, migrations, RLS policies, and generated types used as the source of truth.
 - Do not create a mobile-specific backend, Supabase project, schema fork, or duplicate financial calculation layer.
 
+### Category architecture
+
+- The canonical cross-client category catalog is `mobile/src/constants/category-registry.ts`. It defines stable local keys, display labels, semantic icon keys, colors, and lightweight groups.
+- Financial APIs and database fields deliberately serialize the established display label strings and validate them as bounded strings, not an enum. New canonical labels are therefore compatible without a schema migration; historical or custom values remain supported.
+- Web resolves the same registry through `frontend/src/utils/categoryRegistry.ts`; mobile resolves native Lucide icons through `mobile/src/constants/categories.ts`. Unknown legacy values use a safe generic category fallback only.
+
 ### Backend
 
 - Runtime: Node.js with Express and TypeScript
@@ -159,6 +165,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 
 - Summary cards and finance overview
 - Recent activity and high-level metrics
+- Mobile Home keeps its balance summary and prioritized quick actions in one financial-overview surface. `mobile/src/utils/quick-action-overflow.ts` derives visible and overflow actions from measured row width, reserving a `More` slot only when actions are hidden; routes remain defined once in the Home action configuration.
 - Mobile Home uses the shared dashboard summary API for its overview and the authenticated `GET /api/income/next-payday` endpoint for the dynamic payday indicator. The payday endpoint derives the next occurrence from recurring income through `income-recurrence.service.ts`; it prefers salary/payroll-labelled recurring income and otherwise uses the earliest next recurring source with a stable ID tie-breaker.
 
 ### Bills
@@ -189,6 +196,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 ### Wallets
 
 - Philippine-focused wallet/account presets with a per-user default Cash wallet
+- Wallet cards use the persisted `institution_type` (`cash`, `bank`, `digital_bank`, `e_wallet`, or `other`) as their concise account metadata. There is currently no persisted debit/credit account-type field, so clients must not infer or display one from an institution name.
 - Income requires a destination wallet; expenses, bills, and subscriptions may optionally reference a source wallet
 - Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
 - New wallet opening balances are recorded as `wallet_adjustments` ledger rows. Creation prefers the atomic `create_wallet_with_opening_balance` RPC and has a guarded rollback fallback during PostgREST schema-cache rollout gaps.
@@ -201,6 +209,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 ### Reports
 
 - Analytical summaries and trends
+- Mobile Reports exposes exactly `this_month`, `last_month`, and `one_year`. `one_year` is a rolling twelve complete calendar-month range including the current month; range aggregation remains in `analytics.service.ts`.
 - Backed by backend analytics services
 - Daily spending includes zero-activity dates for the selected range, and category totals must reconcile with total expenses.
 - Sticky report-section links, budget filters, status timelines, and chart tooltips keep long reports navigable and interpretable.

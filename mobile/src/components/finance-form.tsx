@@ -29,7 +29,6 @@ import {
   Grid2X2,
   HeartPulse,
   Home,
-  House,
   PawPrint,
   Plane,
   ShieldCheck,
@@ -54,7 +53,8 @@ import {
 
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
-import { getCategoryMeta } from '@/constants/categories';
+import { getCategoryMeta, spendingCategoryOptions } from '@/constants/categories';
+import { categoryDefinitions, type CategoryGroup } from '@/constants/category-registry';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const formPalette = {
@@ -97,14 +97,9 @@ export const subscriptionCategories: CategoryOption[] = [
   { label: 'Delivery / Shopping', icon: ShoppingBag }, { label: 'Other', icon: MoreHorizontal },
 ];
 
-export const expenseCategories: CategoryOption[] = [
-  { label: 'Essentials', icon: ShoppingBag }, { label: 'Food', icon: Utensils }, { label: 'Groceries', icon: ShoppingBag },
-  { label: 'Transport', icon: CarFront }, { label: 'Housing / Rent', icon: House }, { label: 'Utilities', icon: Bolt }, { label: 'Bills', icon: Receipt },
-  { label: 'Healthcare', icon: HeartPulse }, { label: 'Education', icon: GraduationCap }, { label: 'Lifestyle', icon: Sparkles }, { label: 'Shopping', icon: ShoppingBag },
-  { label: 'Dining Out', icon: Utensils }, { label: 'Entertainment', icon: Film }, { label: 'Travel', icon: Plane }, { label: 'Personal Care', icon: Sparkles },
-  { label: 'Fitness', icon: Dumbbell }, { label: 'Financial / Other', icon: HandCoins }, { label: 'Subscriptions', icon: Repeat }, { label: 'Insurance', icon: ShieldCheck },
-  { label: 'Debt / Loan', icon: CreditCard }, { label: 'Gifts / Donations', icon: Gift }, { label: 'Family', icon: Users }, { label: 'Pets', icon: PawPrint }, { label: 'Other', icon: Grid2X2 },
-];
+// Expense creation/editing use the shared catalog. It serializes the established
+// display labels accepted by the backend, rather than a picker-specific value.
+export const expenseCategories: CategoryOption[] = spendingCategoryOptions;
 
 export const budgetCategories: CategoryOption[] = [
   { label: 'Food', icon: Utensils },
@@ -218,14 +213,17 @@ export function CategoryChipRow({ value, onChange, options, label = 'Category (o
 
 export function ExpenseCategoryPicker({ value, onChange, customCategory, onCustomCategoryChange }: { value: string; onChange: (value: string) => void; customCategory?: string; onCustomCategoryChange?: (value: string) => void }) {
   const [open, setOpen] = useState(false);
+  const { colors } = useAppTheme();
   const quick = expenseCategories.filter((option) => ['Food', 'Groceries', 'Transport', 'Bills'].includes(option.label));
-  return <View style={chipStyles.section}><Text style={chipStyles.label}>Category</Text><View style={chipStyles.wrap}>{quick.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => onChange(optionLabel)} />)}<Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More categories</Text></Pressable></View>{value === 'Other' && onCustomCategoryChange ? <FormTextInput label="Specify category" placeholder="e.g. Motorcycle repair" value={customCategory ?? ''} onChangeText={onCustomCategoryChange} /> : null}<Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={pickerStyles.title}>Choose category</Text><Pressable accessibilityRole="button" accessibilityLabel="Close category picker" onPress={() => setOpen(false)}><Text style={pickerStyles.close}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{expenseCategories.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</ScrollView></Pressable></Pressable></Modal></View>;
+  const groups: [CategoryGroup, string][] = [['everyday', 'EVERYDAY'], ['home', 'HOME'], ['transportation', 'TRANSPORT'], ['health', 'HEALTH'], ['education', 'EDUCATION'], ['financial', 'FINANCIAL'], ['lifestyle', 'LIFESTYLE'], ['family', 'FAMILY'], ['work', 'WORK'], ['other', 'OTHER']];
+  return <View style={chipStyles.section}><Text style={chipStyles.label}>Category</Text><View style={chipStyles.wrap}>{quick.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => onChange(optionLabel)} />)}<Pressable accessibilityRole="button" accessibilityLabel="Choose more categories" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={colors.textSecondary} /><Text style={[chipStyles.text, { color: colors.textSecondary }]}>More categories</Text></Pressable></View>{value === 'Other' && onCustomCategoryChange ? <FormTextInput label="Specify category" placeholder="e.g. Motorcycle repair" value={customCategory ?? ''} onChangeText={onCustomCategoryChange} /> : null}<Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={[pickerStyles.sheet, { backgroundColor: colors.surface }]} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={[pickerStyles.title, { color: colors.textPrimary }]}>Choose category</Text><Pressable accessibilityRole="button" accessibilityLabel="Close category picker" onPress={() => setOpen(false)}><Text style={[pickerStyles.close, { color: colors.textPrimary }]}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{groups.map(([group, title]) => { const options = categoryDefinitions.filter((item) => item.group === group); return <View key={group} style={pickerStyles.group}><Text style={[pickerStyles.groupTitle, { color: colors.textSecondary }]}>{title}</Text><View style={pickerStyles.groupChips}>{options.map(({ label: optionLabel }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={getCategoryMeta(optionLabel).icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</View></View>; })}</ScrollView></Pressable></Pressable></Modal></View>;
 }
 
 function CategoryButton({ label, Icon, selected, onPress }: { label: string; Icon: LucideIcon; selected: boolean; onPress: () => void }) {
+  const { colors } = useAppTheme();
   const meta = getCategoryMeta(label);
   const CategoryIcon = meta.icon;
-  return <Pressable accessibilityRole="button" accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [chipStyles.chip, selected && chipStyles.active, pressed && chipStyles.pressed]}><CategoryIcon size={17} color={selected ? meta.color : formPalette.muted} strokeWidth={1.9} /><Text style={[chipStyles.text, selected && { color: meta.color, fontWeight: '900' }]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityRole="button" accessibilityLabel={`${label} category`} accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, selected && { backgroundColor: colors.primarySoft, borderColor: meta.color }, pressed && chipStyles.pressed]}><CategoryIcon size={17} color={selected ? meta.color : colors.textSecondary} strokeWidth={1.9} /><Text style={[chipStyles.text, { color: selected ? meta.color : colors.textSecondary }, selected && { fontWeight: '900' }]}>{label}</Text></Pressable>;
 }
 
 export function MultiCategoryChipRow({ value, onChange, options, label = 'Category' }: { value: string[]; onChange: (value: string[]) => void; options: CategoryOption[]; label?: string }) {
@@ -377,7 +375,7 @@ const keypadStyles = StyleSheet.create({
 const chipStyles = StyleSheet.create({ section: { marginTop: 15 }, labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 }, label: { marginBottom: 9, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 }, selectionCount: { marginLeft: 8, marginBottom: 9, color: formPalette.accent, fontSize: 11, fontWeight: '800' }, row: { gap: 8, paddingRight: 16 }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 13, borderRadius: 16, backgroundColor: formPalette.background }, frequency: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 42, paddingHorizontal: 13, borderRadius: 15, backgroundColor: formPalette.background }, active: { backgroundColor: formPalette.accentPale, borderWidth: 1, borderColor: formPalette.accent }, text: { color: formPalette.muted, fontSize: 12, fontWeight: '800' }, activeText: { color: formPalette.accentDark }, pressed: { opacity: 0.7 },
 });
 
-const pickerStyles = StyleSheet.create({ backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' }, sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { color: formPalette.ink, fontSize: 20, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28 }, list: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingTop: 18, paddingBottom: 20 } });
+const pickerStyles = StyleSheet.create({ backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' }, sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { fontSize: 20, fontWeight: '900' }, close: { fontSize: 28 }, list: { paddingTop: 18, paddingBottom: 20, gap: 16 }, group: { gap: 8 }, groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1 }, groupChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });
 
 const dateStyles = StyleSheet.create({ field: { flexDirection: 'row', alignItems: 'center', minHeight: 58, marginTop: 15, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background }, rowField: { flexDirection: 'row', alignItems: 'center', minHeight: 54, marginTop: 15, paddingHorizontal: 14, borderRadius: 14 }, compactSurface: { minHeight: 52 }, copy: { flex: 1, marginLeft: 11 }, spacer: { flex: 1 }, label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' }, rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.72 }, backdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(17,35,28,0.34)' }, modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 }, monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }, arrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background }, month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' }, weekRow: { flexDirection: 'row', marginTop: 14 }, weekDay: { width: '14.28%', color: formPalette.muted, textAlign: 'center', fontSize: 11, fontWeight: '900' }, calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }, day: { width: '14.28%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' }, selected: { backgroundColor: formPalette.accent }, selectedText: { color: '#FFFFFF', fontWeight: '900' }, today: { alignItems: 'center', marginTop: 12, paddingVertical: 12, borderRadius: 14, backgroundColor: formPalette.accentPale }, todayText: { color: formPalette.accentDark, fontWeight: '900' },
 });

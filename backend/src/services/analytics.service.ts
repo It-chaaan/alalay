@@ -31,7 +31,7 @@ type SavingsGoalAllocation = {
   progress_percent: number;
 };
 
-export type ReportPeriod = "this_month" | "last_month" | "last_3_months" | "quarter" | "ytd" | "custom";
+export type ReportPeriod = "this_month" | "last_month" | "last_3_months" | "one_year" | "quarter" | "ytd" | "custom";
 
 type ReportOptions = {
   period?: string;
@@ -226,9 +226,9 @@ function monthKeysBetween(start: string, end: string) {
   return keys;
 }
 
-function getReportRange(options: ReportOptions = {}): ReportRange {
+export function getReportRange(options: ReportOptions = {}): ReportRange {
   const today = new Date();
-  const requestedPeriod = options.period === "last_month" || options.period === "last_3_months" || options.period === "quarter" || options.period === "ytd" || options.period === "custom"
+  const requestedPeriod = options.period === "last_month" || options.period === "last_3_months" || options.period === "one_year" || options.period === "quarter" || options.period === "ytd" || options.period === "custom"
     ? options.period
     : "this_month";
   let start: string;
@@ -248,6 +248,12 @@ function getReportRange(options: ReportOptions = {}): ReportRange {
     end = range.end;
   } else if (requestedPeriod === "last_3_months") {
     const startDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
+    const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    start = toDateOnlyIso(startDate);
+    end = toDateOnlyIso(endDate);
+  } else if (requestedPeriod === "one_year") {
+    // Rolling twelve complete calendar months, including the current month.
+    const startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
     const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     start = toDateOnlyIso(startDate);
     end = toDateOnlyIso(endDate);

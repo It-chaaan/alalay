@@ -11,11 +11,9 @@ const storageKey = "alalay-app-settings";
 export const settingsChangedEvent = "alalay-settings-changed";
 
 const defaultCategories: AppCategory[] = [
-  ["Food", "utensils", "#e8775d", "expense"], ["Transport", "car", "#5d8fc4", "expense"], ["Rent", "house", "#4d9a73", "expense"],
-  ["Electricity", "zap", "#d89b1d", "expense"], ["Internet", "wifi", "#4778c7", "expense"], ["Water", "droplet", "#5da9d6", "expense"],
-  ["Subscriptions", "repeat", "#8d70ad", "expense"], ["Other", "tag", "#8b8b8b", "expense"],
-  ["Salary", "arrow-up", "#3f7d16", "income"], ["Freelance", "arrow-up", "#6fa3d2", "income"], ["Business", "arrow-up", "#f4c37d", "income"], ["Gifts", "star", "#e8775d", "income"],
-].map(([name, icon, color, kind], order) => ({ id: `${kind}-${name.toLowerCase()}`, name, icon, color, kind: kind as CategoryKind, order }));
+  ...categoryDefinitions.map((item, order) => ({ id: `expense-${item.key}`, name: item.label, icon: item.iconKey, color: item.color, kind: "expense" as const, order })),
+  ...[["Salary", "arrow-up", "#3f7d16"], ["Freelance", "arrow-up", "#6fa3d2"], ["Business", "arrow-up", "#f4c37d"], ["Gifts", "star", "#e8775d"]].map(([name, icon, color], index) => ({ id: `income-${name.toLowerCase()}`, name, icon, color, kind: "income" as const, order: index })),
+];
 
 export const defaultSettings: AppSettings = {
   theme: "light", currency: "PHP", dateFormat: "short",
@@ -35,5 +33,13 @@ export function readAppSettings(): AppSettings {
 }
 
 export function writeAppSettings(settings: AppSettings) { window.localStorage.setItem(storageKey, JSON.stringify(settings)); window.dispatchEvent(new CustomEvent(settingsChangedEvent)); }
-export function getCategories(kind?: CategoryKind) { return readAppSettings().categories.filter((category) => category.name !== "Utilities" && (!kind || category.kind === kind)).sort((a, b) => a.order - b.order); }
+export function getCategories(kind?: CategoryKind) {
+  const stored = readAppSettings().categories.filter((category) => !kind || category.kind === kind);
+  if (kind !== "expense") return stored.sort((a, b) => a.order - b.order);
+  // Keep user-created settings categories, but always expose the complete shared
+  // catalog so a persisted pre-expansion settings list cannot hide new choices.
+  const knownNames = new Set(defaultCategories.filter((category) => category.kind === "expense").map((category) => category.name));
+  return [...defaultCategories.filter((category) => category.kind === "expense"), ...stored.filter((category) => !knownNames.has(category.name))];
+}
 export function createCategoryId() { return globalThis.crypto?.randomUUID?.() || `category-${Date.now()}`; }
+import { categoryDefinitions } from "../utils/categoryRegistry";
