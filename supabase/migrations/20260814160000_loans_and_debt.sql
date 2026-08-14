@@ -16,6 +16,7 @@ create table if not exists public.loans (
   status text not null default 'active' check (status in ('active', 'paid', 'written_off')),
   notes text,
   idempotency_key text,
+  writeoff_expense_id uuid references public.expenses(id) on delete restrict,
   written_off_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -116,11 +117,16 @@ end; $$;
 
 create or replace function public.write_off_loan(loan_id_value uuid)
 returns public.loans language plpgsql security definer set search_path = public as $$
-declare owner_id uuid := auth.uid(); result public.loans;
+declare owner_id uuid := auth.uid(); result public.loans; loan_row public.loans; loss_expense public.expenses;
 begin
  if owner_id is null then raise exception 'Authentication is required'; end if;
- update public.loans set status='written_off', written_off_at=now(), updated_at=now() where id=loan_id_value and user_id=owner_id and status='active' returning * into result;
- if not found then raise exception 'This loan is no longer active'; end if; return result;
+ select * into loan_row from public.loans where id=loan_id_value and user_id=owner_id and status='active' for update;
+ if not found then raise exception 'This loan is no longer active'; end if;
+ if loan_row.direction <> 'lent' then raise exception 'Only money owed to you can be written off'; end if;
+ insert into public.expenses(user_id, wallet_id, merchant, category, amount, date, payment_method)
+ values(owner_id, null, 'Loan written off: ' || loan_row.counterparty, 'Debt / Loan', loan_row.outstanding_principal, current_date, 'other') returning * into loss_expense;
+ update public.loans set status='written_off', writeoff_expense_id=loss_expense.id, written_off_at=now(), updated_at=now() where id=loan_id_value returning * into result;
+ return result;
 end; $$;
 
 revoke all on function public.create_loan(uuid,text,text,numeric,text,numeric,numeric,date,date,text,text) from public;

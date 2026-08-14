@@ -4,6 +4,8 @@ Wallet transfers are atomic internal movements: transfer principal does not affe
 
 Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
 
+The mobile Loans & Debt experience is opened from Wallets and supports direction-first entry, optional due dates, expected fixed/simple interest, active/history grouping, payment detail history, split principal/interest repayments, overdue display, and confirmed receivable write-offs.
+
 Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
 
 ## Security controls and deployment requirements

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
 import { CheckCircle2, Lightbulb, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
@@ -72,7 +72,7 @@ function normalizeReport(input?: ReportInput | null): Report {
     total_income: numberOrZero(source.total_income), total_expenses: numberOrZero(source.total_expenses), net_savings: numberOrZero(source.net_savings), savings_rate: numberOrZero(source.savings_rate), budget_utilization: numberOrZero(source.budget_utilization),
     budget: { total_budget: totalBudget, spent, remaining: numberOrZero(budget.remaining ?? totalBudget - spent), over_budget_categories: Array.isArray(budget.over_budget_categories) ? budget.over_budget_categories : [] },
     savings: { total_saved: numberOrZero(savings.total_saved), goal_progress: numberOrZero(savings.goal_progress), active_goals: numberOrZero(savings.active_goals) },
-    categories: Array.isArray(source.categories) ? source.categories : [],
+    categories: Array.isArray(source.categories) ? [...source.categories].sort((left, right) => numberOrZero(right.amount) - numberOrZero(left.amount)) : [],
     monthly_trend: Array.isArray(source.monthly_trend) ? source.monthly_trend.map((item) => ({ month: String(item.month), income: numberOrZero(item.income), expenses: numberOrZero(item.expenses), net: numberOrZero(item.net) })) : [],
     charts: { daily_spending: Array.isArray(charts.daily_spending) ? charts.daily_spending : [] },
   };
@@ -81,7 +81,15 @@ function normalizeReport(input?: ReportInput | null): Report {
 function Donut({ categories }: { categories: Category[] }) {
   const { colors } = useAppTheme();
   const top = categories[0];
-  return <View style={styles.donutWrap}><SegmentedRing size={92} radius={34} strokeWidth={13} trackColor={colors.primarySoft} segments={categories.map((category) => ({ key: category.name, value: category.amount, color: getCategoryMeta(category.name).color }))}><View style={styles.donutCenter}><Text style={styles.donutPercent}>{top ? `${Math.round(top.percent)}%` : '0%'}</Text><Text numberOfLines={1} style={styles.donutLabel}>{top?.name ?? 'No spend'}</Text></View></SegmentedRing></View>;
+  return <View style={styles.donutWrap}><SegmentedRing size={132} radius={50} strokeWidth={16} trackColor={colors.primarySoft} segments={categories.map((category) => ({ key: category.name, value: category.amount, color: getCategoryMeta(category.name).color }))}><View style={{ alignItems: 'center', width: 78 }}><Text style={styles.donutPercent}>{top ? `${Math.round(top.percent)}%` : '0%'}</Text><Text numberOfLines={1} style={[styles.donutLabel, { maxWidth: 76 }]}>{top?.name ?? 'No spend'}</Text></View></SegmentedRing></View>;
+}
+
+function SpendingByCategory({ categories }: { categories: Category[] }) {
+  const { colors } = useAppTheme();
+  const { width } = useWindowDimensions();
+  const [expanded, setExpanded] = useState(false);
+  const visibleCategories = expanded ? categories : categories.slice(0, 6);
+  return <View style={styles.card}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Spending by category</Text><Text style={styles.cardHint}>{categories.length} categor{categories.length === 1 ? 'y' : 'ies'}</Text></View>{categories.length ? <View style={{ flexDirection: width < 360 ? 'column' : 'row', alignItems: width < 360 ? 'stretch' : 'center', gap: 20, marginTop: 12 }}><Donut categories={categories} /><View style={{ flex: 1, gap: 9 }}>{visibleCategories.map((category) => <View key={category.name} style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}><View style={[styles.legendDot, { backgroundColor: getCategoryMeta(category.name).color }]} /><View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.legendName}>{category.name}</Text><Text style={[styles.muted, { color: colors.textSecondary }]}>{peso(category.amount)}</Text></View><Text style={styles.legendPercent}>{Math.round(category.percent)}%</Text></View>)}{categories.length > 6 && <Pressable accessibilityRole="button" onPress={() => setExpanded((value) => !value)} style={{ alignSelf: 'flex-start', marginTop: 2 }}><Text style={[styles.legendPercent, { color: colors.primary }]}>{expanded ? 'Show less' : `Show all ${categories.length}`}</Text></Pressable>}</View></View> : <Text style={styles.emptyCopy}>No spending recorded.</Text>}</View>;
 }
 
 function IncomeVsSpending({ report }: { report: Report }) {
@@ -138,8 +146,8 @@ export default function ReportsScreen() {
     <View style={styles.filterContainer}><View style={styles.periods}>{periodOptions.map((option) => <Pressable key={option.value} accessibilityRole="tab" accessibilityLabel={`${option.label} reports`} accessibilityState={{ selected: period === option.value }} onPress={() => setPeriod(option.value)} style={[styles.periodChip, period === option.value && styles.periodChipActive]}><Text numberOfLines={1} style={[styles.periodText, period === option.value && styles.periodTextActive]}>{option.label}</Text></Pressable>)}</View></View>
     {loading ? <View style={styles.loadingDashboard}><ActivityIndicator color={colors.primary} /><Text style={styles.muted}>Loading insights…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Reports unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : report ? <>
       <View accessibilityRole="summary" accessibilityLabel={`Selected period ${shortRangeLabel(report.range)}. Income ${peso(report.total_income)}. Spending ${peso(report.total_expenses)}. Net savings ${peso(report.net_savings, true)}.`} style={styles.summaryCard}><Text style={styles.cardEyebrow}>Selected period</Text><Text style={styles.summaryTitle}>{shortRangeLabel(report.range)}</Text><View style={styles.summaryMetrics}><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Income</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.summaryIncome}>{peso(report.total_income)}</Text></View><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Spending</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.summaryExpense}>{peso(report.total_expenses)}</Text></View><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Net savings</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[styles.summaryNet, report.net_savings < 0 && styles.warning]}>{peso(report.net_savings, true)}</Text></View></View></View>
-      <View style={styles.card}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Income vs spending</Text><Text style={styles.cardHint}>{report.range.days > 45 ? 'Monthly view' : 'Selected period'}</Text></View><IncomeVsSpending report={report} /></View>
-      <View style={styles.duoRow}><View style={[styles.card, styles.categoryCard]}><Text style={styles.cardEyebrow}>Spending by category</Text>{report.categories.length ? <><Donut categories={report.categories} /><View style={styles.compactLegend}>{report.categories.slice(0, 3).map((category) => <View key={category.name} style={styles.compactLegendRow}><View style={[styles.legendDot, { backgroundColor: getCategoryMeta(category.name).color }]} /><Text numberOfLines={1} style={styles.legendName}>{category.name}</Text><Text style={styles.legendPercent}>{Math.round(category.percent)}%</Text></View>)}</View></> : <Text style={styles.emptyCopy}>No spending recorded.</Text>}</View><SavingsProgress report={report} /></View>
+      <SpendingByCategory categories={report.categories} />
+      <View style={styles.duoRow}><View style={styles.card}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Income vs spending</Text><Text style={styles.cardHint}>{report.range.days > 45 ? 'Monthly view' : 'Selected period'}</Text></View><IncomeVsSpending report={report} /></View><SavingsProgress report={report} /></View>
       <BudgetProgress report={report} />
       {peak ? <View style={styles.peakRow}><TrendingDown size={16} color={colors.primary} /><Text style={styles.peakText}>Peak spending <Text style={styles.peakStrong}>{readableDate(peak.date)} · {peso(peak.amount)}</Text></Text></View> : null}
       <Insights report={report} />

@@ -168,6 +168,8 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Mobile Home keeps its balance summary and prioritized quick actions in one financial-overview surface. `mobile/src/utils/quick-action-overflow.ts` derives visible and overflow actions from measured row width, reserving a `More` slot only when actions are hidden; routes remain defined once in the Home action configuration.
 - Mobile Home uses the shared dashboard summary API for its overview and the authenticated `GET /api/income/next-payday` endpoint for the dynamic payday indicator. The payday endpoint derives the next occurrence from recurring income through `income-recurrence.service.ts`; it prefers salary/payroll-labelled recurring income and otherwise uses the earliest next recurring source with a stable ID tie-breaker.
 - Home Upcoming uses the shared `derivedStatus` presentation rule: paid overrides date urgency, followed by overdue, due today, due soon (within three Manila calendar days), and upcoming. `StatusBadge` provides a compact semantic dot/check treatment for that grouped list while retaining its fuller badge variant elsewhere.
+- Bills reuse the same compact status treatment and keep `Due today`/`Due soon` grouped under the existing Upcoming filter; filter semantics remain separate from presentation.
+- Loans & Debt is a Wallets drill-down, not a bottom-navigation tab. Its shared flow supports direction-first creation, optional due dates, fixed/simple expected interest, atomic split repayments, active/history grouping, payment detail history, and receivable write-offs recorded as loss expenses.
 
 ### Bills
 

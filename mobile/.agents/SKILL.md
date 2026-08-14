@@ -49,6 +49,10 @@ Loan/debt totals come from the shared `/api/loans` contract. Respect the persist
 
 For Home Upcoming, use the shared compact `StatusBadge` treatment and semantic tokens. Keep status derivation separate from financial writes: paid overrides overdue, followed by due today, due soon (three Manila calendar days), and upcoming.
 
+Bill-card statuses are informational compact markings; do not confuse them with the interactive bill filter controls. Preserve the existing filter semantics when changing status visuals.
+
+Loans & Debt is a Wallets drill-down, not a new bottom-navigation destination. Use `FinanceFormSheet`, `WalletPicker`, shared privacy state, and the authenticated `/api/loans` contract for direction-aware creation and split repayments.
+
 Ask Alalay financial actions remain backend-only tool calls with server-side wallet ownership resolution, existing domain-service validation, and request-ID deduplication. Publish `notifyFinancialMutation()` only when the backend reports a successful mutation.
 
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`, same as web — never expose keys or move prompts/data calls to the mobile client.

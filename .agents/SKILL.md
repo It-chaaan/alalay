@@ -47,6 +47,8 @@ Loan principal is balance-sheet data: a lent balance is a receivable and a borro
 - Per-user mobile presentation preferences must use shared authenticated API contracts and RLS-backed storage; do not persist account-scoped choices only in an unscoped local cache.
 - Expense reads must use inclusive Manila-local date ranges and the shared mobile finance normalizer/mutation notification so Expenses and Home Recent Transactions observe the same persisted record after save.
 - Upcoming status is presentation derived from paid state and Manila-local due dates. Preserve the payment model; reuse `StatusBadge` variants and semantic theme tokens instead of introducing screen-specific status pills.
+- Bill filters are product controls, while card statuses are informational. Keep due-today/due-soon inclusion in the existing Upcoming filter when simplifying their visual treatment.
+- Loan/debt writes must use the shared authenticated RPC/API contract. Keep principal separate from income/expense rows; only actual interest and explicit receivable write-offs enter reporting ledgers.
 
 ## Profile data flow
 

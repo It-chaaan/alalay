@@ -1,4 +1,4 @@
-import { asNumber, client, requireUserId, throwIfError } from "./db.js";
+import { asNumber, client, monthRange, requireUserId, throwIfError } from "./db.js";
 import { AppError } from "../utils/api.js";
 
 type LoanPayload = { wallet_id: string; direction: "lent" | "borrowed"; counterparty: string; principal: number; interest_type: "none" | "fixed" | "simple"; interest_rate?: number; fixed_interest_amount?: number; start_date?: string; due_date?: string | null; notes?: string | null; idempotency_key: string };
@@ -8,12 +8,17 @@ const numeric = (row: Record<string, unknown>): LoanRow => ({ ...row, direction:
 
 export async function listLoans(userId: string) {
   const ownerId = requireUserId(userId);
-  const { data, error } = await client().from("loans").select("*, wallets(name), loan_payments(id, principal_amount, interest_amount, paid_on, note)").eq("user_id", ownerId).order("status").order("due_date", { ascending: true, nullsFirst: false });
+  const { data, error } = await client().from("loans").select("*, wallets(name), loan_payments(id, principal_amount, interest_amount, paid_on, note, wallets(name))").eq("user_id", ownerId).order("status").order("due_date", { ascending: true, nullsFirst: false });
   throwIfError(error);
   const rows = (data ?? []).map((row) => numeric(row as Record<string, unknown>));
   const owed_to_me = rows.filter((row) => row.direction === "lent" && row.status === "active").reduce((sum, row) => sum + row.outstanding_principal, 0);
   const i_owe = rows.filter((row) => row.direction === "borrowed" && row.status === "active").reduce((sum, row) => sum + row.outstanding_principal, 0);
-  return { loans: rows, summary: { owed_to_me, i_owe, net_position: owed_to_me - i_owe } };
+  const { start, end } = monthRange();
+  const payments: Array<Record<string, unknown> & { direction: "lent" | "borrowed" }> = rows.flatMap((row) => Array.isArray(row.loan_payments) ? (row.loan_payments as Array<Record<string, unknown>>).map((payment) => ({ ...payment, direction: row.direction })) : []);
+  const currentMonth = payments.filter((payment) => String(payment.paid_on).slice(0, 10) >= start && String(payment.paid_on).slice(0, 10) <= end);
+  const interest_earned_this_month = currentMonth.reduce((sum, payment) => sum + (payment.direction === "lent" ? asNumber(payment.interest_amount) : 0), 0);
+  const interest_paid_this_month = currentMonth.reduce((sum, payment) => sum + (payment.direction === "borrowed" ? asNumber(payment.interest_amount) : 0), 0);
+  return { loans: rows, summary: { owed_to_me, i_owe, net_position: owed_to_me - i_owe, interest_earned_this_month, interest_paid_this_month } };
 }
 
 export async function createLoan(userId: string, payload: LoanPayload) {

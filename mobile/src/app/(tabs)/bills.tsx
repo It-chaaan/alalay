@@ -34,6 +34,17 @@ function monthName(month: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(`${month}-01T12:00:00`)).toUpperCase();
 }
 
+function formatBillDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  const currentYear = Number(dateKeyInManila().slice(0, 4));
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(year === currentYear ? {} : { year: 'numeric' }) }).format(date);
+}
+
+function isUpcomingStatus(status: ReturnType<typeof derivedStatus>) {
+  return status === 'Upcoming' || status === 'Due soon' || status === 'Due today';
+}
+
 export default function BillsScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -60,7 +71,7 @@ export default function BillsScreen() {
 
   const bills = items.filter((item) => item.source === 'bill');
   const statuses = bills.map((item) => derivedStatus(item));
-  const filteredBills = bills.filter((item) => (filter === 'All' || derivedStatus(item) === filter) && item.name.toLowerCase().includes(query.toLowerCase()));
+  const filteredBills = bills.filter((item) => { const status = derivedStatus(item); const matchesFilter = filter === 'All' || (filter === 'Upcoming' ? isUpcomingStatus(status) : status === filter); return matchesFilter && item.name.toLowerCase().includes(query.toLowerCase()); });
   const month = currentMonthKey();
   const monthlyBills = bills.filter((item) => item.dueDate.slice(0, 7) === month);
   const totalBillsThisMonth = monthlyBills.reduce((sum, item) => sum + item.amount, 0);
@@ -73,8 +84,7 @@ export default function BillsScreen() {
     <FinancialScreenHeader title="Bills" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={palette.accent} /><Text style={styles.centerCopy}>Loading bills and subscriptions…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load bills</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <FinancialOverviewCard title="BILLS OVERVIEW" context={monthName(month)} value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingInfo={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} accessibilityLabel={`Bills overview. Total bills this month: ₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}.`} />
-      <View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={({ pressed }) => [styles.filter, filter === value && styles.filterActive, pressed && styles.filterPressed]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View></View>
-      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onManage={() => setManaging(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}</View>
+      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View><View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={({ pressed }) => [styles.filter, filter === value && styles.filterActive, pressed && styles.filterPressed]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : value === 'Upcoming' ? statuses.filter(isUpcomingStatus).length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onManage={() => setManaging(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}</View>
     </ScrollView>}
     {editing && <BillEditor wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {creating && <NewBillForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
@@ -102,7 +112,8 @@ export default function BillsScreen() {
 function BillCard({ item, onManage }: { item: FinanceItem; onManage: () => void }) {
   const { colors } = useAppTheme();
   const status = derivedStatus(item);
-  return <View style={styles.billCard}><View style={styles.billTop}><BrandLogo name={item.name} entity="bill" category={item.category} size={40} /><View style={styles.billMain}><Text style={styles.billName}>{item.name}</Text><Text style={styles.billMeta}>{item.source === 'subscription' ? 'Subscription' : item.custom_category || item.category} · Due {item.dueDate}</Text></View><Text style={styles.billAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.name}`} onPress={onManage} style={styles.more}><MoreHorizontal size={21} color={colors.textSecondary} /></Pressable></View><View style={styles.billBottom}><StatusBadge status={status} /></View></View>;
+  const metadata = `${item.source === 'subscription' ? 'Subscription' : item.custom_category || item.category} · Due ${formatBillDate(item.dueDate)}`;
+  return <View accessibilityLabel={`${item.name}, ₱${Math.round(item.amount).toLocaleString('en-PH')}, ${metadata}, ${status}.`} style={styles.billCard}><View style={styles.billTop}><BrandLogo name={item.name} entity="bill" category={item.category} size={40} /><View style={styles.billMain}><Text numberOfLines={1} style={styles.billName}>{item.name}</Text><Text numberOfLines={1} style={styles.billMeta}>{metadata}</Text></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.billAmount}>₱{Math.round(item.amount).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.name}`} onPress={onManage} style={styles.more}><MoreHorizontal size={21} color={colors.textSecondary} /></Pressable></View><View style={styles.billBottom}><StatusBadge status={status} variant="compact" /></View></View>;
 }
 
 function BillPaymentSheet({ item, wallets, onClose, onSaved }: { item: FinanceItem; wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void> }) {

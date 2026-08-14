@@ -91,6 +91,10 @@ The Home overview's Net Savings is the same current-month calculation as Reports
 
 Home Upcoming is a grouped list using the shared compact `StatusBadge` variant: paid items use a check, while upcoming, due-soon, due-today, and overdue items use a semantic dot and text. Status is derived from paid state and Manila-local due dates, with a three-day due-soon window; subscription metadata uses `Renews` rather than `Due`.
 
+Bills use the same compact status variant while preserving the interactive All/Upcoming/Overdue/Paid filters; Due today and Due soon remain part of Upcoming for filtering.
+
+Loans & Debt remains reachable from Wallets and uses one direction-aware shared flow for lending and borrowing. The screen supports adding a loan, active/history tabs, optional due dates, interest expectations, split repayments, detail/payment history, overdue display, and confirmed write-offs; financial effects stay in the shared backend RPCs.
+
 ## Current feature map
 
 Same feature scope as the web app's feature map (Auth, Dashboard, Bills, Expenses, Income, Subscriptions, Savings goals, Budget, Reports, AI assistant, OCR scanner, Settings) — refer to the web app's `AGENTS.md` for the authoritative description of what each feature does. This document does not duplicate that list; it only calls out where the mobile implementation must diverge (auth session storage, OAuth flow, OCR, navigation).
