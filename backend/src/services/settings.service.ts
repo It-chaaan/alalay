@@ -39,6 +39,12 @@ export async function updateProfile(userId: string, payload: Record<string, unkn
 const defaultNotificationPreferences = {
   bill_reminders: true,
   bill_reminder_days: 3,
+  bill_reminder_three_days: true,
+  bill_reminder_one_day: true,
+  bill_reminder_due_day: true,
+  bill_overdue_reminders: true,
+  bill_reminder_hour: 9,
+  bill_reminder_minute: 0,
   subscription_reminders: true,
   summaries: false,
   overspending_alerts: true,

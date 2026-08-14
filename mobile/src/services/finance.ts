@@ -227,6 +227,8 @@ export async function markFinanceItemPaid(item: FinanceItem, payment?: { wallet_
   if (item.source === 'bill') {
     if (!payment) throw new Error('Select a payment wallet and date.');
     const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payment) });
+    const { cancelBillReminders } = await import('./financial-reminders');
+    await cancelBillReminders(item.id);
     notifyFinancialMutation();
     return result;
   }
@@ -238,5 +240,10 @@ export async function markFinanceItemPaid(item: FinanceItem, payment?: { wallet_
 
 export async function deleteFinanceItem(item: FinanceItem) {
   const path = item.source === 'bill' ? `/api/bills/${item.id}` : `/api/subscriptions/${item.id}`;
-  return authenticatedApiRequest(path, { method: 'DELETE' });
+  const result = await authenticatedApiRequest(path, { method: 'DELETE' });
+  if (item.source === 'bill') {
+    const { cancelBillReminders } = await import('./financial-reminders');
+    await cancelBillReminders(item.id);
+  }
+  return result;
 }

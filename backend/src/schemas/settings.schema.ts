@@ -15,6 +15,12 @@ export const updateProfileSchema = z.object({
 export const notificationPreferencesSchema = z.object({
   bill_reminders: z.boolean(),
   bill_reminder_days: z.coerce.number().int().min(0).max(30),
+  bill_reminder_three_days: z.boolean().optional().default(true),
+  bill_reminder_one_day: z.boolean().optional().default(true),
+  bill_reminder_due_day: z.boolean().optional().default(true),
+  bill_overdue_reminders: z.boolean().optional().default(true),
+  bill_reminder_hour: z.coerce.number().int().min(0).max(23).optional().default(9),
+  bill_reminder_minute: z.coerce.number().int().min(0).max(59).optional().default(0),
   subscription_reminders: z.boolean(),
   summaries: z.boolean(),
   overspending_alerts: z.boolean(),

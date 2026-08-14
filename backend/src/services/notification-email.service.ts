@@ -26,7 +26,12 @@ export async function sendEmail(input: EmailInput) {
 }
 
 export function billDueEmail(bill: { title: string; amount: number; due_date: string }, days: number) {
-  return { subject: `Bill due reminder: ${bill.title}`, html: layout("Bill due reminder", `${bill.title} is due in ${days} day${days === 1 ? "" : "s"}.`, `<div style="background:#f0fdf4;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(bill.title)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(bill.amount)}</strong><br>Due date: <strong>${escapeHtml(bill.due_date)}</strong></p></div>`) };
+  const phrase = days === 0 ? `${bill.title} is due today.` : `${bill.title} is due in ${days} day${days === 1 ? "" : "s"}.`;
+  return { subject: `Bill due reminder: ${bill.title}`, html: layout("Bill due reminder", phrase, `<div style="background:#f0fdf4;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(bill.title)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(bill.amount)}</strong><br>Due date: <strong>${escapeHtml(bill.due_date)}</strong></p></div>`) };
+}
+
+export function billOverdueEmail(bill: { title: string; amount: number; due_date: string }) {
+  return { subject: `Bill overdue: ${bill.title}`, html: layout("Bill overdue", `${bill.title} is overdue.`, `<div style="background:#fff7ed;border-radius:14px;padding:18px"><p style="margin:0 0 8px;font-weight:700">${escapeHtml(bill.title)}</p><p style="margin:0;color:#475569">Amount: <strong>${money(bill.amount)}</strong><br>Due date: <strong>${escapeHtml(bill.due_date)}</strong></p></div>`) };
 }
 
 export function subscriptionRenewalEmail(subscription: { name: string; amount: number; renewal_date: string; wallet_name?: string | null }, days: number) {

@@ -1,14 +1,14 @@
 import { env } from "../config/env.js";
 import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./db.js";
 import { getReports } from "./analytics.service.js";
-import { billDueEmail, monthlySummaryEmail, sendEmail, subscriptionFundingWarningEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
+import { billDueEmail, billOverdueEmail, monthlySummaryEmail, sendEmail, subscriptionFundingWarningEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
 import { addBillingCycle, projectWalletFundingWarnings, type SubscriptionBillingCycle, type UpcomingSubscription } from "./subscription-billing.service.js";
 import { createInAppNotification } from "./notifications.service.js";
 
-type Preferences = { bill_reminders: boolean; bill_reminder_days: number; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
+type Preferences = { bill_reminders: boolean; bill_reminder_days: number; bill_reminder_three_days: boolean; bill_reminder_one_day: boolean; bill_reminder_due_day: boolean; bill_overdue_reminders: boolean; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
 type AuthUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
 
-const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, subscription_reminders: true, summaries: false, overspending_alerts: true };
+const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, summaries: false, overspending_alerts: true };
 
 function dateAfter(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
@@ -18,6 +18,15 @@ function dateAfter(date: string, days: number) {
 
 export function shouldSendReminder(enabled: boolean, dueDate: string, today: string, days: number) {
   return enabled && dueDate === dateAfter(today, days);
+}
+
+export function billReminder(bill: { due_date: string }, prefs: Preferences, today: string) {
+  if (!prefs.bill_reminders) return null;
+  if (prefs.bill_reminder_three_days && shouldSendReminder(true, bill.due_date, today, 3)) return { type: "bill_due", days: 3 } as const;
+  if (prefs.bill_reminder_one_day && shouldSendReminder(true, bill.due_date, today, 1)) return { type: "bill_due", days: 1 } as const;
+  if (prefs.bill_reminder_due_day && bill.due_date === today) return { type: "bill_due", days: 0 } as const;
+  if (prefs.bill_overdue_reminders && bill.due_date === dateAfter(today, -1)) return { type: "bill_overdue" } as const;
+  return null;
 }
 
 export function shouldSendMonthlySummary(enabled: boolean, today: string) {
@@ -81,10 +90,11 @@ export async function runNotificationScheduler(now = new Date()) {
   for (const bill of billsResult.data ?? []) {
     const user = userMap.get(bill.user_id);
     const prefs = preferences.get(bill.user_id) as Preferences | undefined;
-    if (!user?.email || !prefs?.bill_reminders) continue;
-    const days = Number(prefs.bill_reminder_days);
-    if (!shouldSendReminder(prefs.bill_reminders, bill.due_date, today, days)) continue;
-    await sendLogged(user, "bill_due", user.email, billDueEmail({ title: bill.title, amount: asNumber(bill.amount), due_date: bill.due_date }, days), { related_bill_id: bill.id }, today);
+    if (!user?.email || !prefs) continue;
+    const reminder = billReminder(bill, prefs, today);
+    if (!reminder) continue;
+    const content = reminder.type === "bill_overdue" ? billOverdueEmail({ title: bill.title, amount: asNumber(bill.amount), due_date: bill.due_date }) : billDueEmail({ title: bill.title, amount: asNumber(bill.amount), due_date: bill.due_date }, reminder.days);
+    await sendLogged(user, reminder.type, user.email, content, { related_bill_id: bill.id }, today);
   }
 
   for (const subscription of subscriptionsResult.data ?? []) {
@@ -153,8 +163,8 @@ export function startNotificationScheduler() {
   if (!env.NOTIFICATION_SCHEDULER_ENABLED) return;
   const run = () => void runNotificationScheduler().catch((error) => console.error("Notification scheduler failed:", error));
   const now = new Date();
-  const next = new Date(now);
-  next.setHours(9, 0, 0, 0);
+  const [year, month, day] = todayIso(now).split("-").map(Number);
+  const next = new Date(Date.UTC(year, month - 1, day, 1, 0, 0, 0));
   if (next <= now) next.setDate(next.getDate() + 1);
   setTimeout(() => { run(); setInterval(run, 24 * 60 * 60 * 1000); }, Math.max(1000, next.getTime() - now.getTime()));
   console.log(`Notification scheduler enabled; next run at ${next.toISOString()}.`);

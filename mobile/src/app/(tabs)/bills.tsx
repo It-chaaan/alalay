@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { router } from 'expo-router';
-import { MoreHorizontal, Search, X } from 'lucide-react-native';
+import { MoreHorizontal, Search, SlidersHorizontal as Filter, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiRequestError, authenticatedApiRequest } from '@/services/api';
@@ -19,6 +19,7 @@ import { RecordActionSheet } from '@/components/record-action-sheet';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
+import { reconcileFinancialReminders } from '@/services/financial-reminders';
 
 const palette = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
 
@@ -48,7 +49,7 @@ function isUpcomingStatus(status: ReturnType<typeof derivedStatus>) {
 export default function BillsScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  styles = makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentPale: colors.primarySoft, line: colors.border, danger: colors.danger });
+  styles = Object.assign(makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentPale: colors.primarySoft, line: colors.border, danger: colors.danger }), filterStyles);
   const bottomNavClearance = useBottomNavClearance();
   const [items, setItems] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -60,6 +61,7 @@ export default function BillsScreen() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [paymentBill, setPaymentBill] = useState<FinanceItem | null>(null);
   const [managing, setManaging] = useState<FinanceItem | null>(null);
+  const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -84,11 +86,12 @@ export default function BillsScreen() {
     <FinancialScreenHeader title="Bills" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={palette.accent} /><Text style={styles.centerCopy}>Loading bills and subscriptions…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Could not load bills</Text><Text style={styles.cardCopy}>{error}</Text><Pressable accessibilityRole="button" onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
       <FinancialOverviewCard title="BILLS OVERVIEW" context={monthName(month)} value={`₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}`} supportingInfo={`₱${Math.round(unpaid).toLocaleString('en-PH')} unpaid · ${dueThisWeek} due this week · ${overdue} overdue`} supportingTone={overdue > 0 ? 'warning' : 'normal'} accessibilityLabel={`Bills overview. Total bills this month: ₱${Math.round(totalBillsThisMonth).toLocaleString('en-PH')}.`} />
-      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View><View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><View style={styles.filters}>{(['All', 'Upcoming', 'Overdue', 'Paid'] as const).map((value) => <Pressable key={value} onPress={() => setFilter(value)} style={({ pressed }) => [styles.filter, filter === value && styles.filterActive, pressed && styles.filterPressed]}><Text style={[styles.filterText, filter === value && styles.filterTextActive]}>{value} {value === 'All' ? bills.length : value === 'Upcoming' ? statuses.filter(isUpcomingStatus).length : statuses.filter((status) => status === value).length}</Text></Pressable>)}</View></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onManage={() => setManaging(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>Add a bill to start tracking due dates and payment status.</Text></View>}</View>
+      <View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Bills</Text><SectionAddButton label="Add bill" onPress={() => setCreating(true)} /></View><View style={styles.controls}><View style={styles.search}><Search size={17} color={palette.muted} /><TextInput value={query} onChangeText={setQuery} placeholder="Search bills" placeholderTextColor={palette.muted} style={styles.searchInput} /></View><Pressable accessibilityRole="button" accessibilityLabel={filter === 'All' ? 'Filter bills' : `Filter bills, ${filter} selected`} accessibilityState={{ expanded: filterSheetOpen, selected: filter !== 'All' }} onPress={() => setFilterSheetOpen(true)} style={({ pressed }) => [styles.filterButton, filter !== 'All' && styles.filterButtonActive, pressed && styles.filterPressed]}><Filter size={18} color={filter === 'All' ? palette.muted : palette.accent} /><View style={[styles.filterDot, filter === 'All' && styles.filterDotHidden]} /></Pressable></View>{filteredBills.length ? filteredBills.map((item) => <BillCard key={`${item.source}-${item.id}`} item={item} onManage={() => setManaging(item)} />) : <View style={styles.card}><Text style={styles.cardTitle}>{bills.length ? 'No matching bills' : 'No bills yet'}</Text><Text style={styles.cardCopy}>{bills.length ? (filter === 'All' ? 'Try a different search.' : `No ${filter.toLowerCase()} bills match your search.`) : 'Add a bill to start tracking due dates and payment status.'}</Text></View>}</View>
     </ScrollView>}
-    {editing && <BillEditor wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
-    {creating && <NewBillForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); }} />}
+    {editing && <BillEditor wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); await reconcileFinancialReminders(); }} />}
+    {creating && <NewBillForm wallets={wallets} onClose={() => setCreating(false)} onSaved={async () => { setCreating(false); await refresh(); await reconcileFinancialReminders(); }} />}
     {paymentBill && <BillPaymentSheet item={paymentBill} wallets={wallets} onClose={() => setPaymentBill(null)} onSaved={async () => { setPaymentBill(null); await refresh(); }} />}
+    <BillFilterSheet visible={filterSheetOpen} selected={filter} counts={{ All: bills.length, Upcoming: statuses.filter(isUpcomingStatus).length, Overdue: statuses.filter((status) => status === 'Overdue').length, Paid: statuses.filter((status) => status === 'Paid').length }} onSelect={(value) => { setFilter(value); setFilterSheetOpen(false); }} onClose={() => setFilterSheetOpen(false)} />
     {managing && <RecordActionSheet visible title="Bill options" recordName={managing.name} onClose={() => setManaging(null)} actions={[
       { label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } },
       ...(derivedStatus(managing) !== 'Paid' ? [{ label: 'Mark as paid', tone: 'primary' as const, onPress: () => { setManaging(null); setPaymentBill(managing); } }] : []),
@@ -107,6 +110,11 @@ export default function BillsScreen() {
       } },
     ]} />}
   </SafeAreaView>;
+}
+
+function BillFilterSheet({ visible, selected, counts, onSelect, onClose }: { visible: boolean; selected: BillFilter; counts: Record<BillFilter, number>; onSelect: (value: BillFilter) => void; onClose: () => void }) {
+  const options: BillFilter[] = ['All', 'Upcoming', 'Overdue', 'Paid'];
+  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><View style={styles.overlay}><Pressable accessibilityRole="button" accessibilityLabel="Close bill filters" onPress={onClose} style={styles.dismiss} /><View style={styles.filterSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>STATUS</Text><Text style={styles.sheetTitle}>Filter bills</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close bill filters" onPress={onClose} style={styles.sheetClose}><X size={22} color={palette.ink} /></Pressable></View>{options.map((option) => <Pressable key={option} accessibilityRole="radio" accessibilityState={{ selected: selected === option }} accessibilityLabel={`${option}, ${counts[option]} bills${selected === option ? ', selected' : ''}`} onPress={() => onSelect(option)} style={({ pressed }) => [styles.filterOption, pressed && styles.filterPressed]}><View style={[styles.checkCircle, selected !== option && styles.checkCircleEmpty]}>{selected === option ? <Text style={styles.checkMark}>✓</Text> : null}</View><Text style={[styles.filterOptionLabel, selected === option && styles.filterOptionLabelActive]}>{option}</Text><Text style={styles.filterOptionCount}>{counts[option]}</Text></Pressable>)}</View></View></Modal>;
 }
 
 function BillCard({ item, onManage }: { item: FinanceItem; onManage: () => void }) {
@@ -248,5 +256,28 @@ function makeStyles(themePalette: typeof palette) { const palette = themePalette
   paymentOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.28)' }, paymentKeyboard: { maxHeight: '88%' }, paymentSheet: { padding: 20, paddingBottom: 30, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface }, paymentClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.background }, paymentSummary: { marginBottom: 4, padding: 15, borderRadius: 15, backgroundColor: palette.background, borderWidth: 1, borderColor: palette.line }, paymentName: { color: palette.ink, fontSize: 16, fontWeight: '900' }, paymentAmount: { marginTop: 8, color: palette.ink, fontSize: 23, fontWeight: '900' }, paymentMeta: { marginTop: 5, color: palette.muted, fontSize: 12 }, disabledButton: { opacity: 0.45 }, cancelButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
   more: { width: 42, height: 42, marginLeft: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.background },
 }); }
-let styles = makeStyles(palette);
+const filterStyles = StyleSheet.create({
+  content: { width: '100%', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
+  listSection: { width: '100%', marginTop: 14 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginBottom: 0, paddingHorizontal: 12, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
+  filterButton: { width: 48, height: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
+  filterButtonActive: { borderColor: palette.accent, backgroundColor: palette.accentPale },
+  filterDot: { position: 'absolute', top: 11, right: 11, width: 6, height: 6, borderRadius: 3, backgroundColor: palette.accent },
+  filterDotHidden: { display: 'none' },
+  filterSheet: { padding: 20, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface },
+  sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  sheetEyebrow: { color: palette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  sheetTitle: { marginTop: 4, color: palette.ink, fontSize: 20, fontWeight: '900' },
+  sheetClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: palette.background },
+  filterOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: palette.line },
+  checkCircle: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accent },
+  checkCircleEmpty: { backgroundColor: 'transparent', borderWidth: 1, borderColor: palette.line },
+  checkMark: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  filterOptionLabel: { flex: 1, color: palette.muted, fontSize: 14, fontWeight: '700' },
+  filterOptionLabelActive: { color: palette.ink, fontWeight: '900' },
+  filterOptionCount: { color: palette.muted, fontSize: 13, fontWeight: '800' },
+});
+
+let styles = Object.assign(makeStyles(palette), filterStyles);
 styles = { ...styles, more: { ...styles.more, backgroundColor: 'transparent' } };

@@ -2,7 +2,8 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
+import * as Notifications from 'expo-notifications';
 import type { Session } from '@supabase/supabase-js';
 import 'react-native-reanimated';
 
@@ -14,6 +15,7 @@ import { ToastProvider } from '@/components/toast-provider';
 import { getSupabaseClient } from '@/services/supabase';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme';
 import { requiresMfa } from '@/services/mfa';
+import { reconcileOnAppResume } from '@/services/financial-reminders';
 
 export default function RootLayout() {
   return <AppThemeProvider><ThemedRoot /></AppThemeProvider>;
@@ -77,6 +79,14 @@ function SessionGate() {
       authListener.subscription.unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    void reconcileOnAppResume();
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void reconcileOnAppResume(); });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { if (response.notification.request.content.data?.eventType === 'bill') router.push('/bills'); });
+    return () => { subscription.remove(); responseSubscription.remove(); };
+  }, [router, session]);
 
   useEffect(() => {
     if (checkingSession) return;
