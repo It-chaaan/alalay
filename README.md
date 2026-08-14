@@ -1,5 +1,11 @@
 # Alalay
 
+Wallet transfers are atomic internal movements: transfer principal does not affect income or spending, while any recorded transfer fee is a `Bank Fees` expense. Actual interest credits are recorded as income and are separate from wallet interest-rate metadata.
+
+Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
+
+Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
+
 ## Security controls and deployment requirements
 
 - Supabase Auth is called directly by the frontend, so login, signup, password-reset, and MFA throttling must be enabled in the Supabase Auth settings and/or the production edge gateway. The backend rate limiters cover authenticated API writes, AI/OCR cost surfaces, and trusted-device issuance; the in-memory limiter must use a shared gateway/Redis policy when running multiple backend instances.

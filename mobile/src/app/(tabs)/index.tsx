@@ -243,7 +243,17 @@ function FinanceRow({ item }: { item: FinanceItem }) {
   const status = derivedStatus(item);
   const icon = item.source === 'subscription' ? Repeat : item.category.toLowerCase().includes('water') ? Droplets : FileText;
   const FinanceIcon = icon;
-  return <View style={styles.row}><View style={styles.rowIcon}><FinanceIcon size={18} color={status === 'Overdue' ? colors.danger : colors.primary} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.name}</Text><Text style={[styles.rowMeta, { color: colors.textSecondary }]}>{item.source === 'subscription' ? 'Subscription' : item.category} · Due {item.dueDate}</Text></View><View style={styles.rowRight}><Text style={[styles.rowAmount, { color: colors.textPrimary }]}>{formatPeso(item.amount)}</Text><StatusBadge status={status} /></View></View>;
+  const iconColor = status === 'Overdue' ? colors.danger : status === 'Due today' || status === 'Due soon' ? colors.warning : colors.primary;
+  const dateLabel = formatUpcomingDate(item.dueDate);
+  const metadata = item.source === 'subscription' ? `Subscription · Renews ${dateLabel}` : `${item.category} · Due ${dateLabel}`;
+  return <View accessibilityLabel={`${item.name}, ${formatPeso(item.amount)}, ${metadata}, ${status}.`} style={styles.row}><View accessible={false} style={styles.rowIcon}><FinanceIcon size={18} color={iconColor} strokeWidth={1.8} /></View><View style={styles.rowMain}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textPrimary }]}>{item.name}</Text><Text numberOfLines={1} style={[styles.rowMeta, { color: colors.textSecondary }]}>{metadata}</Text></View><View style={styles.rowRight}><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={[styles.rowAmount, { color: colors.textPrimary }]}>{formatPeso(item.amount)}</Text><StatusBadge status={status} variant="compact" /></View></View>;
+}
+
+function formatUpcomingDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12));
+  const currentYear = Number(dateKeyInManila().slice(0, 4));
+  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', ...(year === currentYear ? {} : { year: 'numeric' }) }).format(date);
 }
 
 function RecentTransactionRow({ transaction }: { transaction: RecentTransaction }) {
@@ -337,15 +347,15 @@ const styles = StyleSheet.create({
   stateTitle: { color: palette.ink, fontSize: 14, fontWeight: '900' },
   stateText: { marginTop: 5, color: palette.muted, fontSize: 12, lineHeight: 18, textAlign: 'center' },
   errorText: { color: palette.danger, fontSize: 12, lineHeight: 18, textAlign: 'center' },
-  row: { flexDirection: 'row', alignItems: 'center', minHeight: 72, borderBottomWidth: 1, borderBottomColor: palette.line },
+  row: { flexDirection: 'row', alignItems: 'center', minHeight: 76, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: palette.line },
   rowLast: { borderBottomWidth: 0 },
   rowIcon: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
   rowIconDanger: { backgroundColor: '#FCE8E6' },
-  rowMain: { flex: 1, marginLeft: 11 },
+  rowMain: { flex: 1, minWidth: 0, marginLeft: 11, marginRight: 12 },
   rowTitle: { color: palette.ink, fontSize: 13, fontWeight: '800' },
   rowMeta: { marginTop: 4, color: palette.muted, fontSize: 11 },
-  rowRight: { alignItems: 'flex-end' },
-  rowAmount: { color: palette.ink, fontSize: 13, fontWeight: '800' },
+  rowRight: { alignItems: 'flex-end', minWidth: 84, maxWidth: 118 },
+  rowAmount: { color: palette.ink, fontSize: 13, fontWeight: '900' },
   expenseAmount: { color: palette.ink, fontSize: 13, fontWeight: '800' },
   quickAdd: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 54, marginTop: 16, borderRadius: 17, borderWidth: 1.5, borderStyle: 'dashed', borderColor: palette.accentSoft },
   quickAddText: { marginLeft: 8, color: palette.accent, fontSize: 13, fontWeight: '800' },

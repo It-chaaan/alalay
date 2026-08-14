@@ -34,6 +34,8 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 
 Wallet/account links are account-scoped: income records require `wallet_id`, outgoing records may set it, and wallet balances must remain derived from linked transaction rows. Validate wallet ownership server-side and preserve the default Cash wallet.
 
+Loan principal is balance-sheet data: a lent balance is a receivable and a borrowed balance is a liability. Create and repay loans through atomic authenticated RPCs, keep principal out of income/expense reports, and record only actual interest in those ledgers.
+
 ## Data rules
 
 - Keep business calculations in backend services, especially analytics/reporting.
@@ -44,6 +46,7 @@ Wallet/account links are account-scoped: income records require `wallet_id`, out
 - Use migrations for schema/index/trigger changes and preserve RLS/backend auth.
 - Per-user mobile presentation preferences must use shared authenticated API contracts and RLS-backed storage; do not persist account-scoped choices only in an unscoped local cache.
 - Expense reads must use inclusive Manila-local date ranges and the shared mobile finance normalizer/mutation notification so Expenses and Home Recent Transactions observe the same persisted record after save.
+- Upcoming status is presentation derived from paid state and Manila-local due dates. Preserve the payment model; reuse `StatusBadge` variants and semantic theme tokens instead of introducing screen-specific status pills.
 
 ## Profile data flow
 

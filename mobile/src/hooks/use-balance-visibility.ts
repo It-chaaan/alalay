@@ -3,6 +3,9 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 
 const STORAGE_KEY = 'alalay-balance-visibility';
+let sharedVisible: boolean | null = null;
+let hydrationStarted = false;
+const listeners = new Set<(visible: boolean | null) => void>();
 
 async function readVisibility() {
   try {
@@ -23,15 +26,24 @@ async function writeVisibility(visible: boolean) {
 }
 
 export function useBalanceVisibility() {
-  const [visible, setVisible] = useState<boolean | null>(null);
-  useEffect(() => { void readVisibility().then(setVisible); }, []);
+  const [visible, setVisible] = useState<boolean | null>(sharedVisible);
+  useEffect(() => {
+    listeners.add(setVisible);
+    if (!hydrationStarted) {
+      hydrationStarted = true;
+      void readVisibility().then((next) => {
+        sharedVisible = next;
+        listeners.forEach((listener) => listener(next));
+      });
+    }
+    return () => { listeners.delete(setVisible); };
+  }, []);
 
   const toggle = () => {
-    setVisible((current) => {
-      const next = current === false;
-      void writeVisibility(next);
-      return next;
-    });
+    const next = sharedVisible === false;
+    sharedVisible = next;
+    listeners.forEach((listener) => listener(next));
+    void writeVisibility(next);
   };
 
   return { visible, toggle };

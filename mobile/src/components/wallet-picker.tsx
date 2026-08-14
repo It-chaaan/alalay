@@ -5,7 +5,7 @@ import { formPalette } from './finance-form';
 import { walletPresets, type WalletPreset } from '@/constants/wallets';
 import { BrandLogo } from '@/components/brand-logo';
 
-export type Wallet = { id: string; name: string; institution_type: string; institution_key: string; balance: number | string; color: string; is_default_cash: boolean };
+export type Wallet = { id: string; name: string; institution_type: string; institution_key: string; balance: number | string; color: string; is_default_cash: boolean; default_outgoing_transfer_fee?: number | string | null; interest_rate?: number | string | null; interest_crediting_frequency?: string | null };
 
 export function WalletPicker({ wallets, value, onChange, required = false, label = 'Wallet' }: { wallets: Wallet[]; value: string | null; onChange: (walletId: string | null) => void; required?: boolean; label?: string }) {
   const [open, setOpen] = useState(false);

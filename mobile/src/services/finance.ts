@@ -1,4 +1,5 @@
 import { authenticatedApiRequest } from './api';
+import { deriveFinancialStatus } from '../utils/financial-status';
 
 export type BillRecord = {
   id: string;
@@ -204,8 +205,7 @@ export async function fetchFinanceItems() {
 }
 
 export function derivedStatus(item: FinanceItem, today = dateKeyInManila()) {
-  if (item.paid) return 'Paid' as const;
-  return item.dueDate < today ? 'Overdue' as const : 'Upcoming' as const;
+  return deriveFinancialStatus(item, today);
 }
 
 export function addRecurrence(date: string, frequency: Exclude<FinanceItem['frequency'], null>) {

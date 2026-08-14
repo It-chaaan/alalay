@@ -2,7 +2,7 @@ import { client, requireUserId, throwIfError, asNumber, todayIso } from "./db.js
 import { AppError } from "../utils/api.js";
 
 export type WalletPayload = { name: string; institution_type: string; institution_key: string; color?: string; icon?: string | null };
-export type WalletTransferPayload = { from_wallet_id: string; to_wallet_id: string; amount: number; date: string; note?: string | null; idempotency_key: string };
+export type WalletTransferPayload = { from_wallet_id: string; to_wallet_id: string; amount: number; fee: number; transfer_method?: "instapay" | "pesonet" | "internal" | "other" | null; date: string; note?: string | null; idempotency_key: string };
 
 async function ensureCash(userId: string) {
   const ownerId = requireUserId(userId);
@@ -36,7 +36,7 @@ export async function getWallet(userId: string, id: string) {
     client().from("expenses").select("id, merchant, category, amount, date, wallet_id, source_bill_id").eq("user_id", ownerId).eq("wallet_id", id).is("deleted_at", null),
     client().from("bills").select("id, title, category, amount, due_date, paid_at, status, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).eq("status", "paid").is("deleted_at", null),
     client().from("wallet_adjustments").select("id, amount, date, note, wallet_id").eq("user_id", ownerId).eq("wallet_id", id).order("date", { ascending: false }),
-    client().from("wallet_transfers").select("id, from_wallet_id, to_wallet_id, amount, note, transferred_at, created_at").eq("user_id", ownerId).or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`).order("transferred_at", { ascending: false }),
+    client().from("wallet_transfers").select("id, from_wallet_id, to_wallet_id, amount, fee, transfer_method, note, transferred_at, created_at").eq("user_id", ownerId).or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`).order("transferred_at", { ascending: false }),
   ]);
   const counterpartIds = (transfers.data ?? []).map((row) => row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id);
   const counterpartResult = counterpartIds.length
@@ -51,7 +51,7 @@ export async function getWallet(userId: string, id: string) {
     ...(expenses.data ?? []).map((row) => ({ ...row, kind: "expense", label: row.merchant, date: row.date, amount: -asNumber(row.amount) })),
     ...(bills.data ?? []).filter((bill) => !(expenses.data ?? []).some((expense) => expense.source_bill_id === bill.id)).map((row) => ({ ...row, kind: "bill", label: row.title, date: row.paid_at ?? row.due_date, amount: -asNumber(row.amount) })),
     ...(adjustments.data ?? []).map((row) => ({ ...row, kind: row.note === "Opening balance" ? "opening_balance" : "deposit", label: row.note || "Wallet deposit", date: row.date, amount: asNumber(row.amount) })),
-    ...(transfers.data ?? []).map((row) => { const counterpartId = row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id; const counterpartName = counterpartNames.get(counterpartId) ?? "wallet"; return { ...row, kind: row.from_wallet_id === id ? "transfer_out" : "transfer_in", label: row.from_wallet_id === id ? `Transfer to ${counterpartName}` : `Transfer from ${counterpartName}`, date: row.transferred_at, amount: row.from_wallet_id === id ? -asNumber(row.amount) : asNumber(row.amount) }; }),
+    ...(transfers.data ?? []).map((row) => { const counterpartId = row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id; const counterpartName = counterpartNames.get(counterpartId) ?? "wallet"; const fee = asNumber(row.fee); return { ...row, kind: row.from_wallet_id === id ? "transfer_out" : "transfer_in", label: row.from_wallet_id === id ? `Transfer to ${counterpartName}${fee ? ` · Fee ₱${fee.toLocaleString("en-PH")}` : ""}` : `Transfer from ${counterpartName}`, date: row.transferred_at, amount: row.from_wallet_id === id ? -asNumber(row.amount) - fee : asNumber(row.amount) }; }),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
   return { wallet: withBalance(wallet), transactions, ...(transactionError ? { transactionError } : {}) };
 }
@@ -62,6 +62,8 @@ export async function createWalletTransfer(userId: string, payload: WalletTransf
     source_wallet_id: payload.from_wallet_id,
     destination_wallet_id: payload.to_wallet_id,
     transfer_amount: payload.amount,
+    transfer_fee: payload.fee,
+    transfer_method_value: payload.transfer_method ?? null,
     transfer_note: payload.note ?? null,
     transfer_date: payload.date,
     request_key: payload.idempotency_key,
@@ -74,6 +76,15 @@ export async function createWalletTransfer(userId: string, payload: WalletTransf
     if (message.includes("no longer available")) throw new AppError(404, "wallet_not_found", error.message, undefined, true);
     throwIfError(error);
   }
+  return data;
+}
+
+export async function createWalletInterest(userId: string, walletId: string, payload: { amount: number; date: string; note?: string | null }) {
+  const ownerId = requireUserId(userId);
+  const { data: wallet, error: walletError } = await client().from("wallets").select("id, name").eq("id", walletId).eq("user_id", ownerId).single();
+  if (walletError || !wallet) throw new AppError(404, "not_found", "Wallet not found.");
+  const { data, error } = await client().from("income").insert({ user_id: ownerId, wallet_id: walletId, source: payload.note?.trim() || `${wallet.name} interest`, type: "interest", amount: payload.amount, date: payload.date, is_recurring: false }).select("id, wallet_id, source, type, amount, date").single();
+  throwIfError(error);
   return data;
 }
 

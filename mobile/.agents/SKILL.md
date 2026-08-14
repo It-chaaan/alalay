@@ -45,6 +45,10 @@ Budget editing is month-scoped: use the selected `YYYY-MM` when reading or savin
 
 ## AI/OCR rules
 
+Loan/debt totals come from the shared `/api/loans` contract. Respect the persisted balance-visibility preference and never classify loan principal as client-side income or spending.
+
+For Home Upcoming, use the shared compact `StatusBadge` treatment and semantic tokens. Keep status derivation separate from financial writes: paid overrides overdue, followed by due today, due soon (three Manila calendar days), and upcoming.
+
 Ask Alalay financial actions remain backend-only tool calls with server-side wallet ownership resolution, existing domain-service validation, and request-ID deduplication. Publish `notifyFinancialMutation()` only when the backend reports a successful mutation.
 
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`, same as web — never expose keys or move prompts/data calls to the mobile client.

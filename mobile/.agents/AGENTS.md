@@ -89,6 +89,8 @@ Confirm the actual current navigation structure in the codebase before assuming 
 
 The Home overview's Net Savings is the same current-month calculation as Reports: income minus expenses and paid bills. It includes a month-over-month trend only when a meaningful previous-month comparison is available.
 
+Home Upcoming is a grouped list using the shared compact `StatusBadge` variant: paid items use a check, while upcoming, due-soon, due-today, and overdue items use a semantic dot and text. Status is derived from paid state and Manila-local due dates, with a three-day due-soon window; subscription metadata uses `Renews` rather than `Due`.
+
 ## Current feature map
 
 Same feature scope as the web app's feature map (Auth, Dashboard, Bills, Expenses, Income, Subscriptions, Savings goals, Budget, Reports, AI assistant, OCR scanner, Settings) — refer to the web app's `AGENTS.md` for the authoritative description of what each feature does. This document does not duplicate that list; it only calls out where the mobile implementation must diverge (auth session storage, OAuth flow, OCR, navigation).
@@ -182,6 +184,8 @@ Mobile-specific issues should be tracked separately in this file as they're disc
 
 - The mobile Savings route remains internally named `savings` for routing and API compatibility, but the user-facing feature is `Goals`.
 - Goals no longer render a global Savings balance; Wallets remain the source of truth for actual money.
+- Wallet transfers send an amount and editable fee to the shared atomic wallet-transfer endpoint. Principal is not income or spending; only the stored fee is a `Bank Fees` expense. Actual interest is recorded through the wallet interest endpoint and never generated from an advertised rate.
+- Wallets links to a theme-aware Loans & debt drill-down showing receivables, liabilities, net loan position, and history with the shared balance-visibility preference. Loan accounting remains owned by the shared backend API.
 - New goal contributions use `POST /api/savings-goals/:id/contributions` with a wallet source. The shared backend validates wallet ownership, goal ownership, target limits, and unallocated wallet balance.
 - Existing `savings_goals.current_amount` values remain preserved as legacy/unattributed progress until explicitly represented by wallet-backed contributions.
 

@@ -167,6 +167,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Recent activity and high-level metrics
 - Mobile Home keeps its balance summary and prioritized quick actions in one financial-overview surface. `mobile/src/utils/quick-action-overflow.ts` derives visible and overflow actions from measured row width, reserving a `More` slot only when actions are hidden; routes remain defined once in the Home action configuration.
 - Mobile Home uses the shared dashboard summary API for its overview and the authenticated `GET /api/income/next-payday` endpoint for the dynamic payday indicator. The payday endpoint derives the next occurrence from recurring income through `income-recurrence.service.ts`; it prefers salary/payroll-labelled recurring income and otherwise uses the earliest next recurring source with a stable ID tie-breaker.
+- Home Upcoming uses the shared `derivedStatus` presentation rule: paid overrides date urgency, followed by overdue, due today, due soon (within three Manila calendar days), and upcoming. `StatusBadge` provides a compact semantic dot/check treatment for that grouped list while retaining its fuller badge variant elsewhere.
 
 ### Bills
 
@@ -200,6 +201,8 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Income requires a destination wallet; expenses, bills, and subscriptions may optionally reference a source wallet
 - Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
 - New wallet opening balances are recorded as `wallet_adjustments` ledger rows. Creation prefers the atomic `create_wallet_with_opening_balance` RPC and has a guarded rollback fallback during PostgREST schema-cache rollout gaps.
+- Wallet-to-wallet transfers use the atomic `create_wallet_transfer` RPC. Transfer principal moves only between owned wallets and is excluded from income/spending; an optional stored fee creates a linked `Bank Fees` expense. Actual interest credits are explicit `income.type = interest` rows, while wallet interest rates are informational metadata only.
+- Loans and personal debt are stored in `loans` with `loan_payments`. `lent` is a receivable and `borrowed` is a liability; loan principal is included in wallet recomputation but never in income/expense reporting. `create_loan`, `record_loan_payment`, and `write_off_loan` are authenticated atomic RPCs; only actual loan interest creates an `income` or `expenses` ledger row.
 
 ### Budget
 

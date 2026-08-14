@@ -10,6 +10,7 @@ import { settingsRouter } from "./settings.routes.js";
 import { trustedDeviceRouter } from "./trusted-device.routes.js";
 import { walletsRouter } from "./wallets.routes.js";
 import { notificationsRouter } from "./notifications.routes.js";
+import { loansRouter } from "./loans.routes.js";
 
 export const apiRouter = Router();
 
@@ -27,4 +28,5 @@ apiRouter.use("/ai", aiRouter);
 apiRouter.use("/ocr", ocrRouter);
 apiRouter.use("/trusted-device", trustedDeviceRouter);
 apiRouter.use("/wallets", walletsRouter);
+apiRouter.use("/loans", loansRouter);
 apiRouter.use("/notifications", notificationsRouter);
