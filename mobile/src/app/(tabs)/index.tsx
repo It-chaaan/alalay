@@ -2,14 +2,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDown, ArrowUp, ArrowUpRight, CalendarDays, ChevronRight, Droplets, Eye, EyeOff, FileText, Home, MoreHorizontal, Receipt, Repeat, ShoppingCart, Target, WalletCards } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ArrowUpRight, BanknoteArrowDown, BanknoteArrowUp, ChevronRight, Droplets, Eye, EyeOff, FileText, Home, MoreHorizontal, ReceiptText, Repeat, Target, WalletCards } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { authenticatedApiRequest } from '@/services/api';
-import { combineRecentTransactions, dateKeyInManila, derivedStatus, fetchExpenses, fetchFinanceItems, fetchNextPayday, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type Payday, type RecentTransaction, type WalletRecord } from '@/services/finance';
+import { combineRecentTransactions, dateKeyInManila, derivedStatus, fetchExpenses, fetchFinanceItems, fetchRecentIncome, fetchWallets, subscribeFinancialMutations, totalWalletBalance, type FinanceItem, type RecentTransaction, type WalletRecord } from '@/services/finance';
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
@@ -70,9 +70,6 @@ export default function HomeScreen() {
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
-  const [payday, setPayday] = useState<Payday | null>(null);
-  const [paydayLoading, setPaydayLoading] = useState(true);
-  const [paydayError, setPaydayError] = useState(false);
   const { profile } = useCurrentProfile();
 
   const refreshFinance = useCallback(async () => {
@@ -80,9 +77,6 @@ export default function HomeScreen() {
     setWalletLoading(true);
     setFinanceError('');
     setWalletError('');
-    setPaydayLoading(true);
-    setPaydayError(false);
-    void fetchNextPayday().then(setPayday).catch(() => { setPayday(null); setPaydayError(true); }).finally(() => setPaydayLoading(false));
     try {
       const [items, expenseRows, incomeRows, summary] = await Promise.all([
         fetchFinanceItems(),
@@ -140,7 +134,7 @@ export default function HomeScreen() {
         </View>
 
         <SummaryCard summary={dashboardSummary} loading={financeLoading} wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
-        <PaydayCard payday={payday} loading={paydayLoading} error={paydayError} />
+        <QuickActionsCard />
 
         <View style={styles.sectionHeader}><Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Wallets</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={[styles.link, { color: colors.primary }]}>View all</Text></Pressable></View>
         <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
@@ -161,22 +155,12 @@ export default function HomeScreen() {
 function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: { summary: DashboardSummary | null; loading: boolean; wallets: WalletRecord[]; walletLoading: boolean; walletError: string }) {
   const { colors } = useAppTheme();
   const { visible, toggle } = useBalanceVisibility();
-  const [actionAreaWidth, setActionAreaWidth] = useState(0);
-  const [moreOpen, setMoreOpen] = useState(false);
   const balanceUnavailable = walletError || walletLoading;
   const amountsVisible = visible === true;
   const mask = '••••••';
   const balanceLabel = balanceUnavailable ? walletLoading ? 'loading' : 'unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : 'hidden';
   const expensesLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_expenses) : 'hidden';
   const incomeLabel = loading || !summary ? 'loading' : amountsVisible ? formatPeso(summary.monthly_income) : 'hidden';
-  const actions: QuickAction[] = [
-    { id: 'expense', label: 'Expense', icon: ShoppingCart, onPress: () => router.push('/(tabs)/expenses') },
-    { id: 'income', label: 'Income', icon: ArrowUpRight, onPress: () => router.push('/(tabs)/income') },
-    { id: 'bills', label: 'Bills', icon: Receipt, onPress: () => router.push('/(tabs)/bills') },
-    { id: 'subscription', label: 'Subscription', icon: Repeat, onPress: () => router.push('/(tabs)/subscriptions') },
-    { id: 'goals', label: 'Goals', icon: Target, onPress: () => router.push('/(tabs)/savings') },
-  ];
-  const { visibleActions, overflowActions } = splitQuickActions(actions, actionAreaWidth);
   return <View style={styles.balanceStack}>
     <View accessible={false} importantForAccessibility="no" style={[styles.balanceRearCard, { backgroundColor: colors.balanceRear }]} />
     <View accessible accessibilityRole="summary" accessibilityLabel={`Total Balance ${balanceLabel}. Expenses ${expensesLabel}. Income ${incomeLabel}.`} style={[styles.summaryCard, { backgroundColor: colors.balance, borderColor: colors.primary }] }>
@@ -186,39 +170,31 @@ function SummaryCard({ summary, loading, wallets, walletLoading, walletError }: 
       <View style={styles.balanceHeader}><Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text><Pressable accessibilityRole="button" accessibilityLabel={amountsVisible ? 'Hide financial amounts' : 'Show financial amounts'} hitSlop={8} onPress={toggle} style={({ pressed }) => [styles.visibilityButton, { backgroundColor: 'rgba(255,255,255,0.10)', borderColor: 'rgba(216,239,226,0.24)' }, pressed && styles.pressed]}>{amountsVisible ? <Eye size={20} color="#D8EFE2" strokeWidth={1.9} /> : <EyeOff size={20} color="#D8EFE2" strokeWidth={1.9} />}</Pressable></View>
       <Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} adjustsFontSizeToFit minimumFontScale={0.58} numberOfLines={1} style={styles.balanceValue}>{balanceUnavailable ? walletLoading ? 'Loading…' : 'Unavailable' : amountsVisible ? formatBalancePeso(totalWalletBalance(wallets)) : mask}</Text>
       <View style={[styles.supportingMetrics, { backgroundColor: 'rgba(5,43,32,0.28)', borderColor: 'rgba(216,239,226,0.18)' }]}><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.expenseIcon}><ArrowDown size={15} color="#FFD3D0" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Expenses</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_expenses) : mask}</Text></View><View style={styles.metricDivider} /><View style={styles.supportingMetric}><View style={styles.metricLabelRow}><View style={styles.incomeIcon}><ArrowUp size={15} color="#C4F5D5" strokeWidth={2.8} /></View><Text style={styles.metricLabel}>Income</Text></View><Text accessibilityElementsHidden={!amountsVisible} importantForAccessibility={amountsVisible ? 'yes' : 'no'} style={styles.metricValue}>{loading || !summary ? 'Loading…' : amountsVisible ? formatPeso(summary.monthly_income) : mask}</Text></View></View>
-      <View style={styles.actionDivider} />
-      <View onLayout={(event) => setActionAreaWidth(event.nativeEvent.layout.width)} style={styles.quickActionArea}>
-        <Text style={styles.quickActionTitle}>QUICK ACTIONS</Text>
-        <View style={styles.shortcutRow}>{visibleActions.map((action) => <Shortcut key={action.id} icon={action.icon} label={action.label} onPress={action.onPress} />)}{overflowActions.length ? <Shortcut icon={MoreHorizontal} label="More" onPress={() => setMoreOpen(true)} /> : null}</View>
-      </View>
     </View>
-    <RecordActionSheet visible={moreOpen} title="More actions" recordName="Choose an action" onClose={() => setMoreOpen(false)} actions={overflowActions.map((action) => { const ActionIcon = action.icon; return { label: action.label, icon: <ActionIcon size={19} color={colors.primary} strokeWidth={2} />, onPress: action.onPress }; })} />
   </View>;
 }
 
-type QuickAction = { id: string; label: string; icon: Icon; onPress: () => void };
+type QuickAction = { id: string; label: string; accessibilityLabel: string; icon: Icon; iconBackground: string; iconColor: string; onPress: () => void };
 
-function PaydayCard({ payday, loading, error }: { payday: Payday | null; loading: boolean; error: boolean }) {
+function QuickActionsCard() {
   const { colors } = useAppTheme();
-  const today = dateKeyInManila();
-  const days = payday ? calendarDaysBetween(today, payday.date) : null;
-  const date = payday ? formatPaydayDate(payday.date) : '';
-  const title = loading ? 'Loading payday…' : error ? 'Payday unavailable' : payday ? days === 0 ? 'Payday today' : `Payday in ${days} ${days === 1 ? 'day' : 'days'}` : 'Set your payday';
-  const detail = loading ? 'Checking your recurring income schedule.' : error ? 'Try again when your income schedule is available.' : payday ? `${date}${payday.amount ? ` · ${payday.source} · ${formatPeso(payday.amount)}` : ''}` : 'Add recurring income to see your next payday countdown.';
-  return <Pressable accessibilityRole="button" accessibilityLabel={loading ? 'Loading payday schedule' : payday ? `${title}, ${date}${payday.amount ? `, expected ${formatPeso(payday.amount)}` : ''}` : title} onPress={() => router.push('/(tabs)/income')} style={({ pressed }) => [styles.paydayCard, { backgroundColor: colors.surface, borderColor: colors.border }, pressed && styles.pressed]}>
-    <View style={[styles.paydayIcon, { backgroundColor: colors.accentPale }]}><CalendarDays size={22} color={colors.primary} strokeWidth={2} /></View>
-    <View style={styles.paydayMain}><Text style={[styles.paydayEyebrow, { color: colors.primary }]}>{payday ? 'PAYDAY' : 'PAYDAY SETUP'}</Text><Text style={[styles.paydayTitle, { color: colors.textPrimary }]}>{title}</Text><Text style={[styles.paydayDetail, { color: colors.textSecondary }]}>{detail}</Text></View><ChevronRight size={20} color={colors.textSecondary} />
-  </Pressable>;
-}
-
-function calendarDaysBetween(from: string, to: string) {
-  const [fy, fm, fd] = from.split('-').map(Number); const [ty, tm, td] = to.split('-').map(Number);
-  return Math.max(0, Math.round((Date.UTC(ty, tm - 1, td) - Date.UTC(fy, fm - 1, fd)) / 86400000));
-}
-
-function formatPaydayDate(value: string) {
-  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
-  return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+  const [actionAreaWidth, setActionAreaWidth] = useState(0);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const actions: QuickAction[] = [
+    { id: 'expense', label: 'Expense', accessibilityLabel: 'Add expense', icon: BanknoteArrowDown, iconBackground: colors.accentMuted, iconColor: colors.danger, onPress: () => router.push('/(tabs)/expenses') },
+    { id: 'income', label: 'Income', accessibilityLabel: 'Add income', icon: BanknoteArrowUp, iconBackground: colors.primarySoft, iconColor: colors.success, onPress: () => router.push('/(tabs)/income') },
+    { id: 'bills', label: 'Bills', accessibilityLabel: 'Open bills', icon: ReceiptText, iconBackground: colors.accentPale, iconColor: colors.primary, onPress: () => router.push('/(tabs)/bills') },
+    { id: 'subscription', label: 'Subscription', accessibilityLabel: 'Open subscriptions', icon: Repeat, iconBackground: colors.surfaceSecondary, iconColor: colors.info, onPress: () => router.push('/(tabs)/subscriptions') },
+    { id: 'goals', label: 'Goals', accessibilityLabel: 'Open savings goals', icon: Target, iconBackground: colors.accentMuted, iconColor: colors.warning, onPress: () => router.push('/(tabs)/savings') },
+  ];
+  const { visibleActions, overflowActions } = splitQuickActions(actions, actionAreaWidth);
+  return <View style={[styles.quickActionsCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border, shadowColor: colors.shadow }]}>
+    <View onLayout={(event) => setActionAreaWidth(event.nativeEvent.layout.width)} style={styles.shortcutRow}>
+      {visibleActions.map((action) => <Shortcut key={action.id} action={action} />)}
+      {overflowActions.length ? <Shortcut action={{ id: 'more', label: 'More', accessibilityLabel: 'More quick actions', icon: MoreHorizontal, iconBackground: colors.surfaceSecondary, iconColor: colors.primary, onPress: () => setMoreOpen(true) }} /> : null}
+    </View>
+    <RecordActionSheet visible={moreOpen} title="More actions" recordName="Choose an action" onClose={() => setMoreOpen(false)} actions={overflowActions.map((action) => { const ActionIcon = action.icon; return { label: action.label, icon: <ActionIcon size={19} color={action.iconColor} strokeWidth={2} />, onPress: action.onPress }; })} />
+  </View>;
 }
 
 function WalletQuickView({ wallets, loading, error }: { wallets: WalletRecord[]; loading: boolean; error: string }) {
@@ -273,9 +249,10 @@ function getGreeting() {
   return hour >= 5 && hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
 }
 
-function Shortcut({ icon: IconComponent, label, onPress }: { icon: Icon; label: string; onPress: () => void }) {
+function Shortcut({ action }: { action: QuickAction }) {
   const { colors } = useAppTheme();
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}><View style={[styles.shortcutIcon, { backgroundColor: colors.accentPale }]}><IconComponent size={20} color={colors.primary} strokeWidth={1.8} /></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8} style={[styles.shortcutLabel, { color: colors.textPrimary }]}>{label}</Text></Pressable>;
+  const IconComponent = action.icon;
+  return <Pressable accessibilityRole="button" accessibilityLabel={action.accessibilityLabel} onPress={action.onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}><View accessible={false} importantForAccessibility="no" style={[styles.shortcutIcon, { backgroundColor: action.iconBackground, borderColor: colors.border }]}><IconComponent size={22} color={action.iconColor} strokeWidth={2} /></View><Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82} style={[styles.shortcutLabel, { color: colors.textPrimary }]}>{action.label}</Text></Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -298,8 +275,8 @@ const styles = StyleSheet.create({
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
   balanceStack: { position: 'relative', marginTop: 18, paddingTop: 12 },
   balanceRearCard: { position: 'absolute', top: 0, left: 14, right: 14, height: 38, borderRadius: 20, backgroundColor: '#63B995', opacity: 0.9 },
-  summaryCard: { position: 'relative', width: '100%', minHeight: 302, overflow: 'hidden', paddingHorizontal: 17, paddingTop: 19, paddingBottom: 14, borderRadius: 24, borderWidth: 1, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
-  walletDecoration: { position: 'absolute', right: 8, bottom: 128, width: 122, height: 126, opacity: 0.13, transform: [{ rotate: '-18deg' }] },
+  summaryCard: { position: 'relative', width: '100%', overflow: 'hidden', paddingHorizontal: 17, paddingTop: 19, paddingBottom: 17, borderRadius: 24, borderWidth: 1, backgroundColor: palette.accent, shadowColor: '#063224', shadowOpacity: 0.16, shadowRadius: 9, elevation: 4 },
+  walletDecoration: { position: 'absolute', right: 8, bottom: 30, width: 122, height: 126, opacity: 0.13, transform: [{ rotate: '-18deg' }] },
   walletBack: { position: 'absolute', top: 5, right: 6, width: 92, height: 72, borderRadius: 17, backgroundColor: '#6FC39B', transform: [{ rotate: '-18deg' }] },
   walletFront: { position: 'absolute', right: 0, bottom: 3, width: 112, height: 76, borderRadius: 18, borderWidth: 2, borderColor: '#B4E4C9', backgroundColor: '#174D3D', transform: [{ rotate: '18deg' }] },
   walletSlot: { position: 'absolute', left: 15, right: 15, top: 17, height: 22, borderRadius: 10, borderWidth: 1, borderStyle: 'dashed', borderColor: '#8ED2AE' },
@@ -316,20 +293,13 @@ const styles = StyleSheet.create({
   expenseIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(217,108,85,0.34)' },
   incomeIcon: { width: 26, height: 26, alignItems: 'center', justifyContent: 'center', borderRadius: 13, backgroundColor: 'rgba(196,245,213,0.22)' },
   metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 16, fontWeight: '900' },
-  actionDivider: { zIndex: 1, height: StyleSheet.hairlineWidth, marginTop: 17, backgroundColor: 'rgba(216,239,226,0.27)' },
-  quickActionArea: { zIndex: 1, marginTop: 12 },
-  quickActionTitle: { marginBottom: 7, color: '#D8EFE2', fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
-  shortcutContainer: { marginTop: 18, paddingHorizontal: 8, paddingVertical: 10, borderRadius: 24, backgroundColor: 'transparent', borderWidth: 0 },
-  paydayCard: { flexDirection: 'row', alignItems: 'center', marginTop: 18, padding: 16, minHeight: 96, borderRadius: 22, borderWidth: 1, shadowColor: '#063224', shadowOpacity: 0.06, shadowRadius: 7, elevation: 2 },
-  paydayIcon: { width: 48, height: 48, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
-  paydayMain: { flex: 1, marginHorizontal: 13 },
-  paydayEyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
-  paydayTitle: { marginTop: 3, fontSize: 20, fontWeight: '900', letterSpacing: -0.4 },
-  paydayDetail: { marginTop: 4, fontSize: 12, fontWeight: '600' },
+  quickActionsCard: { marginTop: 18, paddingHorizontal: 14, paddingTop: 13, paddingBottom: 11, borderRadius: 22, borderWidth: 1, shadowOpacity: 0.06, shadowRadius: 7, elevation: 2 },
+  quickActionsTitle: { marginBottom: 7, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
   shortcutRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  shortcut: { flex: 1, minHeight: 76, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 7, borderRadius: 14 },
-  shortcutIcon: { width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale, borderWidth: 1, borderColor: palette.accentSoft },
-  shortcutLabel: { width: '100%', marginTop: 7, color: palette.ink, fontSize: 9, fontWeight: '800', textAlign: 'center' },
+  shortcut: { flex: 1, minWidth: 0, minHeight: 72, alignItems: 'center', justifyContent: 'flex-start', paddingVertical: 5, borderRadius: 14 },
+  shortcutPressed: { opacity: 0.82, transform: [{ scale: 0.97 }] },
+  shortcutIcon: { width: 42, height: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1 },
+  shortcutLabel: { width: '100%', marginTop: 6, paddingHorizontal: 1, color: palette.ink, fontSize: 10, fontWeight: '800', textAlign: 'center' },
   insightPreview: { flexDirection: 'row', alignItems: 'center', padding: 15, borderRadius: 18, backgroundColor: palette.accentPale },
   insightIcon: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.surface },
   insightCopy: { flex: 1, marginHorizontal: 11 },

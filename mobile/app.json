@@ -33,6 +33,12 @@
           "cameraPermission": "Allow Budget Tracker to use your camera to scan receipts.",
           "recordAudioAndroid": false
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Budget Tracker to choose receipt photos."
+        }
       ]
     ],
     "experiments": {

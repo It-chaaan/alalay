@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput as NativeTextInput, type TextInputProps, View } from 'react-native';
 import { router } from 'expo-router';
-import { MoreHorizontal, Search, SlidersHorizontal as Filter, X } from 'lucide-react-native';
+import { MoreHorizontal, Search as SearchIcon, SlidersHorizontal as FilterIcon, X as CloseIcon } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ApiRequestError, authenticatedApiRequest } from '@/services/api';
@@ -22,6 +22,11 @@ import { useToast } from '@/components/toast-provider';
 import { reconcileFinancialReminders } from '@/services/financial-reminders';
 
 const palette = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
+type BillIconProps = { size?: number; color?: string; strokeWidth?: number };
+function Search({ size, strokeWidth }: BillIconProps) { const { colors } = useAppTheme(); return <SearchIcon size={size} strokeWidth={strokeWidth} color={colors.textSecondary} />; }
+function Filter({ size, color, strokeWidth }: BillIconProps) { const { colors } = useAppTheme(); return <FilterIcon size={size} strokeWidth={strokeWidth} color={color === palette.accent ? colors.primary : colors.textSecondary} />; }
+function X({ size, strokeWidth }: BillIconProps) { const { colors } = useAppTheme(); return <CloseIcon size={size} strokeWidth={strokeWidth} color={colors.textPrimary} />; }
+function TextInput(props: TextInputProps) { const { colors, resolvedTheme } = useAppTheme(); return <NativeTextInput {...props} placeholderTextColor={colors.textSecondary} selectionColor={colors.primary} keyboardAppearance={resolvedTheme} />; }
 
 type EditorProps = { item: FinanceItem; onClose: () => void; onSaved: () => Promise<void> };
 type BillFilter = 'All' | 'Upcoming' | 'Overdue' | 'Paid';
@@ -49,7 +54,8 @@ function isUpcomingStatus(status: ReturnType<typeof derivedStatus>) {
 export default function BillsScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  styles = Object.assign(makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentPale: colors.primarySoft, line: colors.border, danger: colors.danger }), filterStyles);
+  const themePalette = { ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentPale: colors.primarySoft, line: colors.border, danger: colors.danger };
+  styles = Object.assign(makeStyles(themePalette), makeFilterStyles(themePalette));
   const bottomNavClearance = useBottomNavClearance();
   const [items, setItems] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -256,28 +262,28 @@ function makeStyles(themePalette: typeof palette) { const palette = themePalette
   paymentOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.28)' }, paymentKeyboard: { maxHeight: '88%' }, paymentSheet: { padding: 20, paddingBottom: 30, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface }, paymentClose: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 19, backgroundColor: palette.background }, paymentSummary: { marginBottom: 4, padding: 15, borderRadius: 15, backgroundColor: palette.background, borderWidth: 1, borderColor: palette.line }, paymentName: { color: palette.ink, fontSize: 16, fontWeight: '900' }, paymentAmount: { marginTop: 8, color: palette.ink, fontSize: 23, fontWeight: '900' }, paymentMeta: { marginTop: 5, color: palette.muted, fontSize: 12 }, disabledButton: { opacity: 0.45 }, cancelButton: { minHeight: 42, alignItems: 'center', justifyContent: 'center' }, cancelText: { color: palette.muted, fontSize: 13, fontWeight: '800' },
   more: { width: 42, height: 42, marginLeft: 7, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: palette.background },
 }); }
-const filterStyles = StyleSheet.create({
+function makeFilterStyles(themePalette: typeof palette) { const p = themePalette; return StyleSheet.create({
   content: { width: '100%', paddingHorizontal: 20, paddingTop: 20, paddingBottom: 36 },
   listSection: { width: '100%', marginTop: 14 },
-  controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
-  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginBottom: 0, paddingHorizontal: 12, borderRadius: 14, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
-  filterButton: { width: 48, height: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
-  filterButtonActive: { borderColor: palette.accent, backgroundColor: palette.accentPale },
-  filterDot: { position: 'absolute', top: 11, right: 11, width: 6, height: 6, borderRadius: 3, backgroundColor: palette.accent },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 10 },
+  search: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 46, marginBottom: 0, paddingHorizontal: 12, borderRadius: 14, backgroundColor: p.surface, borderWidth: 1, borderColor: p.line },
+  filterButton: { width: 48, height: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: p.surface, borderWidth: 1, borderColor: p.line },
+  filterButtonActive: { borderColor: p.accent, backgroundColor: p.accentPale },
+  filterDot: { position: 'absolute', top: 11, right: 11, width: 6, height: 6, borderRadius: 3, backgroundColor: p.accent },
   filterDotHidden: { display: 'none' },
-  filterSheet: { padding: 20, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: palette.surface },
+  filterSheet: { padding: 20, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: p.surface },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-  sheetEyebrow: { color: palette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
-  sheetTitle: { marginTop: 4, color: palette.ink, fontSize: 20, fontWeight: '900' },
-  sheetClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: palette.background },
-  filterOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: palette.line },
-  checkCircle: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: palette.accent },
-  checkCircleEmpty: { backgroundColor: 'transparent', borderWidth: 1, borderColor: palette.line },
+  sheetEyebrow: { color: p.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+  sheetTitle: { marginTop: 4, color: p.ink, fontSize: 20, fontWeight: '900' },
+  sheetClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: p.background },
+  filterOption: { minHeight: 50, flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 4, borderBottomWidth: 1, borderBottomColor: p.line },
+  checkCircle: { width: 24, height: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: p.accent },
+  checkCircleEmpty: { backgroundColor: 'transparent', borderWidth: 1, borderColor: p.line },
   checkMark: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
-  filterOptionLabel: { flex: 1, color: palette.muted, fontSize: 14, fontWeight: '700' },
-  filterOptionLabelActive: { color: palette.ink, fontWeight: '900' },
-  filterOptionCount: { color: palette.muted, fontSize: 13, fontWeight: '800' },
-});
+  filterOptionLabel: { flex: 1, color: p.muted, fontSize: 14, fontWeight: '700' },
+  filterOptionLabelActive: { color: p.ink, fontWeight: '900' },
+  filterOptionCount: { color: p.muted, fontSize: 13, fontWeight: '800' },
+}); }
 
-let styles = Object.assign(makeStyles(palette), filterStyles);
+let styles = Object.assign(makeStyles(palette), makeFilterStyles(palette));
 styles = { ...styles, more: { ...styles.more, backgroundColor: 'transparent' } };

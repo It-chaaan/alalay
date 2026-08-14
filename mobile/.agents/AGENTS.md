@@ -72,8 +72,8 @@ Ask Alalay sends bounded history and a stable per-submission request ID to the a
   - An Expo/React Native-compatible on-device OCR library (e.g. an ML Kit-based wrapper), or
   - Sending captured images to the backend for server-side OCR processing (which would be a new backend capability — check the web app's `AGENTS.md`, which notes current backend OCR routes are capability/demo endpoints only, not a real extraction pipeline).
 - Do not silently reuse or assume `tesseract.js` works on mobile without validating this first — treat OCR as a genuinely separate implementation task, not a straightforward port.
-- Mobile receipt OCR now uses Expo Camera plus `@infinitered/react-native-mlkit-text-recognition` 5.x through a native adapter. It requires a rebuilt Expo development/native client; Expo Go and stale binaries do not contain the ML Kit native module.
-- Mobile receipt OCR now uses Expo Camera plus `@infinitered/react-native-mlkit-text-recognition` 5.x through a native adapter. It requires a rebuilt Expo development/native client; Expo Go and stale binaries do not contain the ML Kit native module.
+- Mobile receipt OCR uses Expo Camera or Expo Image Picker only to obtain a still image. It sends authenticated multipart data to the shared `POST /api/ocr/receipt` endpoint, where Node runs `tesseract.js` and parses a review candidate. The mobile app must never run native OCR for this flow or create an expense before explicit review confirmation.
+- Receipt images are transient request-memory input: no Supabase Storage object or OCR-history record is created. Expo Go works when `EXPO_PUBLIC_API_URL` points to a LAN/tunnel/production backend reachable by the physical device; device `localhost` is not the developer computer.
 
 ## Mobile navigation map
 

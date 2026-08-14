@@ -127,7 +127,7 @@ supabase/   SQL migrations, config, generated types
 - Main page: `frontend/src/pages/dashboard/OcrScannerPage.tsx`
 - Engine: `tesseract.js`
 - Backend OCR routes currently expose capabilities/demo endpoints only.
-- Mobile OCR uses Expo Camera and native ML Kit through a platform-specific adapter; browser `tesseract.js` remains the web-only OCR provider. Native dependency changes require a rebuilt Expo development/native client.
+- Mobile receipt scanning uses Expo Camera or Expo Image Picker, then uploads the selected image as authenticated multipart data to `POST /api/ocr/receipt`. Node runs `tesseract.js` and returns a review candidate; it never creates an expense. This core flow is Expo Go-compatible when `EXPO_PUBLIC_API_URL` points to a backend reachable from the device. Receipt images are held only in request memory for OCR and are not persisted to Supabase Storage.
 
 ## Frontend routing
 
@@ -384,3 +384,99 @@ Do not leave implementation changes undocumented.
 - `public.users` is the application profile source for display name, phone, preferences, and app profile avatar metadata.
 - The shared current-user endpoint is `GET/PATCH /api/users/me`; ownership is derived from the bearer-token session and protected by RLS.
 - Mobile profile consumers use `mobile/src/services/profile.ts` and `mobile/src/hooks/use-current-profile.ts` so Home, Settings, and profile screens share normalized data and updates.
+
+## Mandatory engineering quality standards
+
+These standards apply to all new and modified code in `frontend/`, `mobile/`,
+`backend/`, `supabase/`, tests, and configuration. They supplement the
+architecture rules above; they do not authorize a mechanical repository-wide
+rewrite.
+
+### Readability and formatting
+
+- Prefer lines of 100 characters or fewer. A line may reach 120 characters only
+  when splitting it would make the surrounding code less readable. Do not add
+  routine application code as horizontal one-liners.
+- Use multiline formatting for non-trivial functions, imports, JSX props,
+  payloads, options, fixtures, and `StyleSheet`/configuration objects. Put each
+  property of a complex object on its own line.
+- Keep short, self-evident values inline when that is genuinely clearer.
+- Use named prop types/interfaces for public or non-trivial component contracts.
+  Prefer an input object when a function accepts several related arguments.
+- Organize imports as React/platform, external libraries, internal modules, then
+  local modules and type-only imports. Keep each group readable.
+- Use the repository-owned Prettier configuration (`.prettierrc.json`) as the
+  single formatting authority. It uses a 100-character print width; run
+  `npm run format` deliberately and `npm run format:check` for verification.
+  ESLint remains responsible for correctness and code-quality rules.
+
+### Components, functions, and styles
+
+- React and React Native use functional components, hooks, and composition by
+  default. Keep a screen focused on coordination; extract meaningful concepts
+  such as cards, toolbars, lists, and form sections rather than arbitrary JSX
+  wrappers.
+- Use this component order where practical: types, constants, component,
+  hooks/navigation, state, data hooks, derived values, handlers, effects,
+  early returns, JSX, local helpers, styles.
+- Treat a component above roughly 250–300 lines, a function above 50–75 lines,
+  or a file above 500 lines as a review signal. Extract only when a coherent
+  responsibility emerges; these are not automatic limits.
+- Do not place complex calculations, nested conditionals, filtering/reducing, or
+  API/database calls directly in JSX. Derive values and handlers before render.
+- Keep StyleSheet and theme factories multiline and logically grouped with
+  section comments for large style collections. Reuse semantic theme tokens and
+  existing design primitives; do not introduce hardcoded feature colors where a
+  token exists.
+- Use descriptive domain names, `is`/`has`/`can`/`should` booleans, `handleX`
+  internal event handlers, and `onX` callback props. Avoid variable shadowing,
+  anonymous mega-callbacks, magic strings, and scattered domain thresholds.
+
+### Architecture and boundaries
+
+- Keep UI dependent on hooks/controllers, services/domain utilities, then
+  APIs/repositories/Supabase. Domain and backend code must never depend on UI.
+- Reuse the existing API clients, mobile finance services, backend services,
+  date utilities, category registry, and theme architecture before adding a new
+  abstraction. UI must not own complex Supabase queries, RLS details, or
+  financial calculations.
+- Financial formulas, money formatting/parsing, Manila date-only logic, status
+  rules, categories, and cross-screen business rules each need one authoritative
+  implementation. Preserve the accounting, RLS, API, navigation, and persistence
+  behavior during structural refactors.
+- Use services for real domain capabilities and repositories/adapters where they
+  clarify persistence or external integrations. Do not create ceremonial layers,
+  god services, generic utility dumping grounds, or duplicate clients.
+- Apply SOLID pragmatically: cohesive modules, narrow contracts, and dependency
+  inversion at meaningful external boundaries. OOP is appropriate for stateful
+  infrastructure/adapters or substitutable integrations, not as a default.
+  Prefer composition over inheritance; never convert React components to classes
+  or invent inheritance trees solely to claim OOP.
+
+### Type safety, errors, comments, and tests
+
+- Keep TypeScript strict. Avoid `any`, unsafe casts, and `@ts-ignore`; use
+  `unknown` with validation/narrowing. Public services and complex utilities
+  should expose clear input and result contracts.
+- Validate external input at API boundaries. Do not swallow errors or expose raw
+  SQL, Supabase, stack, or internal-ID details to users. Map errors to safe
+  domain/UI messages while retaining actionable server diagnostics.
+- Use guard clauses to reduce nesting and maps/functions instead of nested
+  ternaries. Remove obsolete commented-out implementations and dead imports.
+- Comments and selective JSDoc explain *why*: financial accounting decisions,
+  timezone semantics, security boundaries, platform workarounds, and non-obvious
+  contracts. Never narrate obvious syntax. TODOs must name an actionable next
+  step or owner/context.
+- Tests follow the same readability rules. Use behavior-focused names and
+  arrange/act/assert when useful. Financial tests must explicitly protect rules
+  such as transfer-principal exclusion, interest treatment, reminder behavior,
+  and OCR review-before-write behavior.
+
+### Required pre-finish review
+
+Before completing an implementation, review every changed file for line length,
+readability, names, oversized responsibilities, duplicated logic, hardcoded
+theme/domain values, type escapes, dead code, comments, error handling, and
+business-logic placement. Run the formatter when configured, relevant lint and
+typecheck/build commands, focused tests, and `git diff --check`. Report commands
+and results honestly, including unavailable checks and pre-existing warnings.

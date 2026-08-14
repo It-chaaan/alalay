@@ -1,0 +1,5 @@
+node_modules/
+frontend/dist/
+mobile/dist/
+mobile/.expo/
+supabase/.temp/

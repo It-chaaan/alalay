@@ -14,7 +14,7 @@ Loans and personal debt use a shared balance-sheet ledger: money lent is a recei
 - Production backend startup requires `NODE_ENV=production`, `HTTPS_ENABLED=true`, HTTPS `APP_URL`/`CORS_ORIGIN`, and HSTS. Keep `HTTPS_TERMINATE_LOCALLY=false` on Render/Heroku/Railway/Vercel-style platforms; set it to `true` and provide certificate/key paths only for a self-hosted process that terminates TLS itself.
 - Set `SUPABASE_ANON_KEY` so authenticated request paths use the caller JWT and Supabase RLS. The service-role key is reserved for auth verification and background schedulers; never expose it to the frontend or mobile app.
 - Confirm in the Supabase dashboard that passwords use bcrypt or an equivalent strong scheme, breached-password checks are enabled, and password-strength rules are appropriate for the product.
-- OCR is currently browser-only on web. If receipts are uploaded or persisted in the future (on web or mobile), isolate processing, validate files server-side, and add malware scanning before storage or provider submission.
+- Mobile receipt OCR is server-side: Expo uploads an authenticated receipt image to Node, which runs `tesseract.js` and returns a review-only candidate. Images use bounded request memory and are not retained in Supabase Storage. A physical Expo Go device needs a LAN, tunnel, or production API URL rather than `localhost`.
 - Bearer tokens remain a product architecture decision. A BFF with HttpOnly, SameSite cookies is the preferred follow-up for web; until then, keep the frontend CSP and hosting headers strict and use short-lived Supabase sessions with refresh enabled. The mobile app stores its session using secure on-device storage (see `mobile/lib/supabase.ts`), not browser storage patterns.
 
 Alalay is a Filipino-first personal finance app for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights. It currently ships as a web application, with a React Native (Expo) mobile app in active development that shares the same backend and Supabase project.
@@ -91,7 +91,7 @@ This repository already contains:
 ### OCR
 
 - Web: frontend-side OCR implemented with `tesseract.js`
-- Mobile: not yet implemented; requires a separate approach since `tesseract.js` does not run in React Native (see `mobile/.agents/AGENTS.md` for the open decision between on-device native OCR vs. a new backend OCR endpoint)
+- Mobile: Expo Camera/Image Picker uploads a still image to authenticated `POST /api/ocr/receipt`; Node runs `tesseract.js`, parses a candidate, and the user must explicitly create the expense after review.
 
 ## Current routes
 
@@ -133,7 +133,7 @@ Mobile does not yet mirror this route list. Its current Expo Router inventory is
   - Report expense totals reconcile with category breakdowns, and daily trends include zero-spend dates across the selected period.
   - Report navigation, timeline statuses, budget filters, and chart labels help users interpret long report pages.
 - AI assistant
-- OCR scanner (web only; mobile pending)
+- OCR scanner on web and mobile (mobile uses server-side OCR)
 - settings and profile management
 
 This feature set is the target for both web and mobile. Mobile implementation status may lag behind web — check `mobile/README.md` for what's currently working on mobile specifically.
@@ -155,7 +155,7 @@ The backend exposes authenticated `/api/*` routes plus supporting endpoints, sha
   - `GET /api/ai/status`
   - `POST /api/ai/chat`
   - `POST /api/ai/chat/stream`
-- OCR capability and demo endpoints
+- OCR capability/demo endpoints plus authenticated multipart receipt OCR (`POST /api/ocr/receipt`)
 
 ## Database tables currently present
 
@@ -269,7 +269,7 @@ Expo requires the `EXPO_PUBLIC_` prefix for any environment variable exposed to 
 - AI chat is implemented with Google Gemini Flash through the backend for web and the mobile chat-head; mobile uses `mobile/src/services/api.ts` to authenticate its dashboard-insight and chat requests
 - The web dashboard insight card and mobile chat-head obtain their insight from the authenticated dashboard summary. Mobile's other dashboard figures remain presentation-only mock data.
 - Assistant responses are rendered as markdown in the chat UI on web. Mobile's chat-head currently presents the backend response as native text bubbles; add a React Native markdown renderer before relying on rich markdown formatting there.
-- OCR is currently executed in the browser via `tesseract.js` on web, not through a backend extraction pipeline. Mobile OCR is not yet implemented and requires a different technical approach (see `mobile/.agents/AGENTS.md`)
+- Web OCR is browser-side. Mobile uploads only an explicitly selected/captured image to the authenticated backend, where Node runs `tesseract.js` and returns an editable review candidate; it never creates an expense automatically or retains the image.
 
 ## Documentation
 

@@ -61,8 +61,7 @@ Loan principal is balance-sheet data: a lent balance is a receivable and a borro
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`; never expose keys or move prompts/data calls to the client.
 - Conversational financial writes use only the backend's controlled Gemini tool surface (`create_expense`, `create_income`, `create_transfer`, `create_bill`, `create_subscription`). Resolve wallets by authenticated-user-owned names server-side, invoke existing domain services, and require structured success results before confirmation. Preserve request IDs for idempotency; never retry an uncertain financial write blindly.
 - The dashboard AI card remains a placeholder and must not be given fake text. Define data, prompt contract, endpoint, refresh, caching, and error behavior before wiring it.
-- OCR currently runs in-browser with `tesseract.js`; do not describe it as a backend extraction pipeline.
-- Mobile OCR uses Expo Camera and native ML Kit through a platform-specific adapter; browser `tesseract.js` remains web-only. Native dependency changes require a rebuilt Expo development/native client.
+- Receipt OCR is server-side: mobile captures/selects a still image and sends authenticated multipart data to `/api/ocr/receipt`; Node runs `tesseract.js`, parses a review-only candidate, and never creates an expense. Receipt images are transient in memory and must not be logged or stored unless a future approved retention feature adds private, user-scoped storage.
 
 ## Profile/avatar rules
 
@@ -76,3 +75,65 @@ Loan principal is balance-sheet data: a lent balance is a receivable and a borro
 - Test dates near timezone/month boundaries and assert current markers change.
 - Verify email/password, Google callback, Google-only password setup, and TOTP paths separately.
 - Report unavailable browser/provider/production checks honestly and mark incomplete features as partial or needing verification.
+
+## Applying the engineering quality standards
+
+Follow the mandatory requirements in `AGENTS.md` during implementation. Use this
+section as the practical workflow rather than treating formatting as the whole
+quality review.
+
+### While changing code
+
+1. Read the whole target module and its immediate dependencies before editing.
+   Identify whether the concern is UI coordination, domain logic, persistence,
+   external integration, or a reusable presentation component.
+2. Keep non-trivial declarations vertical. Break long imports, props, function
+   signatures, payloads, callbacks, JSX props, and object literals at sensible
+   semantic boundaries. Aim for 100 columns and do not exceed 120 routinely.
+3. For a large component, derive data and handlers above the return, then extract
+   a named domain concept only when it has a coherent responsibility. Do not
+   split JSX merely to meet a line count.
+4. For a large `StyleSheet`, use a readable `createStyles` factory, choose a
+   non-shadowing palette name, put one style property per line, and group large
+   collections by UI concept. Use existing semantic theme tokens instead of
+   feature-local color values where available.
+5. Before creating a utility/service/repository, search the existing services,
+   finance/date utilities, category registry, API clients, and components.
+   Reuse the established boundary; create a new one only for a real domain or
+   infrastructure capability.
+
+### Safe refactoring patterns
+
+- Replace a long prop signature with a named props interface and vertically
+  destructure it in the component.
+- Replace a long related parameter list with a typed input object at service and
+  API boundaries.
+- Move financial calculations, Manila date-only rules, category resolution, and
+  API/Supabase access out of rendering code into the established service or
+  domain utility. Do not duplicate a formula for a screen.
+- Prefer an interface plus composable adapter for a replaceable external system
+  (for example an OCR engine). Keep simple pure transformations as functions;
+  do not introduce class hierarchies or generic managers.
+- Replace nested ternaries with a named selector, status map, or guard clauses.
+  Give business thresholds and repeated statuses canonical names when the
+  repository does not already provide them.
+- Document non-obvious financial, security, date, and platform decisions with a
+  short why-comment. Delete stale commented-out code instead of preserving it.
+
+### Touched-area review
+
+Apply the Boy Scout Rule only within scope: leave the code you touch at least as
+clear as it was. Safe nearby cleanup includes a dead import, an unreadable
+object, a misleading local name, or a duplicated local constant. Do not change
+financial behavior, data contracts, navigation, RLS, or persistence during a
+readability refactor. Use focused tests to show that behavior remains intact.
+
+### Quality checks
+
+Before handoff, inspect the diff and run the available checks for each affected
+client: formatter when one is configured, `npm run lint` for mobile, `npx tsc
+--noEmit` or the package build/typecheck, focused tests, and `git diff --check`.
+Run the repository-owned Prettier commands (`npm run format` or `npm run
+format:check`) from the root as appropriate; use the formatter deliberately and
+avoid mass-formatting unrelated files during focused work. Record existing
+warnings separately from new failures.

@@ -58,8 +58,8 @@ Ask Alalay financial actions remain backend-only tool calls with server-side wal
 - Gemini chat is backend-only through `/api/ai/status`, `/api/ai/chat`, and `/api/ai/chat/stream`, same as web — never expose keys or move prompts/data calls to the mobile client.
 - The dashboard AI card must not show fake/placeholder text dressed up as a real insight, matching the web app's rule — if the mobile AI card isn't wired to real data yet, treat it as a visible placeholder state, not filler copy.
 - OCR does **not** carry over from web as-is. `tesseract.js` is a browser/WASM library and isn't a valid mobile solution. Before implementing, decide and document whether mobile OCR uses an on-device native OCR library or sends captures to a (new) backend OCR endpoint — do not silently assume either approach without confirming it in `AGENTS.md` first.
-- Mobile OCR uses Expo Camera plus native ML Kit through the mobile OCR adapter. Native dependency changes require a rebuilt development/native client; Expo Go and Metro reloads alone cannot provide the module. Never silently fall back to web Tesseract.
-- Mobile OCR uses Expo Camera plus native ML Kit through the mobile OCR adapter. Native dependency changes require a rebuilt development/native client; Expo Go and Metro reloads alone cannot provide the module. Never silently fall back to web Tesseract.
+- Mobile receipt OCR uses Expo Camera or Image Picker for capture/selection, then sends the image to the authenticated `/api/ocr/receipt` multipart endpoint. Node owns `tesseract.js`; Expo never bundles OCR. The response is a candidate for review only, and the existing expense API remains the sole financial-write path.
+- Receipt images are not retained: the backend uses bounded in-memory upload buffers and does not create Storage objects or OCR records. Test Expo Go using a device-reachable `EXPO_PUBLIC_API_URL`, not `localhost`.
 
 ## Profile/avatar rules
 
