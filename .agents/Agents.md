@@ -137,11 +137,12 @@ Routes are manually mapped in `frontend/src/App.tsx`.
 - `/login`
 - `/register`
 - `/app`
+- `/app/wallets`
 - `/app/bills`
 - `/app/subscriptions`
 - `/app/expenses`
 - `/app/income`
-- `/app/savings-goals`
+- `/app/goals` (`/app/savings-goals` remains a compatibility route)
 - `/app/budget`
 - `/app/reports`
 - `/app/ai-assistant`

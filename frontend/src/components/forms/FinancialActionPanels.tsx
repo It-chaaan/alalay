@@ -1,14 +1,15 @@
-import { zodResolver } from "@hookform/resolvers/zod";
+import { zodResolver } from '@hookform/resolvers/zod';
 import type {
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
-} from "react";
-import { useEffect, useId, useRef } from "react";
-import { Controller, useFieldArray, useForm, useWatch, type Control } from "react-hook-form";
-import { z } from "zod";
-import { useApiMutation } from "../../hooks/useApiMutation";
+} from 'react';
+import { useEffect, useId, useRef } from 'react';
+import { Controller, useFieldArray, useForm, useWatch, type Control } from 'react-hook-form';
+import { z } from 'zod';
+import { useApiMutation } from '../../hooks/useApiMutation';
+import { useApiQuery } from '../../hooks/useApiQuery';
 import type {
   Bill,
   BudgetSummary,
@@ -16,15 +17,17 @@ import type {
   IncomeEntry,
   SavingsGoal,
   Subscription,
-} from "../../hooks/types";
-import { formatCurrency } from "../../utils/formatters";
-import { getMonthlyNeeded } from "../../utils/savingsGoals";
-import { getCategories } from "../../lib/appSettings";
-import { Button } from "../ui/Button";
-import { SlideOver } from "../ui/SlideOver";
-import { TextInput } from "../ui/TextInput";
-import { CurrencyInput } from "../ui/CurrencyInput";
-import { CategorySelect } from "../ui/CategorySelect";
+  Wallet,
+} from '../../hooks/types';
+import { formatCurrency } from '../../utils/formatters';
+import { getMonthlyNeeded } from '../../utils/savingsGoals';
+import { getCategories } from '../../lib/appSettings';
+import { Button } from '../ui/Button';
+import { SlideOver } from '../ui/SlideOver';
+import { TextInput } from '../ui/TextInput';
+import { CurrencyInput } from '../ui/CurrencyInput';
+import { CategorySelect } from '../ui/CategorySelect';
+import { institutionFor } from '../../../../mobile/src/constants/institution-registry';
 
 type FormDialogProps = {
   open: boolean;
@@ -56,10 +59,10 @@ type SavingsGoalProgressPanelProps = FormDialogProps & {
   goal: SavingsGoal | null;
 };
 
-const billCategoryOptions = getCategories("expense").map((category) => category.name);
+const billCategoryOptions = getCategories('expense').map((category) => category.name);
 
 function isPresetBillCategory(category: string | null | undefined) {
-  return billCategoryOptions.includes((category ?? "") as (typeof billCategoryOptions)[number]);
+  return billCategoryOptions.includes((category ?? '') as (typeof billCategoryOptions)[number]);
 }
 
 const todayInputValue = () => new Date().toISOString().slice(0, 10);
@@ -86,7 +89,7 @@ function SelectField({
   label,
   error,
   children,
-  className = "",
+  className = '',
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement> & {
   label: string;
@@ -112,7 +115,7 @@ function TextAreaField({
   id,
   label,
   error,
-  className = "",
+  className = '',
   ...props
 }: TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label: string;
@@ -140,7 +143,7 @@ function CheckboxField({
   id: string;
   label: string;
   description?: string;
-} & Omit<InputHTMLAttributes<HTMLInputElement>, "type">) {
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>) {
   return (
     <label
       htmlFor={id}
@@ -191,30 +194,31 @@ function DialogActions({
 
 const billSchema = z
   .object({
-    title: z.string().trim().min(1, "Biller name is required"),
-    amount: z.coerce.number().positive("Please enter an amount greater than 0"),
-    category: z.string().trim().min(1, "Category is required"),
+    title: z.string().trim().min(1, 'Biller name is required'),
+    amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+    category: z.string().trim().min(1, 'Category is required'),
     custom_category: z.string().optional(),
-    due_date: z.string().date("Due date is required"),
+    due_date: z.string().date('Due date is required'),
     recurring: z.boolean(),
-    frequency: z.enum(["monthly", "weekly", "yearly", "quarterly"]).optional(),
+    frequency: z.enum(['monthly', 'weekly', 'yearly', 'quarterly']).optional(),
     notes: z.string().optional(),
-    attachment_url: z.union([z.string().url("Enter a valid URL"), z.literal("")]).optional(),
+    attachment_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
+    wallet_id: z.string().uuid().nullable().optional(),
   })
   .superRefine((values, context) => {
     if (values.recurring && !values.frequency) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["frequency"],
-        message: "Choose how often this bill repeats",
+        path: ['frequency'],
+        message: 'Choose how often this bill repeats',
       });
     }
 
-    if (values.category === "Other" && !values.custom_category?.trim()) {
+    if (values.category === 'Other' && !values.custom_category?.trim()) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
-        path: ["custom_category"],
-        message: "Enter a custom category",
+        path: ['custom_category'],
+        message: 'Enter a custom category',
       });
     }
   });
@@ -222,19 +226,20 @@ const billSchema = z
 type BillFormValues = z.infer<typeof billSchema>;
 
 function defaultBillValues(bill?: Bill | null): BillFormValues {
-  const existingCategory = bill?.category ?? "";
+  const existingCategory = bill?.category ?? '';
   const isPresetCategory = isPresetBillCategory(existingCategory);
 
   return {
-    title: bill?.title ?? "",
+    title: bill?.title ?? '',
     amount: bill ? Number(bill.amount) : undefined,
-    category: existingCategory ? (isPresetCategory ? existingCategory : "Other") : "",
-    custom_category: existingCategory && !isPresetCategory ? existingCategory : "",
+    category: existingCategory ? (isPresetCategory ? existingCategory : 'Other') : '',
+    custom_category: existingCategory && !isPresetCategory ? existingCategory : '',
     due_date: bill?.due_date ?? todayInputValue(),
     recurring: bill ? Boolean(bill.recurring) : false,
     frequency: bill?.frequency ?? undefined,
-    notes: bill?.notes ?? "",
-    attachment_url: bill?.attachment_url ?? "",
+    notes: bill?.notes ?? '',
+    attachment_url: bill?.attachment_url ?? '',
+    wallet_id: bill?.wallet_id ?? null,
   };
 }
 
@@ -253,8 +258,9 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
     resolver: zodResolver(billSchema),
     defaultValues: defaultBillValues(bill),
   });
-  const recurring = watch("recurring");
-  const category = watch("category");
+  const recurring = watch('recurring');
+  const category = watch('category');
+  const walletId = watch('wallet_id');
 
   useEffect(() => {
     if (open) {
@@ -267,7 +273,8 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
     const { custom_category, ...restValues } = values;
     const payload = {
       ...restValues,
-      category: values.category === "Other" ? custom_category?.trim() ?? "Other" : values.category,
+      category:
+        values.category === 'Other' ? (custom_category?.trim() ?? 'Other') : values.category,
       frequency: values.recurring ? values.frequency : null,
       notes: toOptionalString(values.notes),
       attachment_url: toOptionalString(values.attachment_url),
@@ -275,12 +282,12 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
 
     if (bill) {
       await mutate<Bill>(`/bills/${bill.id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: JSON.stringify(payload),
       });
     } else {
-      await mutate<Bill>("/bills", {
-        method: "POST",
+      await mutate<Bill>('/bills', {
+        method: 'POST',
         body: JSON.stringify(payload),
       });
     }
@@ -292,14 +299,14 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
     <SlideOver
       open={open}
       onClose={onClose}
-      title={bill ? "Edit bill" : "Add bill"}
+      title={bill ? 'Edit bill' : 'Add bill'}
       description="Keep the bill details clean, categorized, and easy to review later."
       footer={
         <DialogActions
           formId={formId}
           onClose={onClose}
           isSubmitting={isSubmitting}
-          submitLabel={bill ? "Update bill" : "Save bill"}
+          submitLabel={bill ? 'Update bill' : 'Save bill'}
         />
       }
     >
@@ -311,7 +318,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           label="Biller"
           placeholder="Meralco"
           error={errors.title?.message}
-          {...register("title")}
+          {...register('title')}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -330,18 +337,20 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
             label="Category"
             value={category}
             options={billCategoryOptions}
-            onChange={(value) => setValue("category", value, { shouldDirty: true, shouldValidate: true })}
+            onChange={(value) =>
+              setValue('category', value, { shouldDirty: true, shouldValidate: true })
+            }
             error={errors.category?.message}
           />
         </div>
 
-        {category === "Other" ? (
+        {category === 'Other' ? (
           <TextInput
             id="bill-custom-category"
             label="Custom category"
             placeholder="Enter your category"
             error={errors.custom_category?.message}
-            {...register("custom_category")}
+            {...register('custom_category')}
           />
         ) : null}
 
@@ -350,14 +359,21 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           label="Due date"
           type="date"
           error={errors.due_date?.message}
-          {...register("due_date")}
+          {...register('due_date')}
+        />
+
+        <WalletSelector
+          id="bill-wallet"
+          label="Payment method"
+          value={walletId}
+          onChange={(value) => setValue('wallet_id', value || null, { shouldDirty: true })}
         />
 
         <CheckboxField
           id="bill-recurring"
           label="Recurring bill"
           description="Turn this on for monthly or repeating bills."
-          {...register("recurring")}
+          {...register('recurring')}
         />
 
         <SelectField
@@ -365,7 +381,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           label="Frequency"
           disabled={!recurring}
           error={errors.frequency?.message}
-          {...register("frequency")}
+          {...register('frequency')}
         >
           <option value="">Select frequency</option>
           <option value="monthly">Monthly</option>
@@ -381,10 +397,11 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
             type="url"
             placeholder="https://..."
             error={errors.attachment_url?.message}
-            {...register("attachment_url")}
+            {...register('attachment_url')}
           />
           <p className="mt-2 text-xs text-slate-500">
-            Optional. Add a billing portal or statement link. Alalay will use the site's logo when available.
+            Optional. Add a billing portal or statement link. Alalay will use the site's logo when
+            available.
           </p>
         </div>
 
@@ -393,7 +410,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           label="Notes"
           placeholder="Account number, reminder note, or backend-friendly context."
           error={errors.notes?.message}
-          {...register("notes")}
+          {...register('notes')}
         />
       </form>
     </SlideOver>
@@ -401,30 +418,32 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
 }
 
 const subscriptionSchema = z.object({
-  name: z.string().trim().min(1, "Subscription name is required"),
-  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
-  renewal_date: z.string().date("Renewal date is required"),
-  billing_cycle: z.enum(["weekly", "monthly", "quarterly", "yearly"]),
+  name: z.string().trim().min(1, 'Subscription name is required'),
+  amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+  renewal_date: z.string().date('Renewal date is required'),
+  billing_cycle: z.enum(['weekly', 'monthly', 'quarterly', 'yearly']),
   auto_renew: z.boolean(),
   last_used_at: z.string().optional(),
-  logo_url: z.union([z.string().url("Enter a valid URL"), z.literal("")]).optional(),
+  logo_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
+  wallet_id: z.string().uuid('Choose a payment wallet'),
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
 
 function dateInputValue(value: string | null | undefined) {
-  return value ? value.slice(0, 10) : "";
+  return value ? value.slice(0, 10) : '';
 }
 
 function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormValues {
   return {
-    name: subscription?.name ?? "",
+    name: subscription?.name ?? '',
     amount: subscription ? Number(subscription.amount) : undefined,
     renewal_date: subscription?.renewal_date ?? todayInputValue(),
-    billing_cycle: subscription?.billing_cycle ?? "monthly",
+    billing_cycle: subscription?.billing_cycle ?? 'monthly',
     auto_renew: subscription ? Boolean(subscription.auto_renew) : true,
     last_used_at: dateInputValue(subscription?.last_used_at),
-    logo_url: subscription?.logo_url ?? "",
+    logo_url: subscription?.logo_url ?? '',
+    wallet_id: subscription?.wallet_id ?? '',
   };
 }
 
@@ -442,6 +461,8 @@ export function SubscriptionFormPanel({
     reset,
     formState: { errors },
     control,
+    setValue,
+    watch,
   } = useForm<SubscriptionFormValues>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: defaultSubscriptionValues(subscription),
@@ -458,17 +479,19 @@ export function SubscriptionFormPanel({
     const payload = {
       ...values,
       logo_url: toOptionalString(values.logo_url),
-      last_used_at: values.last_used_at ? new Date(`${values.last_used_at}T00:00:00`).toISOString() : null,
+      last_used_at: values.last_used_at
+        ? new Date(`${values.last_used_at}T00:00:00`).toISOString()
+        : null,
     };
 
     if (subscription) {
       await mutate<Subscription>(`/subscriptions/${subscription.id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: JSON.stringify(payload),
       });
     } else {
-      await mutate<Subscription>("/subscriptions", {
-        method: "POST",
+      await mutate<Subscription>('/subscriptions', {
+        method: 'POST',
         body: JSON.stringify(payload),
       });
     }
@@ -480,10 +503,15 @@ export function SubscriptionFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title={subscription ? "Edit subscription" : "Add subscription"}
+      title={subscription ? 'Edit subscription' : 'Add subscription'}
       description="Save the details you know so Alalay can review renewals locally."
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={subscription ? "Update subscription" : "Save subscription"} />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={subscription ? 'Update subscription' : 'Save subscription'}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -494,7 +522,7 @@ export function SubscriptionFormPanel({
           label="Subscription name"
           placeholder="Netflix"
           error={errors.name?.message}
-          {...register("name")}
+          {...register('name')}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -513,7 +541,7 @@ export function SubscriptionFormPanel({
             label="Renewal date"
             type="date"
             error={errors.renewal_date?.message}
-            {...register("renewal_date")}
+            {...register('renewal_date')}
           />
         </div>
 
@@ -521,7 +549,7 @@ export function SubscriptionFormPanel({
           id="subscription-billing-cycle"
           label="Billing cycle"
           error={errors.billing_cycle?.message}
-          {...register("billing_cycle")}
+          {...register('billing_cycle')}
         >
           <option value="monthly">Monthly</option>
           <option value="weekly">Weekly</option>
@@ -529,13 +557,24 @@ export function SubscriptionFormPanel({
           <option value="yearly">Yearly</option>
         </SelectField>
 
+        <WalletSelector
+          id="subscription-wallet"
+          label="Payment method"
+          value={walletId}
+          required
+          error={errors.wallet_id?.message}
+          onChange={(value) =>
+            setValue('wallet_id', value, { shouldDirty: true, shouldValidate: true })
+          }
+        />
+
         <TextInput
           id="subscription-logo-url"
           label="Subscription link"
           type="url"
           placeholder="https://..."
           error={errors.logo_url?.message}
-          {...register("logo_url")}
+          {...register('logo_url')}
         />
         <p className="-mt-3 text-xs text-slate-500">
           Optional. Add the service website so the card can show its logo and open the link.
@@ -546,7 +585,7 @@ export function SubscriptionFormPanel({
           label="Last used"
           type="date"
           error={errors.last_used_at?.message}
-          {...register("last_used_at")}
+          {...register('last_used_at')}
         />
         <p className="-mt-3 text-xs text-slate-500">
           Optional manual date. Alalay does not check provider activity or app usage.
@@ -556,7 +595,7 @@ export function SubscriptionFormPanel({
           id="subscription-auto-renew"
           label="Renewal reminder"
           description="Local tracking only. This does not change renewal, billing, or cancellation settings with the provider."
-          {...register("auto_renew")}
+          {...register('auto_renew')}
         />
       </form>
     </SlideOver>
@@ -564,27 +603,77 @@ export function SubscriptionFormPanel({
 }
 
 const expenseSchema = z.object({
-  merchant: z.string().trim().min(1, "Merchant is required"),
-  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
-  category: z.string().trim().min(1, "Category is required"),
-  date: z.string().date("Date is required"),
-  payment_method: z.enum(["cash", "card", "gcash", "maya", "bank_transfer", "other"]),
-  receipt_url: z.union([z.string().url("Enter a valid URL"), z.literal("")]).optional(),
+  merchant: z.string().trim().min(1, 'Merchant is required'),
+  amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+  category: z.string().trim().min(1, 'Category is required'),
+  date: z.string().date('Date is required'),
+  payment_method: z.enum(['cash', 'card', 'gcash', 'maya', 'bank_transfer', 'other']),
+  receipt_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
   is_split: z.boolean(),
+  wallet_id: z.string().uuid().nullable().optional(),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
 
 function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
   return {
-    merchant: expense?.merchant ?? "",
+    merchant: expense?.merchant ?? '',
     amount: expense ? Number(expense.amount) : undefined,
-    category: expense?.category ?? "",
+    category: expense?.category ?? '',
     date: expense?.date ?? todayInputValue(),
-    payment_method: (expense?.payment_method as ExpenseFormValues["payment_method"] | undefined) ?? "cash",
-    receipt_url: expense?.receipt_url ?? "",
+    payment_method:
+      (expense?.payment_method as ExpenseFormValues['payment_method'] | undefined) ?? 'cash',
+    receipt_url: expense?.receipt_url ?? '',
     is_split: Boolean(expense?.is_split),
+    wallet_id: expense?.wallet_id ?? null,
   };
+}
+
+function WalletSelector({
+  id,
+  label,
+  value,
+  onChange,
+  required = false,
+  error,
+}: {
+  id: string;
+  label: string;
+  value?: string | null;
+  onChange: (value: string) => void;
+  required?: boolean;
+  error?: string;
+}) {
+  const { data: wallets, isLoading } = useApiQuery<Wallet[]>('/wallets');
+
+  return (
+    <label htmlFor={id} className="block">
+      <span className="mb-2 block text-sm font-semibold text-slate-800">{label}</span>
+      <select
+        id={id}
+        value={value ?? ''}
+        required={required}
+        disabled={isLoading}
+        onChange={(event) => onChange(event.target.value)}
+        className="min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:opacity-60"
+      >
+        <option value="">
+          {isLoading ? 'Loading wallets…' : required ? 'Select wallet' : 'No wallet selected'}
+        </option>
+        {(wallets ?? []).map((wallet) => {
+          const institution = institutionFor(wallet.institution_key);
+          const account = wallet.account_type ? ` · ${wallet.account_type}` : '';
+          return (
+            <option key={wallet.id} value={wallet.id}>
+              {institution.displayName} — {wallet.name}
+              {account} · {formatCurrency(Number(wallet.balance))}
+            </option>
+          );
+        })}
+      </select>
+      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+    </label>
+  );
 }
 
 function FormCurrencyInput({
@@ -636,7 +725,8 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
     resolver: zodResolver(expenseSchema),
     defaultValues: defaultExpenseValues(expense),
   });
-  const category = watch("category");
+  const walletId = watch('wallet_id');
+  const category = watch('category');
 
   useEffect(() => {
     if (open) {
@@ -646,8 +736,8 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
   }, [expense, open, reset, resetMutation]);
 
   async function onSubmit(values: ExpenseFormValues) {
-    const result = await mutate<Expense>(isEditing ? `/expenses/${expense!.id}` : "/expenses", {
-      method: isEditing ? "PATCH" : "POST",
+    const result = await mutate<Expense>(isEditing ? `/expenses/${expense!.id}` : '/expenses', {
+      method: isEditing ? 'PATCH' : 'POST',
       body: JSON.stringify({
         ...values,
         receipt_url: toOptionalString(values.receipt_url),
@@ -661,10 +751,19 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
     <SlideOver
       open={open}
       onClose={onClose}
-      title={isEditing ? "Edit expense" : "Log expense"}
-      description={isEditing ? "Correct merchant, amount, date, category, or payment method for this expense." : "Capture the purchase details and let the backend store the final expense record."}
+      title={isEditing ? 'Edit expense' : 'Log expense'}
+      description={
+        isEditing
+          ? 'Correct merchant, amount, date, category, or payment method for this expense.'
+          : 'Capture the purchase details and let the backend store the final expense record.'
+      }
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Update expense" : "Save expense"} />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={isEditing ? 'Update expense' : 'Save expense'}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -675,7 +774,7 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
           label="Merchant"
           placeholder="Mercury Drug"
           error={errors.merchant?.message}
-          {...register("merchant")}
+          {...register('merchant')}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -694,7 +793,7 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
             label="Date"
             type="date"
             error={errors.date?.message}
-            {...register("date")}
+            {...register('date')}
           />
         </div>
 
@@ -703,15 +802,17 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
             id="expense-category"
             label="Category"
             value={category}
-            options={getCategories("expense").map((item) => item.name)}
-            onChange={(value) => setValue("category", value, { shouldDirty: true, shouldValidate: true })}
+            options={getCategories('expense').map((item) => item.name)}
+            onChange={(value) =>
+              setValue('category', value, { shouldDirty: true, shouldValidate: true })
+            }
             error={errors.category?.message}
           />
           <SelectField
             id="expense-payment-method"
             label="Payment method"
             error={errors.payment_method?.message}
-            {...register("payment_method")}
+            {...register('payment_method')}
           >
             <option value="cash">Cash</option>
             <option value="card">Card</option>
@@ -722,20 +823,27 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
           </SelectField>
         </div>
 
+        <WalletSelector
+          id="expense-wallet"
+          label="Paid from"
+          value={walletId}
+          onChange={(value) => setValue('wallet_id', value || null, { shouldDirty: true })}
+        />
+
         <TextInput
           id="expense-receipt-url"
           label="Receipt URL"
           type="url"
           placeholder="https://..."
           error={errors.receipt_url?.message}
-          {...register("receipt_url")}
+          {...register('receipt_url')}
         />
 
         <CheckboxField
           id="expense-is-split"
           label="Split expense"
           description="Use this when the backend should mark the entry as shared."
-          {...register("is_split")}
+          {...register('is_split')}
         />
       </form>
     </SlideOver>
@@ -743,24 +851,24 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
 }
 
 const incomeSchema = z.object({
-  source: z.string().trim().min(1, "Income source is required"),
-  type: z.enum(["salary", "freelance", "business", "remittance", "other"]),
-  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
-  date: z.string().date("Date is required"),
+  source: z.string().trim().min(1, 'Income source is required'),
+  type: z.enum(['salary', 'freelance', 'business', 'remittance', 'other']),
+  amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+  date: z.string().date('Date is required'),
   is_recurring: z.boolean(),
-  frequency: z.enum(["monthly", "weekly", "biweekly", "yearly"]),
+  frequency: z.enum(['monthly', 'weekly', 'biweekly', 'yearly']),
 });
 
 type IncomeFormValues = z.infer<typeof incomeSchema>;
 
 function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
   return {
-    source: income?.source ?? "",
-    type: income?.type ?? "salary",
+    source: income?.source ?? '',
+    type: income?.type ?? 'salary',
     amount: income ? Number(income.amount) : undefined,
     date: income?.date ?? todayInputValue(),
     is_recurring: income ? Boolean(income.is_recurring) : false,
-    frequency: income?.frequency ?? "monthly",
+    frequency: income?.frequency ?? 'monthly',
   };
 }
 
@@ -778,7 +886,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
   });
-  const recurring = watch("is_recurring");
+  const recurring = watch('is_recurring');
 
   useEffect(() => {
     if (open) {
@@ -788,8 +896,8 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
   }, [income, open, reset, resetMutation]);
 
   async function onSubmit(values: IncomeFormValues) {
-    await mutate<IncomeEntry>(income ? `/income/${income.id}` : "/income", {
-      method: income ? "PATCH" : "POST",
+    await mutate<IncomeEntry>(income ? `/income/${income.id}` : '/income', {
+      method: income ? 'PATCH' : 'POST',
       body: JSON.stringify(values),
     });
     onSuccess();
@@ -800,10 +908,15 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     <SlideOver
       open={open}
       onClose={onClose}
-      title={income ? "Edit income" : "Add income"}
+      title={income ? 'Edit income' : 'Add income'}
       description="Collect the income details here and send them straight to the backend income endpoint."
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={income ? "Update income" : "Save income"} />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={income ? 'Update income' : 'Save income'}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -814,7 +927,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
           label="Source"
           placeholder="ACME Payroll"
           error={errors.source?.message}
-          {...register("source")}
+          {...register('source')}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -822,7 +935,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
             id="income-type"
             label="Type"
             error={errors.type?.message}
-            {...register("type")}
+            {...register('type')}
           >
             <option value="salary">Salary</option>
             <option value="freelance">Freelance</option>
@@ -847,14 +960,14 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
           label="Date received"
           type="date"
           error={errors.date?.message}
-          {...register("date")}
+          {...register('date')}
         />
 
         <CheckboxField
           id="income-recurring"
           label="Recurring income"
           description="Turn this on if the source repeats on a fixed schedule."
-          {...register("is_recurring")}
+          {...register('is_recurring')}
         />
 
         <SelectField
@@ -862,7 +975,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
           label="Frequency"
           disabled={!recurring}
           error={errors.frequency?.message}
-          {...register("frequency")}
+          {...register('frequency')}
         >
           <option value="monthly">Monthly</option>
           <option value="weekly">Weekly</option>
@@ -875,20 +988,20 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
 }
 
 const savingsGoalSchema = z.object({
-  title: z.string().trim().min(1, "Goal title is required"),
-  emoji: z.string().max(8, "Keep the emoji short").optional(),
-  target_amount: z.coerce.number().positive("Please enter a target amount greater than 0"),
-  current_amount: z.coerce.number().nonnegative("Current amount cannot be negative").optional(),
-  monthly_target: z.coerce.number().nonnegative("Monthly contribution cannot be negative"),
-  deadline: z.string().date("Deadline is required"),
+  title: z.string().trim().min(1, 'Goal title is required'),
+  emoji: z.string().max(8, 'Keep the emoji short').optional(),
+  target_amount: z.coerce.number().positive('Please enter a target amount greater than 0'),
+  current_amount: z.coerce.number().nonnegative('Current amount cannot be negative').optional(),
+  monthly_target: z.coerce.number().nonnegative('Monthly contribution cannot be negative'),
+  deadline: z.string().date('Deadline is required'),
 });
 
 type SavingsGoalFormValues = z.infer<typeof savingsGoalSchema>;
 
 function defaultSavingsGoalValues(goal?: SavingsGoal | null): SavingsGoalFormValues {
   return {
-    title: goal?.title ?? "",
-    emoji: goal?.emoji ?? "",
+    title: goal?.title ?? '',
+    emoji: goal?.emoji ?? '',
     target_amount: goal ? Number(goal.target_amount) : undefined,
     current_amount: Number(goal?.current_amount ?? 0),
     monthly_target: Number(goal?.monthly_target ?? 0),
@@ -919,17 +1032,19 @@ export function SavingsGoalFormPanel({
   const watchedTarget = Number(watchedValues.target_amount);
   const watchedCurrent = Number(watchedValues.current_amount ?? goal?.current_amount ?? 0);
   const watchedContribution = Number(watchedValues.monthly_target);
-  const watchedDeadline = String(watchedValues.deadline ?? "");
-  const watchedNeeded = watchedTarget > 0 && watchedDeadline
-    ? getMonthlyNeeded(watchedCurrent, watchedTarget, watchedDeadline)
-    : 0;
-  const contributionHint = !watchedTarget || !watchedDeadline
-    ? "Enter a target amount and deadline to see what you need each month."
-    : watchedNeeded === 0
-      ? "This goal is already fully funded."
-      : watchedContribution >= watchedNeeded
-        ? `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is on track.`
-        : `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is ${formatCurrency(watchedNeeded - watchedContribution)}/mo below that amount.`;
+  const watchedDeadline = String(watchedValues.deadline ?? '');
+  const watchedNeeded =
+    watchedTarget > 0 && watchedDeadline
+      ? getMonthlyNeeded(watchedCurrent, watchedTarget, watchedDeadline)
+      : 0;
+  const contributionHint =
+    !watchedTarget || !watchedDeadline
+      ? 'Enter a target amount and deadline to see what you need each month.'
+      : watchedNeeded === 0
+        ? 'This goal is already fully funded.'
+        : watchedContribution >= watchedNeeded
+          ? `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is on track.`
+          : `Needed to hit your deadline: ${formatCurrency(watchedNeeded)}/mo. Your plan is ${formatCurrency(watchedNeeded - watchedContribution)}/mo below that amount.`;
 
   useEffect(() => {
     if (open) {
@@ -949,12 +1064,12 @@ export function SavingsGoalFormPanel({
 
     if (goal) {
       await mutate<SavingsGoal>(`/savings-goals/${goal.id}`, {
-        method: "PATCH",
+        method: 'PATCH',
         body: JSON.stringify(payload),
       });
     } else {
-      await mutate<SavingsGoal>("/savings-goals", {
-        method: "POST",
+      await mutate<SavingsGoal>('/savings-goals', {
+        method: 'POST',
         body: JSON.stringify({
           ...payload,
           current_amount: values.current_amount ?? 0,
@@ -970,10 +1085,19 @@ export function SavingsGoalFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title={isEditing ? "Edit savings goal" : "Create savings goal"}
-      description={isEditing ? "Update the goal details here. Progress is handled from the goal card." : "Set the target, starting amount, and monthly contribution for this goal."}
+      title={isEditing ? 'Edit savings goal' : 'Create savings goal'}
+      description={
+        isEditing
+          ? 'Update the goal details here. Progress is handled from the goal card.'
+          : 'Set the target, starting amount, and monthly contribution for this goal.'
+      }
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Update goal" : "Save goal"} />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={isEditing ? 'Update goal' : 'Save goal'}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -984,7 +1108,7 @@ export function SavingsGoalFormPanel({
           label="Goal title"
           placeholder="Laptop fund"
           error={errors.title?.message}
-          {...register("title")}
+          {...register('title')}
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -993,14 +1117,14 @@ export function SavingsGoalFormPanel({
             label="Emoji"
             placeholder="Optional"
             error={errors.emoji?.message}
-            {...register("emoji")}
+            {...register('emoji')}
           />
           <TextInput
             id="goal-deadline"
             label="Deadline"
             type="date"
             error={errors.deadline?.message}
-            {...register("deadline")}
+            {...register('deadline')}
           />
         </div>
 
@@ -1046,7 +1170,7 @@ export function SavingsGoalFormPanel({
 }
 
 const savingsGoalProgressSchema = z.object({
-  amount: z.coerce.number().positive("Please enter an amount greater than 0"),
+  amount: z.coerce.number().positive('Please enter an amount greater than 0'),
 });
 
 type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
@@ -1094,7 +1218,7 @@ export function SavingsGoalProgressPanel({
     const nextAmount = Math.min(targetAmount, currentAmount + values.amount);
 
     await mutate<SavingsGoal>(`/savings-goals/${goal.id}`, {
-      method: "PATCH",
+      method: 'PATCH',
       body: JSON.stringify({
         current_amount: nextAmount,
         completed_at: nextAmount >= targetAmount ? new Date().toISOString() : null,
@@ -1110,9 +1234,14 @@ export function SavingsGoalProgressPanel({
       open={open}
       onClose={onClose}
       title="Add money"
-      description={goal ? `Update progress for ${goal.title}.` : "Update goal progress."}
+      description={goal ? `Update progress for ${goal.title}.` : 'Update goal progress.'}
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel="Update progress" />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel="Update progress"
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -1122,7 +1251,9 @@ export function SavingsGoalProgressPanel({
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
             <p className="text-xs text-slate-500">Current progress</p>
             <p className="mt-1 font-mono text-lg font-bold text-slate-950">
-              {formatCurrency(currentAmount)} <span className="font-sans text-sm font-normal text-slate-500">of</span> {formatCurrency(targetAmount)}
+              {formatCurrency(currentAmount)}{' '}
+              <span className="font-sans text-sm font-normal text-slate-500">of</span>{' '}
+              {formatCurrency(targetAmount)}
             </p>
             <p className="mt-1 text-xs text-slate-500">{formatCurrency(remaining)} remaining</p>
           </div>
@@ -1141,7 +1272,8 @@ export function SavingsGoalProgressPanel({
 
         {remaining > 0 ? (
           <p className="text-xs text-slate-500">
-            Amounts above the remaining balance will mark the goal complete at {formatCurrency(targetAmount)}.
+            Amounts above the remaining balance will mark the goal complete at{' '}
+            {formatCurrency(targetAmount)}.
           </p>
         ) : null}
       </form>
@@ -1151,27 +1283,37 @@ export function SavingsGoalProgressPanel({
 
 const budgetCategorySchema = z.object({
   id: z.string().min(1),
-  name: z.string().trim().min(1, "Category name is required"),
-  budget: z.coerce.number().nonnegative("Budget cannot be negative"),
+  name: z.string().trim().min(1, 'Category name is required'),
+  budget: z.coerce.number().nonnegative('Budget cannot be negative'),
 });
 
 const budgetSchema = z.object({
-  categories: z.array(budgetCategorySchema).min(1, "At least one category is required"),
-  savings_allocation: z.coerce.number().nonnegative("Monthly savings budget cannot be negative"),
+  categories: z.array(budgetCategorySchema).min(1, 'At least one category is required'),
+  savings_allocation: z.coerce.number().nonnegative('Monthly savings budget cannot be negative'),
   auto_distribute_savings: z.boolean(),
-  remaining_savings_behavior: z.enum(["auto_general", "leave_unallocated", "ask_monthly"]),
+  remaining_savings_behavior: z.enum(['auto_general', 'leave_unallocated', 'ask_monthly']),
 });
 
 type BudgetFormValues = z.infer<typeof budgetSchema>;
 
-const starterBudgetCategories = getCategories("expense").slice(0, 4).map((category) => ({ id: category.id, name: category.name, budget: 0 }));
+const starterBudgetCategories = getCategories('expense')
+  .slice(0, 4)
+  .map((category) => ({ id: category.id, name: category.name, budget: 0 }));
 
 const budgetSliderMax = 50000;
 const budgetSliderStep = 100;
-const budgetSliderColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
+const budgetSliderColors = [
+  '#e8775d',
+  '#6fa3d2',
+  '#7db59c',
+  '#f2c87c',
+  '#9d90ac',
+  '#bdb2a5',
+  '#0f8a6b',
+];
 
 function normalizeDistributedMonth(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+  if (typeof value !== 'string') return null;
   const normalized = value.trim();
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(normalized)) return normalized;
   if (/^\d{4}-(0[1-9]|1[0-2])-\d{2}$/.test(normalized)) return normalized.slice(0, 7);
@@ -1179,7 +1321,10 @@ function normalizeDistributedMonth(value: unknown): string | null {
 }
 
 function createBudgetCategoryId() {
-  return globalThis.crypto?.randomUUID?.() ?? `budget-category-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return (
+    globalThis.crypto?.randomUUID?.() ??
+    `budget-category-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  );
 }
 
 function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormValues {
@@ -1195,8 +1340,10 @@ function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormVal
         }))
       : starterBudgetCategories,
     savings_allocation: Number(budgetSummary?.savings_allocation ?? savingsCategory?.budget ?? 0),
-    auto_distribute_savings: Boolean(budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute),
-    remaining_savings_behavior: budgetSummary?.remaining_savings_behavior ?? "auto_general",
+    auto_distribute_savings: Boolean(
+      budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute,
+    ),
+    remaining_savings_behavior: budgetSummary?.remaining_savings_behavior ?? 'auto_general',
   };
 }
 
@@ -1227,12 +1374,13 @@ export function BudgetFormPanel({
   });
   const { fields, append, remove } = useFieldArray({
     control,
-    name: "categories",
+    name: 'categories',
   });
-  const watchedCategories = useWatch({ control, name: "categories" });
-  const savingsAllocation = Number(useWatch({ control, name: "savings_allocation" }) ?? 0);
-  const autoDistributeSavings = Boolean(useWatch({ control, name: "auto_distribute_savings" }));
-  const remainingSavingsBehavior = useWatch({ control, name: "remaining_savings_behavior" }) ?? "auto_general";
+  const watchedCategories = useWatch({ control, name: 'categories' });
+  const savingsAllocation = Number(useWatch({ control, name: 'savings_allocation' }) ?? 0);
+  const autoDistributeSavings = Boolean(useWatch({ control, name: 'auto_distribute_savings' }));
+  const remainingSavingsBehavior =
+    useWatch({ control, name: 'remaining_savings_behavior' }) ?? 'auto_general';
   const isEditing = Boolean(budgetSummary);
   const wasOpen = useRef(false);
 
@@ -1248,8 +1396,8 @@ export function BudgetFormPanel({
   async function onSubmit(values: BudgetFormValues) {
     const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
 
-    const savedBudget = await mutate<BudgetSummary>("/budget", {
-      method: "PATCH",
+    const savedBudget = await mutate<BudgetSummary>('/budget', {
+      method: 'PATCH',
       body: JSON.stringify({
         month,
         auto_distribute_savings: values.auto_distribute_savings,
@@ -1261,14 +1409,18 @@ export function BudgetFormPanel({
             budget: category.budget,
           })),
           {
-            id: savingsCategory?.id ?? "savings",
-            name: savingsCategory?.name ?? "Monthly Savings Budget",
+            id: savingsCategory?.id ?? 'savings',
+            name: savingsCategory?.name ?? 'Monthly Savings Budget',
             budget: values.savings_allocation,
             auto_distribute: values.auto_distribute_savings,
             last_distributed_month: normalizeDistributedMonth(
-              savingsCategory?.last_distributed_month ?? budgetSummary?.savings_last_distributed_month,
+              savingsCategory?.last_distributed_month ??
+                budgetSummary?.savings_last_distributed_month,
             ),
-            last_distributed_amount: savingsCategory?.last_distributed_amount ?? budgetSummary?.savings_last_distributed_amount ?? 0,
+            last_distributed_amount:
+              savingsCategory?.last_distributed_amount ??
+              budgetSummary?.savings_last_distributed_amount ??
+              0,
           },
         ],
       }),
@@ -1281,10 +1433,19 @@ export function BudgetFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title={isEditing ? "Edit budget" : "Create budget"}
-      description={isEditing ? "Adjust your category targets and keep the current plan in sync." : "Set up your first budget by category, then add more rows if you need them."}
+      title={isEditing ? 'Edit budget' : 'Create budget'}
+      description={
+        isEditing
+          ? 'Adjust your category targets and keep the current plan in sync.'
+          : 'Set up your first budget by category, then add more rows if you need them.'
+      }
       footer={
-        <DialogActions formId={formId} onClose={onClose} isSubmitting={isSubmitting} submitLabel={isEditing ? "Save budget" : "Create budget"} />
+        <DialogActions
+          formId={formId}
+          onClose={onClose}
+          isSubmitting={isSubmitting}
+          submitLabel={isEditing ? 'Save budget' : 'Create budget'}
+        />
       }
     >
       <form id={formId} className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -1295,7 +1456,8 @@ export function BudgetFormPanel({
             <div>
               <h3 className="text-sm font-semibold text-slate-950">Savings allocation</h3>
               <p className="mt-1 text-xs leading-5 text-slate-600">
-                Plan how much to save this month. Goal progress still belongs on the Savings Goals page.
+                Plan how much to save this month. Goal progress still belongs on the Savings Goals
+                page.
               </p>
             </div>
             <span className="rounded-full bg-brand-primary/10 px-3 py-1 font-mono text-xs font-semibold text-brand-primary">
@@ -1329,16 +1491,26 @@ export function BudgetFormPanel({
                     onClick={() => field.onChange(!isEnabled)}
                     className={`flex min-h-11 items-center gap-3 rounded-full border px-4 py-3 text-left transition ${
                       isEnabled
-                        ? "border-brand-primary bg-brand-primary text-white"
-                        : "border-emerald-200 bg-white text-slate-900 hover:border-brand-primary"
+                        ? 'border-brand-primary bg-brand-primary text-white'
+                        : 'border-emerald-200 bg-white text-slate-900 hover:border-brand-primary'
                     }`}
                   >
-                    <span className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${isEnabled ? "bg-white/25" : "bg-slate-200"}`}>
-                      <span className={`h-4 w-4 rounded-full bg-white shadow-sm transition ${isEnabled ? "translate-x-4" : ""}`} />
+                    <span
+                      className={`flex h-5 w-9 items-center rounded-full p-0.5 transition ${isEnabled ? 'bg-white/25' : 'bg-slate-200'}`}
+                    >
+                      <span
+                        className={`h-4 w-4 rounded-full bg-white shadow-sm transition ${isEnabled ? 'translate-x-4' : ''}`}
+                      />
                     </span>
                     <span>
-                      <span className="block text-sm font-semibold">{isEnabled ? "Auto-distribute On" : "Auto-distribute Off"}</span>
-                      <span className={`block text-xs ${isEnabled ? "text-white/80" : "text-slate-500"}`}>Plan goal allocations</span>
+                      <span className="block text-sm font-semibold">
+                        {isEnabled ? 'Auto-distribute On' : 'Auto-distribute Off'}
+                      </span>
+                      <span
+                        className={`block text-xs ${isEnabled ? 'text-white/80' : 'text-slate-500'}`}
+                      >
+                        Plan goal allocations
+                      </span>
                     </span>
                   </button>
                 );
@@ -1351,36 +1523,50 @@ export function BudgetFormPanel({
             label="Remaining savings preference"
             className="mt-4"
             error={errors.remaining_savings_behavior?.message}
-            {...register("remaining_savings_behavior")}
+            {...register('remaining_savings_behavior')}
           >
-            <option value="auto_general">Automatically move remaining savings into General Savings</option>
+            <option value="auto_general">
+              Automatically move remaining savings into General Savings
+            </option>
             <option value="leave_unallocated">Leave remaining savings unallocated</option>
             <option value="ask_monthly">Ask every month</option>
           </SelectField>
 
           <div className="mt-3 rounded-xl bg-white/70 px-4 py-3 text-xs leading-5 text-slate-600">
             {autoDistributeSavings
-              ? "Auto-distribute creates a goal allocation plan from active savings goals. Any savings budget left after goal allocation follows your preference below."
-              : "With auto-distribute off, the Monthly Savings Budget stays outside goal allocation and follows your remaining savings preference."}
-            {remainingSavingsBehavior === "auto_general" ? " Remaining savings will be labeled General Savings." : null}
+              ? 'Auto-distribute creates a goal allocation plan from active savings goals. Any savings budget left after goal allocation follows your preference below.'
+              : 'With auto-distribute off, the Monthly Savings Budget stays outside goal allocation and follows your remaining savings preference.'}
+            {remainingSavingsBehavior === 'auto_general'
+              ? ' Remaining savings will be labeled General Savings.'
+              : null}
           </div>
         </section>
 
         <div className="space-y-4">
-          {fields.map((field, index) => (
+          {fields.map((field, index) =>
             (() => {
               const categoryValue = watchedCategories?.[index];
               const currentBudget = Number(categoryValue?.budget ?? 0);
               const currentSpent = Number(
-                budgetSummary?.categories.find((category) => category.id === categoryValue?.id)?.spent ?? 0,
+                budgetSummary?.categories.find((category) => category.id === categoryValue?.id)
+                  ?.spent ?? 0,
               );
               const deficit = Math.max(0, currentSpent - currentBudget);
-              const maxBudget = Math.max(budgetSliderMax, currentBudget + 5000, currentSpent + 5000);
-              const progress = maxBudget ? Math.max(0, Math.min(100, (currentBudget / maxBudget) * 100)) : 0;
+              const maxBudget = Math.max(
+                budgetSliderMax,
+                currentBudget + 5000,
+                currentSpent + 5000,
+              );
+              const progress = maxBudget
+                ? Math.max(0, Math.min(100, (currentBudget / maxBudget) * 100))
+                : 0;
               const color = budgetSliderColors[index % budgetSliderColors.length];
 
               return (
-                <div key={field.id} className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
+                <div
+                  key={field.id}
+                  className="rounded-2xl border border-slate-200 bg-white px-4 py-4"
+                >
                   <div className="grid gap-4 sm:grid-cols-[1fr_1.4fr_auto] sm:items-end">
                     <div>
                       <TextInput
@@ -1396,7 +1582,9 @@ export function BudgetFormPanel({
                       <div>
                         <div className="mb-2 flex items-center justify-between text-xs text-slate-500">
                           <span>Slide to adjust</span>
-                          <span className="font-mono text-slate-700">{formatCurrency(currentBudget)}</span>
+                          <span className="font-mono text-slate-700">
+                            {formatCurrency(currentBudget)}
+                          </span>
                         </div>
                         <input
                           type="range"
@@ -1404,7 +1592,12 @@ export function BudgetFormPanel({
                           max={maxBudget}
                           step={budgetSliderStep}
                           value={currentBudget}
-                          onChange={(event) => setValue(`categories.${index}.budget`, Number(event.target.value), { shouldDirty: true, shouldValidate: true })}
+                          onChange={(event) =>
+                            setValue(`categories.${index}.budget`, Number(event.target.value), {
+                              shouldDirty: true,
+                              shouldValidate: true,
+                            })
+                          }
                           className="h-2 w-full cursor-pointer appearance-none rounded-full"
                           style={{
                             background: `linear-gradient(90deg, ${color} 0%, ${color} ${progress}%, #e2e8f0 ${progress}%, #e2e8f0 100%)`,
@@ -1420,7 +1613,11 @@ export function BudgetFormPanel({
                           <CurrencyInput
                             id={`budget-category-${field.id}`}
                             label="Budget amount"
-                            value={budgetField.value === 0 || budgetField.value === "0" ? "" : budgetField.value}
+                            value={
+                              budgetField.value === 0 || budgetField.value === '0'
+                                ? ''
+                                : budgetField.value
+                            }
                             onChange={(value) => budgetField.onChange(value)}
                             onBlur={budgetField.onBlur}
                             inputRef={budgetField.ref}
@@ -1453,12 +1650,12 @@ export function BudgetFormPanel({
                   <input type="hidden" {...register(`categories.${index}.id`)} />
                 </div>
               );
-            })()
-          ))}
+            })(),
+          )}
 
           <button
             type="button"
-            onClick={() => append({ id: createBudgetCategoryId(), name: "", budget: 0 })}
+            onClick={() => append({ id: createBudgetCategoryId(), name: '', budget: 0 })}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-dashed border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-brand-primary hover:text-brand-primary"
           >
             <span className="text-lg leading-none">+</span>

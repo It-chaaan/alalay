@@ -6,11 +6,12 @@ export type Bill = {
   due_date: string;
   recurring: boolean;
   frequency: string | null;
-  status: "unpaid" | "paid" | "overdue";
+  status: 'unpaid' | 'paid' | 'overdue';
   paid_at: string | null;
   notes?: string | null;
   attachment_url?: string | null;
   created_at: string;
+  wallet_id?: string | null;
 };
 
 export type Expense = {
@@ -25,23 +26,24 @@ export type Expense = {
   is_split?: boolean;
   split_with?: string[];
   created_at: string;
+  wallet_id?: string | null;
   subscription_id?: string | null;
-  billing_cycle?: "weekly" | "monthly" | "quarterly" | "yearly" | null;
+  billing_cycle?: 'weekly' | 'monthly' | 'quarterly' | 'yearly' | null;
   occurrence_date?: string | null;
-  generated_by?: "subscription" | null;
+  generated_by?: 'subscription' | null;
   recurrence_key?: string | null;
-  billing_status?: "generated" | "paid" | "void" | null;
+  billing_status?: 'generated' | 'paid' | 'void' | null;
   generated_at?: string | null;
 };
 
 export type IncomeEntry = {
   id: string;
   source: string;
-  type: "salary" | "freelance" | "business" | "remittance" | "other";
+  type: 'salary' | 'freelance' | 'business' | 'remittance' | 'other';
   amount: number | string;
   date: string;
   is_recurring: boolean;
-  frequency?: "monthly" | "weekly" | "biweekly" | "yearly";
+  frequency?: 'monthly' | 'weekly' | 'biweekly' | 'yearly';
   created_at: string;
 };
 
@@ -51,9 +53,10 @@ export type Subscription = {
   logo_url: string | null;
   amount: number | string;
   renewal_date: string;
-  billing_cycle: "weekly" | "monthly" | "quarterly" | "yearly";
+  billing_cycle: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   auto_renew: boolean;
   last_used_at: string | null;
+  wallet_id?: string | null;
 };
 
 export type SavingsGoal = {
@@ -89,8 +92,13 @@ export type SavingsDashboard = {
     goal_allocation_total: number;
     general_savings: number;
     unallocated_savings: number;
-    goal_allocations: Array<{ goal_id: string; title: string; amount: number; progress_percent: number }>;
-    remaining_savings_behavior: "auto_general" | "leave_unallocated" | "ask_monthly";
+    goal_allocations: Array<{
+      goal_id: string;
+      title: string;
+      amount: number;
+      progress_percent: number;
+    }>;
+    remaining_savings_behavior: 'auto_general' | 'leave_unallocated' | 'ask_monthly';
     remaining_savings_label: string;
   };
   aiInsight: {
@@ -127,7 +135,7 @@ export type BudgetSummary = {
       amount: number;
       progress_percent: number;
     }>;
-    remaining_savings_behavior: "auto_general" | "leave_unallocated" | "ask_monthly";
+    remaining_savings_behavior: 'auto_general' | 'leave_unallocated' | 'ask_monthly';
     remaining_savings_label: string;
   };
   total_budget: number;
@@ -139,7 +147,7 @@ export type BudgetSummary = {
   goal_allocation_total: number;
   general_savings: number;
   unallocated_savings: number;
-  remaining_savings_behavior: "auto_general" | "leave_unallocated" | "ask_monthly";
+  remaining_savings_behavior: 'auto_general' | 'leave_unallocated' | 'ask_monthly';
   remaining_savings_label: string;
   goal_allocations: Array<{
     goal_id: string;
@@ -166,7 +174,8 @@ export type BudgetSummary = {
   }>;
 };
 
-export type ReportPeriod = "this_month" | "last_month" | "last_3_months" | "quarter" | "ytd" | "custom";
+export type ReportPeriod =
+  'this_month' | 'last_month' | 'last_3_months' | 'quarter' | 'ytd' | 'custom';
 
 export type ReportsSummary = {
   range: {
@@ -209,14 +218,46 @@ export type ReportsSummary = {
     goal_allocation_total: number;
     general_savings: number;
     unallocated_savings: number;
-    goal_allocations: Array<{ goal_id: string; title: string; amount: number; progress_percent: number }>;
-    remaining_savings_behavior: "auto_general" | "leave_unallocated" | "ask_monthly";
+    goal_allocations: Array<{
+      goal_id: string;
+      title: string;
+      amount: number;
+      progress_percent: number;
+    }>;
+    remaining_savings_behavior: 'auto_general' | 'leave_unallocated' | 'ask_monthly';
     remaining_savings_label: string;
     monthly_savings_allocation: number;
     savings_allocation_usage: number;
-    over_budget_categories: Array<{ id: string; name: string; budget: number; spent: number; remaining: number; percent: number; color: string; goal?: boolean }>;
-    under_budget_categories: Array<{ id: string; name: string; budget: number; spent: number; remaining: number; percent: number; color: string; goal?: boolean }>;
-    categories: Array<{ id: string; name: string; budget: number; spent: number; remaining: number; percent: number; color: string; goal?: boolean }>;
+    over_budget_categories: Array<{
+      id: string;
+      name: string;
+      budget: number;
+      spent: number;
+      remaining: number;
+      percent: number;
+      color: string;
+      goal?: boolean;
+    }>;
+    under_budget_categories: Array<{
+      id: string;
+      name: string;
+      budget: number;
+      spent: number;
+      remaining: number;
+      percent: number;
+      color: string;
+      goal?: boolean;
+    }>;
+    categories: Array<{
+      id: string;
+      name: string;
+      budget: number;
+      spent: number;
+      remaining: number;
+      percent: number;
+      color: string;
+      goal?: boolean;
+    }>;
   };
   savings: {
     total_saved: number;
@@ -228,10 +269,26 @@ export type ReportsSummary = {
     goal_progress: number;
     monthly_contributions: number;
     contribution_history: Array<{ date: string; amount: number; goal: string }>;
-    savings_allocation_history: Array<{ month: string; goal_allocation: number; general_savings: number; unallocated_savings: number }>;
+    savings_allocation_history: Array<{
+      month: string;
+      goal_allocation: number;
+      general_savings: number;
+      unallocated_savings: number;
+    }>;
     goal_contribution_history: Array<{ date: string; amount: number; goal: string }>;
-    projected_completion: Array<{ id: string; title: string; projected_date: string; progress_percent: number }>;
-      distribution: Array<{ id: string; name: string; amount: number; target: number; deadline: string | null }>;
+    projected_completion: Array<{
+      id: string;
+      title: string;
+      projected_date: string;
+      progress_percent: number;
+    }>;
+    distribution: Array<{
+      id: string;
+      name: string;
+      amount: number;
+      target: number;
+      deadline: string | null;
+    }>;
   };
   charts: {
     daily_spending: Array<{ date: string; amount: number }>;
@@ -241,7 +298,7 @@ export type ReportsSummary = {
     savings_growth: Array<{ name: string; current: number; target: number }>;
     category_distribution: Array<{ name: string; amount: number; percent: number }>;
     bills_timeline: Array<{ date: string; amount: number; label: string; status: string }>;
-      subscriptions_timeline: Array<{ date: string; amount: number; label: string; status: string }>;
+    subscriptions_timeline: Array<{ date: string; amount: number; label: string; status: string }>;
   };
   data_sources: {
     income: number;
@@ -267,8 +324,29 @@ export type DashboardSummary = {
   health_score: number;
   weekly_bills: Bill[];
   recent_activity: Expense[];
-    monthly_spending: Array<{ month: string; value: number; current?: boolean; has_data?: boolean }>;
+  monthly_spending: Array<{ month: string; value: number; current?: boolean; has_data?: boolean }>;
   ai_insight: { status: string; message: string };
+};
+
+export type Wallet = {
+  id: string;
+  name: string;
+  balance: number | string;
+  institution_type: 'e_wallet' | 'digital_bank' | 'bank' | 'cash' | 'other';
+  institution_key: string;
+  account_type?: 'debit' | 'credit' | null;
+  credit_limit?: number | string | null;
+  color?: string | null;
+  interest_rate?: number | string | null;
+  interest_crediting_frequency?: string | null;
+};
+
+export type LoanSummary = {
+  owed_to_me: number;
+  i_owe: number;
+  net_position: number;
+  interest_earned_this_month: number;
+  interest_paid_this_month: number;
 };
 
 export type Profile = {
@@ -278,7 +356,7 @@ export type Profile = {
   avatar_url: string | null;
   phone?: string | null;
   currency: string;
-  language: "en" | "fil";
+  language: 'en' | 'fil';
   plan: string;
   income: number | string;
   pay_schedule: string;

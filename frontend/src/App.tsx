@@ -16,6 +16,7 @@ import { ReportsPage } from "./pages/dashboard/ReportsPage";
 import { SavingsGoalsPage } from "./pages/dashboard/SavingsGoalsPage";
 import { SettingsPage } from "./pages/dashboard/SettingsPage";
 import { SubscriptionsPage } from "./pages/dashboard/SubscriptionsPage";
+import { WalletsPage } from "./pages/dashboard/WalletsPage";
 import { HomePage } from "./pages/home/HomePage";
 import { ContactPage } from "./pages/public/ContactPage";
 import { PrivacyPage } from "./pages/public/PrivacyPage";
@@ -248,13 +249,27 @@ function AppContent() {
     return <IncomePage session={session} onSignOut={handleSignOut} />;
   }
 
-  if (pathname === "/app/savings-goals") {
+  if (pathname === "/app/savings-goals" || pathname === "/app/goals") {
     if (isSessionLoading) return <AppLoading />;
     if (!session || isMfaPending) {
       window.location.replace("/login");
       return <AppLoading />;
     }
     return <SavingsGoalsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/wallets") {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session || isMfaPending) {
+      window.location.replace("/login");
+      return <AppLoading />;
+    }
+    return <WalletsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === "/app/history") {
+    window.location.replace("/app/expenses");
+    return <AppLoading />;
   }
 
   if (pathname === "/app/budget") {

@@ -19,7 +19,7 @@ export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onS
   const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
 
   return (
-    <DashboardShell activeLabel="Savings Goals" title="Savings" subtitle="Overview and goal progress" name={displayName(session)} onSignOut={onSignOut} action={<button type="button" onClick={createDialog.open} className="rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ Create goal</button>}>
+    <DashboardShell activeLabel="Goals" title="Goals" subtitle="Your savings goals and progress" name={displayName(session)} onSignOut={onSignOut} action={<button type="button" onClick={createDialog.open} className="rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white">+ Create goal</button>}>
       {isLoading ? <><PageSkeleton kind="budget" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {data ? <>
