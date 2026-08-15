@@ -78,23 +78,57 @@ export type RecentTransaction = {
   isRecurringOccurrence?: boolean;
 };
 
-export type WalletRecord = { id: string; name: string; institution_type: string; institution_key: string; balance: number | string; color: string; icon?: string | null; is_default_cash: boolean };
+export type WalletRecord = {
+  id: string;
+  name: string;
+  institution_type: string;
+  institution_key: string;
+  account_type?: 'debit' | 'credit' | null;
+  credit_limit?: number | string | null;
+  balance: number | string;
+  color: string;
+  icon?: string | null;
+  is_default_cash: boolean;
+};
 
 export function fetchWallets() {
   return authenticatedApiRequest<WalletRecord[]>('/api/wallets');
 }
 
+export type LoanSummaryResponse = {
+  loans: { id: string; status: 'active' | 'paid' | 'written_off' }[];
+  summary: { owed_to_me: number; i_owe: number };
+};
+
+export function fetchLoanSummary() {
+  return authenticatedApiRequest<LoanSummaryResponse>('/api/loans');
+}
+
 /** Uses the same server-computed wallet balances shown by Wallets Overview. */
-export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance'>[]) {
+export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance' | 'account_type'>[]) {
   return wallets.reduce((sum, wallet) => {
+    if (wallet.account_type === 'credit') return sum;
     const balance = Number(wallet.balance);
     return sum + (Number.isFinite(balance) ? balance : 0);
   }, 0);
 }
 
 export type SavingsDashboard = {
-  overview: { totalSavings: number; goalSavings: number; activeGoals: number; monthlyContribution: number };
-  goals: { id: string; title: string; emoji?: string; target_amount: number | string; current_amount: number | string; deadline: string; completed_at?: string | null }[];
+  overview: {
+    totalSavings: number;
+    goalSavings: number;
+    activeGoals: number;
+    monthlyContribution: number;
+  };
+  goals: {
+    id: string;
+    title: string;
+    emoji?: string;
+    target_amount: number | string;
+    current_amount: number | string;
+    deadline: string;
+    completed_at?: string | null;
+  }[];
 };
 
 function recentRange() {
@@ -105,7 +139,12 @@ function recentRange() {
 }
 
 export function dateKeyInManila(date = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date);
   const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
   return `${get('year')}-${get('month')}-${get('day')}`;
 }
@@ -113,7 +152,8 @@ export function dateKeyInManila(date = new Date()) {
 const isDevelopment = typeof process !== 'undefined' && process.env.NODE_ENV !== 'production';
 export function normalizeExpense(expense: ExpenseRecord): RecentTransaction {
   const occurredAt = expense.date?.slice(0, 10) || expense.created_at?.slice(0, 10) || '1970-01-01';
-  if (!expense.date && isDevelopment) console.warn('[finance] Expense missing authoritative date', { id: expense.id });
+  if (!expense.date && isDevelopment)
+    console.warn('[finance] Expense missing authoritative date', { id: expense.id });
   return {
     id: `expense-${expense.id}`,
     sourceType: 'expense',
@@ -128,14 +168,18 @@ export function normalizeExpense(expense: ExpenseRecord): RecentTransaction {
 const financialMutationListeners = new Set<() => void>();
 export function subscribeFinancialMutations(listener: () => void) {
   financialMutationListeners.add(listener);
-  return () => { financialMutationListeners.delete(listener); };
+  return () => {
+    financialMutationListeners.delete(listener);
+  };
 }
 export function notifyFinancialMutation() {
   financialMutationListeners.forEach((listener) => listener());
 }
 
 export function fetchExpenses(range = recentRange()) {
-  return authenticatedApiRequest<ExpenseRecord[]>(`/api/expenses?from=${range.from}&to=${range.to}`);
+  return authenticatedApiRequest<ExpenseRecord[]>(
+    `/api/expenses?from=${range.from}&to=${range.to}`,
+  );
 }
 
 export function fetchIncome() {
@@ -149,24 +193,45 @@ export async function fetchNextPayday() {
     // Older backend deployments do not have the semantic endpoint yet. Fall
     // back to the existing occurrence API, whose rows are expanded by the
     // shared backend recurrence engine.
-    if (!(error instanceof Error) || !('status' in error) || (error as { status?: number }).status !== 404) throw error;
+    if (
+      !(error instanceof Error) ||
+      !('status' in error) ||
+      (error as { status?: number }).status !== 404
+    )
+      throw error;
     const from = dateKeyInManila();
     const [year, month, day] = from.split('-').map(Number);
     const end = new Date(Date.UTC(year, month - 1, day));
     end.setUTCDate(end.getUTCDate() + 400);
     const to = end.toISOString().slice(0, 10);
-    const rows = await authenticatedApiRequest<IncomeRecord[]>(`/api/income/occurrences?from=${from}&to=${to}`);
-    const candidates = rows.filter((row) => row.is_scheduled && row.is_recurring && row.date >= from);
-    const salary = candidates.filter((row) => String(row.type ?? '').toLowerCase() === 'salary' || /payroll/i.test(row.source));
+    const rows = await authenticatedApiRequest<IncomeRecord[]>(
+      `/api/income/occurrences?from=${from}&to=${to}`,
+    );
+    const candidates = rows.filter(
+      (row) => row.is_scheduled && row.is_recurring && row.date >= from,
+    );
+    const salary = candidates.filter(
+      (row) => String(row.type ?? '').toLowerCase() === 'salary' || /payroll/i.test(row.source),
+    );
     const eligible = salary.length ? salary : candidates;
-    eligible.sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id));
+    eligible.sort(
+      (left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id),
+    );
     const selected = eligible[0];
-    return selected ? { date: selected.date.slice(0, 10), amount: Number(selected.amount) || 0, source: selected.source || 'Income' } : null;
+    return selected
+      ? {
+          date: selected.date.slice(0, 10),
+          amount: Number(selected.amount) || 0,
+          source: selected.source || 'Income',
+        }
+      : null;
   }
 }
 
 export function fetchRecentIncome(range = recentRange()) {
-  return authenticatedApiRequest<IncomeRecord[]>(`/api/income/occurrences?from=${range.from}&to=${range.to}`);
+  return authenticatedApiRequest<IncomeRecord[]>(
+    `/api/income/occurrences?from=${range.from}&to=${range.to}`,
+  );
 }
 
 export function combineRecentTransactions(expenses: ExpenseRecord[], income: IncomeRecord[]) {
@@ -182,7 +247,9 @@ export function combineRecentTransactions(expenses: ExpenseRecord[], income: Inc
     frequency: entry.frequency,
     isRecurringOccurrence: entry.is_scheduled === true,
   }));
-  return [...expenseTransactions, ...incomeTransactions].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt));
+  return [...expenseTransactions, ...incomeTransactions].sort((left, right) =>
+    right.occurredAt.localeCompare(left.occurredAt),
+  );
 }
 
 export function fetchSavingsDashboard() {
@@ -195,13 +262,40 @@ export async function fetchFinanceItems() {
     authenticatedApiRequest<SubscriptionRecord[]>('/api/subscriptions'),
   ]);
   if (billResult.status === 'rejected' && subscriptionResult.status === 'rejected') {
-    throw billResult.reason instanceof Error ? billResult.reason : new Error('Bills could not load.');
+    throw billResult.reason instanceof Error
+      ? billResult.reason
+      : new Error('Bills could not load.');
   }
   const bills = billResult.status === 'fulfilled' ? billResult.value : [];
   const subscriptions = subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : [];
-  const billItems: FinanceItem[] = bills.map((bill) => ({ id: bill.id, source: 'bill', name: bill.title, amount: Number(bill.amount), category: bill.category, custom_category: bill.custom_category, dueDate: bill.due_date, recurring: bill.recurring, frequency: bill.frequency, paid: bill.status === 'paid', wallet_id: bill.wallet_id }));
-  const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({ id: subscription.id, source: 'subscription', name: subscription.name, amount: Number(subscription.amount), category: 'Subscriptions', dueDate: subscription.renewal_date, recurring: true, frequency: subscription.billing_cycle, paid: false, wallet_id: subscription.wallet_id }));
-  return [...billItems, ...subscriptionItems].sort((left, right) => left.dueDate.localeCompare(right.dueDate));
+  const billItems: FinanceItem[] = bills.map((bill) => ({
+    id: bill.id,
+    source: 'bill',
+    name: bill.title,
+    amount: Number(bill.amount),
+    category: bill.category,
+    custom_category: bill.custom_category,
+    dueDate: bill.due_date,
+    recurring: bill.recurring,
+    frequency: bill.frequency,
+    paid: bill.status === 'paid',
+    wallet_id: bill.wallet_id,
+  }));
+  const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({
+    id: subscription.id,
+    source: 'subscription',
+    name: subscription.name,
+    amount: Number(subscription.amount),
+    category: 'Subscriptions',
+    dueDate: subscription.renewal_date,
+    recurring: true,
+    frequency: subscription.billing_cycle,
+    paid: false,
+    wallet_id: subscription.wallet_id,
+  }));
+  return [...billItems, ...subscriptionItems].sort((left, right) =>
+    left.dueDate.localeCompare(right.dueDate),
+  );
 }
 
 export function derivedStatus(item: FinanceItem, today = dateKeyInManila()) {
@@ -217,23 +311,39 @@ export function addRecurrence(date: string, frequency: Exclude<FinanceItem['freq
     const originalDay = next.getUTCDate();
     next.setUTCDate(1);
     next.setUTCMonth(next.getUTCMonth() + months);
-    const lastDay = new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate();
+    const lastDay = new Date(
+      Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0),
+    ).getUTCDate();
     next.setUTCDate(Math.min(originalDay, lastDay));
   }
   return next.toISOString().slice(0, 10);
 }
 
-export async function markFinanceItemPaid(item: FinanceItem, payment?: { wallet_id: string; payment_date: string }) {
+export async function markFinanceItemPaid(
+  item: FinanceItem,
+  payment?: { wallet_id: string; payment_date: string },
+) {
   if (item.source === 'bill') {
     if (!payment) throw new Error('Select a payment wallet and date.');
-    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payment) });
+    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payment),
+    });
     const { cancelBillReminders } = await import('./financial-reminders');
     await cancelBillReminders(item.id);
     notifyFinancialMutation();
     return result;
   }
   const nextDate = addRecurrence(item.dueDate, item.frequency ?? 'monthly');
-  const result = await authenticatedApiRequest<SubscriptionRecord>(`/api/subscriptions/${item.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ renewal_date: nextDate }) });
+  const result = await authenticatedApiRequest<SubscriptionRecord>(
+    `/api/subscriptions/${item.id}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ renewal_date: nextDate }),
+    },
+  );
   notifyFinancialMutation();
   return result;
 }
