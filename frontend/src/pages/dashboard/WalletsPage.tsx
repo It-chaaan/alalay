@@ -13,7 +13,7 @@ import { FormEvent, useMemo, useState } from 'react';
 import {
   institutionFor,
   institutionRegistry,
-} from '../../../../mobile/src/constants/institution-registry';
+} from '../../../../shared/institution-registry';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { SlideOver } from '../../components/ui/SlideOver';

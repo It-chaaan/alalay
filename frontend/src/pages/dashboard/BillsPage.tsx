@@ -1,6 +1,6 @@
-import { Plus } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
+import { CheckCircle2, Plus, Trash2, X } from 'lucide-react';
+import { useDeferredValue, useEffect, useMemo, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import {
   BillsEmptyState,
   QuickActionsMenu,
@@ -9,36 +9,46 @@ import {
   getBillDisplayStatus,
   isOverdueBill,
   isUpcomingBill,
-} from "../../components/dashboard/BillsComponents";
-import { BillFormPanel } from "../../components/forms/FinancialActionPanels";
-import { DashboardShell } from "../../components/layout/DashboardShell";
-import { LinkLogo } from "../../components/ui/LinkLogo";
-import { CategoryBadge } from "../../components/ui/CategoryBadge";
-import { useActionDialog } from "../../hooks/useActionDialog";
-import { useApiMutation } from "../../hooks/useApiMutation";
-import { useBills } from "../../hooks/useBills";
-import type { Bill } from "../../hooks/types";
-import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { normalizeExternalUrl, openExternalLink } from "../../utils/linkPreview";
-import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+} from '../../components/dashboard/BillsComponents';
+import { BillFormPanel } from '../../components/forms/FinancialActionPanels';
+import { DashboardShell } from '../../components/layout/DashboardShell';
+import { LinkLogo } from '../../components/ui/LinkLogo';
+import { CategoryBadge } from '../../components/ui/CategoryBadge';
+import { useActionDialog } from '../../hooks/useActionDialog';
+import { useApiMutation } from '../../hooks/useApiMutation';
+import { useApiQuery } from '../../hooks/useApiQuery';
+import { useBills } from '../../hooks/useBills';
+import type { Bill, Wallet } from '../../hooks/types';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { normalizeExternalUrl, openExternalLink } from '../../utils/linkPreview';
+import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 
-type BillFilter = "all" | "upcoming" | "overdue" | "paid";
+type BillFilter = 'all' | 'upcoming' | 'overdue' | 'paid';
+
+function todayInputValue() {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export function BillsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
-  const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
-  const addBillDialog = useActionDialog("add-bill");
+  const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
+  const addBillDialog = useActionDialog('add-bill');
   const { data: bills, isLoading, isSlowLoading, error, refetch } = useBills();
   const { mutate } = useApiMutation();
-  const [activeFilter, setActiveFilter] = useState<BillFilter>("all");
-  const [searchQuery, setSearchQuery] = useState("");
+  const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
+  const [activeFilter, setActiveFilter] = useState<BillFilter>('all');
+  const [searchQuery, setSearchQuery] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [editingBill, setEditingBill] = useState<Bill | null>(null);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [paymentBill, setPaymentBill] = useState<Bill | null>(null);
+  const [paymentWalletId, setPaymentWalletId] = useState('');
+  const [paymentDate, setPaymentDate] = useState(todayInputValue());
+  const [deleteBillTarget, setDeleteBillTarget] = useState<Bill | null>(null);
   const deferredSearchQuery = useDeferredValue(searchQuery.trim().toLowerCase());
   const rows = bills ?? [];
   const today = new Date().toISOString().slice(0, 10);
   const weekEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const unpaid = rows.filter((bill) => bill.status !== "paid");
+  const unpaid = rows.filter((bill) => bill.status !== 'paid');
   const dueThisWeek = unpaid.filter((bill) => bill.due_date >= today && bill.due_date <= weekEnd);
   const overdue = unpaid.filter((bill) => isOverdueBill(bill, today));
 
@@ -47,7 +57,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       all: rows.length,
       upcoming: rows.filter((bill) => isUpcomingBill(bill, today)).length,
       overdue: rows.filter((bill) => isOverdueBill(bill, today)).length,
-      paid: rows.filter((bill) => bill.status === "paid").length,
+      paid: rows.filter((bill) => bill.status === 'paid').length,
     }),
     [rows, today],
   );
@@ -55,12 +65,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   const filteredRows = useMemo(() => {
     let nextRows = rows;
 
-    if (activeFilter === "upcoming") {
+    if (activeFilter === 'upcoming') {
       nextRows = rows.filter((bill) => isUpcomingBill(bill, today));
-    } else if (activeFilter === "overdue") {
+    } else if (activeFilter === 'overdue') {
       nextRows = rows.filter((bill) => isOverdueBill(bill, today));
-    } else if (activeFilter === "paid") {
-      nextRows = rows.filter((bill) => bill.status === "paid");
+    } else if (activeFilter === 'paid') {
+      nextRows = rows.filter((bill) => bill.status === 'paid');
     }
 
     if (!deferredSearchQuery) {
@@ -68,8 +78,8 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     }
 
     return nextRows.filter((bill) =>
-      [bill.title, bill.category, bill.frequency ?? "", bill.status]
-        .join(" ")
+      [bill.title, bill.category, bill.frequency ?? '', bill.status]
+        .join(' ')
         .toLowerCase()
         .includes(deferredSearchQuery),
     );
@@ -77,43 +87,48 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         setOpenMenuId(null);
       }
     }
 
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && !target.closest("[data-bill-menu]")) {
+      if (target && !target.closest('[data-bill-menu]')) {
         setOpenMenuId(null);
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("click", handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('click', handleClickOutside);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('click', handleClickOutside);
     };
   }, []);
 
-  async function markBillPaid(id: string) {
-    await mutate(`/bills/${id}/pay`, { method: "PATCH" });
+  async function markBillPaid() {
+    if (!paymentBill || !paymentWalletId) return;
+    await mutate(`/bills/${paymentBill.id}/pay`, {
+      method: 'PATCH',
+      body: JSON.stringify({ wallet_id: paymentWalletId, payment_date: paymentDate }),
+    });
+    setPaymentBill(null);
     setOpenMenuId(null);
     refetch();
   }
 
   async function markBillUnpaid(id: string) {
     await mutate(`/bills/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ status: "unpaid", paid_at: null }),
+      method: 'PATCH',
+      body: JSON.stringify({ status: 'unpaid', paid_at: null }),
     });
     setOpenMenuId(null);
     refetch();
   }
 
   async function deleteBill(id: string) {
-    await mutate(`/bills/${id}`, { method: "DELETE" });
+    await mutate(`/bills/${id}`, { method: 'DELETE' });
     setOpenMenuId(null);
     refetch();
   }
@@ -161,17 +176,19 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       <div className="mt-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="inline-flex w-fit rounded-full bg-slate-100 p-1 text-sm">
           {[
-            { key: "all", label: "All", count: counts.all },
-            { key: "upcoming", label: "Upcoming", count: counts.upcoming },
-            { key: "overdue", label: "Overdue", count: counts.overdue },
-            { key: "paid", label: "Paid", count: counts.paid },
+            { key: 'all', label: 'All', count: counts.all },
+            { key: 'upcoming', label: 'Upcoming', count: counts.upcoming },
+            { key: 'overdue', label: 'Overdue', count: counts.overdue },
+            { key: 'paid', label: 'Paid', count: counts.paid },
           ].map((item) => (
             <button
               key={item.key}
               type="button"
               onClick={() => setActiveFilter(item.key as BillFilter)}
               className={`rounded-full px-4 py-1.5 transition ${
-                activeFilter === item.key ? "bg-white shadow-sm text-slate-950" : "text-slate-500 hover:text-slate-700"
+                activeFilter === item.key
+                  ? 'bg-white shadow-sm text-slate-950'
+                  : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {item.label} ({item.count})
@@ -189,7 +206,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       </div>
 
       <div className="mt-4 overflow-visible rounded-[14px] border border-slate-200 bg-white shadow-sm">
-{isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
+        {isLoading ? (
+          <>
+            <PageSkeleton kind="table" />
+            <SlowLoadNotice show={isSlowLoading} />
+          </>
+        ) : null}
         {error ? <div className="p-6 text-sm text-red-700">{error}</div> : null}
         {!isLoading && !error && rows.length === 0 ? (
           <BillsEmptyState onAddBill={addBillDialog.open} hasFilters={false} />
@@ -234,7 +256,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                         </div>
                       </td>
                       <td className="px-4 py-4">
-                          <CategoryBadge category={row.category} compact />
+                        <CategoryBadge category={row.category} compact />
                       </td>
                       <td className="whitespace-nowrap px-4 py-4 font-semibold">
                         {formatCurrency(Number(row.amount))}
@@ -242,29 +264,37 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                       <td className="whitespace-nowrap px-4 py-4 text-slate-600">
                         {formatDateShort(row.due_date)}
                       </td>
-                      <td className="truncate px-4 py-4 text-slate-600">{row.frequency ?? "One-time"}</td>
+                      <td className="truncate px-4 py-4 text-slate-600">
+                        {row.frequency ?? 'One-time'}
+                      </td>
                       <td className="px-4 py-4">
                         <StatusBadge status={displayStatus} />
                       </td>
-                      <td className="relative px-3 py-4 text-right" onClick={(event) => event.stopPropagation()}>
+                      <td
+                        className="relative px-3 py-4 text-right"
+                        onClick={(event) => event.stopPropagation()}
+                      >
                         <QuickActionsMenu
                           bill={row}
                           isOpen={openMenuId === row.id}
                           todayIso={today}
-                          onOpenLink={billLink ? () => openExternalLink(row.attachment_url) : undefined}
+                          onOpenLink={
+                            billLink ? () => openExternalLink(row.attachment_url) : undefined
+                          }
                           onToggle={() =>
                             setOpenMenuId((current) => (current === row.id ? null : row.id))
                           }
                           onEdit={() => openEditBill(row)}
-                          onMarkPaid={() => void markBillPaid(row.id)}
+                          onMarkPaid={() => {
+                            setPaymentBill(row);
+                            setPaymentWalletId(row.wallet_id ?? wallets?.[0]?.id ?? '');
+                            setPaymentDate(todayInputValue());
+                            setOpenMenuId(null);
+                          }}
                           onMarkUnpaid={() => void markBillUnpaid(row.id)}
                           onDelete={() => {
-                            const confirmed = window.confirm(
-                              `Delete ${row.title}? This cannot be undone.`,
-                            );
-                            if (confirmed) {
-                              void deleteBill(row.id);
-                            }
+                            setDeleteBillTarget(row);
+                            setOpenMenuId(null);
                           }}
                         />
                       </td>
@@ -282,6 +312,105 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
         onClose={addBillDialog.close}
         onSuccess={refetch}
       />
+      {paymentBill ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Mark bill as paid"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <div className="flex items-start justify-between">
+              <div>
+                <h2 className="text-lg font-semibold">Mark as paid</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {paymentBill.title} · {formatCurrency(Number(paymentBill.amount))}
+                </p>
+              </div>
+              <button type="button" onClick={() => setPaymentBill(null)} aria-label="Close">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <label className="mt-5 block text-sm font-semibold">
+              Payment method
+              <select
+                value={paymentWalletId}
+                onChange={(event) => setPaymentWalletId(event.target.value)}
+                className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+              >
+                <option value="">Select wallet</option>
+                {(wallets ?? []).map((wallet) => (
+                  <option key={wallet.id} value={wallet.id}>
+                    {wallet.name} · {wallet.account_type ?? wallet.institution_type}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="mt-4 block text-sm font-semibold">
+              Payment date
+              <input
+                type="date"
+                value={paymentDate}
+                onChange={(event) => setPaymentDate(event.target.value)}
+                className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+              />
+            </label>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setPaymentBill(null)}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!paymentWalletId}
+                onClick={() => void markBillPaid()}
+                className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                <CheckCircle2 className="h-4 w-4" />
+                Confirm payment
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+      {deleteBillTarget ? (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Delete bill confirmation"
+        >
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-xl dark:bg-slate-900">
+            <h2 className="text-lg font-semibold">Delete bill?</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              {deleteBillTarget.title} will be removed from your bill schedule.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteBillTarget(null)}
+                className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void deleteBill(deleteBillTarget.id);
+                  setDeleteBillTarget(null);
+                }}
+                className="inline-flex items-center gap-2 rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white"
+              >
+                <Trash2 className="h-4 w-4" />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
       <BillFormPanel
         open={isEditOpen}
         bill={editingBill}
@@ -299,7 +428,7 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="text-sm text-slate-500">{label}</div>
-      <div className={`mt-2 text-2xl font-bold ${accent || ""}`}>{value}</div>
+      <div className={`mt-2 text-2xl font-bold ${accent || ''}`}>{value}</div>
     </div>
   );
 }
@@ -307,13 +436,13 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
 function getCategoryBadgeClasses(category: string) {
   const normalizedCategory = category.toLowerCase();
 
-  if (normalizedCategory.includes("utilit")) {
-    return "bg-emerald-50 text-emerald-700";
+  if (normalizedCategory.includes('utilit')) {
+    return 'bg-emerald-50 text-emerald-700';
   }
 
-  if (normalizedCategory.includes("government")) {
-    return "bg-blue-50 text-blue-700";
+  if (normalizedCategory.includes('government')) {
+    return 'bg-blue-50 text-blue-700';
   }
 
-  return "bg-slate-100 text-slate-500";
+  return 'bg-slate-100 text-slate-500';
 }

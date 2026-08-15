@@ -1,4 +1,4 @@
-import { CATEGORY_DEFINITIONS, getSharedCategoryMeta, normalizeCategoryKey, type SharedCategoryMeta } from "../../../mobile/src/constants/category-registry";
+import { CATEGORY_DEFINITIONS, getSharedCategoryMeta, normalizeCategoryKey, type SharedCategoryMeta } from "../../../shared/category-registry";
 
 export type CategoryMeta = SharedCategoryMeta;
 
