@@ -10,10 +10,7 @@ import {
   WalletCards,
 } from 'lucide-react';
 import { FormEvent, useMemo, useState } from 'react';
-import {
-  institutionFor,
-  institutionRegistry,
-} from '../../../../shared/institution-registry';
+import { institutionFor, institutionRegistry } from '@shared/institution-registry';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { SlideOver } from '../../components/ui/SlideOver';

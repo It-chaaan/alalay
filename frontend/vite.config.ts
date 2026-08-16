@@ -7,6 +7,11 @@ const sharedRoot = fileURLToPath(new URL('../shared', import.meta.url));
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@shared': sharedRoot,
+    },
+  },
   server: {
     fs: {
       allow: [frontendRoot, sharedRoot],

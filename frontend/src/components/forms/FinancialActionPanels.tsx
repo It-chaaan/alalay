@@ -27,7 +27,7 @@ import { SlideOver } from '../ui/SlideOver';
 import { TextInput } from '../ui/TextInput';
 import { CurrencyInput } from '../ui/CurrencyInput';
 import { CategorySelect } from '../ui/CategorySelect';
-import { institutionFor } from '../../../../shared/institution-registry';
+import { institutionFor } from '@shared/institution-registry';
 
 type FormDialogProps = {
   open: boolean;
