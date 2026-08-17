@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Landmark,
   Receipt,
   Search,
   TrendingDown,
@@ -18,9 +19,19 @@ import alalayLogo from '../../assets/alalay.svg';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { useBills } from '../../hooks/useBills';
 import { useDashboard } from '../../hooks/useDashboard';
+import { useBudget } from '../../hooks/useBudget';
+import { useReports } from '../../hooks/useReports';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
 import { useApiQuery } from '../../hooks/useApiQuery';
-import type { Bill, DashboardSummary, Subscription, Wallet } from '../../hooks/types';
+import type {
+  Bill,
+  BudgetSummary,
+  DashboardSummary,
+  LoanSummary,
+  ReportsSummary,
+  Subscription,
+  Wallet,
+} from '../../hooks/types';
 import { apiRequest } from '../../lib/apiClient';
 import { CategoryIcon } from '../../components/ui/CategoryIcon';
 import {
@@ -28,6 +39,7 @@ import {
   type BillDisplayStatus,
 } from '../../components/dashboard/BillsComponents';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { getCategoryMeta } from '../../utils/categoryRegistry';
 import {
   DashboardSkeleton,
   ListSkeleton,
@@ -129,13 +141,6 @@ function SmallIcon({ type }: { type: string }) {
   );
 }
 
-type IncomeOccurrence = {
-  id: string;
-  amount: number | string;
-  date: string;
-  is_scheduled?: boolean;
-};
-
 function CompactBars({
   values,
   tone,
@@ -175,38 +180,38 @@ function CompactBars({
 function SummaryCards({
   summary,
   wallets,
-  incomeRows,
+  report,
+  loans,
   isPrivate,
   onTogglePrivacy,
 }: {
   summary: DashboardSummary;
   wallets: Wallet[];
-  incomeRows: IncomeOccurrence[];
+  report?: ReportsSummary;
+  loans?: LoanSummary;
   isPrivate: boolean;
   onTogglePrivacy: () => void;
 }) {
   const liquidBalance = wallets
     .filter((wallet) => wallet.account_type !== 'credit')
     .reduce((total, wallet) => total + Number(wallet.balance), 0);
-  const weekAmounts = (rows: Array<{ date: string; amount: number | string }>) => {
-    const buckets = [0, 0, 0, 0];
-    rows.forEach((row) => {
-      const day = Number(row.date.slice(8, 10));
-      buckets[Math.min(3, Math.floor(Math.max(0, day - 1) / 7))] += Number(row.amount);
-    });
-    return buckets;
-  };
-  const incomeWeeks = weekAmounts(incomeRows.filter((row) => !row.is_scheduled));
-  const spendingMonths = summary.monthly_spending.map((item) => item.value);
+  const liquidWallets = wallets.filter((wallet) => wallet.account_type !== 'credit');
+  const incomeTrend = report?.monthly_trend.map((item) => item.income) ?? [];
+  const expenseTrend = report?.monthly_trend.map((item) => item.expenses) ?? [];
   const cards = [
     {
       label: 'My balance',
       value: liquidBalance,
-      note: `${wallets.length} liquid wallet${wallets.length === 1 ? '' : 's'} · credit excluded`,
+      note: `${liquidWallets.length} liquid wallet${liquidWallets.length === 1 ? '' : 's'} · credit excluded`,
       icon: <WalletCards className="h-4 w-4" />,
       content: (
-        <p className="mt-5 text-xs text-slate-500">
-          Balance history is shown when account snapshots are available.
+        <p className="mt-5 truncate text-xs text-slate-500">
+          {liquidWallets.length
+            ? liquidWallets
+                .slice(0, 2)
+                .map((wallet) => wallet.name)
+                .join(' · ')
+            : 'Add a wallet to see your liquid balance.'}
         </p>
       ),
     },
@@ -217,7 +222,7 @@ function SummaryCards({
       icon: <TrendingUp className="h-4 w-4" />,
       content: (
         <CompactBars
-          values={incomeWeeks}
+          values={incomeTrend}
           tone="income"
           isPrivate={isPrivate}
           label="Weekly income"
@@ -231,21 +236,46 @@ function SummaryCards({
       icon: <TrendingDown className="h-4 w-4" />,
       content: (
         <CompactBars
-          values={spendingMonths}
+          values={expenseTrend}
           tone="expense"
           isPrivate={isPrivate}
           label="Monthly spending history"
         />
       ),
     },
+    {
+      label: 'Financial position',
+      value: liquidBalance,
+      note: 'Liquid balance · credit excluded',
+      icon: <Landmark className="h-4 w-4" />,
+      content: (
+        <div className="mt-4 space-y-1.5 text-xs text-slate-500">
+          <p className="flex justify-between gap-3">
+            <span>This year earned</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-white">
+              {isPrivate ? '••••••' : formatCurrency(report?.total_income ?? 0)}
+            </span>
+          </p>
+          <p className="flex justify-between gap-3">
+            <span>Loans owed</span>
+            <span className="font-mono font-semibold text-slate-900 dark:text-white">
+              {isPrivate ? '••••••' : formatCurrency(loans?.i_owe ?? 0)}
+            </span>
+          </p>
+        </div>
+      ),
+    },
   ];
 
   return (
-    <section className="relative grid gap-4 xl:grid-cols-3" aria-label="Account summary">
+    <section
+      className="relative grid gap-4 sm:grid-cols-2 2xl:grid-cols-4"
+      aria-label="Account summary"
+    >
       {cards.map((item) => (
         <article
           key={item.label}
-          className="min-h-44 rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+          className="min-h-44 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
         >
           <div className="flex items-start justify-between gap-4">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
@@ -262,19 +292,186 @@ function SummaryCards({
           {item.content}
         </article>
       ))}
-      <button
-        type="button"
-        onClick={onTogglePrivacy}
-        aria-label={isPrivate ? 'Show financial values' : 'Hide financial values'}
-        className="absolute right-4 top-4 rounded-full p-2 text-slate-400 hover:bg-slate-100"
-      >
-        <>{isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</>
-      </button>
     </section>
   );
 }
 
-function AiInsightCard({ insight }: { insight: DashboardSummary['ai_insight'] }) {
+function MoneyFlowCard({ report, isPrivate }: { report?: ReportsSummary; isPrivate: boolean }) {
+  const rows = report?.monthly_trend ?? [];
+  const maximum = Math.max(
+    1,
+    ...rows.flatMap((row) => [row.income, row.expenses, Math.max(0, row.net)]),
+  );
+
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+            Money flow
+          </p>
+          <h2 className="mt-1 text-sm font-semibold text-slate-950 dark:text-white">This year</h2>
+        </div>
+        <div className="flex gap-3 text-[10px] text-slate-500">
+          <span>
+            <i className="mr-1 inline-block h-2 w-2 rounded-full bg-brand-primary" />
+            Income
+          </span>
+          <span>
+            <i className="mr-1 inline-block h-2 w-2 rounded-full bg-rose-400" />
+            Spending
+          </span>
+          <span>
+            <i className="mr-1 inline-block h-2 w-2 rounded-full bg-slate-400" />
+            Net savings
+          </span>
+        </div>
+      </div>
+      {rows.length ? (
+        <div
+          className="mt-5 flex h-44 items-end gap-2"
+          aria-label={`${report?.range.label} money flow. Total income ${formatCurrency(report?.total_income ?? 0)}. Total spending ${formatCurrency(report?.total_expenses ?? 0)}.`}
+        >
+          {rows.map((row) => (
+            <div key={row.month} className="flex min-w-0 flex-1 flex-col items-center gap-1">
+              <div className="flex h-32 w-full items-end justify-center gap-0.5">
+                {(
+                  [
+                    ['bg-brand-primary', row.income],
+                    ['bg-rose-400', row.expenses],
+                    ['bg-slate-400', Math.max(0, row.net)],
+                  ] as const
+                ).map(([tone, value], index) => (
+                  <span
+                    key={index}
+                    title={isPrivate ? 'Hidden in privacy mode' : formatCurrency(value)}
+                    className={`w-1/4 rounded-t ${tone}`}
+                    style={{ height: `${isPrivate ? 55 : Math.max(3, (value / maximum) * 100)}%` }}
+                  />
+                ))}
+              </div>
+              <span className="text-[9px] text-slate-500">
+                {new Intl.DateTimeFormat('en-US', { month: 'short' }).format(
+                  new Date(`${row.month}-02`),
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+          No income or spending records in this year yet.
+        </p>
+      )}
+    </article>
+  );
+}
+
+function BudgetUsedCard({
+  budget,
+  insight,
+  isPrivate,
+}: {
+  budget?: BudgetSummary;
+  insight: DashboardSummary['ai_insight'];
+  isPrivate: boolean;
+}) {
+  const used = Math.min(100, Math.max(0, budget?.used_percent ?? 0));
+  const hidden = '••••••';
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+        Budget used
+      </p>
+      {budget && budget.total_budget > 0 ? (
+        <>
+          <div className="mt-4 flex items-center gap-4">
+            <div
+              className="grid h-24 w-24 shrink-0 place-items-center rounded-full"
+              style={{ background: `conic-gradient(#0f8a6b ${used}%, #e2e8f0 0)` }}
+            >
+              <div className="grid h-[4.5rem] w-[4.5rem] place-items-center rounded-full bg-white text-center dark:bg-slate-900">
+                <span className="font-mono text-xl font-bold">{used}%</span>
+                <span className="text-[9px] text-slate-500">of budget</span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs text-slate-500">Remaining this month</p>
+              <p className="mt-1 truncate font-mono text-xl font-bold text-slate-950 dark:text-white">
+                {isPrivate ? hidden : formatCurrency(budget.remaining)}
+              </p>
+              <p className="mt-2 text-xs text-slate-500">
+                {isPrivate ? hidden : formatCurrency(budget.total_spent)} used
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 h-1.5 rounded-full bg-slate-100">
+            <div className="h-1.5 rounded-full bg-brand-primary" style={{ width: `${used}%` }} />
+          </div>
+        </>
+      ) : (
+        <p className="mt-4 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">
+          Create a monthly budget to track your spending here.
+        </p>
+      )}
+      <div className="mt-5 border-t border-slate-200 pt-4 dark:border-slate-700">
+        <AiInsightCard insight={insight} compact />
+      </div>
+    </article>
+  );
+}
+
+function TopSpendingCard({ report, isPrivate }: { report?: ReportsSummary; isPrivate: boolean }) {
+  const categories = report?.categories.slice(0, 3) ?? [];
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-center justify-between">
+        <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
+          Top spending this month
+        </h2>
+        <a href="/app/reports" className="text-xs font-semibold text-brand-primary">
+          View all →
+        </a>
+      </div>
+      <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+        {categories.length ? (
+          categories.map((category) => {
+            const meta = getCategoryMeta(category.name);
+            return (
+              <div
+                key={category.name}
+                className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+              >
+                <CategoryIcon category={category.name} size="sm" />
+                <p className="mt-3 truncate text-xs font-semibold text-slate-900 dark:text-white">
+                  {meta.label}
+                </p>
+                <p className="mt-1 font-mono text-lg font-bold">
+                  {isPrivate ? '••••••' : `${category.percent}%`}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  {isPrivate ? 'Hidden' : formatCurrency(category.amount)} of spending
+                </p>
+              </div>
+            );
+          })
+        ) : (
+          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 sm:col-span-3 xl:col-span-1 2xl:col-span-3">
+            No spending categories this month.
+          </p>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function AiInsightCard({
+  insight,
+  compact = false,
+}: {
+  insight: DashboardSummary['ai_insight'];
+  compact?: boolean;
+}) {
   const statusLabel =
     insight.status === 'configured'
       ? 'Personalized insight'
@@ -283,10 +480,12 @@ function AiInsightCard({ insight }: { insight: DashboardSummary['ai_insight'] })
         : 'AI not configured';
 
   return (
-    <article className="w-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex items-start gap-4">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-brand-primary">
-          <img src={alalayLogo} alt="" className="h-7 w-7 object-contain" />
+    <article
+      className={`w-full ${compact ? '' : 'rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900'}`}
+    >
+      <div className="flex items-start gap-3">
+        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-primary">
+          <img src={alalayLogo} alt="" className="h-5 w-5 object-contain" />
         </span>
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -295,7 +494,7 @@ function AiInsightCard({ insight }: { insight: DashboardSummary['ai_insight'] })
               {statusLabel}
             </span>
           </div>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-800 dark:text-slate-200">
+          <p className="mt-2 max-w-3xl text-xs leading-5 text-slate-800 dark:text-slate-200">
             {insight.message}
           </p>
         </div>
@@ -878,16 +1077,13 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const greeting = getPhilippineGreeting();
   const { data: summary, isLoading, isSlowLoading, error } = useDashboard();
+  const { data: report } = useReports({ period: 'ytd' });
+  const { data: monthlyReport } = useReports({ period: 'this_month' });
+  const { data: budget } = useBudget();
+  const { data: loans } = useApiQuery<LoanSummary>('/loans/summary');
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
   const { data: bills, isLoading: billsLoading, refetch: refetchBills } = useBills();
   const { data: subscriptions, isLoading: subscriptionsLoading } = useSubscriptions();
-  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const today = new Date().toISOString().slice(0, 10);
-  const { data: incomeRows } = useApiQuery<IncomeOccurrence[]>(
-    `/income/occurrences?from=${monthStart}&to=${today}`,
-  );
   const [isPrivate, setIsPrivate] = useState(false);
   const scheduleLoading = billsLoading || subscriptionsLoading;
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -938,12 +1134,18 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
           <SummaryCards
             summary={summary}
             wallets={wallets ?? []}
-            incomeRows={incomeRows ?? []}
+            report={report}
+            loans={loans}
             isPrivate={isPrivate}
             onTogglePrivacy={() => setIsPrivate((current) => !current)}
           />
 
-          <section className="mt-5 grid items-start gap-4 xl:grid-cols-[2fr_1fr]">
+          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.65fr_1fr]">
+            <MoneyFlowCard report={report} isPrivate={isPrivate} />
+            <BudgetUsedCard budget={budget} insight={summary.ai_insight} isPrivate={isPrivate} />
+          </section>
+
+          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">
             {scheduleLoading ? (
               <SkeletonCard className="h-[390px]">
                 <SkeletonText className="w-28" />
@@ -952,10 +1154,10 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
             ) : (
               <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
             )}
-            <AiInsightCard insight={summary.ai_insight} />
+            <TopSpendingCard report={monthlyReport} isPrivate={isPrivate} />
           </section>
 
-          <section className="mt-5 grid items-start gap-4 xl:grid-cols-2">
+          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">
             {scheduleLoading ? (
               <ListSkeleton rows={2} />
             ) : (

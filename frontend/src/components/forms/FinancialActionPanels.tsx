@@ -28,6 +28,7 @@ import { TextInput } from '../ui/TextInput';
 import { CurrencyInput } from '../ui/CurrencyInput';
 import { CategorySelect } from '../ui/CategorySelect';
 import { institutionFor } from '@shared/institution-registry';
+import { incomeCategoryKeys } from '@shared/category-registry';
 
 type FormDialogProps = {
   open: boolean;
@@ -467,6 +468,7 @@ export function SubscriptionFormPanel({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: defaultSubscriptionValues(subscription),
   });
+  const walletId = watch('wallet_id');
 
   useEffect(() => {
     if (open) {
@@ -635,6 +637,7 @@ function WalletSelector({
   value,
   onChange,
   required = false,
+  excludeCredit = false,
   error,
 }: {
   id: string;
@@ -642,9 +645,13 @@ function WalletSelector({
   value?: string | null;
   onChange: (value: string) => void;
   required?: boolean;
+  excludeCredit?: boolean;
   error?: string;
 }) {
   const { data: wallets, isLoading } = useApiQuery<Wallet[]>('/wallets');
+  const eligibleWallets = (wallets ?? []).filter(
+    (wallet) => !excludeCredit || wallet.account_type !== 'credit',
+  );
 
   return (
     <label htmlFor={id} className="block">
@@ -660,7 +667,7 @@ function WalletSelector({
         <option value="">
           {isLoading ? 'Loading wallets…' : required ? 'Select wallet' : 'No wallet selected'}
         </option>
-        {(wallets ?? []).map((wallet) => {
+        {eligibleWallets.map((wallet) => {
           const institution = institutionFor(wallet.institution_key);
           const account = wallet.account_type ? ` · ${wallet.account_type}` : '';
           return (
@@ -852,11 +859,14 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
 
 const incomeSchema = z.object({
   source: z.string().trim().min(1, 'Income source is required'),
-  type: z.enum(['salary', 'freelance', 'business', 'remittance', 'other']),
+  type: z
+    .string()
+    .refine((value) => incomeCategoryKeys.includes(value), 'Choose an income category'),
   amount: z.coerce.number().positive('Please enter an amount greater than 0'),
   date: z.string().date('Date is required'),
   is_recurring: z.boolean(),
-  frequency: z.enum(['monthly', 'weekly', 'biweekly', 'yearly']),
+  frequency: z.enum(['monthly', 'weekly', 'biweekly', 'yearly']).optional(),
+  wallet_id: z.string().uuid('Select where this income was received.'),
 });
 
 type IncomeFormValues = z.infer<typeof incomeSchema>;
@@ -864,11 +874,12 @@ type IncomeFormValues = z.infer<typeof incomeSchema>;
 function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
   return {
     source: income?.source ?? '',
-    type: income?.type ?? 'salary',
+    type: income?.type === 'other' ? 'other-income' : income?.type ?? 'salary',
     amount: income ? Number(income.amount) : undefined,
     date: income?.date ?? todayInputValue(),
     is_recurring: income ? Boolean(income.is_recurring) : false,
     frequency: income?.frequency ?? 'monthly',
+    wallet_id: income?.wallet_id ?? '',
   };
 }
 
@@ -881,12 +892,14 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     reset,
     formState: { errors },
     control,
+    setValue,
     watch,
   } = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
   });
   const recurring = watch('is_recurring');
+  const walletId = watch('wallet_id');
 
   useEffect(() => {
     if (open) {
@@ -931,18 +944,16 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
         />
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <SelectField
+          <CategorySelect
             id="income-type"
-            label="Type"
+            label="Category"
+            value={watch('type')}
+            options={incomeCategoryKeys}
+            onChange={(value) =>
+              setValue('type', value, { shouldDirty: true, shouldValidate: true })
+            }
             error={errors.type?.message}
-            {...register('type')}
-          >
-            <option value="salary">Salary</option>
-            <option value="freelance">Freelance</option>
-            <option value="business">Business</option>
-            <option value="remittance">Remittance</option>
-            <option value="other">Other</option>
-          </SelectField>
+          />
           <FormCurrencyInput
             id="income-amount"
             label="Amount"
@@ -954,6 +965,18 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
             error={errors.amount?.message}
           />
         </div>
+
+        <WalletSelector
+          id="income-wallet"
+          label="Deposit to"
+          value={walletId}
+          required
+          excludeCredit
+          error={errors.wallet_id?.message}
+          onChange={(value) =>
+            setValue('wallet_id', value, { shouldDirty: true, shouldValidate: true })
+          }
+        />
 
         <TextInput
           id="income-date"
@@ -970,18 +993,19 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
           {...register('is_recurring')}
         />
 
-        <SelectField
-          id="income-frequency"
-          label="Frequency"
-          disabled={!recurring}
-          error={errors.frequency?.message}
-          {...register('frequency')}
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-          <option value="biweekly">Biweekly</option>
-          <option value="yearly">Yearly</option>
-        </SelectField>
+        {recurring ? (
+          <SelectField
+            id="income-frequency"
+            label="Frequency"
+            error={errors.frequency?.message}
+            {...register('frequency')}
+          >
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="biweekly">Biweekly</option>
+            <option value="yearly">Yearly</option>
+          </SelectField>
+        ) : null}
       </form>
     </SlideOver>
   );
@@ -1072,7 +1096,7 @@ export function SavingsGoalFormPanel({
         method: 'POST',
         body: JSON.stringify({
           ...payload,
-          current_amount: values.current_amount ?? 0,
+          current_amount: 0,
         }),
       });
     }
@@ -1085,11 +1109,11 @@ export function SavingsGoalFormPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title={isEditing ? 'Edit savings goal' : 'Create savings goal'}
+      title={isEditing ? 'Edit goal' : 'Create goal'}
       description={
         isEditing
           ? 'Update the goal details here. Progress is handled from the goal card.'
-          : 'Set the target, starting amount, and monthly contribution for this goal.'
+          : 'Set a target and target date. Add progress later from an eligible wallet.'
       }
       footer={
         <DialogActions
@@ -1152,18 +1176,6 @@ export function SavingsGoalFormPanel({
           />
         </div>
 
-        {!isEditing ? (
-          <FormCurrencyInput
-            id="goal-current-amount"
-            label="Starting saved amount"
-            control={control}
-            name="current_amount"
-            min="0"
-            step="0.01"
-            placeholder="10000"
-            error={errors.current_amount?.message}
-          />
-        ) : null}
       </form>
     </SlideOver>
   );
@@ -1171,6 +1183,7 @@ export function SavingsGoalFormPanel({
 
 const savingsGoalProgressSchema = z.object({
   amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+  wallet_id: z.string().uuid('Choose the wallet this contribution comes from.'),
 });
 
 type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
@@ -1178,6 +1191,7 @@ type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
 function defaultSavingsGoalProgressValues(): SavingsGoalProgressValues {
   return {
     amount: undefined,
+    wallet_id: '',
   };
 }
 
@@ -1195,6 +1209,8 @@ export function SavingsGoalProgressPanel({
     reset,
     formState: { errors },
     control,
+    setValue,
+    watch,
   } = useForm<SavingsGoalProgressValues>({
     resolver: zodResolver(savingsGoalProgressSchema),
     defaultValues: defaultSavingsGoalProgressValues(),
@@ -1202,6 +1218,7 @@ export function SavingsGoalProgressPanel({
   const currentAmount = Number(goal?.current_amount ?? 0);
   const targetAmount = Number(goal?.target_amount ?? 0);
   const remaining = Math.max(0, targetAmount - currentAmount);
+  const walletId = watch('wallet_id');
 
   useEffect(() => {
     if (open) {
@@ -1215,13 +1232,11 @@ export function SavingsGoalProgressPanel({
       return;
     }
 
-    const nextAmount = Math.min(targetAmount, currentAmount + values.amount);
-
-    await mutate<SavingsGoal>(`/savings-goals/${goal.id}`, {
-      method: 'PATCH',
+    await mutate(`/savings-goals/${goal.id}/contributions`, {
+      method: 'POST',
       body: JSON.stringify({
-        current_amount: nextAmount,
-        completed_at: nextAmount >= targetAmount ? new Date().toISOString() : null,
+        wallet_id: values.wallet_id,
+        amount: values.amount,
       }),
     });
 
@@ -1233,14 +1248,14 @@ export function SavingsGoalProgressPanel({
     <SlideOver
       open={open}
       onClose={onClose}
-      title="Add money"
-      description={goal ? `Update progress for ${goal.title}.` : 'Update goal progress.'}
+      title="Add contribution"
+      description={goal ? `Allocate money from a wallet to ${goal.title}.` : 'Allocate money to a goal.'}
       footer={
         <DialogActions
           formId={formId}
           onClose={onClose}
           isSubmitting={isSubmitting}
-          submitLabel="Update progress"
+          submitLabel="Add contribution"
         />
       }
     >
@@ -1261,7 +1276,7 @@ export function SavingsGoalProgressPanel({
 
         <FormCurrencyInput
           id="goal-add-amount"
-          label="Amount to add"
+          label="Contribution amount"
           control={control}
           name="amount"
           min="0.01"
@@ -1270,12 +1285,19 @@ export function SavingsGoalProgressPanel({
           error={errors.amount?.message}
         />
 
-        {remaining > 0 ? (
-          <p className="text-xs text-slate-500">
-            Amounts above the remaining balance will mark the goal complete at{' '}
-            {formatCurrency(targetAmount)}.
-          </p>
-        ) : null}
+        <WalletSelector
+          id="goal-contribution-wallet"
+          label="From wallet"
+          value={walletId}
+          required
+          excludeCredit
+          error={errors.wallet_id?.message}
+          onChange={(value) =>
+            setValue('wallet_id', value, { shouldDirty: true, shouldValidate: true })
+          }
+        />
+
+        {remaining > 0 ? <p className="text-xs text-slate-500">Contributions cannot exceed the remaining {formatCurrency(remaining)}.</p> : null}
       </form>
     </SlideOver>
   );

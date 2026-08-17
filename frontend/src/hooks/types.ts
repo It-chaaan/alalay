@@ -39,12 +39,13 @@ export type Expense = {
 export type IncomeEntry = {
   id: string;
   source: string;
-  type: 'salary' | 'freelance' | 'business' | 'remittance' | 'other';
+  type: string;
   amount: number | string;
   date: string;
   is_recurring: boolean;
   frequency?: 'monthly' | 'weekly' | 'biweekly' | 'yearly';
   created_at: string;
+  wallet_id?: string | null;
 };
 
 export type Subscription = {

@@ -33,6 +33,86 @@ Finance add flows should reuse `src/components/finance-form.tsx` for the custom 
 
 Budget editing is month-scoped: use the selected `YYYY-MM` when reading or saving the shared budget plan, and keep over-budget states legible with both color and text.
 
+## Bryl-minimal mobile design language
+
+Apply this visual language to every new or restyled native screen while keeping
+Expo Router, `StyleSheet`, and `AppThemeProvider` as the implementation model.
+It is an aesthetic, not a reason to import web CSS, Tailwind, a desktop sidebar,
+or an additional styling system.
+
+- Use monochrome, typography-led hierarchy. Emphasize through ink/background
+  inversion, type role, spacing, and a single restrained halftone accent—not
+  decorative accent colours. Keep semantic light/dark tokens aligned with the
+  app theme: light `#ffffff`/`#0a0a0a`, dark `#0c0c0f`/`#f4f4f5`, with the
+  gray ramp for fills, hairlines, and secondary text.
+- Use one-pixel gray-200 dividers, rare low-contrast fills, the 16/12/8/6 radius
+  ladder, and soft low-alpha shadows. Prefer borders over shadows in dark mode.
+  Never make readable copy lighter than gray 400.
+- Keep a compact type scale: UI body near 15px; technical labels, tags, dates,
+  and captions in uppercase, tracked mono at a practical 10–11px; lowercase
+  display titles and small numbered labels such as `01 — overview`. Use bundled
+  or supported Geist/Geist Mono assets when available; otherwise use the closest
+  system sans/mono fallbacks. Do not introduce a decorative font to imitate
+  Geist Pixel.
+- Use full-width content with generous 16px page padding, 20px card padding,
+  and the established 4/8/12/16/24/32 spacing rhythm. Use the existing compact
+  top bar, bottom sheets, and floating navigation—not web-style sidebars.
+- Treat tags as subtle rounded mono labels. Reserve an inverted ink pill for one
+  highest-priority action or state per view. Keep cards quiet: hairline border,
+  soft surface, micro-label, and an obvious pressed state.
+- Build loading, empty, error, and success states with the same monochrome
+  system; use useful, specific copy rather than generic placeholders.
+- Add halftone dots only once or twice on a screen, and only in static header or
+  empty-state artwork. Use native-safe SVG/gradients, fade it at the edge, and
+  never place it behind transactional text or scroll-heavy lists.
+- Make motion brief and purposeful: pressed feedback around 120–180ms, screen or
+  sheet transitions around 250–350ms, and interruptible spring motion for direct
+  manipulation. Respect reduced-motion preferences where supported. Never add
+  animation solely as decoration.
+- Retain visible `Pressable` states, practical WCAG AA contrast, 44×44pt iOS and
+  48×48dp Android targets, screen-reader labels, and Escape/back/gesture routes
+  for every modal or sheet.
+
+### Layout and component recipes
+
+- Use 16px horizontal page padding, 20px card padding, 12px local gaps, and
+  32px major section gaps. Keep content as one clear column by default; use two
+  columns only for compact, glanceable data on sufficiently wide devices. Build
+  stat rows as hairline-divided cells rather than disconnected floating cards.
+- Use a 1px gray-200 border, near-background fill, 16px card radius, 12px
+  grouped-panel radius, 8px compact-control radius, and 6px input/button radius.
+  Use native elevation/shadow as soft ground contact only; reduce it further in
+  dark mode and let borders establish separation.
+- Use subtle rounded tags with a gray-300 border, gray-500 uppercase mono copy,
+  and tight horizontal padding. Use an ink-filled, background-text variant only
+  for the highest-emphasis state or action on a screen.
+- Make primary actions ink-filled with background-coloured 12px UI text. Make
+  secondary actions quiet mono text with an icon/arrow and a clear pressed state.
+  Never use colour as the only priority or status signal.
+- Use composed transparent controls only where their grouping makes the input
+  obvious; otherwise use gray-50 fill, gray-200 outline, 6px radius, 13px mono
+  text, labels, errors, and a visible focused/pressed state. Keep native keyboard
+  avoidance and the shared finance form system intact.
+- Use bottom sheets or native modal presentations for dialogs. Give sheets about
+  16px corner radius and 28px padding where appropriate, a dimmed/blurred
+  backdrop when supported, explicit close affordance, Android back handling, and
+  an interruptible 250–350ms entrance/exit.
+
+### Texture and motion details
+
+- Construct halftone as tiny monochrome dots on roughly 5–9px cells, with a
+  gradient fade into the surrounding surface. In dark mode reduce dot opacity to
+  about 42%; in light mode use near-ink dots. Do not use it behind amounts,
+  forms, tables, or controls.
+- Use 200ms opacity/colour/scale transitions for small state changes. Use the
+  strong ease-out equivalent for passive entrances, 700ms fade-up-from-12px
+  sequences only where a screen benefits from it, and a maximum ~70ms stagger.
+  Use a 1.8s opacity-only status pulse sparingly.
+- For cards, use a modest pressed scale or opacity change rather than a web hover
+  lift. Let direct manipulation use an interruptible spring. Do not animate an
+  entire long list on every refocus, and fully suppress nonessential effects when
+  the platform reports reduced motion.
+
 ## Data rules
 
 - Keep business calculations in backend services, same as web — the mobile client renders server results and does only UI-level formatting, never re-derives financial totals client-side.

@@ -30,6 +30,81 @@ Use this for feature work, bug fixes, refactors, Supabase changes, analytics, AI
 - Use high-contrast shared shell title/subtitle styles and preserve visible focus states and practical WCAG AA contrast.
 - Report charts need keyboard-reachable value tooltips, and budget indicators must pair color with labels or values.
 
+## minimal design language
+
+Apply this visual system whenever building or restyling web or mobile UI. Keep the
+product's existing information architecture and platform conventions; this is a
+design language, not permission to introduce a new framework or replace working
+components.
+
+### Shared principles
+
+- Use a monochrome, typography-led hierarchy. Do not introduce decorative accent
+  colours: create emphasis through ink/background inversion, type role, spacing,
+  and a restrained halftone texture.
+- Map semantic colour tokens in light and dark themes: light `#ffffff` background
+  and `#0a0a0a` ink; dark `#0c0c0f` background and `#f4f4f5` ink. Use the
+  existing gray ramp for fills, borders, and secondary text; no readable text may
+  be lighter than gray 400.
+- Use one-pixel gray-200 dividers generously, rare gray-50 filled surfaces, the
+  16/12/8/6 radius ladder, and very soft low-alpha shadows. In dark mode, favor
+  borders over shadows.
+- Reserve the inverted ink chip/pill for the single highest-emphasis item in a
+  view. Use ordinary tags as subtle, rounded, uppercase mono labels.
+- Make whitespace structural: narrow content measures, a 4/8/12/16/24/32-style
+  spacing rhythm, clear section gaps, and modest grids separated by hairlines.
+- Treat loading, empty, error, and success states as designed first-class states.
+
+### Typography and texture
+
+- Use Geist for UI/body, Geist Mono for technical labels, Geist Pixel (or
+  uppercase Geist Mono fallback) for display titles and section numbers, and
+  Source Serif 4 only for long-form article text. Load web fonts with `swap`; on
+  native, use the closest installed/bundled equivalents and never add a
+  decorative substitute merely to mimic the display face.
+- Keep UI body text compact (about 15px); use mono micro-labels at 9–11px,
+  uppercase, wide-tracked, and gray-400/500. Use lowercase display titles and
+  numbered section labels such as `01 — overview`.
+- Use the halftone motif only once or twice per view: tiny monochrome dots on a
+  5–9px repeating grid, faded with a gradient/mask into its surrounding surface.
+  It is an accent, never a page wallpaper or a contrast substitute.
+
+### Web implementation
+
+- Reuse `AppPreferencesContext`, the root `dark` class, Tailwind, existing CSS,
+  and layout components. Define or consume semantic tokens rather than scattering
+  raw values. Persist light/dark/system, default to system, declare both color
+  schemes, and crossfade background/text/border colours over about 500ms.
+- At desktop widths (about 1024px+), prefer the existing shell or a 14rem fixed
+  left navigation; below it, use a sticky, blurred top bar and accessible overlay
+  menu. Keep reading pages near 42rem and only expand to about 56rem for real
+  grids.
+- Make links subtly underlined, with stronger underline opacity on hover; add
+  `↗` to external links. Ensure visible keyboard focus and Escape-to-close for
+  overlays.
+- Use brief, purposeful motion: ~200ms micro-interactions, soft card lift on
+  hover, and optional 700ms fade-up entrances with modest stagger. Respect
+  `prefers-reduced-motion`; no motion is required for the interface to work.
+- Use selection inversion and slim themed scrollbars where supported. Keep card
+  images to a restrained hover scale (about 1.04), not an attention-grabbing
+  zoom.
+
+### Mobile implementation
+
+- Use `AppThemeProvider`/`useAppTheme` and `StyleSheet` semantic tokens; do not
+  transplant CSS-only features, desktop sidebars, or browser font loading into
+  Expo. Add native token aliases only when they remain sourced from the shared
+  mobile theme.
+- Translate micro-labels to practical native sizes and preserve 44×44pt iOS /
+  48×48dp Android touch targets. Favor a compact top bar, bottom-sheet patterns,
+  and the existing floating navigation over a desktop-style sidebar.
+- Use `Pressable` pressed states, subtle opacity/scale feedback, and interruptible
+  Reanimated transitions only when they communicate state. Honor reduced-motion
+  preferences where supported; avoid decorative animation.
+- Build halftone texture with native-safe gradients/SVG only when it does not
+  impair performance, readability, or list scrolling. Use it sparingly on static
+  headers or empty states, never behind transactional content.
+
 Budget editing is month-scoped: use the selected `YYYY-MM` when reading or saving the shared budget plan, and keep over-budget states legible with both color and text.
 
 Wallet/account links are account-scoped: income records require `wallet_id`, outgoing records may set it, and wallet balances must remain derived from linked transaction rows. Validate wallet ownership server-side and preserve the default Cash wallet.

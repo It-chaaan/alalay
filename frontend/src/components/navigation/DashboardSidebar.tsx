@@ -89,6 +89,9 @@ export function DashboardSidebar({
               key={sectionIndex}
               className={sectionIndex > 0 ? 'border-t border-slate-200/80 pt-3' : ''}
             >
+              <p className="mb-1 px-3 text-[9px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                {section.label}
+              </p>
               <div className="space-y-0.5">
                 {section.items.map((item) => {
                   const isActive = item.label === activeLabel;
@@ -137,6 +140,9 @@ export function DashboardSidebar({
               >
                 {displayName}
               </a>
+              {profile?.email ? (
+                <p className="mt-0.5 truncate text-[10px] text-slate-500">{profile.email}</p>
+              ) : null}
             </div>
             <button
               type="button"

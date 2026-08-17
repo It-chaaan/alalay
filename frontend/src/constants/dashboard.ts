@@ -1,5 +1,6 @@
 export const dashboardSidebarSections = [
   {
+    label: 'Menu',
     items: [
       { label: 'Dashboard', icon: 'dashboard', path: '/app' },
       { label: 'Wallets', icon: 'wallets', path: '/app/wallets' },
@@ -9,6 +10,7 @@ export const dashboardSidebarSections = [
     ],
   },
   {
+    label: 'Manage',
     items: [
       { label: 'Income', icon: 'income', path: '/app/income' },
       { label: 'Goals', icon: 'goals', path: '/app/goals' },
@@ -17,6 +19,7 @@ export const dashboardSidebarSections = [
     ],
   },
   {
+    label: 'Tools',
     items: [
       { label: 'AI Assistant', icon: 'assistant', path: '/app/ai-assistant' },
       { label: 'OCR Scanner', icon: 'scanner', path: '/app/ocr-scanner' },

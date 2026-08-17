@@ -3,6 +3,8 @@ import {
   ArrowLeftRight,
   ArrowRight,
   ChevronRight,
+  Eye,
+  EyeOff,
   HandCoins,
   Plus,
   Send,
@@ -51,27 +53,27 @@ function InstitutionMark({ wallet }: { wallet: Wallet }) {
   );
 }
 
-function WalletCard({ wallet }: { wallet: Wallet }) {
+function WalletCard({ wallet, isPrivate }: { wallet: Wallet; isPrivate: boolean }) {
   const isCredit = wallet.account_type === 'credit';
   const label = wallet.account_type
     ? `${wallet.account_type} · PHP`
     : `${wallet.institution_type.replace('_', ' ')} · PHP`;
   return (
-    <article className="min-h-48 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex items-start justify-between gap-3">
+    <article className="min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start gap-3">
         <InstitutionMark wallet={wallet} />
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</h3>
+          <p className="mt-1 text-xs capitalize text-slate-500">{label}</p>
+        </div>
         <ChevronRight className="mt-1 h-5 w-5 text-slate-400" aria-hidden="true" />
       </div>
-      <div className="mt-4">
-        <h3 className="truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</h3>
-        <p className="mt-1 text-xs capitalize text-slate-500">{label}</p>
-      </div>
-      <div className="mt-6">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.13em] text-slate-400">
-          {isCredit ? 'Outstanding' : 'Balance'}
+      <div className="mt-5">
+        <p className="font-mono text-xl font-bold text-slate-950 dark:text-white">
+          {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance), true)}
         </p>
-        <p className="mt-1 font-mono text-xl font-bold text-slate-950 dark:text-white">
-          {formatCurrency(Number(wallet.balance), true)}
+        <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">
+          {isCredit ? 'Outstanding' : 'Balance'}
         </p>
       </div>
       {wallet.interest_rate ? (
@@ -114,6 +116,8 @@ function WalletForm({ onClose, onSaved }: WalletFormProps) {
       }),
     });
     onSaved();
+    setOpeningBalance('');
+    setCreditLimit('');
     onClose();
   }
   return (
@@ -183,7 +187,7 @@ function WalletForm({ onClose, onSaved }: WalletFormProps) {
         </button>
         <button
           disabled={isSubmitting}
-          className="min-h-11 rounded-full bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-60"
+          className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-60"
         >
           {isSubmitting ? 'Saving…' : 'Save wallet'}
         </button>
@@ -192,7 +196,15 @@ function WalletForm({ onClose, onSaved }: WalletFormProps) {
   );
 }
 
-function TransferForm({ wallets, onSaved }: { wallets: Wallet[]; onSaved: () => void }) {
+function TransferForm({
+  wallets,
+  onSaved,
+  onClose,
+}: {
+  wallets: Wallet[];
+  onSaved: () => void;
+  onClose: () => void;
+}) {
   const { mutate, isSubmitting, error } = useApiMutation();
   const [fromWallet, setFromWallet] = useState('');
   const [toWallet, setToWallet] = useState('');
@@ -218,11 +230,12 @@ function TransferForm({ wallets, onSaved }: { wallets: Wallet[]; onSaved: () => 
     setAmount('');
     setFee('');
     onSaved();
+    onClose();
   }
   return (
     <form
       onSubmit={(event) => void submit(event)}
-      className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+      className="space-y-5"
     >
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand-primary">
@@ -303,8 +316,15 @@ function TransferForm({ wallets, onSaved }: { wallets: Wallet[]; onSaved: () => 
           Add another non-credit wallet to transfer money.
         </p>
       )}
-      <div className="mt-5 flex items-center justify-between gap-3">
+      <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
         {error ? <p className="text-sm text-red-600">{error}</p> : <span />}
+        <button
+          type="button"
+          onClick={onClose}
+          className="min-h-11 rounded-lg px-4 text-sm font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+        >
+          Cancel
+        </button>
         <button
           disabled={!canTransfer || isSubmitting}
           className="inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-50"
@@ -317,7 +337,15 @@ function TransferForm({ wallets, onSaved }: { wallets: Wallet[]; onSaved: () => 
   );
 }
 
-function LoansDebtCard({ data, onOpen }: { data: LoansResponse | null; onOpen: () => void }) {
+function LoansDebtCard({
+  data,
+  onOpen,
+  isPrivate,
+}: {
+  data: LoansResponse | null;
+  onOpen: () => void;
+  isPrivate: boolean;
+}) {
   return (
     <button
       type="button"
@@ -333,14 +361,14 @@ function LoansDebtCard({ data, onOpen }: { data: LoansResponse | null; onOpen: (
           <UserRound className="h-5 w-5 text-emerald-600" />
           <p className="mt-4 text-sm text-slate-500">Owed to me</p>
           <p className="mt-1 font-mono text-lg font-bold">
-            {formatCurrency(data?.summary.owed_to_me ?? 0, true)}
+            {isPrivate ? '••••••' : formatCurrency(data?.summary.owed_to_me ?? 0, true)}
           </p>
         </div>
         <div className="rounded-2xl bg-rose-50 p-4 dark:bg-rose-950/30">
           <HandCoins className="h-5 w-5 text-rose-600" />
           <p className="mt-4 text-sm text-slate-500">I owe</p>
           <p className="mt-1 font-mono text-lg font-bold">
-            {formatCurrency(data?.summary.i_owe ?? 0, true)}
+            {isPrivate ? '••••••' : formatCurrency(data?.summary.i_owe ?? 0, true)}
           </p>
         </div>
       </div>
@@ -353,7 +381,9 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
   const walletsQuery = useApiQuery<Wallet[]>('/wallets');
   const loansQuery = useApiQuery<LoansResponse>('/loans');
   const [isAddWalletOpen, setIsAddWalletOpen] = useState(false);
+  const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isLoansOpen, setIsLoansOpen] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
   const wallets = walletsQuery.data ?? [];
   const liquidWallets = wallets.filter((wallet) => wallet.account_type !== 'credit');
   const liquidBalance = useMemo(
@@ -379,24 +409,52 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       ) : null}
       {!walletsQuery.isLoading ? (
         <>
-          <section className="grid gap-4 xl:grid-cols-[1.65fr_1fr]">
-            <article className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-brand-dark via-brand-primary to-[#48b994] p-7 text-white shadow-sm">
+          <section className="grid gap-4 xl:grid-cols-2">
+            <article className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
               <p className="text-xs font-semibold tracking-[0.14em] text-white/75">
                 LIQUID BALANCE
               </p>
-              <p className="mt-5 font-mono text-4xl font-bold">
-                {formatCurrency(liquidBalance, true)}
-              </p>
+              <div className="mt-5 flex items-center justify-between gap-3">
+                <p className="font-mono text-4xl font-bold">
+                  {isPrivate ? '••••••' : formatCurrency(liquidBalance, true)}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setIsPrivate((current) => !current)}
+                  className="rounded-lg p-2 text-white/80 hover:bg-white/10"
+                  aria-label={isPrivate ? 'Show wallet balances' : 'Hide wallet balances'}
+                >
+                  {isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
               <p className="mt-4 max-w-sm text-sm leading-6 text-white/85">
                 Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'}. Credit
                 liabilities are shown separately.
               </p>
-              <span
-                className="pointer-events-none absolute -bottom-12 right-8 h-40 w-40 rounded-full border-2 border-white/25"
+              <svg
                 aria-hidden="true"
-              />
+                viewBox="0 0 480 130"
+                preserveAspectRatio="none"
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-25"
+              >
+                <path
+                  d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                />
+                <path
+                  d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20 L480 130 L0 130 Z"
+                  fill="currentColor"
+                  opacity="0.12"
+                />
+              </svg>
             </article>
-            <LoansDebtCard data={loansQuery.data} onOpen={() => setIsLoansOpen(true)} />
+            <LoansDebtCard
+              data={loansQuery.data}
+              onOpen={() => setIsLoansOpen(true)}
+              isPrivate={isPrivate}
+            />
           </section>
           <section className="mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -404,23 +462,26 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                 <WalletCards className="h-5 w-5 text-brand-primary" />
                 Your wallets
               </h2>
+              <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => setIsAddWalletOpen(true)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 text-sm font-semibold text-white"
+                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <Plus className="h-4 w-4" />
                 Add wallet
               </button>
+              <button type="button" onClick={() => setIsTransferOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark">
+                <ArrowLeftRight className="h-4 w-4" />
+                Transfer
+              </button>
+              </div>
             </div>
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {wallets.map((wallet) => (
-                <WalletCard key={wallet.id} wallet={wallet} />
+                <WalletCard key={wallet.id} wallet={wallet} isPrivate={isPrivate} />
               ))}
             </div>
-          </section>
-          <section className="mt-7">
-            <TransferForm wallets={liquidWallets} onSaved={walletsQuery.refetch} />
           </section>
         </>
       ) : null}
@@ -428,9 +489,21 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
         open={isAddWalletOpen}
         onClose={() => setIsAddWalletOpen(false)}
         title="Add wallet"
-        description="Choose the institution and account details you want to track."
+        description="Add an account, cash wallet, or e-wallet to track."
       >
         <WalletForm onClose={() => setIsAddWalletOpen(false)} onSaved={walletsQuery.refetch} />
+      </SlideOver>
+      <SlideOver
+        open={isTransferOpen}
+        onClose={() => setIsTransferOpen(false)}
+        title="Transfer between wallets"
+        description="Move money between your accounts. Fees are tracked separately."
+      >
+        <TransferForm
+          wallets={liquidWallets}
+          onSaved={walletsQuery.refetch}
+          onClose={() => setIsTransferOpen(false)}
+        />
       </SlideOver>
       <SlideOver
         open={isLoansOpen}

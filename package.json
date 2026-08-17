@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "audit:workflow": "node tools/workflow-parity/audit.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
