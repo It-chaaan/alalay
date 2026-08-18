@@ -8,8 +8,10 @@ import { createIncomeSchema, incomeQuerySchema, updateIncomeSchema } from "../sc
 import { createSubscriptionSchema, updateSubscriptionSchema } from "../schemas/subscription.schema.js";
 import { createSavingsGoalSchema, updateSavingsGoalSchema } from "../schemas/savingsGoal.schema.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
+import { sendSuccess } from "../utils/api.js";
 import { validateRequest } from "../middleware/validateRequest.js";
 import { processSubscriptionBilling } from "../services/subscription-billing.service.js";
+import { listSubscriptionsWithOccurrences } from "../services/subscription-occurrence.service.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
 import { goalContributionSchema } from "../schemas/goalContribution.schema.js";
 
@@ -34,6 +36,9 @@ export function resourceRouter(table: TableName) {
 
   router.get("/", validateRequest({ query: schemas.query }), asyncHandler(async (req, res, next) => {
     if (table === "expenses") await processSubscriptionBilling(req.user!.id);
+    if (table === "subscriptions") {
+      return sendSuccess(res, await listSubscriptionsWithOccurrences(req.user!.id));
+    }
     return controller.list(req, res);
   }));
   router.get("/:id", validateRequest({ params: idParamSchema }), asyncHandler(controller.get));

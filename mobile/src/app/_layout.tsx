@@ -82,8 +82,13 @@ function SessionGate() {
 
   useEffect(() => {
     if (!session) return;
-    void reconcileOnAppResume();
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void reconcileOnAppResume(); });
+    const reconcileSafely = () => {
+      void reconcileOnAppResume().catch((error) => {
+        if (__DEV__) console.warn('[Financial reminders] startup reconciliation failed.', error instanceof Error ? error.name : 'UnknownError');
+      });
+    };
+    reconcileSafely();
+    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') reconcileSafely(); });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { if (response.notification.request.content.data?.eventType === 'bill') router.push('/bills'); });
     return () => { subscription.remove(); responseSubscription.remove(); };
   }, [router, session]);

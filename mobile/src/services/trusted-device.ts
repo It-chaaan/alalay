@@ -1,7 +1,8 @@
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
+import { SECURE_STORAGE_KEYS } from '@/constants/secure-storage-keys';
 
-const STORAGE_KEY = 'alalay-trusted-device-token';
+const STORAGE_KEY = SECURE_STORAGE_KEYS.trustedDeviceToken;
 
 export async function getTrustedDeviceToken() {
   if (Platform.OS === 'web') {

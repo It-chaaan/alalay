@@ -23,6 +23,9 @@ export type SubscriptionRecord = {
   billing_cycle: 'weekly' | 'monthly' | 'quarterly' | 'yearly';
   auto_renew: boolean;
   wallet_id?: string | null;
+  current_occurrence_date?: string;
+  current_status?: 'paid' | 'upcoming' | 'due_today' | 'overdue';
+  next_renewal_date?: string | null;
 };
 
 export type FinanceItem = {
@@ -287,10 +290,10 @@ export async function fetchFinanceItems() {
     name: subscription.name,
     amount: Number(subscription.amount),
     category: 'Subscriptions',
-    dueDate: subscription.renewal_date,
+    dueDate: subscription.current_occurrence_date ?? subscription.renewal_date,
     recurring: true,
     frequency: subscription.billing_cycle,
-    paid: false,
+    paid: subscription.current_status === 'paid',
     wallet_id: subscription.wallet_id,
   }));
   return [...billItems, ...subscriptionItems].sort((left, right) =>

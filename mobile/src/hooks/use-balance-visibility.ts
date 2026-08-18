@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
+import { SECURE_STORAGE_KEYS } from '@/constants/secure-storage-keys';
 
-const STORAGE_KEY = 'alalay-balance-visibility';
+const STORAGE_KEY = SECURE_STORAGE_KEYS.balanceVisibility;
 let sharedVisible: boolean | null = null;
 let hydrationStarted = false;
 const listeners = new Set<(visible: boolean | null) => void>();

@@ -19,7 +19,7 @@ import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { filterSubscriptions } from '@/utils/subscription-search';
 
-type Sub = { id: string; name: string; amount: number | string; renewal_date: string; billing_cycle: Frequency; auto_renew: boolean; category?: string | null; custom_category?: string | null; logo_url?: string | null; wallet_id?: string | null };
+type Sub = { id: string; name: string; amount: number | string; renewal_date: string; billing_cycle: Frequency; auto_renew: boolean; category?: string | null; custom_category?: string | null; logo_url?: string | null; wallet_id?: string | null; current_occurrence_date?: string; current_status?: 'paid' | 'upcoming' | 'due_today' | 'overdue'; next_renewal_date?: string | null };
 type Income = { amount: number | string; is_recurring: boolean; frequency?: string };
 
 function monthly(sub: Sub) { const amount = Number(sub.amount); return sub.billing_cycle === 'weekly' ? amount * 52 / 12 : sub.billing_cycle === 'quarterly' ? amount / 3 : sub.billing_cycle === 'yearly' ? amount / 12 : amount; }

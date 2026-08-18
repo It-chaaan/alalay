@@ -62,6 +62,9 @@ export type Subscription = {
   auto_renew: boolean;
   last_used_at: string | null;
   wallet_id?: string | null;
+  current_occurrence_date?: string;
+  current_status?: 'paid' | 'upcoming' | 'due_today' | 'overdue';
+  next_renewal_date?: string | null;
 };
 
 export type SavingsGoal = {
@@ -344,6 +347,10 @@ export type Wallet = {
   color?: string | null;
   interest_rate?: number | string | null;
   interest_crediting_frequency?: string | null;
+  default_outgoing_transfer_fee?: number | string | null;
+  is_default_cash?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type LoanSummary = {

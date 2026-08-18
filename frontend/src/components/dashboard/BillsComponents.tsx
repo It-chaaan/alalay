@@ -10,84 +10,85 @@ import {
   Pen,
   Trash2,
   Wallet,
-  Circle
-} from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { ComponentType, InputHTMLAttributes, ReactNode } from "react";
-import { createPortal } from "react-dom";
-import type { Bill } from "../../hooks/types";
-import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { CategoryBadge } from "../ui/CategoryBadge";
+  Circle,
+} from 'lucide-react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { ComponentType, InputHTMLAttributes, ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import type { Bill } from '../../hooks/types';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { CategoryBadge } from '../ui/CategoryBadge';
+import { controlSurfaceClass } from '../ui/ControlSurface';
 
-export type BillDisplayStatus = "paid" | "upcoming" | "due_today" | "overdue" | "draft";
+export type BillDisplayStatus = 'paid' | 'upcoming' | 'due_today' | 'overdue' | 'draft';
 
 export function getBillDisplayStatus(bill: Bill, todayIso: string): BillDisplayStatus {
-  if (bill.status === "paid") {
-    return "paid";
+  if (bill.status === 'paid') {
+    return 'paid';
   }
 
-  if (bill.status === "overdue" || bill.due_date < todayIso) {
-    return "overdue";
+  if (bill.status === 'overdue' || bill.due_date < todayIso) {
+    return 'overdue';
   }
 
   if (bill.due_date === todayIso) {
-    return "due_today";
+    return 'due_today';
   }
 
-  return "upcoming";
+  return 'upcoming';
 }
 
 export function isUpcomingBill(bill: Bill, todayIso: string) {
-  return bill.status === "unpaid" && bill.due_date >= todayIso;
+  return bill.status === 'unpaid' && bill.due_date >= todayIso;
 }
 
 export function isOverdueBill(bill: Bill, todayIso: string) {
-  return bill.status !== "paid" && (bill.status === "overdue" || bill.due_date < todayIso);
+  return bill.status !== 'paid' && (bill.status === 'overdue' || bill.due_date < todayIso);
 }
 
 function getStatusLabel(status: BillDisplayStatus) {
-  if (status === "due_today") {
-    return "Due today";
+  if (status === 'due_today') {
+    return 'Due today';
   }
 
-  if (status === "upcoming") {
-    return "Upcoming";
+  if (status === 'upcoming') {
+    return 'Upcoming';
   }
 
-  if (status === "overdue") {
-    return "Overdue";
+  if (status === 'overdue') {
+    return 'Overdue';
   }
 
-  if (status === "paid") {
-    return "Paid";
+  if (status === 'paid') {
+    return 'Paid';
   }
 
-  return "Draft";
+  return 'Draft';
 }
 
 function getStatusClasses(status: BillDisplayStatus) {
-  if (status === "paid") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (status === 'paid') {
+    return 'border-emerald-200 bg-emerald-50 text-emerald-700';
   }
 
-  if (status === "due_today") {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+  if (status === 'due_today') {
+    return 'border-amber-200 bg-amber-50 text-amber-700';
   }
 
-  if (status === "overdue") {
-    return "border-rose-200 bg-rose-50 text-rose-700";
+  if (status === 'overdue') {
+    return 'border-rose-200 bg-rose-50 text-rose-700';
   }
 
-  if (status === "draft") {
-    return "border-slate-200 bg-slate-100 text-slate-600";
+  if (status === 'draft') {
+    return 'border-slate-200 bg-slate-100 text-slate-600';
   }
 
-  return "border-amber-100 bg-amber-50 text-amber-700";
+  return 'border-amber-100 bg-amber-50 text-amber-700';
 }
 
 export function StatusBadge({
   status,
-  className = "",
+  className = '',
 }: {
   status: BillDisplayStatus;
   className?: string;
@@ -105,24 +106,26 @@ export function SummaryCard({
   label,
   value,
   icon: Icon,
-  tone = "default",
+  tone = 'default',
 }: {
   label: string;
   value: string;
   icon: ComponentType<{ className?: string }>;
-  tone?: "default" | "warning" | "danger";
+  tone?: 'default' | 'warning' | 'danger';
 }) {
   const toneClasses =
-    tone === "danger"
-      ? "bg-rose-50 text-rose-600 ring-rose-100"
-      : tone === "warning"
-        ? "bg-amber-50 text-amber-600 ring-amber-100"
-        : "bg-brand-soft text-brand-primary ring-emerald-100";
+    tone === 'danger'
+      ? 'bg-rose-50 text-rose-600 ring-rose-100'
+      : tone === 'warning'
+        ? 'bg-amber-50 text-amber-600 ring-amber-100'
+        : 'bg-brand-soft text-brand-primary ring-emerald-100';
 
   return (
     <article className="group flex h-full min-h-[148px] flex-col justify-between rounded-[28px] border border-slate-200 bg-white p-6 shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_16px_40px_rgba(15,23,42,0.10)]">
       <div className="flex items-center gap-3">
-        <span className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ring-1 ${toneClasses}`}>
+        <span
+          className={`grid h-11 w-11 shrink-0 place-items-center rounded-2xl ring-1 ${toneClasses}`}
+        >
           <Icon className="h-5 w-5" />
         </span>
         <p className="text-sm font-medium text-slate-500">{label}</p>
@@ -136,11 +139,11 @@ export function SummaryCard({
 
 export function SearchField(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
-    <label className="relative block w-full sm:max-w-[320px]">
+    <label className={`relative block w-full sm:max-w-[320px] ${controlSurfaceClass}`}>
       <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
       <input
         {...props}
-        className={`min-h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-brand-primary focus:ring-4 focus:ring-emerald-100 ${props.className ?? ""}`}
+        className={`min-h-10 w-full rounded-xl bg-transparent pl-10 pr-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100 dark:placeholder:text-slate-500 ${props.className ?? ''}`}
       />
     </label>
   );
@@ -170,7 +173,7 @@ export function QuickActionsMenu({
   onDelete,
 }: QuickActionsMenuProps) {
   const displayStatus = getBillDisplayStatus(bill, todayIso);
-  const isPaid = displayStatus === "paid";
+  const isPaid = displayStatus === 'paid';
 
   return (
     <MoreActionsMenu
@@ -180,11 +183,13 @@ export function QuickActionsMenu({
       dataAttribute="data-bill-menu"
       estimatedMenuHeight={176}
     >
-      {onOpenLink ? <MenuAction icon={ExternalLink} label="Open link" tone="info" onClick={onOpenLink} /> : null}
+      {onOpenLink ? (
+        <MenuAction icon={ExternalLink} label="Open link" tone="info" onClick={onOpenLink} />
+      ) : null}
       <MenuAction icon={Pen} label="Edit bill" tone="info" onClick={onEdit} />
       <MenuRadioAction
         checked={isPaid}
-        label={isPaid ? "Mark as unpaid" : "Mark as paid"}
+        label={isPaid ? 'Mark as unpaid' : 'Mark as paid'}
         onClick={isPaid ? onMarkUnpaid : onMarkPaid}
       />
       <MenuAction icon={Trash2} label="Delete bill" tone="danger" onClick={onDelete} />
@@ -197,7 +202,7 @@ export function MoreActionsMenu({
   onToggle,
   ariaLabel,
   children,
-  dataAttribute = "data-actions-menu",
+  dataAttribute = 'data-actions-menu',
   estimatedMenuHeight = 136,
 }: {
   isOpen: boolean;
@@ -213,7 +218,7 @@ export function MoreActionsMenu({
     left: 0,
     openAbove: true,
   });
-  const dataProps = { [dataAttribute]: "" };
+  const dataProps = { [dataAttribute]: '' };
 
   useLayoutEffect(() => {
     if (!isOpen || !buttonRef.current) {
@@ -242,12 +247,12 @@ export function MoreActionsMenu({
     }
 
     updateMenuPosition();
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
+    window.addEventListener('resize', updateMenuPosition);
+    window.addEventListener('scroll', updateMenuPosition, true);
 
     return () => {
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
+      window.removeEventListener('resize', updateMenuPosition);
+      window.removeEventListener('scroll', updateMenuPosition, true);
     };
   }, [estimatedMenuHeight, isOpen]);
 
@@ -270,8 +275,8 @@ export function MoreActionsMenu({
           {...dataProps}
           className={`fixed z-[80] w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.14)] transition duration-150 ${
             isOpen
-              ? "pointer-events-auto scale-100 opacity-100"
-              : `pointer-events-none opacity-0 ${menuStyle.openAbove ? "translate-y-1 scale-95" : "-translate-y-1 scale-95"}`
+              ? 'pointer-events-auto scale-100 opacity-100'
+              : `pointer-events-none opacity-0 ${menuStyle.openAbove ? 'translate-y-1 scale-95' : '-translate-y-1 scale-95'}`
           }`}
           style={{ top: menuStyle.top, left: menuStyle.left }}
           role="menu"
@@ -294,27 +299,27 @@ export function MenuAction({
 }: {
   icon: ComponentType<{ className?: string }>;
   label: string;
-  tone: "success" | "info" | "danger" | "neutral";
+  tone: 'success' | 'info' | 'danger' | 'neutral';
   onClick: () => void;
   disabled?: boolean;
 }) {
   const toneClasses =
-    tone === "success"
-      ? "text-emerald-700 hover:bg-emerald-50"
-      : tone === "info"
-        ? "text-slate-950 hover:bg-slate-50"
-        : tone === "danger"
-          ? "text-red-500 hover:bg-red-50"
-          : "text-slate-700 hover:bg-slate-50";
+    tone === 'success'
+      ? 'text-emerald-700 hover:bg-emerald-50'
+      : tone === 'info'
+        ? 'text-slate-950 hover:bg-slate-50'
+        : tone === 'danger'
+          ? 'text-red-500 hover:bg-red-50'
+          : 'text-slate-700 hover:bg-slate-50';
 
   const iconClasses =
-    tone === "success"
-      ? "text-emerald-700"
-      : tone === "info"
-        ? "text-slate-700"
-        : tone === "danger"
-          ? "text-red-500"
-          : "text-slate-600";
+    tone === 'success'
+      ? 'text-emerald-700'
+      : tone === 'info'
+        ? 'text-slate-700'
+        : tone === 'danger'
+          ? 'text-red-500'
+          : 'text-slate-600';
 
   return (
     <button
@@ -381,7 +386,7 @@ export function BillRow({
   onMarkUnpaid,
 }: BillRowProps) {
   const displayStatus = getBillDisplayStatus(bill, todayIso);
-  const isPaid = displayStatus === "paid";
+  const isPaid = displayStatus === 'paid';
 
   return (
     <tr className="group border-b border-slate-100 transition duration-150 hover:bg-[#f9fcfb]">
@@ -392,7 +397,7 @@ export function BillRow({
           </span>
           <div className="min-w-0">
             <p className="truncate text-[15px] font-semibold text-slate-950">{bill.title}</p>
-            <p className="mt-0.5 text-[13px] text-slate-500">{bill.frequency ?? "One-time"}</p>
+            <p className="mt-0.5 text-[13px] text-slate-500">{bill.frequency ?? 'One-time'}</p>
           </div>
         </div>
       </td>
@@ -426,7 +431,10 @@ export function BillRow({
             onClick={onPrimaryAction}
             className="inline-flex min-h-11 items-center gap-3 rounded-full px-2 text-sm font-semibold text-slate-700 transition duration-150 hover:bg-emerald-50 hover:text-emerald-700 focus:outline-none focus:ring-4 focus:ring-emerald-100"
           >
-            <Circle className="h-5 w-5 shrink-0 text-emerald-600 transition duration-150" aria-hidden="true" />
+            <Circle
+              className="h-5 w-5 shrink-0 text-emerald-600 transition duration-150"
+              aria-hidden="true"
+            />
             Mark paid
           </button>
         )}
@@ -447,7 +455,7 @@ export function BillRow({
   );
 }
 
-type BillMobileCardProps = Omit<BillRowProps, "isMenuOpen" | "onToggleMenu"> & {
+type BillMobileCardProps = Omit<BillRowProps, 'isMenuOpen' | 'onToggleMenu'> & {
   isMenuOpen: boolean;
   onToggleMenu: () => void;
 };
@@ -463,7 +471,7 @@ export function BillMobileCard({
   onMarkUnpaid,
 }: BillMobileCardProps) {
   const displayStatus = getBillDisplayStatus(bill, todayIso);
-  const isPaid = displayStatus === "paid";
+  const isPaid = displayStatus === 'paid';
 
   return (
     <article className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_8px_30px_rgba(15,23,42,0.06)] transition duration-150 hover:border-slate-300 hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
@@ -471,7 +479,10 @@ export function BillMobileCard({
         <div>
           <p className="text-[16px] font-semibold text-slate-950">{bill.title}</p>
           <p className="mt-1 text-[13px] text-slate-500">
-            <span className="inline-flex items-center gap-1.5"><CategoryBadge category={bill.category} compact /><span>· {bill.frequency ?? "One-time"}</span></span>
+            <span className="inline-flex items-center gap-1.5">
+              <CategoryBadge category={bill.category} compact />
+              <span>· {bill.frequency ?? 'One-time'}</span>
+            </span>
           </p>
         </div>
         <QuickActionsMenu
@@ -535,12 +546,12 @@ export function BillsEmptyState({
           <CreditCard className="h-7 w-7" />
         </div>
         <h3 className="mt-5 text-xl font-semibold text-slate-950">
-          {hasFilters ? "No matching bills" : "No bills yet"}
+          {hasFilters ? 'No matching bills' : 'No bills yet'}
         </h3>
         <p className="mt-2 text-sm leading-6 text-slate-500">
           {hasFilters
-            ? "Try a different filter or search term to find the bill you need."
-            : "Add your first bill to begin tracking payments."}
+            ? 'Try a different filter or search term to find the bill you need.'
+            : 'Add your first bill to begin tracking payments.'}
         </p>
         {!hasFilters ? (
           <button

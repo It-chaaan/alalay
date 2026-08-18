@@ -1,5 +1,6 @@
 import { client, requireUserId, throwIfError, asNumber, todayIso } from './db.js';
 import { AppError } from '../utils/api.js';
+import { walletTransferPerspective } from './wallet-transactions.js';
 
 export type WalletPayload = {
   name: string;
@@ -104,26 +105,30 @@ export async function getWallet(userId: string, id: string) {
       .select('id, source, amount, date, wallet_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      .limit(200),
     client()
       .from('expenses')
       .select('id, merchant, category, amount, date, wallet_id, source_bill_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      .limit(200),
     client()
       .from('bills')
       .select('id, title, category, amount, due_date, paid_at, status, wallet_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
       .eq('status', 'paid')
-      .is('deleted_at', null),
+      .is('deleted_at', null)
+      .limit(200),
     client()
       .from('wallet_adjustments')
       .select('id, amount, date, note, wallet_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
-      .order('date', { ascending: false }),
+      .order('date', { ascending: false })
+      .limit(200),
     client()
       .from('wallet_transfers')
       .select(
@@ -131,7 +136,8 @@ export async function getWallet(userId: string, id: string) {
       )
       .eq('user_id', ownerId)
       .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
-      .order('transferred_at', { ascending: false }),
+      .order('transferred_at', { ascending: false })
+      .limit(200),
   ]);
   const counterpartIds = (transfers.data ?? []).map((row) =>
     row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id,
@@ -190,17 +196,7 @@ export async function getWallet(userId: string, id: string) {
     ...(transfers.data ?? []).map((row) => {
       const counterpartId = row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id;
       const counterpartName = counterpartNames.get(counterpartId) ?? 'wallet';
-      const fee = asNumber(row.fee);
-      return {
-        ...row,
-        kind: row.from_wallet_id === id ? 'transfer_out' : 'transfer_in',
-        label:
-          row.from_wallet_id === id
-            ? `Transfer to ${counterpartName}${fee ? ` · Fee ₱${fee.toLocaleString('en-PH')}` : ''}`
-            : `Transfer from ${counterpartName}`,
-        date: row.transferred_at,
-        amount: row.from_wallet_id === id ? -asNumber(row.amount) - fee : asNumber(row.amount),
-      };
+      return walletTransferPerspective(row, id, counterpartName);
     }),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
   return {
@@ -389,12 +385,39 @@ export async function createWalletDeposit(
 }
 
 export async function updateWallet(userId: string, id: string, payload: Record<string, unknown>) {
+  const ownerId = requireUserId(userId);
+  const { data: current, error: currentError } = await client()
+    .from('wallets')
+    .select('id, account_type, balance')
+    .eq('user_id', ownerId)
+    .eq('id', id)
+    .single();
+  if (currentError || !current) throw new AppError(404, 'not_found', 'Wallet not found.');
+
+  if ('account_type' in payload && payload.account_type !== current.account_type) {
+    throw new AppError(
+      409,
+      'wallet_classification_locked',
+      'Debit or Credit classification cannot be changed after the wallet is created.',
+    );
+  }
+  if (
+    current.account_type === 'credit' &&
+    payload.credit_limit != null &&
+    Number(payload.credit_limit) < asNumber(current.balance)
+  ) {
+    throw new AppError(
+      422,
+      'credit_limit_below_outstanding',
+      'Credit limit cannot be lower than the current outstanding balance.',
+    );
+  }
+
   const { data, error } = await client()
     .from('wallets')
     .update(payload)
-    .eq('user_id', requireUserId(userId))
+    .eq('user_id', ownerId)
     .eq('id', id)
-    .eq('is_default_cash', false)
     .select('*')
     .single();
   if (error || !data)

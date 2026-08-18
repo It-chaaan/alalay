@@ -1,6 +1,8 @@
 import * as Notifications from 'expo-notifications';
 import * as SecureStore from 'expo-secure-store';
 
+import { SECURE_STORAGE_KEYS, reminderStorageKey } from '@/constants/secure-storage-keys';
+
 import { authenticatedApiRequest } from './api';
 import { dateKeyInManila, fetchFinanceItems, type FinanceItem } from './finance';
 import { getSupabaseClient } from './supabase';
@@ -10,8 +12,10 @@ type ReminderPreferences = { bill_reminders: boolean; bill_reminder_days: number
 type StoredReminder = { notificationId: string; eventType: 'bill'; eventId: string; occurrenceDate: string; kind: ReminderKind; name: string; amount: number };
 
 const defaults: ReminderPreferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, bill_reminder_hour: 9, bill_reminder_minute: 0 };
-const storePrefix = 'alalay-financial-reminders:';
 const fallbackDelayMs = 5 * 60 * 1000;
+let reconciliation: Promise<ReminderReconciliationResult> | null = null;
+
+export type ReminderReconciliationResult = { permissionGranted: boolean; scheduled: number };
 
 Notifications.setNotificationHandler({ handleNotification: async () => ({ shouldShowBanner: true, shouldShowList: true, shouldPlaySound: true, shouldSetBadge: false }) });
 
@@ -21,27 +25,71 @@ function addDays(date: string, days: number) { const [year, month, day] = date.s
 function amount(value: number) { return `₱${Math.round(value).toLocaleString('en-PH')}`; }
 function dueLabel(date: string) { return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(dateAt(date, 12, 0)); }
 
-async function userKey() { const user = (await getSupabaseClient()?.auth.getUser())?.data.user; return user?.id ? `${storePrefix}${user.id}` : null; }
-async function permissionKey() { const key = await userKey(); return key ? `${key}:permission-requested` : null; }
-async function readStored() { const key = await userKey(); if (!key) return {} as Record<string, StoredReminder>; try { return JSON.parse((await SecureStore.getItemAsync(key)) || '{}') as Record<string, StoredReminder>; } catch { return {}; } }
-async function writeStored(value: Record<string, StoredReminder>) { const key = await userKey(); if (key) await SecureStore.setItemAsync(key, JSON.stringify(value)); }
+function logReminderFailure(operation: string, error: unknown) {
+  if (__DEV__) {
+    const errorName = error instanceof Error ? error.name : 'UnknownError';
+    console.warn(`[Financial reminders] ${operation} failed (${errorName}).`);
+  }
+}
+
+async function userKey() {
+  try {
+    const user = (await getSupabaseClient()?.auth.getUser())?.data.user;
+    return user?.id ? reminderStorageKey(user.id) : null;
+  } catch (error) {
+    logReminderFailure('resolve storage key', error);
+    return null;
+  }
+}
+
+async function readStored() {
+  const key = await userKey();
+  if (!key) return {} as Record<string, StoredReminder>;
+  try {
+    return JSON.parse((await SecureStore.getItemAsync(key)) || '{}') as Record<string, StoredReminder>;
+  } catch (error) {
+    logReminderFailure('read scheduled reminders', error);
+    return {};
+  }
+}
+
+async function writeStored(value: Record<string, StoredReminder>) {
+  const key = await userKey();
+  if (!key) return;
+  try {
+    await SecureStore.setItemAsync(key, JSON.stringify(value));
+  } catch (error) {
+    logReminderFailure('write scheduled reminders', error);
+  }
+}
 
 export async function ensureReminderPermission() {
-  const current = await Notifications.getPermissionsAsync();
-  if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return true;
-  if (!current.canAskAgain) return false;
-  const promptedKey = await permissionKey();
-  if (promptedKey && (await SecureStore.getItemAsync(promptedKey)) === 'true') return false;
-  if (promptedKey) await SecureStore.setItemAsync(promptedKey, 'true');
-  const requested = await Notifications.requestPermissionsAsync();
-  return requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  try {
+    // SecureStore records prompt policy only; the OS permission is always authoritative.
+    const current = await Notifications.getPermissionsAsync();
+    if (current.granted || current.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL) return true;
+    if (!current.canAskAgain) return false;
+
+    try {
+      if ((await SecureStore.getItemAsync(SECURE_STORAGE_KEYS.reminderPermissionRequested)) === 'true') return false;
+      await SecureStore.setItemAsync(SECURE_STORAGE_KEYS.reminderPermissionRequested, 'true');
+    } catch (error) {
+      logReminderFailure('read reminder prompt preference', error);
+    }
+
+    const requested = await Notifications.requestPermissionsAsync();
+    return requested.granted || requested.ios?.status === Notifications.IosAuthorizationStatus.PROVISIONAL;
+  } catch (error) {
+    logReminderFailure('initialize notification permission', error);
+    return false;
+  }
 }
 
 async function ensureChannel() { if (Notifications.setNotificationChannelAsync) await Notifications.setNotificationChannelAsync('financial-reminders', { name: 'Financial reminders', importance: Notifications.AndroidImportance.DEFAULT, sound: 'default', vibrationPattern: [0, 250, 250, 250] }); }
 async function preferences() { try { return { ...defaults, ...(await authenticatedApiRequest<Partial<ReminderPreferences>>('/api/users/me/notification-preferences')) }; } catch { return defaults; } }
 
 function candidates(item: FinanceItem, prefs: ReminderPreferences, now: Date) {
-  const due = item.dueDate.slice(0, 10); const today = dateKeyInManila(now); const result: Array<{ kind: ReminderKind; trigger: Date }> = [];
+  const due = item.dueDate.slice(0, 10); const today = dateKeyInManila(now); const result: { kind: ReminderKind; trigger: Date }[] = [];
   if (item.paid || !prefs.bill_reminders) return result;
   if (prefs.bill_reminder_three_days) result.push({ kind: 'three_days_before', trigger: dateAt(addDays(due, -3), prefs.bill_reminder_hour, prefs.bill_reminder_minute) });
   if (prefs.bill_reminder_one_day) result.push({ kind: 'one_day_before', trigger: dateAt(addDays(due, -1), prefs.bill_reminder_hour, prefs.bill_reminder_minute) });
@@ -60,7 +108,7 @@ function copy(item: FinanceItem, kind: ReminderKind) { const body = amount(item.
 
 async function cancelStored(record: StoredReminder) { try { await Notifications.cancelScheduledNotificationAsync(record.notificationId); } catch { /* stale OS IDs are harmless during reconciliation */ } }
 
-export async function reconcileFinancialReminders(items?: FinanceItem[]) {
+async function reconcileFinancialRemindersInternal(items?: FinanceItem[]): Promise<ReminderReconciliationResult> {
   const prefs = await preferences(); const stored = await readStored();
   if (!prefs.bill_reminders) { for (const record of Object.values(stored)) await cancelStored(record); await writeStored({}); return { permissionGranted: true, scheduled: 0 }; }
   if (!(await ensureReminderPermission())) return { permissionGranted: false, scheduled: 0 };
@@ -79,6 +127,15 @@ export async function reconcileFinancialReminders(items?: FinanceItem[]) {
   for (const [key, record] of Object.entries(stored)) if (!current.has(key)) await cancelStored(record);
   await writeStored(Object.fromEntries(current));
   return { permissionGranted: true, scheduled: current.size };
+}
+
+export async function reconcileFinancialReminders(items?: FinanceItem[]): Promise<ReminderReconciliationResult> {
+  if (reconciliation) return reconciliation;
+  reconciliation = reconcileFinancialRemindersInternal(items).catch((error) => {
+    logReminderFailure('reconcile reminders', error);
+    return { permissionGranted: false, scheduled: 0 };
+  }).finally(() => { reconciliation = null; });
+  return reconciliation;
 }
 
 export async function cancelBillReminders(eventId: string) { const stored = await readStored(); const remaining: Record<string, StoredReminder> = {}; for (const [key, record] of Object.entries(stored)) { if (record.eventId === eventId) await cancelStored(record); else remaining[key] = record; } await writeStored(remaining); }

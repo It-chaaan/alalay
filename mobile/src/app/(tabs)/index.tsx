@@ -208,7 +208,7 @@ export default function HomeScreen() {
         <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Upcoming</Text>
+          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This month</Text>
           <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
             {financeItems.length} items
           </Text>
@@ -443,7 +443,7 @@ function QuickActionsCard() {
       label: 'Expense',
       accessibilityLabel: 'Add expense',
       icon: BanknoteArrowDown,
-      iconBackground: colors.accentMuted,
+      iconBackground: colors.primarySoft,
       iconColor: colors.danger,
       onPress: () => router.push('/(tabs)/expenses'),
     },
@@ -461,7 +461,7 @@ function QuickActionsCard() {
       label: 'Bills',
       accessibilityLabel: 'Open bills',
       icon: ReceiptText,
-      iconBackground: colors.accentPale,
+      iconBackground: colors.primarySoft,
       iconColor: colors.primary,
       onPress: () => router.push('/(tabs)/bills'),
     },
@@ -470,7 +470,7 @@ function QuickActionsCard() {
       label: 'Subscription',
       accessibilityLabel: 'Open subscriptions',
       icon: Repeat,
-      iconBackground: colors.surfaceSecondary,
+      iconBackground: colors.primarySoft,
       iconColor: colors.info,
       onPress: () => router.push('/(tabs)/subscriptions'),
     },
@@ -479,7 +479,7 @@ function QuickActionsCard() {
       label: 'Goals',
       accessibilityLabel: 'Open savings goals',
       icon: Target,
-      iconBackground: colors.accentMuted,
+      iconBackground: colors.primarySoft,
       iconColor: colors.warning,
       onPress: () => router.push('/(tabs)/savings'),
     },

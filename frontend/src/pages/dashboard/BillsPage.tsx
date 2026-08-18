@@ -39,6 +39,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     error: paymentError,
     reset: resetPaymentMutation,
   } = useApiMutation();
+  const {
+    mutate: mutateDelete,
+    isSubmitting: isDeleteSubmitting,
+    error: deleteError,
+    reset: resetDeleteMutation,
+  } = useApiMutation();
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
   const [activeFilter, setActiveFilter] = useState<BillFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -152,9 +158,14 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   }
 
   async function deleteBill(id: string) {
-    await mutate(`/bills/${id}`, { method: 'DELETE' });
-    setOpenMenuId(null);
-    refetch();
+    try {
+      await mutateDelete(`/bills/${id}`, { method: 'DELETE' });
+      setDeleteBillTarget(null);
+      setOpenMenuId(null);
+      await refetch();
+    } catch {
+      // Keep the confirmation open and show the safe mutation error below.
+    }
   }
 
   function openEditBill(bill: Bill) {
@@ -424,24 +435,27 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
             <p className="mt-2 text-sm text-slate-500">
               {deleteBillTarget.title} will be removed from your bill schedule.
             </p>
+            {deleteError ? <p className="mt-3 text-sm text-red-600">{deleteError}</p> : null}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setDeleteBillTarget(null)}
+                onClick={() => {
+                  resetDeleteMutation();
+                  setDeleteBillTarget(null);
+                }}
+                disabled={isDeleteSubmitting}
                 className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  void deleteBill(deleteBillTarget.id);
-                  setDeleteBillTarget(null);
-                }}
+                onClick={() => void deleteBill(deleteBillTarget.id)}
+                disabled={isDeleteSubmitting}
                 className="inline-flex items-center gap-2 rounded-full bg-red-600 px-5 py-2 text-sm font-semibold text-white"
               >
                 <Trash2 className="h-4 w-4" />
-                Delete
+                {isDeleteSubmitting ? 'Deleting…' : 'Delete bill'}
               </button>
             </div>
           </div>

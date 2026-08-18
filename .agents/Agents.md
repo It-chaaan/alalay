@@ -138,6 +138,7 @@ Routes are manually mapped in `frontend/src/App.tsx`.
 - `/register`
 - `/app`
 - `/app/wallets`
+- `/app/wallets/:walletId`
 - `/app/bills`
 - `/app/subscriptions`
 - `/app/expenses`
@@ -205,6 +206,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 - Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
 - New wallet opening balances are recorded as `wallet_adjustments` ledger rows. Creation prefers the atomic `create_wallet_with_opening_balance` RPC and has a guarded rollback fallback during PostgREST schema-cache rollout gaps.
 - Wallet-to-wallet transfers use the atomic `create_wallet_transfer` RPC. Transfer principal moves only between owned wallets and is excluded from income/spending; an optional stored fee creates a linked `Bank Fees` expense. Actual interest credits are explicit `income.type = interest` rows, while wallet interest rates are informational metadata only.
+- Web wallet cards and list rows open `/app/wallets/:walletId`; the authenticated wallet detail API provides owned-wallet metadata and wallet-perspective transactions. Deposit and transfer actions reuse the existing wallet adjustment and atomic transfer contracts. Debit/Credit classification is immutable after creation, and a Credit limit cannot be reduced below its outstanding balance.
 - Loans and personal debt are stored in `loans` with `loan_payments`. `lent` is a receivable and `borrowed` is a liability; loan principal is included in wallet recomputation but never in income/expense reporting. `create_loan`, `record_loan_payment`, and `write_off_loan` are authenticated atomic RPCs; only actual loan interest creates an `income` or `expenses` ledger row.
 
 ### Budget

@@ -999,7 +999,7 @@ function AddWalletSheet({
   const institution = institutionFor(preset.key);
   const canChooseAccountType = institution.supportedAccountTypes.length > 0;
   const [accountType, setAccountType] = useState<WalletAccountType | null>(
-    canChooseAccountType ? 'debit' : null,
+    institution.supportedAccountTypes.length === 1 ? institution.supportedAccountTypes[0] : null,
   );
   const [creditLimit, setCreditLimit] = useState('');
   const [error, setError] = useState('');
@@ -1012,6 +1012,10 @@ function AddWalletSheet({
     }
     if (openingBalance === null || openingBalance < 0) {
       setError('Enter a valid opening balance.');
+      return;
+    }
+    if (canChooseAccountType && !accountType) {
+      setError('Select an account type.');
       return;
     }
     const parsedCreditLimit = creditLimit.trim() ? parseAmount(creditLimit) : null;
@@ -1082,21 +1086,35 @@ function AddWalletSheet({
               .map((value) => (
                 <Pressable
                   key={value}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: accountType === value }}
+                  accessibilityRole="radio"
+                  accessibilityLabel={value === 'debit' ? 'Debit account' : 'Credit account'}
+                  accessibilityState={{ checked: accountType === value }}
                   onPress={() => setAccountType(value)}
                   style={[
                     styles.accountTypeChip,
                     accountType === value && styles.accountTypeChipSelected,
                   ]}
                 >
-                  <Text
-                    style={[
-                      styles.accountTypeText,
-                      accountType === value && styles.accountTypeTextSelected,
-                    ]}
-                  >
-                    {value === 'debit' ? 'Debit' : 'Credit'}
+                  <View style={styles.radioLine}>
+                    <View
+                      style={[
+                        styles.radioIndicator,
+                        accountType === value && styles.radioIndicatorSelected,
+                      ]}
+                    >
+                      {accountType === value ? <View style={styles.radioDot} /> : null}
+                    </View>
+                    <Text
+                      style={[
+                        styles.accountTypeText,
+                        accountType === value && styles.accountTypeTextSelected,
+                      ]}
+                    >
+                      {value === 'debit' ? 'Debit' : 'Credit'}
+                    </Text>
+                  </View>
+                  <Text style={styles.accountTypeDescription}>
+                    {value === 'debit' ? 'Money you own' : 'Money you owe'}
                   </Text>
                 </Pressable>
               ))}
@@ -1509,6 +1527,24 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     accountTypeText: { color: formPalette.muted, fontSize: 13, fontWeight: '800' },
     accountTypeTextSelected: { color: formPalette.accent },
+    radioLine: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    radioIndicator: {
+      width: 18,
+      height: 18,
+      borderRadius: 9,
+      borderWidth: 2,
+      borderColor: formPalette.line,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    radioIndicatorSelected: { borderColor: formPalette.accent },
+    radioDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: formPalette.accent },
+    accountTypeDescription: {
+      marginTop: 4,
+      marginLeft: 26,
+      color: formPalette.muted,
+      fontSize: 11,
+    },
   });
 }
 let styles: any = makeStyles(formPalette);
