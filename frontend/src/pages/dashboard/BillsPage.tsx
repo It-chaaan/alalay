@@ -33,7 +33,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
   const addBillDialog = useActionDialog('add-bill');
   const { data: bills, isLoading, isSlowLoading, error, refetch } = useBills();
-  const { mutate } = useApiMutation();
+  const {
+    mutate,
+    isSubmitting: isPaymentSubmitting,
+    error: paymentError,
+    reset: resetPaymentMutation,
+  } = useApiMutation();
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
   const [activeFilter, setActiveFilter] = useState<BillFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -108,7 +113,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   }, []);
 
   async function markBillPaid() {
-    if (!paymentBill || !paymentWalletId) return;
+    if (!paymentBill || !paymentWalletId || isPaymentSubmitting) return;
     await mutate(`/bills/${paymentBill.id}/pay`, {
       method: 'PATCH',
       body: JSON.stringify({ wallet_id: paymentWalletId, payment_date: paymentDate }),
@@ -116,6 +121,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     setPaymentBill(null);
     setOpenMenuId(null);
     refetch();
+  }
+
+  function closePaymentDialog() {
+    if (isPaymentSubmitting) return;
+    setPaymentBill(null);
+    resetPaymentMutation();
   }
 
   async function markBillUnpaid(id: string) {
@@ -286,6 +297,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                           }
                           onEdit={() => openEditBill(row)}
                           onMarkPaid={() => {
+                            resetPaymentMutation();
                             setPaymentBill(row);
                             setPaymentWalletId(row.wallet_id ?? wallets?.[0]?.id ?? '');
                             setPaymentDate(todayInputValue());
@@ -327,7 +339,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                   {paymentBill.title} · {formatCurrency(Number(paymentBill.amount))}
                 </p>
               </div>
-              <button type="button" onClick={() => setPaymentBill(null)} aria-label="Close">
+              <button
+                type="button"
+                onClick={closePaymentDialog}
+                disabled={isPaymentSubmitting}
+                aria-label="Close"
+              >
                 <X className="h-5 w-5" />
               </button>
             </div>
@@ -355,22 +372,28 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                 className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
               />
             </label>
+            {paymentError ? (
+              <p className="mt-4 text-sm text-red-600" role="alert">
+                {paymentError}
+              </p>
+            ) : null}
             <div className="mt-6 flex justify-end gap-3">
               <button
                 type="button"
-                onClick={() => setPaymentBill(null)}
+                onClick={closePaymentDialog}
+                disabled={isPaymentSubmitting}
                 className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                disabled={!paymentWalletId}
+                disabled={!paymentWalletId || isPaymentSubmitting}
                 onClick={() => void markBillPaid()}
                 className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-2 text-sm font-semibold text-white disabled:opacity-50"
               >
                 <CheckCircle2 className="h-4 w-4" />
-                Confirm payment
+                {isPaymentSubmitting ? 'Recording…' : 'Confirm payment'}
               </button>
             </div>
           </div>
