@@ -7,6 +7,8 @@ export function DashboardShell({
   title,
   subtitle,
   action,
+  headerBottom,
+  stickyHeader = false,
   children,
   secondaryAction,
   footerNote,
@@ -18,6 +20,8 @@ export function DashboardShell({
   title: ReactNode;
   subtitle?: ReactNode;
   action?: ReactNode;
+  headerBottom?: ReactNode;
+  stickyHeader?: boolean;
   children: ReactNode;
   secondaryAction?: ReactNode;
   footerNote?: ReactNode;
@@ -31,12 +35,15 @@ export function DashboardShell({
       <section className="mx-auto min-w-0 flex-1 px-5 py-8 sm:px-8 lg:overflow-y-auto lg:px-12">
         <div className="mx-auto w-full max-w-[1480px]">
         {!hideHeader ? (
-          <header className="mb-7 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">{title}</h1>
-              {subtitle ? <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
+          <header className={`mb-7 ${stickyHeader ? 'sticky top-0 z-30 border-b border-slate-200 bg-app-background/95 pb-5 backdrop-blur dark:border-slate-700' : ''}`}>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">{title}</h1>
+                {subtitle ? <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
+              </div>
+              <div className="flex items-center gap-3">{secondaryAction}{action}</div>
             </div>
-            <div className="flex items-center gap-3">{secondaryAction}{action}</div>
+            {headerBottom ? <div className="mt-5">{headerBottom}</div> : null}
           </header>
         ) : null}
         {children}

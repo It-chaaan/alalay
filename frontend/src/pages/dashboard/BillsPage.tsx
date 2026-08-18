@@ -140,7 +140,12 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
   async function markBillUnpaid(id: string) {
     await mutate(`/bills/${id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ status: 'unpaid', paid_at: null }),
+      body: JSON.stringify({
+        status: 'unpaid',
+        paid_at: null,
+        paid_occurrence_date: null,
+        due_date: rows.find((bill) => bill.id === id)?.due_date,
+      }),
     });
     setOpenMenuId(null);
     refetch();

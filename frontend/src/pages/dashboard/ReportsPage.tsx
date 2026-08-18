@@ -85,32 +85,34 @@ function ReportControls({
   onCustomRangeChange: (range: { from: string; to: string }) => void;
 }) {
   return (
-    <div className="flex max-w-full flex-col items-stretch gap-2 lg:items-end">
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex min-h-9 flex-wrap items-center rounded-xl border border-slate-200 bg-white p-0.5 text-xs text-slate-500 shadow-sm">
-          {periodOptions.map((option) => (
-            <button
-              key={option.value}
-              type="button"
-              onClick={() => onPeriodChange(option.value)}
-              className={`h-8 rounded-lg px-3 ${period === option.value ? "bg-brand-primary font-semibold text-white" : "hover:bg-slate-50"}`}
-            >
-              {option.label}
-            </button>
-          ))}
+    <div className="flex w-full max-w-full flex-col items-stretch gap-3 lg:items-end">
+      <div className="flex w-full max-w-full flex-wrap items-center justify-end gap-3">
+        <div className="max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 text-xs text-slate-500 shadow-sm">
+          <div className="inline-flex min-w-max items-center gap-1">
+            {periodOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onPeriodChange(option.value)}
+                className={`min-h-10 rounded-xl px-4 py-2 leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 ${period === option.value ? "bg-brand-primary font-semibold text-white" : "hover:bg-slate-50 hover:text-slate-700"}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
         </div>
         <button
           type="button"
           onClick={() => report ? exportReport(report) : undefined}
           disabled={!report || disabled}
-          className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download aria-hidden="true" className="h-4 w-4" />
           Export
         </button>
       </div>
       {period === "custom" ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs text-slate-600 shadow-sm">
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600 shadow-sm">
           <CalendarDays aria-hidden="true" className="h-4 w-4 text-slate-400" />
           <input
             type="date"
@@ -257,7 +259,7 @@ function ComparisonBars({
   const filterLabel = filter === "over" ? "Over budget" : "Under budget";
 
   return (
-    <article id="budget-comparison" className="scroll-mt-16 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
+    <article id="budget-comparison" className="scroll-mt-40 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
       <h2 className="text-sm font-semibold">{title}</h2>
       <div className="mt-5 space-y-4">
         {filter !== "all" ? <div className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600"><span>Showing {filterLabel.toLowerCase()} categories</span><button type="button" onClick={onClearFilter} className="font-semibold text-brand-primary hover:text-brand-dark">Show all</button></div> : null}
@@ -325,6 +327,11 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
   const { data: report, isLoading, isSlowLoading, error } = useReports({ period, ...customRange });
   const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: getCategoryColor(category.name, index) }));
   const hasAnyFinancialData = report ? Object.entries(report.data_sources).some(([key, count]) => key !== "ai_insights" && count > 0) : false;
+  const reportsNavigation = report ? (
+    <nav className="flex min-h-14 gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm" aria-label="Report sections">
+      {["overview", "budget", "trends", "savings", "timeline"].map((section) => <a key={section} href={`#reports-${section}`} className="shrink-0 rounded-xl px-5 py-3 text-xs font-semibold capitalize text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40">{section}</a>)}
+    </nav>
+  ) : null;
 
   function showBudgetRows(filter: Exclude<BudgetFilter, "all">) {
     setBudgetFilter(filter);
@@ -338,6 +345,8 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
       subtitle={report ? report.range.label : "Financial analytics"}
       name={name}
       onSignOut={onSignOut}
+      stickyHeader
+      headerBottom={reportsNavigation}
       action={
         <ReportControls
           period={period}
@@ -356,10 +365,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
 
       {report ? (
         <>
-          <nav className="sticky top-2 z-20 -mx-1 flex gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white/95 p-1 shadow-sm backdrop-blur" aria-label="Report sections">
-            {["overview", "budget", "trends", "savings", "timeline"].map((section) => <a key={section} href={`#reports-${section}`} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold capitalize text-slate-600 hover:bg-slate-50">{section}</a>)}
-          </nav>
-          <section id="reports-overview" className="scroll-mt-16 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <section id="reports-overview" className="scroll-mt-40 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard label="Total income" value={formatCurrency(report.total_income)} note={`${report.data_sources.income} income record${report.data_sources.income === 1 ? "" : "s"}`} tone="income" />
             <StatCard label="Total expenses" value={formatCurrency(report.total_expenses)} note="Manual expenses, paid bills, and subscriptions" />
             <StatCard label="Net savings" value={formatSignedCurrency(report.net_savings, "short")} note={`${report.savings_rate}% savings rate`} tone={report.net_savings < 0 ? "warning" : "savings"} />
@@ -391,7 +397,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             <CategoryBreakdown categories={categories} />
           </section>
 
-          <section id="reports-budget" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
+          <section id="reports-budget" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
             <ComparisonBars title="Budget vs actual spending" rows={report.charts.budget_vs_actual} filter={budgetFilter} onClearFilter={() => setBudgetFilter("all")} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Budget integration</h2>
@@ -412,7 +418,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section id="reports-trends" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
+          <section id="reports-trends" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
             <LineChart title="Monthly spending trend" values={report.charts.monthly_spending.map((item) => ({ date: `${item.month}-01`, amount: item.amount }))} labelFormatter={formatMonthYear} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Income vs expenses</h2>
@@ -439,7 +445,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section id="reports-savings" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <section id="reports-savings" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Savings goals</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -487,7 +493,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
             </article>
           </section>
 
-          <section id="reports-timeline" className="mt-5 scroll-mt-16 grid gap-4 lg:grid-cols-2">
+          <section id="reports-timeline" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
             <Timeline title="Bills timeline" rows={report.charts.bills_timeline} empty="No bills due in this date range." />
             <Timeline title="Subscriptions timeline" rows={report.charts.subscriptions_timeline} empty="No subscription renewals in this date range." />
           </section>

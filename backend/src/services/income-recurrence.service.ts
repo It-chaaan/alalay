@@ -14,9 +14,11 @@ function daysInMonth(year: number, month: number) {
   return new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
 }
 
-function frequencyOf(row: IncomeRow): IncomeFrequency {
-  const frequency = String(row.frequency ?? "monthly").toLowerCase();
-  return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" ? frequency : "monthly";
+function frequencyOf(row: IncomeRow): IncomeFrequency | null {
+  const frequency = String(row.frequency ?? "").toLowerCase();
+  return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" || frequency === "monthly"
+    ? frequency
+    : null;
 }
 
 export function isRecurring(row: IncomeRow) {
@@ -41,6 +43,7 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
   const end = parseDate(to);
   const dates: string[] = [];
   const frequency = frequencyOf(row);
+  if (!frequency) return dates;
 
   if (frequency === "monthly") {
     const cursor = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));

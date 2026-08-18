@@ -16,7 +16,10 @@ const billShape = z
     category: z.string().trim().min(1).max(100),
     due_date: safeDate,
     recurring: z.boolean().optional(),
-    frequency: z.enum(['monthly', 'weekly', 'yearly', 'quarterly']).nullable().optional(),
+    frequency: z.preprocess(
+      (value) => (value === '' ? null : value),
+      z.enum(['monthly', 'weekly', 'yearly', 'quarterly']).nullable().optional(),
+    ),
     status: z.enum(['unpaid', 'paid', 'overdue']).optional(),
     notes: z.string().max(2_000).nullable().optional(),
     attachment_url: z.string().url().max(2_000).nullable().optional(),
@@ -32,24 +35,27 @@ function checkRecurringFrequency(
     ctx.addIssue({
       code: 'custom',
       path: ['frequency'],
-      message: 'frequency is required for recurring bills.',
+      message: 'Select how often this bill repeats.',
     });
   }
   if (!value.recurring && value.frequency) {
     ctx.addIssue({
       code: 'custom',
       path: ['frequency'],
-      message: 'frequency requires recurring=true.',
+      message: 'Frequency only applies to recurring bills.',
     });
   }
 }
 
 export const createBillSchema = billShape.superRefine(checkRecurringFrequency);
 
-export const updateBillSchema = billShape.partial().superRefine((value, ctx) => {
+export const updateBillSchema = billShape
+  .partial()
+  .extend({ paid_occurrence_date: safeDate.nullable().optional() })
+  .superRefine((value, ctx) => {
   if (value.recurring === undefined && value.frequency === undefined) return;
   checkRecurringFrequency(value, ctx);
-});
+  });
 
 export const billPaymentSchema = z
   .object({

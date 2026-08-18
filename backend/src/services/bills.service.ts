@@ -1,7 +1,8 @@
 import { addDaysIso, client, requireUserId, throwIfError, todayIso } from './db.js';
-import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from './crud.service.js';
+import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.service.js';
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
+import { selectCurrentBillOccurrence, selectCurrentBillOccurrences } from './bill-occurrence.service.js';
 
 export async function listBills(
   userId: string,
@@ -13,18 +14,24 @@ export async function listBills(
     .eq('user_id', requireUserId(userId))
     .is('deleted_at', null)
     .order('due_date', { ascending: true });
-  if (query.status) request = request.eq('status', query.status);
   if (query.category) request = request.eq('category', query.category);
-  if (query.due_within_days !== undefined)
-    request = request
-      .gte('due_date', todayIso())
-      .lte('due_date', addDaysIso(query.due_within_days));
   const { data, error } = await request;
   throwIfError(error);
-  return data ?? [];
+  const today = todayIso();
+  const currentBills = selectCurrentBillOccurrences(data ?? [], today);
+  const dueThrough = query.due_within_days === undefined ? null : addDaysIso(query.due_within_days);
+
+  return currentBills.filter((bill) => {
+    if (query.status && bill.status !== query.status) return false;
+    if (dueThrough && (bill.due_date < today || bill.due_date > dueThrough)) return false;
+    return true;
+  });
 }
 
-export const getBill = (userId: string, id: string) => getOwned('bills', userId, id);
+export async function getBill(userId: string, id: string) {
+  const bill = await getOwned('bills', userId, id);
+  return selectCurrentBillOccurrence(bill, todayIso());
+}
 export const createBill = (userId: string, payload: Record<string, unknown>) =>
   createOwned('bills', userId, payload);
 export const updateBill = (userId: string, id: string, payload: Record<string, unknown>) =>
@@ -78,7 +85,7 @@ export async function payBill(
 }
 
 export async function billSummary(userId: string) {
-  const rows = await listOwned('bills', userId);
+  const rows = await listBills(userId, {});
   const unpaid = rows.filter((row) => row.status !== 'paid');
   return {
     total_unpaid: unpaid.reduce((sum, row) => sum + Number(row.amount || 0), 0),

@@ -16,14 +16,28 @@ function daysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate();
 }
 
-function frequencyOf(entry: IncomeEntry): IncomeFrequency {
-  const frequency = String(entry.frequency ?? "monthly").toLowerCase();
-  return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" ? frequency : "monthly";
+function frequencyOf(entry: IncomeEntry): IncomeFrequency | null {
+  const frequency = String(entry.frequency ?? "").toLowerCase();
+  return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" || frequency === "monthly"
+    ? frequency
+    : null;
 }
 
-function isRecurring(entry: IncomeEntry) {
+export function isIncomeRecurring(entry: Pick<IncomeEntry, "is_recurring">) {
   const value = entry.is_recurring as unknown;
   return value === true || value === 1 || String(value).toLowerCase() === "true";
+}
+
+/** Formats recurrence for compact income-source summaries without inventing a frequency. */
+export function formatIncomeRecurrence(entry: Pick<IncomeEntry, "is_recurring" | "frequency">) {
+  if (!isIncomeRecurring(entry)) return null;
+  switch (entry.frequency) {
+    case "weekly": return "/week";
+    case "biweekly": return "/2 weeks";
+    case "monthly": return "/mo";
+    case "yearly": return "/year";
+    default: return "Recurring";
+  }
 }
 
 function occurrenceDates(entry: IncomeEntry, from: string, to: string) {
@@ -32,6 +46,7 @@ function occurrenceDates(entry: IncomeEntry, from: string, to: string) {
   const end = parseDate(to);
   const dates: string[] = [];
   const frequency = frequencyOf(entry);
+  if (!frequency) return dates;
 
   if (frequency === "monthly") {
     const cursor = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
@@ -67,7 +82,7 @@ export function buildIncomeOccurrences(entries: IncomeEntry[], from: string, to:
   const actualKeys = new Set(entries.map((entry) => `${entry.source}|${Number(entry.amount)}|${entry.date}`));
   const scheduled: IncomeOccurrence[] = [];
 
-  entries.filter(isRecurring).forEach((entry) => {
+  entries.filter(isIncomeRecurring).forEach((entry) => {
     occurrenceDates(entry, from, to).forEach((date) => {
       const actualKey = `${entry.source}|${Number(entry.amount)}|${date}`;
       if (actualKeys.has(actualKey)) return;

@@ -5,13 +5,16 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  Grid2X2,
   HandCoins,
+  List,
   Plus,
   Send,
+  SlidersHorizontal,
   UserRound,
   WalletCards,
 } from 'lucide-react';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { institutionFor, institutionRegistry } from '@shared/institution-registry';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
@@ -21,6 +24,7 @@ import { useApiMutation } from '../../hooks/useApiMutation';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import type { LoanSummary, Wallet } from '../../hooks/types';
 import { formatCurrency } from '../../utils/formatters';
+import { SearchField } from '../../components/dashboard/BillsComponents';
 
 type Loan = {
   id: string;
@@ -31,6 +35,18 @@ type Loan = {
 };
 type LoansResponse = { loans: Loan[]; summary: LoanSummary };
 type WalletFormProps = { onClose: () => void; onSaved: () => void };
+type WalletView = 'grid' | 'list';
+type WalletFilters = {
+  asset: 'all' | 'liquid' | 'credit';
+  institution: 'all' | 'cash' | 'bank' | 'e_wallet';
+  account: 'all' | 'debit' | 'credit';
+};
+
+const defaultWalletFilters: WalletFilters = {
+  asset: 'all',
+  institution: 'all',
+  account: 'all',
+};
 
 function getName(session: Session) {
   return session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
@@ -82,6 +98,93 @@ function WalletCard({ wallet, isPrivate }: { wallet: Wallet; isPrivate: boolean 
         </p>
       ) : null}
     </article>
+  );
+}
+
+function WalletList({ wallets, isPrivate }: { wallets: Wallet[]; isPrivate: boolean }) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="hidden grid-cols-[minmax(0,1.6fr)_minmax(130px,1fr)_minmax(130px,0.8fr)_minmax(120px,0.7fr)_24px] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 md:grid">
+        <span>Wallet</span><span>Account</span><span>Balance</span><span>Class</span><span />
+      </div>
+      {wallets.map((wallet) => {
+        const isCredit = wallet.account_type === 'credit';
+        const account = wallet.account_type
+          ? `${wallet.institution_type.replace('_', ' ')} · ${wallet.account_type}`
+          : wallet.institution_type.replace('_', ' ');
+        return (
+          <div
+            key={wallet.id}
+            className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-slate-200 px-4 py-4 transition last:border-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60 md:grid-cols-[minmax(0,1.6fr)_minmax(130px,1fr)_minmax(130px,0.8fr)_minmax(120px,0.7fr)_24px] md:items-center md:gap-4 md:px-5"
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              <InstitutionMark wallet={wallet} />
+              <div className="min-w-0">
+                <p className="truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</p>
+                <p className="mt-1 text-xs capitalize text-slate-500 md:hidden">{account} · PHP</p>
+              </div>
+            </div>
+            <p className="hidden text-xs capitalize text-slate-500 md:block">{account} · PHP</p>
+            <p className={`font-mono text-sm font-bold md:text-base ${isCredit ? 'text-rose-600' : 'text-slate-950 dark:text-white'}`}>
+              {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance), true)}
+            </p>
+            <span className={`justify-self-end rounded-full px-2.5 py-1 text-[11px] font-semibold md:justify-self-start ${isCredit ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'}`}>
+              {isCredit ? 'Credit liability' : 'Liquid'}
+            </span>
+            <ChevronRight className="hidden h-5 w-5 text-slate-400 md:block" aria-hidden="true" />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function WalletFilterPopover({ filters, onChange, onClear }: { filters: WalletFilters; onChange: (filters: WalletFilters) => void; onClear: () => void }) {
+  return (
+    <div role="dialog" aria-label="Filter wallets" className="absolute right-0 top-full z-30 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">Filter wallets</p>
+        <button type="button" onClick={onClear} className="text-xs font-semibold text-brand-primary hover:text-brand-dark">Clear</button>
+      </div>
+      <label className="mt-4 block text-xs font-semibold text-slate-600 dark:text-slate-300">Asset type
+        <select value={filters.asset} onChange={(event) => onChange({ ...filters, asset: event.target.value as WalletFilters['asset'] })} className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
+          <option value="all">All wallets</option><option value="liquid">Liquid assets</option><option value="credit">Credit liabilities</option>
+        </select>
+      </label>
+      <label className="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Institution
+        <select value={filters.institution} onChange={(event) => onChange({ ...filters, institution: event.target.value as WalletFilters['institution'] })} className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 capitalize dark:border-slate-700 dark:bg-slate-950">
+          <option value="all">All institutions</option><option value="cash">Cash</option><option value="bank">Bank</option><option value="e_wallet">E-wallet</option>
+        </select>
+      </label>
+      <label className="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">Account classification
+        <select value={filters.account} onChange={(event) => onChange({ ...filters, account: event.target.value as WalletFilters['account'] })} className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 capitalize dark:border-slate-700 dark:bg-slate-950">
+          <option value="all">All accounts</option><option value="debit">Debit</option><option value="credit">Credit</option>
+        </select>
+      </label>
+    </div>
+  );
+}
+
+function WalletQuickActions({ onAdd, onTransfer, onLoans }: { onAdd: () => void; onTransfer: () => void; onLoans: () => void }) {
+  const actions = [
+    { label: 'Add wallet', helper: 'New account', icon: Plus, onClick: onAdd },
+    { label: 'Transfer money', helper: 'Move funds', icon: ArrowLeftRight, onClick: onTransfer },
+    { label: 'Record loan', helper: 'Lend or borrow', icon: HandCoins, onClick: onLoans },
+    { label: 'Make repayment', helper: 'Pay or receive', icon: WalletCards, onClick: onLoans },
+    { label: 'View all loans & debt', helper: 'Open overview', icon: ArrowRight, onClick: onLoans },
+  ];
+  return (
+    <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-labelledby="wallet-quick-actions">
+      <h2 id="wallet-quick-actions" className="font-semibold text-slate-950 dark:text-white">Quick actions</h2>
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+        {actions.map(({ label, helper, icon: Icon, onClick }) => (
+          <button key={label} type="button" onClick={onClick} className="flex min-h-16 items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:hover:bg-slate-800">
+            <Icon className="h-5 w-5 shrink-0 text-brand-primary" aria-hidden="true" />
+            <span><span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">{label}</span><span className="mt-0.5 block text-[11px] text-slate-500">{helper}</span></span>
+          </button>
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -384,12 +487,62 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [isLoansOpen, setIsLoansOpen] = useState(false);
   const [isPrivate, setIsPrivate] = useState(false);
+  const [search, setSearch] = useState('');
+  const [filters, setFilters] = useState<WalletFilters>(defaultWalletFilters);
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [view, setView] = useState<WalletView>(() => {
+    try {
+      return window.localStorage.getItem('alalay-wallet-view') === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
   const wallets = walletsQuery.data ?? [];
   const liquidWallets = wallets.filter((wallet) => wallet.account_type !== 'credit');
   const liquidBalance = useMemo(
     () => liquidWallets.reduce((total, wallet) => total + Number(wallet.balance), 0),
     [liquidWallets],
   );
+  const visibleWallets = useMemo(() => {
+    const query = search.trim().toLowerCase().replace(/[-_]/g, ' ');
+    return wallets.filter((wallet) => {
+      const institution = institutionFor(wallet.institution_key);
+      const searchable = [
+        wallet.name,
+        institution.displayName,
+        institution.id,
+        ...institution.aliases,
+        wallet.institution_type.replace('_', ' '),
+        wallet.account_type ?? '',
+      ].join(' ').toLowerCase().replace(/[-_]/g, ' ');
+      const institutionMatches = filters.institution === 'all'
+        || (filters.institution === 'bank' && (wallet.institution_type === 'bank' || wallet.institution_type === 'digital_bank'))
+        || wallet.institution_type === filters.institution;
+      const assetMatches = filters.asset === 'all'
+        || (filters.asset === 'credit' && wallet.account_type === 'credit')
+        || (filters.asset === 'liquid' && wallet.account_type !== 'credit');
+      const accountMatches = filters.account === 'all' || wallet.account_type === filters.account;
+      return (!query || searchable.includes(query)) && institutionMatches && assetMatches && accountMatches;
+    });
+  }, [filters, search, wallets]);
+  const activeFilterCount = Object.values(filters).filter((value) => value !== 'all').length;
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem('alalay-wallet-view', view);
+    } catch {
+      // Preference persistence is best effort when storage is unavailable.
+    }
+  }, [view]);
+
+  useEffect(() => {
+    if (!isFilterOpen) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsFilterOpen(false);
+    }
+    window.addEventListener('keydown', closeOnEscape);
+    return () => window.removeEventListener('keydown', closeOnEscape);
+  }, [isFilterOpen]);
   return (
     <DashboardShell
       activeLabel="Wallets"
@@ -456,31 +609,40 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
               isPrivate={isPrivate}
             />
           </section>
+          <WalletQuickActions onAdd={() => setIsAddWalletOpen(true)} onTransfer={() => setIsTransferOpen(true)} onLoans={() => setIsLoansOpen(true)} />
           <section className="mt-7">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
               <h2 className="flex items-center gap-2 font-semibold">
                 <WalletCards className="h-5 w-5 text-brand-primary" />
                 Your wallets
               </h2>
-              <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsAddWalletOpen(true)}
-                className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-200 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-              >
-                <Plus className="h-4 w-4" />
-                Add wallet
-              </button>
-              <button type="button" onClick={() => setIsTransferOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark">
-                <ArrowLeftRight className="h-4 w-4" />
-                Transfer
-              </button>
+              <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto lg:flex-nowrap">
+                <SearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search wallets..." aria-label="Search wallets" className="min-h-10 sm:max-w-[220px]" />
+                <div className="relative">
+                  <button type="button" onClick={() => setIsFilterOpen((current) => !current)} aria-expanded={isFilterOpen} aria-haspopup="dialog" className={`inline-flex min-h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary/40 ${activeFilterCount ? 'border-brand-primary bg-brand-soft text-brand-dark' : 'border-slate-200 text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800'}`}>
+                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+                    <span className="hidden sm:inline">Filter</span>{activeFilterCount ? <span aria-label={`${activeFilterCount} active filters`}>{activeFilterCount}</span> : null}
+                  </button>
+                  {isFilterOpen ? <WalletFilterPopover filters={filters} onChange={setFilters} onClear={() => setFilters(defaultWalletFilters)} /> : null}
+                </div>
+                <div className="inline-flex rounded-xl border border-slate-200 p-0.5 dark:border-slate-700" role="group" aria-label="Wallet view">
+                  <button type="button" onClick={() => setView('grid')} aria-label="Grid view" aria-pressed={view === 'grid'} className={`grid h-9 w-9 place-items-center rounded-lg ${view === 'grid' ? 'bg-slate-100 text-brand-primary dark:bg-slate-800' : 'text-slate-400 hover:text-slate-700'}`}><Grid2X2 className="h-4 w-4" /></button>
+                  <button type="button" onClick={() => setView('list')} aria-label="List view" aria-pressed={view === 'list'} className={`grid h-9 w-9 place-items-center rounded-lg ${view === 'list' ? 'bg-slate-100 text-brand-primary dark:bg-slate-800' : 'text-slate-400 hover:text-slate-700'}`}><List className="h-4 w-4" /></button>
+                </div>
               </div>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {wallets.map((wallet) => (
-                <WalletCard key={wallet.id} wallet={wallet} isPrivate={isPrivate} />
-              ))}
+            {visibleWallets.length ? (
+              view === 'grid' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{visibleWallets.map((wallet) => <WalletCard key={wallet.id} wallet={wallet} isPrivate={isPrivate} />)}</div> : <WalletList wallets={visibleWallets} isPrivate={isPrivate} />
+            ) : wallets.length ? (
+              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+                <p className="font-semibold text-slate-700 dark:text-slate-200">No wallets match your search.</p>
+                <p className="mt-1">Try another search or clear your filters.</p>
+                <button type="button" onClick={() => { setSearch(''); setFilters(defaultWalletFilters); }} className="mt-4 font-semibold text-brand-primary hover:text-brand-dark">Clear filters</button>
+              </div>
+            ) : null}
+            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-slate-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-slate-300">
+              <p className="font-semibold text-slate-900 dark:text-white">Wallets are where your money or liability lives.</p>
+              <p className="mt-1">Loans &amp; Debt track who owes whom. Keep them separate for clearer financial insights.</p>
             </div>
           </section>
         </>

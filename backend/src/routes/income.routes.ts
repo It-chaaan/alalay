@@ -16,7 +16,7 @@ incomeRouter.get("/summary", asyncHandler(async (req, res) => {
     ytd: summary.ytd,
     average_month: summary.average_month,
     sources: summary.sources,
-    monthly_sources: new Set(summary.rows.filter((row) => Boolean(row.is_recurring) && String(row.frequency ?? "monthly").toLowerCase() === "monthly").map((row) => row.source)).size,
+    monthly_sources: new Set(summary.rows.filter((row) => Boolean(row.is_recurring) && String(row.frequency ?? "").toLowerCase() === "monthly").map((row) => row.source)).size,
     actual_transactions: summary.actualRows.length,
   });
 }));

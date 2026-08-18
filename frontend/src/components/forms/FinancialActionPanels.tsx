@@ -28,7 +28,10 @@ import { TextInput } from '../ui/TextInput';
 import { CurrencyInput } from '../ui/CurrencyInput';
 import { CategorySelect } from '../ui/CategorySelect';
 import { institutionFor } from '@shared/institution-registry';
-import { incomeCategoryKeys } from '@shared/category-registry';
+import {
+  incomeCategoryKeys,
+  subscriptionCategoryDefinitions,
+} from '@shared/category-registry';
 
 type FormDialogProps = {
   open: boolean;
@@ -61,6 +64,7 @@ type SavingsGoalProgressPanelProps = FormDialogProps & {
 };
 
 const billCategoryOptions = getCategories('expense').map((category) => category.name);
+const subscriptionCategoryOptions = subscriptionCategoryDefinitions.map((category) => category.label);
 
 function isPresetBillCategory(category: string | null | undefined) {
   return billCategoryOptions.includes((category ?? '') as (typeof billCategoryOptions)[number]);
@@ -201,7 +205,10 @@ const billSchema = z
     custom_category: z.string().optional(),
     due_date: z.string().date('Due date is required'),
     recurring: z.boolean(),
-    frequency: z.enum(['monthly', 'weekly', 'yearly', 'quarterly']).optional(),
+    frequency: z.preprocess(
+      (value) => (value === '' ? undefined : value),
+      z.enum(['monthly', 'weekly', 'yearly', 'quarterly']).optional(),
+    ),
     notes: z.string().optional(),
     attachment_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
     wallet_id: z.string().uuid().nullable().optional(),
@@ -211,7 +218,7 @@ const billSchema = z
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['frequency'],
-        message: 'Choose how often this bill repeats',
+        message: 'Select how often this bill repeats.',
       });
     }
 
@@ -235,7 +242,7 @@ function defaultBillValues(bill?: Bill | null): BillFormValues {
     amount: bill ? Number(bill.amount) : undefined,
     category: existingCategory ? (isPresetCategory ? existingCategory : 'Other') : '',
     custom_category: existingCategory && !isPresetCategory ? existingCategory : '',
-    due_date: bill?.due_date ?? todayInputValue(),
+    due_date: bill?.next_due_date ?? bill?.due_date ?? todayInputValue(),
     recurring: bill ? Boolean(bill.recurring) : false,
     frequency: bill?.frequency ?? undefined,
     notes: bill?.notes ?? '',
@@ -258,8 +265,10 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
   } = useForm<BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: defaultBillValues(bill),
+    shouldUnregister: true,
   });
   const recurring = watch('recurring');
+  const frequency = watch('frequency');
   const category = watch('category');
   const walletId = watch('wallet_id');
 
@@ -269,6 +278,12 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
       resetMutation();
     }
   }, [bill, open, reset, resetMutation]);
+
+  useEffect(() => {
+    if (!recurring && frequency) {
+      setValue('frequency', undefined, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [frequency, recurring, setValue]);
 
   async function onSubmit(values: BillFormValues) {
     const { custom_category, ...restValues } = values;
@@ -377,19 +392,20 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           {...register('recurring')}
         />
 
-        <SelectField
-          id="bill-frequency"
-          label="Frequency"
-          disabled={!recurring}
-          error={errors.frequency?.message}
-          {...register('frequency')}
-        >
-          <option value="">Select frequency</option>
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
-        </SelectField>
+        {recurring ? (
+          <SelectField
+            id="bill-frequency"
+            label="Frequency"
+            error={errors.frequency?.message}
+            {...register('frequency')}
+          >
+            <option value="">Select frequency</option>
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="yearly">Yearly</option>
+          </SelectField>
+        ) : null}
 
         <div>
           <TextInput
@@ -420,6 +436,8 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
 
 const subscriptionSchema = z.object({
   name: z.string().trim().min(1, 'Subscription name is required'),
+  category: z.string().trim().min(1, 'Select a subscription category'),
+  custom_category: z.string().optional(),
   amount: z.coerce.number().positive('Please enter an amount greater than 0'),
   renewal_date: z.string().date('Renewal date is required'),
   billing_cycle: z.enum(['weekly', 'monthly', 'quarterly', 'yearly']),
@@ -427,6 +445,10 @@ const subscriptionSchema = z.object({
   last_used_at: z.string().optional(),
   logo_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
   wallet_id: z.string().uuid('Choose a payment wallet'),
+}).superRefine((values, context) => {
+  if (values.category === 'Other' && !values.custom_category?.trim()) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['custom_category'], message: 'Specify the subscription category' });
+  }
 });
 
 type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
@@ -438,6 +460,8 @@ function dateInputValue(value: string | null | undefined) {
 function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormValues {
   return {
     name: subscription?.name ?? '',
+    category: subscription?.category ?? '',
+    custom_category: subscription?.custom_category ?? '',
     amount: subscription ? Number(subscription.amount) : undefined,
     renewal_date: subscription?.renewal_date ?? todayInputValue(),
     billing_cycle: subscription?.billing_cycle ?? 'monthly',
@@ -480,6 +504,8 @@ export function SubscriptionFormPanel({
   async function onSubmit(values: SubscriptionFormValues) {
     const payload = {
       ...values,
+      custom_category:
+        values.category === 'Other' ? toOptionalString(values.custom_category) ?? null : null,
       logo_url: toOptionalString(values.logo_url),
       last_used_at: values.last_used_at
         ? new Date(`${values.last_used_at}T00:00:00`).toISOString()
@@ -547,17 +573,37 @@ export function SubscriptionFormPanel({
           />
         </div>
 
-        <SelectField
-          id="subscription-billing-cycle"
-          label="Billing cycle"
-          error={errors.billing_cycle?.message}
-          {...register('billing_cycle')}
-        >
-          <option value="monthly">Monthly</option>
-          <option value="weekly">Weekly</option>
-          <option value="quarterly">Quarterly</option>
-          <option value="yearly">Yearly</option>
-        </SelectField>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <CategorySelect
+            id="subscription-category"
+            label="Category"
+            value={watch('category')}
+            options={subscriptionCategoryOptions}
+            onChange={(value) => setValue('category', value, { shouldDirty: true, shouldValidate: true })}
+            error={errors.category?.message}
+          />
+          <SelectField
+            id="subscription-billing-cycle"
+            label="Billing cycle"
+            error={errors.billing_cycle?.message}
+            {...register('billing_cycle')}
+          >
+            <option value="monthly">Monthly</option>
+            <option value="weekly">Weekly</option>
+            <option value="quarterly">Quarterly</option>
+            <option value="yearly">Yearly</option>
+          </SelectField>
+        </div>
+
+        {watch('category') === 'Other' ? (
+          <TextInput
+            id="subscription-custom-category"
+            label="Specify category"
+            placeholder="e.g. Professional membership"
+            error={errors.custom_category?.message}
+            {...register('custom_category')}
+          />
+        ) : null}
 
         <WalletSelector
           id="subscription-wallet"
@@ -609,10 +655,9 @@ const expenseSchema = z.object({
   amount: z.coerce.number().positive('Please enter an amount greater than 0'),
   category: z.string().trim().min(1, 'Category is required'),
   date: z.string().date('Date is required'),
-  payment_method: z.enum(['cash', 'card', 'gcash', 'maya', 'bank_transfer', 'other']),
   receipt_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
   is_split: z.boolean(),
-  wallet_id: z.string().uuid().nullable().optional(),
+  wallet_id: z.string().uuid('Select a payment method.'),
 });
 
 type ExpenseFormValues = z.infer<typeof expenseSchema>;
@@ -623,11 +668,9 @@ function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
     amount: expense ? Number(expense.amount) : undefined,
     category: expense?.category ?? '',
     date: expense?.date ?? todayInputValue(),
-    payment_method:
-      (expense?.payment_method as ExpenseFormValues['payment_method'] | undefined) ?? 'cash',
     receipt_url: expense?.receipt_url ?? '',
     is_split: Boolean(expense?.is_split),
-    wallet_id: expense?.wallet_id ?? null,
+    wallet_id: expense?.wallet_id ?? '',
   };
 }
 
@@ -639,6 +682,7 @@ function WalletSelector({
   required = false,
   excludeCredit = false,
   error,
+  emptyMessage = 'Add a wallet before continuing.',
 }: {
   id: string;
   label: string;
@@ -647,11 +691,16 @@ function WalletSelector({
   required?: boolean;
   excludeCredit?: boolean;
   error?: string;
+  emptyMessage?: string;
 }) {
-  const { data: wallets, isLoading } = useApiQuery<Wallet[]>('/wallets');
+  const { data: wallets, isLoading, error: walletError } = useApiQuery<Wallet[]>('/wallets');
   const eligibleWallets = (wallets ?? []).filter(
     (wallet) => !excludeCredit || wallet.account_type !== 'credit',
   );
+  const selectorError =
+    error ??
+    (walletError ? 'Payment accounts are unavailable.' : undefined) ??
+    (eligibleWallets.length === 0 && !isLoading && required ? emptyMessage : undefined);
 
   return (
     <label htmlFor={id} className="block">
@@ -660,7 +709,7 @@ function WalletSelector({
         id={id}
         value={value ?? ''}
         required={required}
-        disabled={isLoading}
+        disabled={isLoading || Boolean(walletError) || eligibleWallets.length === 0}
         onChange={(event) => onChange(event.target.value)}
         className="min-h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-950 outline-none focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 disabled:opacity-60"
       >
@@ -678,7 +727,7 @@ function WalletSelector({
           );
         })}
       </select>
-      {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
+      {selectorError ? <p className="mt-2 text-sm text-red-600">{selectorError}</p> : null}
     </label>
   );
 }
@@ -815,27 +864,18 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
             }
             error={errors.category?.message}
           />
-          <SelectField
-            id="expense-payment-method"
+          <WalletSelector
+            id="expense-wallet"
             label="Payment method"
-            error={errors.payment_method?.message}
-            {...register('payment_method')}
-          >
-            <option value="cash">Cash</option>
-            <option value="card">Card</option>
-            <option value="gcash">GCash</option>
-            <option value="maya">Maya</option>
-            <option value="bank_transfer">Bank transfer</option>
-            <option value="other">Other</option>
-          </SelectField>
+            value={walletId}
+            required
+            error={errors.wallet_id?.message}
+            emptyMessage="Add a wallet before recording an expense."
+            onChange={(value) =>
+              setValue('wallet_id', value, { shouldDirty: true, shouldValidate: true })
+            }
+          />
         </div>
-
-        <WalletSelector
-          id="expense-wallet"
-          label="Paid from"
-          value={walletId}
-          onChange={(value) => setValue('wallet_id', value || null, { shouldDirty: true })}
-        />
 
         <TextInput
           id="expense-receipt-url"
@@ -865,7 +905,10 @@ const incomeSchema = z.object({
   amount: z.coerce.number().positive('Please enter an amount greater than 0'),
   date: z.string().date('Date is required'),
   is_recurring: z.boolean(),
-  frequency: z.enum(['monthly', 'weekly', 'biweekly', 'yearly']).optional(),
+  frequency: z.preprocess(
+    (value) => (value === '' ? undefined : value),
+    z.enum(['monthly', 'weekly', 'biweekly', 'yearly']).optional(),
+  ),
   wallet_id: z.string().uuid('Select where this income was received.'),
 });
 
@@ -878,7 +921,7 @@ function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
     amount: income ? Number(income.amount) : undefined,
     date: income?.date ?? todayInputValue(),
     is_recurring: income ? Boolean(income.is_recurring) : false,
-    frequency: income?.frequency ?? 'monthly',
+    frequency: income?.frequency ?? undefined,
     wallet_id: income?.wallet_id ?? '',
   };
 }
@@ -897,8 +940,10 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
   } = useForm<IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
+    shouldUnregister: true,
   });
   const recurring = watch('is_recurring');
+  const frequency = watch('frequency');
   const walletId = watch('wallet_id');
 
   useEffect(() => {
@@ -908,10 +953,17 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     }
   }, [income, open, reset, resetMutation]);
 
+  useEffect(() => {
+    if (!recurring && frequency) {
+      setValue('frequency', undefined, { shouldDirty: true, shouldValidate: true });
+    }
+  }, [frequency, recurring, setValue]);
+
   async function onSubmit(values: IncomeFormValues) {
+    const payload = { ...values, frequency: values.is_recurring ? values.frequency : null };
     await mutate<IncomeEntry>(income ? `/income/${income.id}` : '/income', {
       method: income ? 'PATCH' : 'POST',
-      body: JSON.stringify(values),
+      body: JSON.stringify(payload),
     });
     onSuccess();
     onClose();

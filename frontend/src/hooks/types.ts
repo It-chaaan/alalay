@@ -4,6 +4,8 @@ export type Bill = {
   amount: number | string;
   category: string;
   due_date: string;
+  next_due_date?: string;
+  paid_occurrence_date?: string | null;
   recurring: boolean;
   frequency: string | null;
   status: 'unpaid' | 'paid' | 'overdue';
@@ -51,6 +53,8 @@ export type IncomeEntry = {
 export type Subscription = {
   id: string;
   name: string;
+  category?: string | null;
+  custom_category?: string | null;
   logo_url: string | null;
   amount: number | string;
   renewal_date: string;

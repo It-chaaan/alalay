@@ -8,7 +8,7 @@ import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
-import { buildIncomeOccurrences } from "../../utils/incomeRecurrence";
+import { buildIncomeOccurrences, formatIncomeRecurrence, isIncomeRecurring } from "../../utils/incomeRecurrence";
 import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Pen, Trash2 } from "lucide-react";
@@ -186,6 +186,11 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     const key = `${entry.source}-${entry.type}`;
     const current = map.get(key) ?? { ...entry, amount: 0 };
     current.amount = Number(current.amount) + Number(entry.amount);
+    // Aggregated source cards must never turn a one-time record into a
+    // recurring source. Mixed history is therefore presented as non-recurring
+    // unless every contributing record is recurring.
+    current.is_recurring = isIncomeRecurring(current) && isIncomeRecurring(entry);
+    if (current.is_recurring && current.frequency !== entry.frequency) current.frequency = undefined;
     map.set(key, current);
     return map;
   }, new Map<string, IncomeEntry>()).values());
@@ -285,7 +290,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
                 </div>
                 <div className="text-right">
                   <p className={`font-mono text-sm font-bold ${source.type === "salary" ? "text-[#3f7d16]" : source.type === "freelance" ? "text-[#5e9bc9]" : source.type === "business" ? "text-[#df9f42]" : "text-slate-400"}`}>{formatCurrency(source.amount)}</p>
-                  <p className="text-xs text-slate-500">/mo</p>
+                  {formatIncomeRecurrence(source) ? <p className="text-xs text-slate-500">{formatIncomeRecurrence(source)}</p> : null}
                 </div>
               </div>
             ))}

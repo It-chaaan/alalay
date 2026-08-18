@@ -20,4 +20,9 @@ assert.equal(recorded.length, 1, "an actual occurrence must suppress its schedul
 assert.equal(recorded[0].date, "2026-08-03");
 assert.equal(recorded[0].is_scheduled, undefined);
 
+const malformed = expandIncomeRows([
+  { id: "legacy", source: "Allowance", amount: 5000, date: "2026-07-23", is_recurring: true, frequency: null },
+], "2026-08-01", "2026-08-31");
+assert.equal(malformed.length, 0, "missing recurrence frequency must not be forecast monthly");
+
 console.log("income recurrence regression tests passed");

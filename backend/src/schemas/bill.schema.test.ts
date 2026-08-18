@@ -38,6 +38,36 @@ test('bill categories exposed by mobile are accepted as canonical category strin
   }
 });
 
+test('one-time bills accept an empty frequency and normalize it to null', () => {
+  const result = createBillSchema.safeParse({
+    title: 'Internet',
+    amount: 1600,
+    category: 'Bills',
+    due_date: '2026-08-20',
+    recurring: false,
+    frequency: '',
+  });
+
+  assert.equal(result.success, true);
+  if (result.success) assert.equal(result.data.frequency, null);
+});
+
+test('recurring bills require a frequency with a user-facing message', () => {
+  const result = createBillSchema.safeParse({
+    title: 'Internet',
+    amount: 1600,
+    category: 'Bills',
+    due_date: '2026-08-20',
+    recurring: true,
+    frequency: null,
+  });
+
+  assert.equal(result.success, false);
+  if (!result.success) {
+    assert.equal(result.error.issues[0]?.message, 'Select how often this bill repeats.');
+  }
+});
+
 test('bill schema remains strict and does not accept custom_category', () => {
   const result = createBillSchema.safeParse({
     title: 'BDO',

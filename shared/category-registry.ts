@@ -111,6 +111,26 @@ export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.f
   ].map((item) => [item.key, item]),
 );
 
+// Subscription providers use the shared category catalog, but only this
+// domain-relevant subset is offered by subscription forms.
+export const SUBSCRIPTION_CATEGORY_KEYS = [
+  'movies-streaming',
+  'entertainment',
+  'games',
+  'fitness',
+  'education',
+  'internet',
+  'mobile-phone',
+  'professional-services',
+  'subscriptions',
+  'financial-other',
+  'other',
+] as const;
+
+export const subscriptionCategoryDefinitions = SUBSCRIPTION_CATEGORY_KEYS.map(
+  (key) => CATEGORY_DEFINITIONS[key],
+);
+
 export const CATEGORY_ALIASES: Record<string, string> = {
   transportation: 'transport',
   housing: 'housing-rent',
