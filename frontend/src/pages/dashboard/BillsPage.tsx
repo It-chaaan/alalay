@@ -114,13 +114,21 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
 
   async function markBillPaid() {
     if (!paymentBill || !paymentWalletId || isPaymentSubmitting) return;
-    await mutate(`/bills/${paymentBill.id}/pay`, {
-      method: 'PATCH',
-      body: JSON.stringify({ wallet_id: paymentWalletId, payment_date: paymentDate }),
-    });
-    setPaymentBill(null);
-    setOpenMenuId(null);
-    refetch();
+    try {
+      await mutate(`/bills/${paymentBill.id}/pay`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          wallet_id: paymentWalletId,
+          payment_date: paymentDate,
+          occurrence_date: paymentBill.due_date,
+        }),
+      });
+      setPaymentBill(null);
+      setOpenMenuId(null);
+      refetch();
+    } catch {
+      // The mutation hook exposes the safe API message while the dialog remains open.
+    }
   }
 
   function closePaymentDialog() {

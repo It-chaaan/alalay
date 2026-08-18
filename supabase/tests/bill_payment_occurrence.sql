@@ -60,7 +60,8 @@ begin
   v_result := public.mark_bill_paid(
     v_recurring_bill_id,
     v_wallet_id,
-    date '2026-08-18'
+    date '2026-08-18',
+    date '2026-08-14'
   );
 
   if v_result #>> '{expense,source_bill_occurrence_date}' <> '2026-08-14' then
@@ -84,9 +85,14 @@ begin
   end if;
 
   begin
-    perform public.mark_bill_paid(v_recurring_bill_id, v_wallet_id, date '2026-08-18');
+    perform public.mark_bill_paid(
+      v_recurring_bill_id,
+      v_wallet_id,
+      date '2026-08-18',
+      date '2026-08-14'
+    );
   exception when others then
-    v_duplicate_rejected := sqlerrm = 'bill already paid';
+    v_duplicate_rejected := sqlerrm = 'bill occurrence changed';
   end;
   if not v_duplicate_rejected then
     raise exception 'A duplicate occurrence payment was not rejected';
@@ -118,6 +124,7 @@ begin
   v_result := public.mark_bill_paid(
     v_one_time_bill_id,
     v_wallet_id,
+    date '2026-08-18',
     date '2026-08-18'
   );
 

@@ -329,6 +329,7 @@ export default function BillsScreen() {
           onSaved={async () => {
             setPaymentBill(null);
             await refresh();
+            await reconcileFinancialReminders();
           }}
         />
       )}

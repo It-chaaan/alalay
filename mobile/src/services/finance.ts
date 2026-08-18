@@ -321,14 +321,14 @@ export function addRecurrence(date: string, frequency: Exclude<FinanceItem['freq
 
 export async function markFinanceItemPaid(
   item: FinanceItem,
-  payment?: { wallet_id: string; payment_date: string },
+  payment?: { wallet_id: string; payment_date: string; occurrence_date?: string },
 ) {
   if (item.source === 'bill') {
     if (!payment) throw new Error('Select a payment wallet and date.');
     const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payment),
+      body: JSON.stringify({ ...payment, occurrence_date: item.dueDate }),
     });
     const { cancelBillReminders } = await import('./financial-reminders');
     await cancelBillReminders(item.id);

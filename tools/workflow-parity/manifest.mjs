@@ -307,7 +307,10 @@ export const criticalEvidence = {
   'bill.pay': [
     ['frontend/src/pages/dashboard/BillsPage.tsx', '/pay'],
     ['backend/src/services/bills.service.ts', 'payBill'],
-    ['supabase/migrations/20260818140000_fix_bill_payment_occurrence_ambiguity.sql', 'v_occurrence_date'],
+    [
+      'supabase/migrations/20260818140000_fix_bill_payment_occurrence_ambiguity.sql',
+      'v_occurrence_date',
+    ],
     ['supabase/tests/bill_payment_occurrence.sql', 'source_bill_occurrence_date'],
   ],
 };

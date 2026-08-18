@@ -1,9 +1,23 @@
-import type { Request, Response } from "express";
-import { createBill, deleteBill, getBill, listBills, payBill, updateBill } from "../services/bills.service.js";
-import { sendSuccess } from "../utils/api.js";
+import type { Request, Response } from 'express';
+import {
+  createBill,
+  deleteBill,
+  getBill,
+  listBills,
+  payBill,
+  updateBill,
+} from '../services/bills.service.js';
+import { sendSuccess } from '../utils/api.js';
 
 export async function list(req: Request, res: Response) {
-  const data = await listBills(req.user!.id, (req.validated?.query ?? {}) as { status?: string; due_within_days?: number; category?: string });
+  const data = await listBills(
+    req.user!.id,
+    (req.validated?.query ?? {}) as {
+      status?: string;
+      due_within_days?: number;
+      category?: string;
+    },
+  );
   return sendSuccess(res, data);
 }
 
@@ -18,7 +32,11 @@ export async function create(req: Request, res: Response) {
 }
 
 export async function update(req: Request, res: Response) {
-  const data = await updateBill(req.user!.id, (req.validated?.params as { id: string }).id, req.validated?.body as Record<string, unknown>);
+  const data = await updateBill(
+    req.user!.id,
+    (req.validated?.params as { id: string }).id,
+    req.validated?.body as Record<string, unknown>,
+  );
   return sendSuccess(res, data);
 }
 
@@ -28,6 +46,14 @@ export async function remove(req: Request, res: Response) {
 }
 
 export async function pay(req: Request, res: Response) {
-  const data = await payBill(req.user!.id, (req.validated?.params as { id: string }).id, req.validated?.body as { wallet_id: string; payment_date: string });
+  const data = await payBill(
+    req.user!.id,
+    (req.validated?.params as { id: string }).id,
+    req.validated?.body as {
+      wallet_id: string;
+      payment_date: string;
+      occurrence_date: string;
+    },
+  );
   return sendSuccess(res, data);
 }

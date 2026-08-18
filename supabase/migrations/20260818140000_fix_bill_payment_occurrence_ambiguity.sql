@@ -1,11 +1,14 @@
 -- expenses.occurrence_date (subscription billing) conflicts with the former
 -- mark_bill_paid local variable of the same name during the duplicate check.
--- Keep the public RPC signature stable and make every financial-row reference
--- explicit so PL/pgSQL name resolution cannot change the payment target.
-create or replace function public.mark_bill_paid(
+-- The prior three-argument contract could not distinguish a retry of the paid
+-- occurrence from an intentional payment of the newly-advanced cycle.
+drop function public.mark_bill_paid(uuid, uuid, date);
+
+create function public.mark_bill_paid(
   target_bill_id uuid,
   selected_wallet_id uuid,
-  selected_payment_date date
+  selected_payment_date date,
+  selected_occurrence_date date
 )
 returns jsonb as $$
 declare
@@ -28,6 +31,10 @@ begin
   for update of b;
 
   if not found then raise exception 'bill not found'; end if;
+
+  if v_bill.due_date <> selected_occurrence_date then
+    raise exception 'bill occurrence changed';
+  end if;
 
   select w.* into v_wallet
   from public.wallets as w
@@ -108,5 +115,5 @@ begin
 end;
 $$ language plpgsql security definer set search_path = public;
 
-revoke all on function public.mark_bill_paid(uuid, uuid, date) from public;
-grant execute on function public.mark_bill_paid(uuid, uuid, date) to authenticated;
+revoke all on function public.mark_bill_paid(uuid, uuid, date, date) from public;
+grant execute on function public.mark_bill_paid(uuid, uuid, date, date) to authenticated;

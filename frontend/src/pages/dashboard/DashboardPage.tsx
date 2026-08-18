@@ -1094,7 +1094,19 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   }).format(new Date());
 
   async function markBillPaid(bill: Bill) {
-    await apiRequest(`/bills/${bill.id}/pay`, { method: 'PATCH' });
+    if (!bill.wallet_id) {
+      window.location.assign('/app/bills');
+      return;
+    }
+    const today = new Date().toISOString().slice(0, 10);
+    await apiRequest(`/bills/${bill.id}/pay`, {
+      method: 'PATCH',
+      body: JSON.stringify({
+        wallet_id: bill.wallet_id,
+        payment_date: today,
+        occurrence_date: bill.due_date,
+      }),
+    });
     refetchBills();
   }
 
