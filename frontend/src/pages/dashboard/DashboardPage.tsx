@@ -1146,15 +1146,15 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
           <SummaryCards
             summary={summary}
             wallets={wallets ?? []}
-            report={report}
-            loans={loans}
+            report={report ?? undefined}
+            loans={loans ?? undefined}
             isPrivate={isPrivate}
             onTogglePrivacy={() => setIsPrivate((current) => !current)}
           />
 
           <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.65fr_1fr]">
-            <MoneyFlowCard report={report} isPrivate={isPrivate} />
-            <BudgetUsedCard budget={budget} insight={summary.ai_insight} isPrivate={isPrivate} />
+            <MoneyFlowCard report={report ?? undefined} isPrivate={isPrivate} />
+            <BudgetUsedCard budget={budget ?? undefined} insight={summary.ai_insight} isPrivate={isPrivate} />
           </section>
 
           <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">
@@ -1166,7 +1166,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
             ) : (
               <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
             )}
-            <TopSpendingCard report={monthlyReport} isPrivate={isPrivate} />
+            <TopSpendingCard report={monthlyReport ?? undefined} isPrivate={isPrivate} />
           </section>
 
           <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">

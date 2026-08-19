@@ -61,6 +61,38 @@ type SpendingEntry = {
   status?: string;
 };
 
+type ReportExpenseRow = {
+  amount: unknown;
+  source_bill_id?: unknown;
+};
+
+type ReportBillRow = {
+  amount: unknown;
+  credit_wallet_id?: unknown;
+};
+
+export function calculateCanonicalSpending(
+  expenses: ReportExpenseRow[],
+  paidBills: ReportBillRow[],
+  totalIncome: unknown,
+) {
+  const ordinaryExpenseTotal = expenses
+    .filter((expense) => !expense.source_bill_id)
+    .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
+  const paidBillsTotal = paidBills
+    .filter((bill) => !bill.credit_wallet_id)
+    .reduce((sum, bill) => sum + asNumber(bill.amount), 0);
+  const totalExpenses = ordinaryExpenseTotal + paidBillsTotal;
+  const income = asNumber(totalIncome);
+
+  return {
+    ordinary_expenses: Number(ordinaryExpenseTotal.toFixed(2)),
+    paid_bills: Number(paidBillsTotal.toFixed(2)),
+    total_expenses: Number(totalExpenses.toFixed(2)),
+    net_savings: Number((income - totalExpenses).toFixed(2)),
+  };
+}
+
 const reportCache = new Map<string, { expiresAt: number; data: unknown }>();
 const reportCacheTtlMs = 15_000;
 const defaultSavingsPreferenceBehavior: SavingsPreferenceBehavior = "auto_general";
@@ -572,8 +604,9 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   const totalBudget = categoriesData.reduce((sum, item) => sum + item.budget, 0) + goalAllocationTotal;
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
-  const paidBills = bills.filter((bill) => bill.status === "paid");
-  for (const expense of expenses) {
+  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const ordinaryExpenses = expenses.filter((expense) => !expense.source_bill_id);
+  for (const expense of ordinaryExpenses) {
     const category = String(expense.category || "");
     addCategoryAmount(categoryTotals, category, asNumber(expense.amount));
     addCategoryLabel(categoryLabels, category);
@@ -772,10 +805,11 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   if ("error" in aiInsights) throwIfError(aiInsights.error);
   if ("error" in profile) throwIfError(profile.error);
 
-  const paidBills = bills.filter((bill) => bill.status === "paid");
+  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const ordinaryExpenses = expenses.filter((expense) => !expense.source_bill_id);
   const outstandingBills = bills.filter((bill) => bill.status !== "paid");
   const spendingEntries: SpendingEntry[] = [
-    ...expenses.map((expense) => ({
+    ...ordinaryExpenses.map((expense) => ({
       date: String(expense.date),
       amount: asNumber(expense.amount),
       category: String(expense.category || "Uncategorized"),
@@ -794,16 +828,17 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
 
   const income = incomeData.rows;
   const totalIncome = incomeData.total;
-  const manualExpenseTotal = expenses.reduce((sum, item) => sum + asNumber(item.amount), 0);
-  const paidBillsTotal = paidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const spending = calculateCanonicalSpending(expenses, paidBills, incomeData.total);
+  const manualExpenseTotal = spending.ordinary_expenses;
+  const paidBillsTotal = spending.paid_bills;
   const outstandingBillsTotal = outstandingBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
-  const subscriptionSpending = expenses
+  const subscriptionSpending = ordinaryExpenses
     .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
     .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
   // Subscription expenses are regular expense rows and are already included in
   // manualExpenseTotal. Adding subscriptionSpending here double-counts them.
-  const totalExpenses = manualExpenseTotal + paidBillsTotal;
-  const netSavings = totalIncome - totalExpenses;
+  const totalExpenses = spending.total_expenses;
+  const netSavings = spending.net_savings;
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
   const dailySpending = new Map<string, number>();
@@ -1036,12 +1071,12 @@ export async function getDashboardSummary(userId: string) {
   if ("error" in goals) throwIfError(goals.error);
   if ("error" in subscriptions) throwIfError(subscriptions.error);
 
-  const paidBills = bills.filter((bill) => bill.status === "paid");
-  const previousPaidBills = previousBills.filter((bill) => bill.status === "paid");
-  const monthlyExpenses = expenses.reduce((sum, item) => sum + asNumber(item.amount), 0)
-    + paidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
-  const previousTotal = previousExpenses.reduce((sum, item) => sum + asNumber(item.amount), 0)
-    + previousPaidBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const previousPaidBills = previousBills.filter(
+    (bill) => bill.status === "paid" && !bill.credit_wallet_id,
+  );
+  const monthlyExpenses = calculateCanonicalSpending(expenses, paidBills, incomeData.this_month).total_expenses;
+  const previousTotal = calculateCanonicalSpending(previousExpenses, previousPaidBills, previousIncomeData.this_month).total_expenses;
   // Match the Reports screen's net-savings calculation: monthly income minus
   // expenses and paid bills. Keeping it server-side preserves one financial definition.
   const netSavings = incomeData.this_month - monthlyExpenses;

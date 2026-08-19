@@ -1,7 +1,10 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { defaultSettings, readAppSettings, settingsChangedEvent, type AppSettings } from "../lib/appSettings";
 
-const PreferencesContext = createContext({ settings: defaultSettings, refresh: () => undefined });
+const PreferencesContext = createContext<{ settings: AppSettings; refresh: () => void }>({
+  settings: defaultSettings,
+  refresh: () => undefined,
+});
 
 export function AppPreferencesProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState(readAppSettings);

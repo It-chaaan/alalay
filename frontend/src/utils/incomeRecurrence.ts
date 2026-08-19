@@ -2,6 +2,7 @@ import type { IncomeEntry } from "../hooks/types";
 
 export type IncomeFrequency = "monthly" | "weekly" | "biweekly" | "yearly";
 export type IncomeOccurrence = IncomeEntry & { is_scheduled?: boolean; recurrence_key?: string };
+export type IncomeSourceSummary = IncomeEntry & { amount: number };
 
 function parseDate(value: string) {
   const [year, month, day] = value.slice(0, 10).split("-").map(Number);
@@ -38,6 +39,31 @@ export function formatIncomeRecurrence(entry: Pick<IncomeEntry, "is_recurring" |
     case "yearly": return "/year";
     default: return "Recurring";
   }
+}
+
+/**
+ * Aggregates transaction history without inferring recurrence from a source
+ * name or from repeated one-time transactions.
+ */
+export function aggregateIncomeSources(entries: IncomeEntry[]): IncomeSourceSummary[] {
+  return Array.from(entries.reduce((sources, entry) => {
+    const key = `${entry.source}\u0000${entry.type}`;
+    const current = sources.get(key);
+
+    if (!current) {
+      sources.set(key, {
+        ...entry,
+        amount: Number(entry.amount),
+      });
+      return sources;
+    }
+
+    current.amount += Number(entry.amount);
+    const sameFrequency = current.frequency === entry.frequency;
+    current.is_recurring = isIncomeRecurring(current) && isIncomeRecurring(entry) && sameFrequency;
+    if (!current.is_recurring) current.frequency = undefined;
+    return sources;
+  }, new Map<string, IncomeSourceSummary>()).values());
 }
 
 function occurrenceDates(entry: IncomeEntry, from: string, to: string) {

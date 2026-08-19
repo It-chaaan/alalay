@@ -2,6 +2,7 @@ import type { Session } from '@supabase/supabase-js';
 import {
   ArrowLeftRight,
   ArrowRight,
+  CreditCard,
   ChevronRight,
   Eye,
   EyeOff,
@@ -89,11 +90,13 @@ function WalletCard({
   isPrivate,
   onEdit,
   onDelete,
+  onRepay,
 }: {
   wallet: Wallet;
   isPrivate: boolean;
   onEdit: (wallet: Wallet) => void;
   onDelete: (wallet: Wallet) => void;
+  onRepay: (wallet: Wallet) => void;
 }) {
   const { settings } = useAppPreferences();
   const isCredit = wallet.account_type === 'credit';
@@ -128,6 +131,19 @@ function WalletCard({
           {isCredit ? 'Outstanding' : 'Balance'}
         </p>
       </div>
+      {isCredit && Number(wallet.balance) > 0 ? (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            onRepay(wallet);
+          }}
+          className="relative z-20 mt-4 inline-flex min-h-9 items-center gap-2 rounded-xl border border-brand-primary px-3 text-xs font-semibold text-brand-primary hover:bg-brand-soft"
+        >
+          <CreditCard className="h-3.5 w-3.5" aria-hidden="true" /> Make payment
+        </button>
+      ) : null}
       {wallet.interest_rate ? (
         <p className="mt-2 text-xs text-slate-500">
           {wallet.interest_rate}% interest · actual credits only
@@ -142,11 +158,13 @@ function WalletList({
   isPrivate,
   onEdit,
   onDelete,
+  onRepay,
 }: {
   wallets: Wallet[];
   isPrivate: boolean;
   onEdit: (wallet: Wallet) => void;
   onDelete: (wallet: Wallet) => void;
+  onRepay: (wallet: Wallet) => void;
 }) {
   const { settings } = useAppPreferences();
   return (
@@ -197,12 +215,23 @@ function WalletList({
             >
               {isCredit ? 'Credit liability' : 'Liquid'}
             </span>
-            <WalletActionsMenu
-              walletName={wallet.name}
-              onEdit={() => onEdit(wallet)}
-              onDelete={() => onDelete(wallet)}
-              deleteDisabled={wallet.is_default_cash}
-            />
+            <div className="relative z-20 flex items-center justify-end gap-2">
+              {isCredit && Number(wallet.balance) > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => onRepay(wallet)}
+                  className="hidden min-h-9 rounded-xl border border-brand-primary px-2 text-[11px] font-semibold text-brand-primary hover:bg-brand-soft sm:inline-flex"
+                >
+                  Pay
+                </button>
+              ) : null}
+              <WalletActionsMenu
+                walletName={wallet.name}
+                onEdit={() => onEdit(wallet)}
+                onDelete={() => onDelete(wallet)}
+                deleteDisabled={wallet.is_default_cash}
+              />
+            </div>
           </div>
         );
       })}
@@ -617,6 +646,102 @@ export function TransferForm({
         >
           <Send className="h-4 w-4" />
           {isSubmitting ? 'Transferring…' : 'Transfer'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+export function CreditRepaymentForm({
+  creditWallet,
+  paymentWallets,
+  onClose,
+  onSaved,
+}: {
+  creditWallet: Wallet;
+  paymentWallets: Wallet[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { mutate, isSubmitting, error } = useApiMutation();
+  const [paymentWalletId, setPaymentWalletId] = useState(paymentWallets[0]?.id ?? '');
+  const [principal, setPrincipal] = useState('');
+  const [interest, setInterest] = useState('');
+  const [fee, setFee] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().slice(0, 10));
+  const outstanding = Number(creditWallet.balance);
+  const total = Number(principal || 0) + Number(interest || 0) + Number(fee || 0);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!paymentWalletId || Number(principal) <= 0 || Number(principal) > outstanding) return;
+    await mutate(`/wallets/${creditWallet.id}/repayments`, {
+      method: 'POST',
+      body: JSON.stringify({
+        payment_wallet_id: paymentWalletId,
+        principal_amount: Number(principal),
+        interest_amount: Number(interest || 0),
+        fee_amount: Number(fee || 0),
+        payment_date: paymentDate,
+        idempotency_key: requestKey(),
+      }),
+    });
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <form onSubmit={(event) => void submit(event)} className="space-y-5">
+      <div className="rounded-2xl bg-brand-soft p-4 text-sm">
+        <p className="font-semibold">{creditWallet.name}</p>
+        <p className="mt-1 text-slate-600 dark:text-slate-300">
+          Outstanding {formatCurrency(outstanding)}. Principal reduces the liability; interest and
+          fees remain visible as spending.
+        </p>
+      </div>
+      <label className="block text-sm font-semibold">
+        Pay from
+        <select
+          required
+          value={paymentWalletId}
+          onChange={(event) => setPaymentWalletId(event.target.value)}
+          className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+        >
+          <option value="">Select wallet</option>
+          {paymentWallets.map((wallet) => (
+            <option key={wallet.id} value={wallet.id}>
+              {wallet.name} Â· {formatCurrency(Number(wallet.balance))} available before allocations
+            </option>
+          ))}
+        </select>
+      </label>
+      <CurrencyInput id="credit-repayment-principal" label="Principal" value={principal} onChange={setPrincipal} />
+      <div className="grid gap-4 sm:grid-cols-2">
+        <CurrencyInput id="credit-repayment-interest" label="Interest (optional)" value={interest} onChange={setInterest} />
+        <CurrencyInput id="credit-repayment-fee" label="Fee (optional)" value={fee} onChange={setFee} />
+      </div>
+      <label className="block text-sm font-semibold">
+        Payment date
+        <input
+          required
+          type="date"
+          value={paymentDate}
+          onChange={(event) => setPaymentDate(event.target.value)}
+          className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+        />
+      </label>
+      {total > 0 ? <p className="text-sm text-slate-500">Total wallet outflow: {formatCurrency(total)}</p> : null}
+      {Number(principal) > outstanding ? (
+        <p className="text-sm text-red-600" role="alert">Principal cannot exceed the outstanding balance.</p>
+      ) : null}
+      {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
+      <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
+        <button type="button" onClick={onClose} className="min-h-11 rounded-xl px-4 text-sm font-semibold">Cancel</button>
+        <button
+          disabled={isSubmitting || !paymentWalletId || Number(principal) <= 0 || Number(principal) > outstanding}
+          className="min-h-11 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {isSubmitting ? 'Saving…' : 'Save repayment'}
         </button>
       </div>
     </form>
@@ -1166,6 +1291,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
   const [isAddWalletOpen, setIsAddWalletOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [loanDialog, setLoanDialog] = useState<'record' | 'repayment' | 'overview' | null>(null);
+  const [creditRepaymentWallet, setCreditRepaymentWallet] = useState<Wallet | null>(null);
   const { isPrivate, togglePrivacy } = useBalancePrivacy();
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [deletingWallet, setDeletingWallet] = useState<Wallet | null>(null);
@@ -1400,6 +1526,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                       isPrivate={isPrivate}
                       onEdit={setEditingWallet}
                       onDelete={setDeletingWallet}
+                      onRepay={setCreditRepaymentWallet}
                     />
                   ))}
                 </div>
@@ -1409,6 +1536,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                   isPrivate={isPrivate}
                   onEdit={setEditingWallet}
                   onDelete={setDeletingWallet}
+                  onRepay={setCreditRepaymentWallet}
                 />
               )
             ) : wallets.length ? (
@@ -1489,6 +1617,25 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           onSaved={walletsQuery.refetch}
           onClose={() => setIsTransferOpen(false)}
         />
+      </SlideOver>
+      <SlideOver
+        open={Boolean(creditRepaymentWallet)}
+        onClose={() => setCreditRepaymentWallet(null)}
+        title="Make credit payment"
+        description={
+          creditRepaymentWallet
+            ? `Settle ${creditRepaymentWallet.name} from an asset wallet.`
+            : undefined
+        }
+      >
+        {creditRepaymentWallet ? (
+          <CreditRepaymentForm
+            creditWallet={creditRepaymentWallet}
+            paymentWallets={liquidWallets}
+            onClose={() => setCreditRepaymentWallet(null)}
+            onSaved={refreshFinancials}
+          />
+        ) : null}
       </SlideOver>
       <SlideOver
         open={loanDialog === 'record'}

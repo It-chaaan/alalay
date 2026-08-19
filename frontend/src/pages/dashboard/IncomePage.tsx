@@ -8,13 +8,20 @@ import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
-import { buildIncomeOccurrences, formatIncomeRecurrence, isIncomeRecurring } from "../../utils/incomeRecurrence";
+import { aggregateIncomeSources, buildIncomeOccurrences, formatIncomeRecurrence, isIncomeRecurring } from "../../utils/incomeRecurrence";
 import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Pen, Trash2 } from "lucide-react";
 import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { getCategoryMeta } from "../../utils/categoryRegistry";
 
 type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
+
+function incomeSourceType(value: string): IncomeSourceType {
+  return ["salary", "freelance", "business", "remittance", "other"].includes(value)
+    ? (value as IncomeSourceType)
+    : "other";
+}
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -30,11 +37,12 @@ function getMonthLabel(date: Date, options: Intl.DateTimeFormatOptions) {
 
 
 function TrendIcon({ tone }: { tone: IncomeSourceType }) {
-  const toneClass = {
+  const toneClass: Record<IncomeSourceType, string> = {
     salary: "bg-[#e8f1df] text-[#3f7d16]",
     freelance: "bg-[#eaf3fb] text-[#5e9bc9]",
     business: "bg-[#fff5e7] text-[#e9ad58]",
-    passive: "bg-slate-100 text-slate-300",
+    remittance: "bg-[#e8f1df] text-[#3f7d16]",
+    other: "bg-slate-100 text-slate-500",
   };
 
   return (
@@ -115,12 +123,14 @@ function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }
 
 function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
   const total = entries.reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const breakdown = ["salary", "freelance", "business"].map((type) => {
+  const types = Array.from(new Set(entries.map((entry) => entry.type)));
+  const breakdown = types.map((type) => {
     const amount = entries.filter((entry) => entry.type === type).reduce((sum, entry) => sum + Number(entry.amount), 0);
+    const category = getCategoryMeta(type);
     return {
-      label: type[0].toUpperCase() + type.slice(1),
+      label: category.label,
       value: total ? Math.round((amount / total) * 100) : 0,
-      color: type === "salary" ? "#3f7d16" : type === "freelance" ? "#6fa3d2" : "#f4c37d",
+      color: category.color,
     };
   });
   const hasBreakdownData = breakdown.some((item) => item.value > 0);
@@ -182,18 +192,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
   const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
   const thisMonthRows = buildIncomeOccurrences(rows, `${thisMonthKey}-01`, `${thisMonthKey}-${String(monthEnd.getDate()).padStart(2, "0")}`).filter((entry) => entry.date.startsWith(thisMonthKey));
   const ytd = incomeSummary?.ytd ?? rows.filter((entry) => entry.date.startsWith(String(today.getFullYear()))).reduce((sum, entry) => sum + Number(entry.amount), 0);
-  const bySource = Array.from(rows.reduce((map, entry) => {
-    const key = `${entry.source}-${entry.type}`;
-    const current = map.get(key) ?? { ...entry, amount: 0 };
-    current.amount = Number(current.amount) + Number(entry.amount);
-    // Aggregated source cards must never turn a one-time record into a
-    // recurring source. Mixed history is therefore presented as non-recurring
-    // unless every contributing record is recurring.
-    current.is_recurring = isIncomeRecurring(current) && isIncomeRecurring(entry);
-    if (current.is_recurring && current.frequency !== entry.frequency) current.frequency = undefined;
-    map.set(key, current);
-    return map;
-  }, new Map<string, IncomeEntry>()).values());
+  const bySource = aggregateIncomeSources(rows);
 
   useEffect(() => {
     const interval = window.setInterval(() => setToday(new Date()), 60_000);
@@ -283,10 +282,10 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
           <div className="mt-4 space-y-3">
             {bySource.map((source) => (
               <div key={source.id} className="flex items-center gap-3 rounded-2xl bg-[#f8f8f5] p-3">
-                <TrendIcon tone={source.type} />
+                <TrendIcon tone={incomeSourceType(source.type)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-950">{source.source}</p>
-                  <p className="truncate text-xs text-slate-500">{source.type}</p>
+                <p className="truncate text-xs text-slate-500">{incomeSourceType(source.type)}</p>
                 </div>
                 <div className="text-right">
                   <p className={`font-mono text-sm font-bold ${source.type === "salary" ? "text-[#3f7d16]" : source.type === "freelance" ? "text-[#5e9bc9]" : source.type === "business" ? "text-[#df9f42]" : "text-slate-400"}`}>{formatCurrency(source.amount)}</p>
@@ -303,13 +302,13 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
           <div className="mt-4">
             {rows.slice(0, 5).map((income) => (
               <div key={income.id} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-0">
-                <TrendIcon tone={income.type} />
+                <TrendIcon tone={incomeSourceType(income.type)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-950">{income.source}</p>
-                  <p className="mt-1 flex items-center gap-2 text-xs text-slate-500"><SourcePill type={income.type} />{income.is_recurring ? "Recurring" : "One-time"}</p>
+                <p className="mt-1 flex items-center gap-2 text-xs text-slate-500"><SourcePill type={incomeSourceType(income.type)} />{income.is_recurring ? "Recurring" : "One-time"}</p>
                 </div>
                 <div className="text-right">
-                  <p className="font-mono text-sm font-bold text-[#3f7d16]">+{formatCurrency(income.amount)}</p>
+                  <p className="font-mono text-sm font-bold text-[#3f7d16]">+{formatCurrency(Number(income.amount))}</p>
                   <p className="text-xs text-slate-400">{formatDateShort(income.date)}</p>
                 </div>
                 <MoreActionsMenu

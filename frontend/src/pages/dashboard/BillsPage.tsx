@@ -46,6 +46,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     reset: resetDeleteMutation,
   } = useApiMutation();
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
+  const paymentWallets = (wallets ?? []).filter((wallet) => wallet.account_type !== 'credit');
   const [activeFilter, setActiveFilter] = useState<BillFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -323,7 +324,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                           onMarkPaid={() => {
                             resetPaymentMutation();
                             setPaymentBill(row);
-                            setPaymentWalletId(row.wallet_id ?? wallets?.[0]?.id ?? '');
+                            setPaymentWalletId(row.wallet_id ?? paymentWallets[0]?.id ?? '');
                             setPaymentDate(todayInputValue());
                             setOpenMenuId(null);
                           }}
@@ -380,7 +381,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
                 className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
               >
                 <option value="">Select wallet</option>
-                {(wallets ?? []).map((wallet) => (
+                {paymentWallets.map((wallet) => (
                   <option key={wallet.id} value={wallet.id}>
                     {wallet.name} · {wallet.account_type ?? wallet.institution_type}
                   </option>

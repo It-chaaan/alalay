@@ -14,6 +14,7 @@ export type Bill = {
   attachment_url?: string | null;
   created_at: string;
   wallet_id?: string | null;
+  credit_wallet_id?: string | null;
 };
 
 export type Expense = {

@@ -70,7 +70,8 @@ function AppContent() {
   const supabase = getSupabaseClient();
 
   useEffect(() => {
-    if (!supabase) {
+    const supabaseClient = supabase;
+    if (!supabaseClient) {
       setIsMfaPending(false);
       setIsSessionLoading(false);
       return;
@@ -80,6 +81,7 @@ function AppContent() {
 
     async function syncAuthState(nextSession: Session | null) {
       if (!isMounted) return;
+      if (!supabaseClient) return;
 
       setSession(nextSession);
 
@@ -89,7 +91,7 @@ function AppContent() {
         return;
       }
 
-      const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      const { data, error } = await supabaseClient.auth.mfa.getAuthenticatorAssuranceLevel();
 
       if (!isMounted) return;
 
@@ -111,11 +113,11 @@ function AppContent() {
       setIsSessionLoading(false);
     }
 
-    supabase.auth.getSession().then(({ data }) => {
+      supabaseClient.auth.getSession().then(({ data }) => {
       void syncAuthState(data.session);
     });
 
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const { data } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
       void syncAuthState(nextSession);
     });
 

@@ -444,7 +444,7 @@ function QuickActionsCard() {
       accessibilityLabel: 'Add expense',
       icon: BanknoteArrowDown,
       iconBackground: colors.primarySoft,
-      iconColor: colors.danger,
+      iconColor: colors.primary,
       onPress: () => router.push('/(tabs)/expenses'),
     },
     {
@@ -453,7 +453,7 @@ function QuickActionsCard() {
       accessibilityLabel: 'Add income',
       icon: BanknoteArrowUp,
       iconBackground: colors.primarySoft,
-      iconColor: colors.success,
+      iconColor: colors.primary,
       onPress: () => router.push('/(tabs)/income'),
     },
     {
@@ -471,7 +471,7 @@ function QuickActionsCard() {
       accessibilityLabel: 'Open subscriptions',
       icon: Repeat,
       iconBackground: colors.primarySoft,
-      iconColor: colors.info,
+      iconColor: colors.primary,
       onPress: () => router.push('/(tabs)/subscriptions'),
     },
     {
@@ -480,7 +480,7 @@ function QuickActionsCard() {
       accessibilityLabel: 'Open savings goals',
       icon: Target,
       iconBackground: colors.primarySoft,
-      iconColor: colors.warning,
+      iconColor: colors.primary,
       onPress: () => router.push('/(tabs)/savings'),
     },
   ];

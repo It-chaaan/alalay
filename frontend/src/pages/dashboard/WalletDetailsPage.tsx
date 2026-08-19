@@ -24,7 +24,7 @@ import { useApiQuery } from '../../hooks/useApiQuery';
 import { useBalancePrivacy } from '../../hooks/useBalancePrivacy';
 import type { Wallet } from '../../hooks/types';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { DepositForm, EditWalletForm, TransferForm } from './WalletsPage';
+import { CreditRepaymentForm, DepositForm, EditWalletForm, TransferForm } from './WalletsPage';
 
 type WalletTransaction = {
   id: string;
@@ -403,6 +403,7 @@ export function WalletDetailsPage({
   const [editing, setEditing] = useState(false);
   const [depositing, setDepositing] = useState(false);
   const [transferring, setTransferring] = useState(false);
+  const [repaying, setRepaying] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const deleteMutation = useApiMutation();
   const wallet = detailQuery.data?.wallet;
@@ -469,6 +470,15 @@ export function WalletDetailsPage({
                 onDelete={() => setDeleting(true)}
               />
               <div className="mt-4 flex flex-wrap gap-3">
+                {wallet.account_type === 'credit' && Number(wallet.balance) > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => setRepaying(true)}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white shadow-sm hover:bg-brand-dark sm:flex-none"
+                  >
+                    <CreditCard className="h-4 w-4" aria-hidden="true" /> Make payment
+                  </button>
+                ) : null}
                 {wallet.account_type !== 'credit' ? (
                   <button
                     type="button"
@@ -533,6 +543,19 @@ export function WalletDetailsPage({
               wallets={liquidWallets}
               initialFrom={wallet.id}
               onClose={() => setTransferring(false)}
+              onSaved={refresh}
+            />
+          </SlideOver>
+          <SlideOver
+            open={repaying}
+            onClose={() => setRepaying(false)}
+            title="Make credit payment"
+            description={`Settle ${wallet.name} from an asset wallet.`}
+          >
+            <CreditRepaymentForm
+              creditWallet={wallet}
+              paymentWallets={liquidWallets}
+              onClose={() => setRepaying(false)}
               onSaved={refresh}
             />
           </SlideOver>

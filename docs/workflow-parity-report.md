@@ -1,5 +1,5 @@
 # Mobile → Web Workflow Parity Report
-Generated: 2026-08-18T05:43:59.762Z
+Generated: 2026-08-19T04:19:16.646Z
 ## Summary
 - PARITY: 17
 - PARTIAL: 6

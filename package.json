@@ -1,6 +1,9 @@
 {
   "scripts": {
     "audit:workflow": "node tools/workflow-parity/audit.mjs",
+    "test:contracts": "node tools/run-workflow-tests.mjs contracts",
+    "test:workflows": "node tools/run-workflow-tests.mjs",
+    "test:db": "node tools/run-db-tests.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },

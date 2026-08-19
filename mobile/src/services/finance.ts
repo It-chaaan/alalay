@@ -13,6 +13,7 @@ export type BillRecord = {
   status: 'unpaid' | 'paid' | 'overdue';
   paid_at: string | null;
   wallet_id?: string | null;
+  credit_wallet_id?: string | null;
 };
 
 export type SubscriptionRecord = {
@@ -40,6 +41,7 @@ export type FinanceItem = {
   frequency: BillRecord['frequency'] | SubscriptionRecord['billing_cycle'];
   paid: boolean;
   wallet_id?: string | null;
+  credit_wallet_id?: string | null;
 };
 
 export type ExpenseRecord = {
@@ -93,6 +95,35 @@ export type WalletRecord = {
   icon?: string | null;
   is_default_cash: boolean;
 };
+
+export type CreditRepaymentPayload = {
+  payment_wallet_id: string;
+  principal_amount: number;
+  interest_amount?: number;
+  fee_amount?: number;
+  payment_date: string;
+  idempotency_key: string;
+};
+
+export async function repayCreditAccount(
+  creditWalletId: string,
+  payload: CreditRepaymentPayload,
+) {
+  const result = await authenticatedApiRequest(
+    `/api/wallets/${creditWalletId}/repayments`,
+    {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      ...payload,
+      interest_amount: payload.interest_amount ?? 0,
+      fee_amount: payload.fee_amount ?? 0,
+    }),
+    },
+  );
+  notifyFinancialMutation();
+  return result;
+}
 
 export function fetchWallets() {
   return authenticatedApiRequest<WalletRecord[]>('/api/wallets');
@@ -283,6 +314,7 @@ export async function fetchFinanceItems() {
     frequency: bill.frequency,
     paid: bill.status === 'paid',
     wallet_id: bill.wallet_id,
+    credit_wallet_id: bill.credit_wallet_id,
   }));
   const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({
     id: subscription.id,

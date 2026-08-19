@@ -11,8 +11,21 @@ type ApiFailure = {
     code: string;
     message: string;
     details?: string;
+    correlationId?: string;
   };
 };
+
+export class ApiRequestError extends Error {
+  readonly code: string;
+  readonly correlationId?: string;
+
+  constructor(message: string, code: string, correlationId?: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.code = code;
+    this.correlationId = correlationId;
+  }
+}
 
 const configuredApiUrl = import.meta.env.VITE_API_URL;
 
@@ -62,11 +75,25 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
       const payload = (await response.json()) as ApiSuccess<T> | ApiFailure;
 
       if (!response.ok || !payload.success) {
-        throw new Error(
-          payload.success
-            ? "Request failed."
-            : payload.error.message,
+        if (payload.success) {
+          throw new ApiRequestError("Request failed.", "request_failed");
+        }
+
+        const requestError = new ApiRequestError(
+          payload.error.message,
+          payload.error.code,
+          payload.error.correlationId,
         );
+        if (import.meta.env.DEV) {
+          console.error("API request failed", {
+            path,
+            status: response.status,
+            code: requestError.code,
+            correlationId: requestError.correlationId,
+            details: payload.error.details,
+          });
+        }
+        throw requestError;
       }
 
       return payload.data;

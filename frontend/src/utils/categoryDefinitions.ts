@@ -10,5 +10,5 @@ export const expenseCategoryDefinitions: CategoryDefinition[] = categoryDefiniti
 
 export function getCategoryDefinition(name: string) {
   const category = getCategoryMeta(name);
-  return { name: category.label === "Other" && name.trim() ? name : category.label, icon: category.icon, color: category.color };
+  return { name: category.label === "Other" && name.trim() ? name : category.label, icon: category.iconKey, color: category.color };
 }

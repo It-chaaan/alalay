@@ -99,3 +99,17 @@ export const walletInterestSchema = z
     note: z.string().trim().max(500).nullable().optional(),
   })
   .strict();
+
+export const creditRepaymentSchema = z
+  .object({
+    payment_wallet_id: z.string().uuid(),
+    principal_amount: currencyAmount.refine(
+      (value) => value > 0,
+      'Principal amount must be greater than zero.',
+    ),
+    interest_amount: currencyAmount.optional().default(0),
+    fee_amount: currencyAmount.optional().default(0),
+    payment_date: safeDate,
+    idempotency_key: z.string().trim().min(16).max(100),
+  })
+  .strict();

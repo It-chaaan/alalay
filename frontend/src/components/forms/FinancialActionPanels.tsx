@@ -6,7 +6,15 @@ import type {
   TextareaHTMLAttributes,
 } from 'react';
 import { useEffect, useId, useRef } from 'react';
-import { Controller, useFieldArray, useForm, useWatch, type Control } from 'react-hook-form';
+import {
+  Controller,
+  useFieldArray,
+  useForm,
+  useWatch,
+  type Control,
+  type FieldPath,
+  type FieldValues,
+} from 'react-hook-form';
 import { z } from 'zod';
 import { useApiMutation } from '../../hooks/useApiMutation';
 import { useApiQuery } from '../../hooks/useApiQuery';
@@ -212,6 +220,7 @@ const billSchema = z
     notes: z.string().optional(),
     attachment_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
     wallet_id: z.string().uuid().nullable().optional(),
+    credit_wallet_id: z.string().uuid().nullable().optional(),
   })
   .superRefine((values, context) => {
     if (values.recurring && !values.frequency) {
@@ -231,9 +240,10 @@ const billSchema = z
     }
   });
 
-type BillFormValues = z.infer<typeof billSchema>;
+type BillFormInput = z.input<typeof billSchema>;
+type BillFormValues = z.output<typeof billSchema>;
 
-function defaultBillValues(bill?: Bill | null): BillFormValues {
+function defaultBillValues(bill?: Bill | null): BillFormInput {
   const existingCategory = bill?.category ?? '';
   const isPresetCategory = isPresetBillCategory(existingCategory);
 
@@ -248,6 +258,7 @@ function defaultBillValues(bill?: Bill | null): BillFormValues {
     notes: bill?.notes ?? '',
     attachment_url: bill?.attachment_url ?? '',
     wallet_id: bill?.wallet_id ?? null,
+    credit_wallet_id: bill?.credit_wallet_id ?? null,
   };
 }
 
@@ -262,7 +273,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
     formState: { errors },
     control,
     setValue,
-  } = useForm<BillFormValues>({
+  } = useForm<BillFormInput, unknown, BillFormValues>({
     resolver: zodResolver(billSchema),
     defaultValues: defaultBillValues(bill),
     shouldUnregister: true,
@@ -271,6 +282,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
   const frequency = watch('frequency');
   const category = watch('category');
   const walletId = watch('wallet_id');
+  const creditWalletId = watch('credit_wallet_id');
 
   useEffect(() => {
     if (open) {
@@ -382,7 +394,19 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           id="bill-wallet"
           label="Payment method"
           value={walletId}
+          excludeCredit
           onChange={(value) => setValue('wallet_id', value || null, { shouldDirty: true })}
+        />
+
+        <WalletSelector
+          id="bill-credit-wallet"
+          label="Credit statement account (optional)"
+          value={creditWalletId}
+          onlyCredit
+          onChange={(value) =>
+            setValue('credit_wallet_id', value || null, { shouldDirty: true })
+          }
+          emptyMessage="Add a credit wallet before linking a statement."
         />
 
         <CheckboxField
@@ -451,13 +475,14 @@ const subscriptionSchema = z.object({
   }
 });
 
-type SubscriptionFormValues = z.infer<typeof subscriptionSchema>;
+type SubscriptionFormInput = z.input<typeof subscriptionSchema>;
+type SubscriptionFormValues = z.output<typeof subscriptionSchema>;
 
 function dateInputValue(value: string | null | undefined) {
   return value ? value.slice(0, 10) : '';
 }
 
-function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormValues {
+function defaultSubscriptionValues(subscription?: Subscription | null): SubscriptionFormInput {
   return {
     name: subscription?.name ?? '',
     category: subscription?.category ?? '',
@@ -488,7 +513,7 @@ export function SubscriptionFormPanel({
     control,
     setValue,
     watch,
-  } = useForm<SubscriptionFormValues>({
+  } = useForm<SubscriptionFormInput, unknown, SubscriptionFormValues>({
     resolver: zodResolver(subscriptionSchema),
     defaultValues: defaultSubscriptionValues(subscription),
   });
@@ -660,9 +685,10 @@ const expenseSchema = z.object({
   wallet_id: z.string().uuid('Select a payment method.'),
 });
 
-type ExpenseFormValues = z.infer<typeof expenseSchema>;
+type ExpenseFormInput = z.input<typeof expenseSchema>;
+type ExpenseFormValues = z.output<typeof expenseSchema>;
 
-function defaultExpenseValues(expense?: Expense | null): ExpenseFormValues {
+function defaultExpenseValues(expense?: Expense | null): ExpenseFormInput {
   return {
     merchant: expense?.merchant ?? '',
     amount: expense ? Number(expense.amount) : undefined,
@@ -681,6 +707,7 @@ function WalletSelector({
   onChange,
   required = false,
   excludeCredit = false,
+  onlyCredit = false,
   error,
   emptyMessage = 'Add a wallet before continuing.',
 }: {
@@ -690,12 +717,16 @@ function WalletSelector({
   onChange: (value: string) => void;
   required?: boolean;
   excludeCredit?: boolean;
+  onlyCredit?: boolean;
   error?: string;
   emptyMessage?: string;
 }) {
   const { data: wallets, isLoading, error: walletError } = useApiQuery<Wallet[]>('/wallets');
   const eligibleWallets = (wallets ?? []).filter(
-    (wallet) => !excludeCredit || wallet.account_type !== 'credit',
+    (wallet) =>
+      onlyCredit
+        ? wallet.account_type === 'credit'
+        : !excludeCredit || wallet.account_type !== 'credit',
   );
   const selectorError =
     error ??
@@ -732,13 +763,13 @@ function WalletSelector({
   );
 }
 
-function FormCurrencyInput({
+function FormCurrencyInput<TFieldValues extends FieldValues>({
   control,
   name,
   ...props
 }: {
-  control: Control<any>;
-  name: string;
+  control: Control<TFieldValues>;
+  name: FieldPath<TFieldValues>;
   id: string;
   label: string;
   error?: string;
@@ -777,7 +808,7 @@ export function ExpenseFormPanel({ open, onClose, onSuccess, expense }: ExpenseF
     control,
     setValue,
     watch,
-  } = useForm<ExpenseFormValues>({
+  } = useForm<ExpenseFormInput, unknown, ExpenseFormValues>({
     resolver: zodResolver(expenseSchema),
     defaultValues: defaultExpenseValues(expense),
   });
@@ -912,9 +943,10 @@ const incomeSchema = z.object({
   wallet_id: z.string().uuid('Select where this income was received.'),
 });
 
-type IncomeFormValues = z.infer<typeof incomeSchema>;
+type IncomeFormInput = z.input<typeof incomeSchema>;
+type IncomeFormValues = z.output<typeof incomeSchema>;
 
-function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormValues {
+function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormInput {
   return {
     source: income?.source ?? '',
     type: income?.type === 'other' ? 'other-income' : income?.type ?? 'salary',
@@ -937,7 +969,7 @@ export function IncomeFormPanel({ open, onClose, onSuccess, income }: IncomeForm
     control,
     setValue,
     watch,
-  } = useForm<IncomeFormValues>({
+  } = useForm<IncomeFormInput, unknown, IncomeFormValues>({
     resolver: zodResolver(incomeSchema),
     defaultValues: defaultIncomeValues(income),
     shouldUnregister: true,
@@ -1072,9 +1104,10 @@ const savingsGoalSchema = z.object({
   deadline: z.string().date('Deadline is required'),
 });
 
-type SavingsGoalFormValues = z.infer<typeof savingsGoalSchema>;
+type SavingsGoalFormInput = z.input<typeof savingsGoalSchema>;
+type SavingsGoalFormValues = z.output<typeof savingsGoalSchema>;
 
-function defaultSavingsGoalValues(goal?: SavingsGoal | null): SavingsGoalFormValues {
+function defaultSavingsGoalValues(goal?: SavingsGoal | null): SavingsGoalFormInput {
   return {
     title: goal?.title ?? '',
     emoji: goal?.emoji ?? '',
@@ -1099,7 +1132,7 @@ export function SavingsGoalFormPanel({
     reset,
     formState: { errors },
     control,
-  } = useForm<SavingsGoalFormValues>({
+  } = useForm<SavingsGoalFormInput, unknown, SavingsGoalFormValues>({
     resolver: zodResolver(savingsGoalSchema),
     defaultValues: defaultSavingsGoalValues(goal),
   });
@@ -1238,9 +1271,10 @@ const savingsGoalProgressSchema = z.object({
   wallet_id: z.string().uuid('Choose the wallet this contribution comes from.'),
 });
 
-type SavingsGoalProgressValues = z.infer<typeof savingsGoalProgressSchema>;
+type SavingsGoalProgressInput = z.input<typeof savingsGoalProgressSchema>;
+type SavingsGoalProgressValues = z.output<typeof savingsGoalProgressSchema>;
 
-function defaultSavingsGoalProgressValues(): SavingsGoalProgressValues {
+function defaultSavingsGoalProgressValues(): SavingsGoalProgressInput {
   return {
     amount: undefined,
     wallet_id: '',
@@ -1263,7 +1297,7 @@ export function SavingsGoalProgressPanel({
     control,
     setValue,
     watch,
-  } = useForm<SavingsGoalProgressValues>({
+  } = useForm<SavingsGoalProgressInput, unknown, SavingsGoalProgressValues>({
     resolver: zodResolver(savingsGoalProgressSchema),
     defaultValues: defaultSavingsGoalProgressValues(),
   });
@@ -1368,7 +1402,8 @@ const budgetSchema = z.object({
   remaining_savings_behavior: z.enum(['auto_general', 'leave_unallocated', 'ask_monthly']),
 });
 
-type BudgetFormValues = z.infer<typeof budgetSchema>;
+type BudgetFormInput = z.input<typeof budgetSchema>;
+type BudgetFormValues = z.output<typeof budgetSchema>;
 
 const starterBudgetCategories = getCategories('expense')
   .slice(0, 4)
@@ -1401,7 +1436,7 @@ function createBudgetCategoryId() {
   );
 }
 
-function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormValues {
+function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormInput {
   const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
 
@@ -1442,7 +1477,7 @@ export function BudgetFormPanel({
     reset,
     setValue,
     formState: { errors },
-  } = useForm<BudgetFormValues>({
+  } = useForm<BudgetFormInput, unknown, BudgetFormValues>({
     resolver: zodResolver(budgetSchema),
     defaultValues: buildBudgetDefaults(budgetSummary),
   });

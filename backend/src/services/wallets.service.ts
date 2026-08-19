@@ -21,6 +21,14 @@ export type WalletTransferPayload = {
   note?: string | null;
   idempotency_key: string;
 };
+export type CreditRepaymentPayload = {
+  payment_wallet_id: string;
+  principal_amount: number;
+  interest_amount: number;
+  fee_amount: number;
+  payment_date: string;
+  idempotency_key: string;
+};
 
 function validateAccountType(
   payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit'>,
@@ -99,7 +107,7 @@ export async function getWallet(userId: string, id: string) {
     .eq('id', id)
     .single();
   if (error || !wallet) throw new AppError(404, 'not_found', 'Wallet not found.');
-  const [income, expenses, bills, adjustments, transfers] = await Promise.all([
+  const [income, expenses, bills, adjustments, transfers, loans, loanPayments, creditRepayments] = await Promise.all([
     client()
       .from('income')
       .select('id, source, amount, date, wallet_id')
@@ -109,14 +117,14 @@ export async function getWallet(userId: string, id: string) {
       .limit(200),
     client()
       .from('expenses')
-      .select('id, merchant, category, amount, date, wallet_id, source_bill_id')
+      .select('id, merchant, category, amount, date, wallet_id, source_bill_id, credit_repayment_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
       .is('deleted_at', null)
       .limit(200),
     client()
       .from('bills')
-      .select('id, title, category, amount, due_date, paid_at, status, wallet_id')
+      .select('id, title, category, amount, due_date, paid_at, status, wallet_id, credit_wallet_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
       .eq('status', 'paid')
@@ -138,10 +146,35 @@ export async function getWallet(userId: string, id: string) {
       .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
       .order('transferred_at', { ascending: false })
       .limit(200),
+    client()
+      .from('loans')
+      .select('id, counterparty, direction, original_principal, start_date, wallet_id')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .limit(200),
+    client()
+      .from('loan_payments')
+      .select('id, loan_id, principal_amount, interest_amount, paid_on, note, interest_income_id, interest_expense_id, loans(counterparty, direction)')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .order('paid_on', { ascending: false })
+      .limit(200),
+    client()
+      .from('credit_repayments')
+      .select('id, credit_wallet_id, payment_wallet_id, principal_amount, interest_amount, fee_amount, payment_date, source_bill_id, interest_expense_id, fee_expense_id')
+      .eq('user_id', ownerId)
+      .or(`credit_wallet_id.eq.${id},payment_wallet_id.eq.${id}`)
+      .order('payment_date', { ascending: false })
+      .limit(200),
   ]);
-  const counterpartIds = (transfers.data ?? []).map((row) =>
+  const counterpartIds = [
+    ...(transfers.data ?? []).map((row) =>
     row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id,
-  );
+    ),
+    ...(creditRepayments.data ?? []).map((row) =>
+      row.credit_wallet_id === id ? row.payment_wallet_id : row.credit_wallet_id,
+    ),
+  ];
   const counterpartResult = counterpartIds.length
     ? await client()
         .from('wallets')
@@ -156,19 +189,37 @@ export async function getWallet(userId: string, id: string) {
     bills.error,
     adjustments.error,
     transfers.error,
+    loans.error,
+    loanPayments.error,
+    creditRepayments.error,
     counterpartResult.error,
   ].some(Boolean)
     ? 'Unable to load linked transactions.'
     : undefined;
+  const linkedInterestIncomeIds = new Set(
+    (loanPayments.data ?? []).map((payment) => payment.interest_income_id).filter(Boolean),
+  );
+  const linkedInterestExpenseIds = new Set(
+    (loanPayments.data ?? []).map((payment) => payment.interest_expense_id).filter(Boolean),
+  );
+  const linkedCreditExpenseIds = new Set(
+    (creditRepayments.data ?? [])
+      .flatMap((repayment) => [repayment.interest_expense_id, repayment.fee_expense_id])
+      .filter(Boolean),
+  );
   const transactions = [
-    ...(income.data ?? []).map((row) => ({
+    ...(income.data ?? [])
+      .filter((row) => !linkedInterestIncomeIds.has(row.id))
+      .map((row) => ({
       ...row,
       kind: 'income',
       label: row.source,
       date: row.date,
       amount: asNumber(row.amount),
     })),
-    ...(expenses.data ?? []).map((row) => ({
+    ...(expenses.data ?? [])
+      .filter((row) => !linkedInterestExpenseIds.has(row.id) && !linkedCreditExpenseIds.has(row.id))
+      .map((row) => ({
       ...row,
       kind: 'expense',
       label: row.merchant,
@@ -198,12 +249,88 @@ export async function getWallet(userId: string, id: string) {
       const counterpartName = counterpartNames.get(counterpartId) ?? 'wallet';
       return walletTransferPerspective(row, id, counterpartName);
     }),
+    ...(loans.data ?? []).map((loan) => {
+      const isLent = loan.direction === 'lent';
+      return {
+        ...loan,
+        kind: isLent ? 'loan_lent' : 'loan_borrowed',
+        label: isLent ? `Lent to ${loan.counterparty}` : `Borrowed from ${loan.counterparty}`,
+        date: loan.start_date,
+        amount: isLent ? -asNumber(loan.original_principal) : asNumber(loan.original_principal),
+      };
+    }),
+    ...(loanPayments.data ?? []).map((payment) => {
+      const loan = Array.isArray(payment.loans) ? payment.loans[0] : payment.loans;
+      const isLent = loan?.direction === 'lent';
+      const total = asNumber(payment.principal_amount) + asNumber(payment.interest_amount);
+      return {
+        ...payment,
+        kind: isLent ? 'loan_repayment_received' : 'debt_repayment',
+        label: isLent
+          ? `Repayment from ${loan?.counterparty ?? 'borrower'}`
+          : `Repayment to ${loan?.counterparty ?? 'lender'}`,
+        date: payment.paid_on,
+        amount: isLent ? total : -total,
+        detail:
+          payment.interest_amount && asNumber(payment.interest_amount) > 0
+            ? `₱${asNumber(payment.principal_amount).toLocaleString('en-PH')} principal · ₱${asNumber(payment.interest_amount).toLocaleString('en-PH')} interest`
+            : 'Principal repayment',
+      };
+    }),
+    ...(creditRepayments.data ?? []).map((repayment) => {
+      const isCreditWallet = repayment.credit_wallet_id === id;
+      const counterpartName = counterpartNames.get(
+        isCreditWallet ? repayment.payment_wallet_id : repayment.credit_wallet_id,
+      ) ?? 'credit account';
+      const total =
+        asNumber(repayment.principal_amount) +
+        asNumber(repayment.interest_amount) +
+        asNumber(repayment.fee_amount);
+      return {
+        ...repayment,
+        kind: isCreditWallet ? 'credit_repayment' : 'credit_repayment_funded',
+        label: isCreditWallet ? `Repayment from ${counterpartName}` : `Credit repayment to ${counterpartName}`,
+        date: repayment.payment_date,
+        amount: isCreditWallet ? -asNumber(repayment.principal_amount) : -total,
+        detail: `${asNumber(repayment.principal_amount).toLocaleString('en-PH')} principal`,
+      };
+    }),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
   return {
     wallet: withBalance(wallet),
     transactions,
     ...(transactionError ? { transactionError } : {}),
   };
+}
+
+export async function repayCreditAccount(
+  userId: string,
+  creditWalletId: string,
+  payload: CreditRepaymentPayload,
+) {
+  requireUserId(userId);
+  const { data, error } = await client().rpc('repay_credit_account', {
+    target_credit_wallet_id: creditWalletId,
+    selected_payment_wallet_id: payload.payment_wallet_id,
+    principal_value: payload.principal_amount,
+    interest_value: payload.interest_amount,
+    fee_value: payload.fee_amount,
+    selected_payment_date: payload.payment_date,
+    request_key: payload.idempotency_key,
+    source_bill_id_value: null,
+    source_bill_occurrence_date_value: null,
+  });
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes('not enough available') || message.includes('exceeds outstanding')) {
+      throw new AppError(422, 'repayment_invalid', error.message, undefined, true);
+    }
+    if (message.includes('credit wallet not found') || message.includes('payment wallet is not available')) {
+      throw new AppError(404, 'wallet_not_found', error.message, undefined, true);
+    }
+    throwIfError(error);
+  }
+  return data;
 }
 
 export async function createWalletTransfer(userId: string, payload: WalletTransferPayload) {
