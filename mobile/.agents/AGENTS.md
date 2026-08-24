@@ -45,6 +45,14 @@ If the mobile app lives in its own repository separate from the web app, treat `
 
 ### Authentication
 
+- Mobile email confirmation uses `Linking.createURL('/auth/callback')` passed as
+  Supabase `emailRedirectTo`. The callback route accepts both PKCE `code`
+  parameters and access/refresh token fragments without logging tokens.
+- Keep the `alalay://auth/callback` scheme allowlisted in Supabase alongside
+  the existing web URLs. Expo Go URLs are generated dynamically and may change
+  with the LAN address; stable callback testing requires a rebuilt development
+  client.
+
 - Provider: Supabase Auth (same project as web).
 - Session storage: use `expo-secure-store` (or the current project's established secure storage library) for persisting the Supabase session on-device, not `AsyncStorage` alone (which is not encrypted) and never a plain JS variable that resets on app restart. Expo web preview uses guarded browser `localStorage` only because SecureStore is native-only; its XSS exposure makes it unsuitable as the policy for a production web app.
 - Current implementation: `mobile/src/services/supabase.ts` creates the platform-aware Supabase client with SecureStore persistence on iOS/Android and guarded `localStorage` persistence on Expo web, while `mobile/app/auth.tsx` provides email/password sign-in, sign-up, and Google OAuth using the PKCE/deep-link flow.

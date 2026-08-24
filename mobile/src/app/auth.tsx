@@ -61,6 +61,7 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [confirmationNotice, setConfirmationNotice] = useState('');
   const googleFlowStarted = useRef(false);
   const { colors } = useAppTheme();
   const palette: Palette = { ...colors, accentSoft: colors.accentPale };
@@ -108,6 +109,7 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     setError('');
+    setConfirmationNotice('');
     if (!email.trim() || !password) { setError('Enter your email and password to continue.'); return; }
     if (!emailIsValid) { setError('Enter a valid email address.'); return; }
     if (isCreate && !fullName.trim()) { setError('Enter your full name.'); return; }
@@ -117,16 +119,68 @@ export default function AuthScreen() {
     if (!supabase) { setError('Supabase is not configured for this build.'); return; }
     setLoading(true);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       if (isCreate) {
-        const { error: signUpError } = await supabase.auth.signUp({ email: email.trim(), password, options: { data: { full_name: fullName.trim() } } });
+        const emailRedirectTo = Linking.createURL('/auth/callback');
+        if (__DEV__) console.info('[Auth] Email confirmation redirect:', emailRedirectTo);
+        const { error: signUpError } = await supabase.auth.signUp({
+          email: normalizedEmail,
+          password,
+          options: {
+            emailRedirectTo,
+            data: { full_name: fullName.trim() },
+          },
+        });
         if (signUpError) throw signUpError;
-        else Alert.alert('Check your email', 'Your account was created. Confirm your email before signing in.');
+        setConfirmationNotice('Check your email. If this address can be registered, we sent a confirmation link. If you already have an account, sign in or reset your password.');
       } else {
-        const { error: signInError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        const { error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (signInError) throw signInError;
       }
     } catch (authError) {
       setError(getAuthError(authError instanceof Error ? authError.message : 'Authentication failed.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resendConfirmation = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const supabase = getSupabaseClient();
+    if (!supabase || !emailIsValid) {
+      setScreen('create');
+      setError('Enter the email address you used to create the account, then resend the confirmation.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const emailRedirectTo = Linking.createURL('/auth/callback');
+      const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: normalizedEmail, options: { emailRedirectTo } });
+      if (resendError) throw resendError;
+      Alert.alert('Check your email', 'If this address can be registered, a confirmation link was sent.');
+    } catch (resendError) {
+      setError(getAuthError(resendError instanceof Error ? resendError.message : 'Confirmation could not be resent.'));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const supabase = getSupabaseClient();
+    if (!supabase || !emailIsValid) {
+      setScreen('signin');
+      setError('Enter a valid email address to request a password reset.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const redirectTo = Linking.createURL('/auth/callback?mode=recovery');
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(normalizedEmail, { redirectTo });
+      if (resetError) throw resetError;
+      Alert.alert('Check your email', 'If this address is registered, we sent a password reset link.');
+    } catch (resetError) {
+      setError(getAuthError(resetError instanceof Error ? resetError.message : 'Password reset could not be started.'));
     } finally {
       setLoading(false);
     }
@@ -148,9 +202,10 @@ export default function AuthScreen() {
             {isCreate && <AuthInput palette={palette} icon={ShieldCheck} label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />}
           </View>
           <View style={styles.actionSlot}>
-            {!isCreate && <Pressable accessibilityRole="button" onPress={() => Alert.alert('Password reset', 'Password reset is not available in the mobile app yet.')} style={styles.forgotButton}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password?</Text></Pressable>}
+            {!isCreate && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()} style={styles.forgotButton}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password?</Text></Pressable>}
           </View>
           {Boolean(error) && <View accessible accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: palette.accentSoft }]}><CircleAlert size={20} strokeWidth={1.75} color={palette.danger} /><Text style={[styles.errorText, { color: palette.danger }]}>{error}</Text></View>}
+          {confirmationNotice ? <View accessible style={[styles.confirmationBox, { backgroundColor: palette.accentSoft }]}><Text style={[styles.confirmationText, { color: palette.ink }]}>{confirmationNotice}</Text><View style={styles.confirmationActions}><Pressable accessibilityRole="button" onPress={() => { setConfirmationNotice(''); setScreen('signin'); }}><Text style={[styles.linkText, { color: palette.accent }]}>Go to sign in</Text></Pressable><Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password</Text></Pressable><Pressable accessibilityRole="button" disabled={loading} onPress={() => void resendConfirmation()}><Text style={[styles.linkText, { color: palette.accent }]}>{loading ? 'Sending…' : 'Resend confirmation'}</Text></Pressable></View></View> : null}
           <Pressable accessibilityRole="button" disabled={loading} onPress={handleSubmit} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.accent }, pressed && styles.pressed, loading && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Please wait...' : isCreate ? 'Create Account' : 'Sign In'}</Text></Pressable>
           <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: palette.line }]} /><Text style={[styles.orText, { color: palette.muted }]}>or</Text><View style={[styles.orLine, { backgroundColor: palette.line }]} /></View>
           <GoogleSignInButton colors={palette} onPress={handleGoogle} loading={loading} variant="auth" />
@@ -228,6 +283,9 @@ const styles = StyleSheet.create({
   linkText: { fontSize: 13, fontWeight: '800' },
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, padding: 12, borderRadius: 12 },
   errorText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  confirmationBox: { marginTop: 16, padding: 14, borderRadius: 12 },
+  confirmationText: { fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  confirmationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 10 },
   switchButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   switchText: { fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },

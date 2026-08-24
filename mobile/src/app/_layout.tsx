@@ -96,7 +96,7 @@ function SessionGate() {
   useEffect(() => {
     if (checkingSession) return;
     const inTabs = segments[0] === '(tabs)';
-    const standaloneAppRoute = pathname === '/wallet-details' || pathname === '/notifications' || pathname === '/loans';
+    const standaloneAppRoute = pathname === '/wallet-details' || pathname === '/notifications' || pathname === '/loans' || pathname === '/auth/callback';
     if (session && mfaPending && pathname !== '/auth') {
       router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
     } else if (session && !mfaPending && !inTabs && !standaloneAppRoute) {
@@ -111,6 +111,7 @@ function SessionGate() {
   return <View style={[styles.appShell, { backgroundColor: colors.background }, session && modalCount === 0 && !screenOwnsClearance && { paddingBottom: bottomNavClearance }]}><Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
     <Stack.Screen name="auth" />
+    <Stack.Screen name="auth/callback" />
     <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
     <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
     <Stack.Screen name="loans" options={{ headerShown: false }} />

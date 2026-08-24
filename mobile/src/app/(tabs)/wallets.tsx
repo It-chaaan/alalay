@@ -14,7 +14,6 @@ import {
   ArrowDownToLine,
   ArrowDownUp,
   ChevronRight,
-  WalletCards,
   HandCoins,
   MoreHorizontal as MoreHorizontalIcon,
   X as CloseIcon,
@@ -170,15 +169,6 @@ function WalletBalanceHero({
       <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.heroValue}>
         {visible ? peso(totalBalance) : maskedBalance}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`View ${walletCount} wallets`}
-        onPress={() => undefined}
-        style={({ pressed }) => [styles.walletCountPill, pressed && styles.pressed]}
-      >
-        <WalletCards size={18} color="#E5F4ED" />
-        <ChevronRight size={18} color="#E5F4ED" />
-      </Pressable>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Open Loans and Debt. ${
@@ -358,7 +348,6 @@ export default function WalletsScreen() {
       {' '}
       <FinancialScreenHeader
         title="Wallets"
-        subtitle="Manage all your money in one place"
         onBack={() => router.back()}
         rightAction={<NotificationHeaderButton />}
       />
@@ -1647,9 +1636,8 @@ function makeStyles(themePalette: typeof formPalette) {
     title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' },
     content: { padding: 20, paddingBottom: BOTTOM_NAV_CLEARANCE },
     walletHero: {
-      minHeight: 312,
       overflow: 'hidden',
-      padding: 20,
+      padding: 16,
       borderRadius: 26,
       borderWidth: 1,
       position: 'relative',
@@ -1682,8 +1670,8 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     heroEyebrow: { color: '#D8EFE2', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
     heroValue: {
-      width: '68%',
-      marginTop: 28,
+      width: '72%',
+      marginTop: 8,
       color: '#FFFFFF',
       fontSize: 40,
       fontWeight: '900',
@@ -1705,22 +1693,22 @@ function makeStyles(themePalette: typeof formPalette) {
     loanGateway: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 10,
-      minHeight: 64,
-      marginTop: 12,
+      gap: 8,
+      minHeight: 50,
+      marginTop: 10,
       paddingHorizontal: 12,
-      borderRadius: 18,
+      borderRadius: 16,
       backgroundColor: 'rgba(0, 31, 25, 0.46)',
       borderWidth: 1,
       borderColor: 'rgba(216,239,226,0.18)',
       zIndex: 2,
     },
     loanGatewayIcon: {
-      width: 38,
-      height: 38,
+      width: 32,
+      height: 32,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 19,
+      borderRadius: 16,
       backgroundColor: 'rgba(46, 170, 125, 0.28)',
     },
     loanGatewayCopy: { flex: 1, minWidth: 0 },
@@ -1734,12 +1722,12 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     walletArtwork: {
       position: 'absolute',
-      width: 150,
-      height: 126,
-      right: -12,
-      bottom: 58,
+      width: 112,
+      height: 94,
+      right: -24,
+      bottom: 43,
       zIndex: 1,
-      opacity: 0.72,
+      opacity: 0.42,
     },
     listSection: { marginTop: 24 },
     sectionTitle: { marginBottom: 12, color: formPalette.ink, fontSize: 16, fontWeight: '900' },

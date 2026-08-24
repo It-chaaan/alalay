@@ -2,7 +2,9 @@ import { env } from "../config/env.js";
 import { buildFinancialContext } from "./ai.context.service.js";
 import { type AiMessage, getAiProvider } from "./ai.providers.js";
 import { executeAiAction, aiToolDefinitions } from "./ai.actions.js";
+import { billSummary } from "./bills.service.js";
 import { randomUUID } from "node:crypto";
+import { addDaysIso, todayIso } from "./db.js";
 
 export type AiChatRequest = {
   userId: string;
@@ -91,6 +93,25 @@ function detectLanguage(message: string, requested?: "en" | "fil") {
   return /\b(ako|ang|ng|mga|ba|bakit|paano|magkano|bayarin|gastos|ipon|kaya)\b/i.test(message) ? "fil" : "en";
 }
 
+function isBillsDueQuestion(message: string) {
+  return /\b(?:what|which|show|list|tell me).{0,24}\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(message)
+    || /\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(message);
+}
+
+function dueBillsReply(summary: Awaited<ReturnType<typeof billSummary>>) {
+  const dueSoon = summary.items
+    .filter((bill) => bill.status !== "paid" && String(bill.due_date) >= todayIso())
+    .filter((bill) => String(bill.due_date) <= addDaysIso(7))
+    .sort((left, right) => String(left.due_date).localeCompare(String(right.due_date)));
+
+  if (!dueSoon.length) return "You have no unpaid bills due in the next 7 days.";
+
+  const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 });
+  const total = dueSoon.reduce((sum, bill) => sum + Number(bill.amount || 0), 0);
+  const details = dueSoon.map((bill) => `${bill.title}: ${money.format(Number(bill.amount || 0))} due ${bill.due_date}`).join("; ");
+  return `You have ${dueSoon.length} unpaid bill${dueSoon.length === 1 ? "" : "s"} due in the next 7 days, totaling ${money.format(total)}. ${details}`;
+}
+
 export async function aiStatus() {
   const provider = getAiProvider();
   const configured = provider.isConfigured();
@@ -123,6 +144,10 @@ export async function chat(request: AiChatRequest) {
       ? (String(result.user_message).toLowerCase().includes(String(draft.from_wallet_name).toLowerCase()) ? "source" : "destination")
       : undefined;
     return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: result.success === true, pendingAction: result.success === true ? null : { ...pendingBase, fields: { ...draft, ...(failedWalletRole ? { missing_role: failedWalletRole } : {}) } }, message: transferReply(result, draft) };
+  }
+  if (isBillsDueQuestion(request.message)) {
+    const summary = await billSummary(request.userId);
+    return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: null, message: dueBillsReply(summary) };
   }
   const financialContext = await buildFinancialContext(request.userId, request.message);
   let financialMutation = false;

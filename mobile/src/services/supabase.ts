@@ -1,5 +1,6 @@
+import 'react-native-url-polyfill/auto';
 import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 function warnSecureStoreFailure(operation: string, error: unknown) {
@@ -77,6 +78,7 @@ const webStorage = {
 const sessionStorage = Platform.OS === 'web' ? webStorage : secureStorage;
 
 let client: SupabaseClient | null = null;
+let appStateSubscription: { remove: () => void } | null = null;
 
 export function getSupabaseClient() {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -93,6 +95,14 @@ export function getSupabaseClient() {
       flowType: 'pkce',
     },
   });
+
+  if (Platform.OS !== 'web' && !appStateSubscription) {
+    void client.auth.startAutoRefresh();
+    appStateSubscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') void client?.auth.startAutoRefresh();
+      else void client?.auth.stopAutoRefresh();
+    });
+  }
 
   return client;
 }

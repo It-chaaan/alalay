@@ -4,7 +4,7 @@
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "scheme": "mobile",
+    "scheme": "alalay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {

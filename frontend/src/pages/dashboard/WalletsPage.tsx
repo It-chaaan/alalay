@@ -1290,12 +1290,6 @@ function LoansDebtCard({
           </p>
         </div>
       </div>
-      <div className="wallet-health-row mt-4 flex items-center gap-3 rounded-2xl p-3">
-        <span className="wallet-health-ring grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold">{data?.loans.filter((loan) => loan.status === 'active').length || '✓'}</span>
-        <span className="min-w-0 flex-1"><strong className="block text-sm">Keep it healthy</strong><span className="mt-1 block text-xs text-slate-500">{(data?.summary.owed_to_me ?? 0) > 0 && (data?.summary.i_owe ?? 0) > 0 ? 'Settle or collect to keep your balance in check.' : (data?.summary.owed_to_me ?? 0) > 0 ? 'Track upcoming collections and repayment progress.' : (data?.summary.i_owe ?? 0) > 0 ? 'Stay ahead of upcoming repayments and due dates.' : 'You have no active loans or personal debt.'}</span></span>
-        <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
-      </div>
-      <p className="mt-4 text-sm text-slate-500">Track what you owe and what’s owed to you.</p>
     </button>
   );
 }

@@ -385,6 +385,7 @@ Do not leave implementation changes undocumented.
 
 - Supabase Auth is authoritative for the authenticated user ID and email.
 - `public.users` is the application profile source for display name, phone, preferences, and app profile avatar metadata.
+- `public.users.id` is constrained to the matching `auth.users.id`; profile creation is handled by the idempotent `on_auth_user_created` trigger and must never merge identities by email. Review legacy orphan profiles with `supabase/queries/auth_profile_reconciliation.sql` before validating the forward foreign key.
 - The shared current-user endpoint is `GET/PATCH /api/users/me`; ownership is derived from the bearer-token session and protected by RLS.
 - Mobile profile consumers use `mobile/src/services/profile.ts` and `mobile/src/hooks/use-current-profile.ts` so Home, Settings, and profile screens share normalized data and updates.
 

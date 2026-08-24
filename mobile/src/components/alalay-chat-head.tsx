@@ -1,18 +1,19 @@
 import { Image } from 'expo-image';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Animated, Keyboard, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
+import { ActivityIndicator, Animated, KeyboardAvoidingView, PanResponder, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Bot, Send, X } from 'lucide-react-native';
 
 import { authenticatedApiRequest, chatErrorMessage } from '@/services/api';
 import { notifyFinancialMutation } from '@/services/finance';
 import { useAppTheme } from '@/theme/theme';
-import { useBottomNavClearance } from './bottom-nav-clearance';
+import { useModalVisibility } from './modal-visibility';
 
 const CHAT_HEAD_SIZE = 54;
 const DRAG_THRESHOLD = 8;
 
 type ChatMessage = { id: string; role: 'assistant' | 'user'; content: string };
+type RetryMessage = ChatMessage & { retryPrompt?: string };
 type PendingAction = { action: 'create_expense' | 'create_income' | 'create_transfer' | 'create_bill' | 'create_subscription'; fields: Record<string, unknown> };
 
 type DashboardInsight = {
@@ -60,6 +61,7 @@ export function AlalayChatHead() {
   const [popupVisible, setPopupVisible] = useState(false);
   const [insight, setInsight] = useState<string | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
+  const { setModalVisible } = useModalVisibility();
   const hidePopupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const popupStyle = useMemo(() => {
@@ -105,6 +107,12 @@ export function AlalayChatHead() {
       if (hidePopupTimer.current) clearTimeout(hidePopupTimer.current);
     };
   }, [insight, showPopup]);
+
+  useEffect(() => {
+    if (!chatOpen) return;
+    setModalVisible(chatOpen);
+    return () => setModalVisible(false);
+  }, [chatOpen, setModalVisible]);
 
   useEffect(() => {
     const listener = pan.addListener((value) => { translation.current = value; });
@@ -168,33 +176,21 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
   const { colors } = useAppTheme();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
-  const bottomNavClearance = useBottomNavClearance();
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<RetryMessage[]>(initialMessages);
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
   const [showFaqs, setShowFaqs] = useState(true);
   const [showMoreFaqs, setShowMoreFaqs] = useState(false);
-  const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
-    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const showSubscription = Keyboard.addListener(showEvent, () => setKeyboardVisible(true));
-    const hideSubscription = Keyboard.addListener(hideEvent, () => setKeyboardVisible(false));
-    return () => {
-      showSubscription.remove();
-      hideSubscription.remove();
-    };
-  }, []);
-
-  const sendMessage = async (prompt = draft.trim()) => {
+  const sendMessage = async (prompt = draft.trim(), retryErrorId?: string) => {
     const content = prompt.trim();
     if (!content || sending) return;
-    const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: 'user', content };
-    const history = messages.map(({ role, content: messageContent }) => ({ role, content: messageContent }));
-    setMessages((current) => [...current, userMessage]);
+    const baseMessages = retryErrorId ? messages.filter((message) => message.id !== retryErrorId) : messages;
+    const userMessage: RetryMessage = { id: `user-${Date.now()}`, role: 'user', content };
+    const history = baseMessages.map(({ role, content: messageContent }) => ({ role, content: messageContent }));
+    setMessages(retryErrorId ? baseMessages : [...baseMessages, userMessage]);
     setDraft('');
     setShowFaqs(false);
     setSending(true);
@@ -209,14 +205,14 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
       const reply = response.message;
       setMessages((current) => [...current, { id: `assistant-${Date.now()}`, role: 'assistant', content: reply }]);
     } catch (error) {
-      setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'assistant', content: chatErrorMessage(error) }]);
+      setMessages((current) => [...current, { id: `error-${Date.now()}`, role: 'assistant', content: chatErrorMessage(error), retryPrompt: content }]);
     } finally {
       setSending(false);
       requestAnimationFrame(() => scrollRef.current?.scrollToEnd({ animated: true }));
     }
   };
 
-  return <SafeAreaView style={styles.chatScreen} edges={[]}>
+  return <SafeAreaView style={styles.chatScreen} edges={['bottom']}>
     <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.chatBody} keyboardVerticalOffset={0}>
     <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} /></Pressable>
@@ -224,7 +220,7 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
       <View style={styles.headerLogo}><Image source={require('@/assets/images/alalay.svg')} style={styles.headerLogoImage} contentFit="contain" /></View>
     </View>
     <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
-      {messages.map((message) => <View key={message.id} style={[styles.messageBubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}><Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : styles.assistantMessageText]}>{message.content}</Text></View>)}
+      {messages.map((message) => <View key={message.id} style={[styles.messageBubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}><Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : styles.assistantMessageText]}>{message.content}</Text>{message.retryPrompt && <Pressable accessibilityRole="button" accessibilityLabel="Retry Alalay request" onPress={() => void sendMessage(message.retryPrompt, message.id)} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable>}</View>)}
       {showFaqs && messages.length === 1 && <View style={styles.faqSection}>
         <Text style={styles.faqTitle}>Frequently asked</Text>
         <View style={styles.faqList}>
@@ -235,7 +231,6 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
       {sending && <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}><ActivityIndicator size="small" color={colors.accent} /><Text style={styles.typingText}>Alalay is thinking…</Text></View>}
     </ScrollView>
     <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={() => void sendMessage()} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={colors.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={() => void sendMessage()} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color={colors.textOnPrimary} strokeWidth={2} /></Pressable></View>
-    {!keyboardVisible && <View pointerEvents="none" style={{ height: bottomNavClearance }} />}
     </KeyboardAvoidingView>
   </SafeAreaView>;
 }
@@ -266,6 +261,8 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
   userMessageText: { color: colors.textOnPrimary },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  retryButton: { alignSelf: 'flex-start', minHeight: 36, justifyContent: 'center', marginTop: 6, paddingHorizontal: 4 },
+  retryText: { color: colors.accent, fontSize: 12, fontWeight: '900' },
   faqSection: { marginTop: 4, padding: 14, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
   faqTitle: { color: colors.ink, fontSize: 13, fontWeight: '900' },
   faqList: { marginTop: 10, gap: 8 },

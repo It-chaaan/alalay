@@ -26,10 +26,12 @@ function messageForResponse(status: number, serverMessage?: string, code?: strin
 
 export function chatErrorMessage(error: unknown) {
   if (error instanceof ApiRequestError) {
-    if (error.code === 'network_error' || error.code === 'network_error_after_refresh') return "I couldn't reach Alalay right now. Check your connection and try again.";
+    if (error.code === 'network_error' || error.code === 'network_error_after_refresh') return "Alalay can’t connect right now. Check your connection and try again.";
     if (error.status === 401 || error.code === 'unauthorized' || error.code === 'auth_required') return 'Your session has expired. Please sign in again.';
+    if (error.code === 'rate_limited' || error.status === 429) return 'You’ve sent several requests quickly. Please wait a moment and try again.';
+    if (error.code === 'database_error' || error.code === 'financial_data_error') return "Alalay couldn’t load your financial information. Please try again.";
+    if (error.code === 'ai_not_configured' || error.code === 'ai_provider_error' || error.code === 'ai_empty_response' || error.code === 'ai_action_loop') return "Alalay’s AI service is temporarily unavailable. Your financial records are safe.";
     if (error.code === 'validation_error' || error.code === 'invalid_json') return "I couldn't process that request right now. Please try again.";
-    if (error.code === 'ai_provider_error' || error.code === 'ai_empty_response' || error.code === 'ai_action_loop' || error.code === 'ai_not_configured') return "I couldn't process that message right now. Please try again.";
     if (error.status >= 500) return "I couldn't complete that right now. Please try again.";
     return "I couldn't complete that request. Please check the details and try again.";
   }
