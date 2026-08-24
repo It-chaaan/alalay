@@ -2,6 +2,9 @@ import type { Session } from '@supabase/supabase-js';
 import {
   ArrowLeftRight,
   ArrowRight,
+  ArrowLeft,
+  Bell,
+  BarChart3,
   CreditCard,
   ChevronRight,
   Eye,
@@ -9,11 +12,14 @@ import {
   Grid2X2,
   HandCoins,
   List,
+  PieChart,
   Plus,
+  ScanLine,
   Send,
   SlidersHorizontal,
   UserRound,
   WalletCards,
+  Home,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { institutionFor, institutionRegistry } from '@shared/institution-registry';
@@ -104,7 +110,7 @@ function WalletCard({
     ? `${wallet.account_type} · ${settings.currency}`
     : `${wallet.institution_type.replace('_', ' ')} · ${settings.currency}`;
   return (
-    <article className="relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
+    <article className={`wallet-card wallet-card-${wallet.institution_type} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}>
       <a
         href={`/app/wallets/${wallet.id}`}
         aria-label={`Open ${wallet.name} wallet details`}
@@ -113,8 +119,8 @@ function WalletCard({
       <div className="flex items-start gap-3">
         <InstitutionMark wallet={wallet} />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</h3>
-          <p className="mt-1 text-xs capitalize text-slate-500">{label}</p>
+          <h3 className="wallet-card-name truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</h3>
+          <p className="wallet-card-type mt-1 text-xs capitalize text-slate-500">{label}</p>
         </div>
         <WalletActionsMenu
           walletName={wallet.name}
@@ -123,7 +129,7 @@ function WalletCard({
           deleteDisabled={wallet.is_default_cash}
         />
       </div>
-      <div className="mt-5">
+      <div className="wallet-card-balance mt-5">
         <p className="font-mono text-xl font-bold text-slate-950 dark:text-white">
           {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance), true)}
         </p>
@@ -343,7 +349,7 @@ function WalletQuickActions({
   ];
   return (
     <section
-      className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+      className="wallet-quick-actions mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
       aria-labelledby="wallet-quick-actions"
     >
       <h2 id="wallet-quick-actions" className="font-semibold text-slate-950 dark:text-white">
@@ -762,8 +768,8 @@ export function EditWalletForm({
   const [creditLimit, setCreditLimit] = useState(
     wallet.credit_limit == null ? '' : String(wallet.credit_limit),
   );
-  const [interestRate, setInterestRate] = useState(
-    wallet.interest_rate == null ? '' : String(wallet.interest_rate),
+  const [annualInterestRate, setAnnualInterestRate] = useState(
+    wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
   const [transferFee, setTransferFee] = useState(
     wallet.default_outgoing_transfer_fee == null
@@ -778,7 +784,7 @@ export function EditWalletForm({
       body: JSON.stringify({
         name,
         credit_limit: wallet.account_type === 'credit' && creditLimit ? Number(creditLimit) : null,
-        interest_rate: interestRate ? Number(interestRate) : null,
+        annual_interest_rate: annualInterestRate ? Number(annualInterestRate) : null,
         default_outgoing_transfer_fee: transferFee ? Number(transferFee) : null,
       }),
     });
@@ -822,14 +828,14 @@ export function EditWalletForm({
         />
       ) : null}
       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
-        Interest rate (%)
+        Annual interest rate (%)
         <input
           type="number"
           min="0"
           max="1000"
           step="0.01"
-          value={interestRate}
-          onChange={(event) => setInterestRate(event.target.value)}
+          value={annualInterestRate}
+          onChange={(event) => setAnnualInterestRate(event.target.value)}
           className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:ring-2 focus:ring-brand-primary dark:border-slate-700 dark:bg-slate-950"
         />
       </label>
@@ -1258,27 +1264,36 @@ function LoansDebtCard({
     <button
       type="button"
       onClick={onOpen}
-      className="w-full rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
+      className="wallet-loans-card w-full rounded-3xl border border-slate-200 bg-white p-6 text-left shadow-sm transition hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"
     >
-      <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Loans &amp; Debt</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+        <h2 className="text-xl font-bold">Loans &amp; debt</h2>
+        <p className="mt-1 text-sm text-slate-500">Stay on top of what you owe and what’s owed to you</p>
+        </div>
+        <span className="hidden text-sm font-semibold text-brand-primary sm:inline-flex">View details</span>
         <ChevronRight className="h-5 w-5 text-slate-400" />
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
+        <div className="wallet-loan-summary wallet-loan-positive rounded-2xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
           <UserRound className="h-5 w-5 text-emerald-600" />
           <p className="mt-4 text-sm text-slate-500">Owed to me</p>
           <p className="mt-1 font-mono text-lg font-bold">
             {isPrivate ? '••••••' : formatCurrency(data?.summary.owed_to_me ?? 0, true)}
           </p>
         </div>
-        <div className="rounded-2xl bg-rose-50 p-4 dark:bg-rose-950/30">
+        <div className="wallet-loan-summary wallet-loan-negative rounded-2xl bg-rose-50 p-4 dark:bg-rose-950/30">
           <HandCoins className="h-5 w-5 text-rose-600" />
           <p className="mt-4 text-sm text-slate-500">I owe</p>
           <p className="mt-1 font-mono text-lg font-bold">
             {isPrivate ? '••••••' : formatCurrency(data?.summary.i_owe ?? 0, true)}
           </p>
         </div>
+      </div>
+      <div className="wallet-health-row mt-4 flex items-center gap-3 rounded-2xl p-3">
+        <span className="wallet-health-ring grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold">{data?.loans.filter((loan) => loan.status === 'active').length || '✓'}</span>
+        <span className="min-w-0 flex-1"><strong className="block text-sm">Keep it healthy</strong><span className="mt-1 block text-xs text-slate-500">{(data?.summary.owed_to_me ?? 0) > 0 && (data?.summary.i_owe ?? 0) > 0 ? 'Settle or collect to keep your balance in check.' : (data?.summary.owed_to_me ?? 0) > 0 ? 'Track upcoming collections and repayment progress.' : (data?.summary.i_owe ?? 0) > 0 ? 'Stay ahead of upcoming repayments and due dates.' : 'You have no active loans or personal debt.'}</span></span>
+        <ChevronRight className="h-5 w-5 shrink-0 text-slate-300" />
       </div>
       <p className="mt-4 text-sm text-slate-500">Track what you owe and what’s owed to you.</p>
     </button>
@@ -1383,10 +1398,17 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
     <DashboardShell
       activeLabel="Wallets"
       title="Wallets"
-      subtitle="Cash, accounts, transfers, and lending in one place"
+      subtitle="Manage all your money in one place"
       name={getName(session)}
       onSignOut={onSignOut}
+      hideHeader
     >
+      <div className="wallet-mobile-page">
+      <header className="wallet-mobile-header">
+        <a href="/app" className="wallet-icon-button" aria-label="Back to home"><ArrowLeft aria-hidden="true" /></a>
+        <div className="wallet-page-heading"><h1>Wallets</h1><p>Manage all your money in one place</p></div>
+        <a href="/app/settings" className="wallet-icon-button wallet-notification-button" aria-label="Open notification settings"><Bell aria-hidden="true" /><span aria-hidden="true" /></a>
+      </header>
       {walletsQuery.isLoading ? (
         <>
           <PageSkeleton kind="budget" />
@@ -1398,10 +1420,10 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       ) : null}
       {!walletsQuery.isLoading ? (
         <>
-          <section className="grid gap-4 xl:grid-cols-2">
-            <article className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
+          <section className="wallet-overview-layout grid gap-4 xl:grid-cols-2">
+            <article className="wallet-hero relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
               <p className="text-xs font-semibold tracking-[0.14em] text-white/75">
-                LIQUID BALANCE
+                TOTAL BALANCE
               </p>
               <div className="mt-5 flex items-center justify-between gap-3">
                 <p className="font-mono text-4xl font-bold">
@@ -1416,10 +1438,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                   {isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
-              <p className="mt-4 max-w-sm text-sm leading-6 text-white/85">
-                Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'}. Credit
-                liabilities are shown separately.
-              </p>
+              <div className="wallet-count-pill mt-5 inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold"><WalletCards className="h-5 w-5" aria-hidden="true" /> Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'} <ChevronRight className="h-5 w-5" /></div>
               <svg
                 aria-hidden="true"
                 viewBox="0 0 480 130"
@@ -1452,12 +1471,10 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
             onRepayment={() => setLoanDialog('repayment')}
             onLoansOverview={() => setLoanDialog('overview')}
           />
-          <section className="mt-7">
+          <section className="wallet-wallets-section mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
-              <h2 className="flex items-center gap-2 font-semibold">
-                <WalletCards className="h-5 w-5 text-brand-primary" />
-                Your wallets
-              </h2>
+              <h2 className="wallet-section-title font-semibold">Your wallets</h2>
+              <button type="button" onClick={() => setIsAddWalletOpen(true)} className="wallet-add-button inline-flex min-h-11 items-center gap-2 rounded-full px-5 font-semibold"><Plus className="h-5 w-5" /> Add wallet</button>
               <DataToolbar className="justify-end">
                 <SearchField
                   value={search}
@@ -1518,7 +1535,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
             </div>
             {visibleWallets.length ? (
               view === 'grid' ? (
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="wallet-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   {visibleWallets.map((wallet) => (
                     <WalletCard
                       key={wallet.id}
@@ -1569,6 +1586,14 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           </section>
         </>
       ) : null}
+      <nav className="wallet-bottom-nav" aria-label="Primary navigation">
+        <a href="/app" aria-label="Home"><Home /><span>Home</span></a>
+        <a href="/app/wallets" className="is-active" aria-current="page" aria-label="Wallet, active"><WalletCards /><span>Wallet</span><i /></a>
+        <a href="/app/ocr-scanner" className="wallet-scan-button" aria-label="Open scanner"><ScanLine /></a>
+        <a href="/app/budget" aria-label="Budget"><PieChart /><span>Budget</span></a>
+        <a href="/app/reports" aria-label="Reports"><BarChart3 /><span>Reports</span></a>
+      </nav>
+      </div>
       <SlideOver
         open={isAddWalletOpen}
         onClose={() => setIsAddWalletOpen(false)}

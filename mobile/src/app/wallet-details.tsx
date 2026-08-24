@@ -228,6 +228,9 @@ export default function WalletDetailsScreen() {
                 value={typeLabel(wallet.institution_type)}
                 colors={colors}
               />
+              {wallet.account_type ? <InfoRow label="Account type" value={wallet.account_type === 'credit' ? 'Credit · Money you owe' : 'Debit · Money you own'} colors={colors} /> : null}
+              {wallet.account_purpose ? <InfoRow label="Account purpose" value={wallet.account_purpose === 'savings' ? 'Savings' : 'Everyday'} colors={colors} /> : null}
+              {wallet.earns_interest ? <InfoRow label="Interest" value={`${wallet.annual_interest_rate ?? 0}% yearly · ${wallet.interest_credit_frequency ?? 'Unspecified'}`} colors={colors} /> : null}
               <InfoRow label="Currency" value="PHP" colors={colors} />
               {dateLabel(wallet.created_at) ? (
                 <InfoRow label="Created on" value={dateLabel(wallet.created_at)!} colors={colors} />

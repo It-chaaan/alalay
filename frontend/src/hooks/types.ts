@@ -344,6 +344,9 @@ export type Wallet = {
   institution_type: 'e_wallet' | 'digital_bank' | 'bank' | 'cash' | 'other';
   institution_key: string;
   account_type?: 'debit' | 'credit' | null;
+  account_purpose?: 'everyday' | 'savings' | null;
+  earns_interest?: boolean;
+  annual_interest_rate?: number | string | null;
   credit_limit?: number | string | null;
   color?: string | null;
   interest_rate?: number | string | null;

@@ -3,6 +3,46 @@ import { currencyAmount, safeDate } from './common.schema.js';
 
 export const walletInstitutionType = z.enum(['e_wallet', 'digital_bank', 'bank', 'cash', 'other']);
 export const walletAccountType = z.enum(['debit', 'credit']);
+export const walletAccountPurpose = z.enum(['everyday', 'savings']);
+export const walletInterestFrequency = z.enum(['monthly', 'quarterly', 'semi_annually', 'annually', 'unspecified']);
+
+const walletMetadata = {
+  account_purpose: walletAccountPurpose.nullable().optional(),
+  earns_interest: z.boolean().optional(),
+  annual_interest_rate: z.coerce.number().min(0).max(100).nullable().optional(),
+  interest_credit_frequency: walletInterestFrequency.nullable().optional(),
+};
+
+function validateWalletMetadata(value: {
+  account_type?: 'debit' | 'credit' | null;
+  account_purpose?: 'everyday' | 'savings' | null;
+  earns_interest?: boolean;
+  annual_interest_rate?: number | null;
+  interest_credit_frequency?: string | null;
+}, ctx: z.RefinementCtx) {
+  const earnsInterest = value.earns_interest ?? false;
+  if (value.account_type === 'credit' && value.account_purpose != null) {
+    ctx.addIssue({ code: 'custom', path: ['account_purpose'], message: 'Credit accounts cannot have an account purpose.' });
+  }
+  if (value.account_type === 'credit' && (earnsInterest || value.annual_interest_rate != null || value.interest_credit_frequency != null)) {
+    ctx.addIssue({ code: 'custom', path: ['earns_interest'], message: 'Savings interest settings are only available for debit savings accounts.' });
+  }
+  if (value.account_purpose === 'everyday' && earnsInterest) {
+    ctx.addIssue({ code: 'custom', path: ['earns_interest'], message: 'Only savings accounts can earn interest.' });
+  }
+  if (value.account_purpose !== 'savings' && (value.annual_interest_rate != null || value.interest_credit_frequency != null)) {
+    ctx.addIssue({ code: 'custom', path: ['annual_interest_rate'], message: 'Interest details require a savings account.' });
+  }
+  if (!earnsInterest && (value.annual_interest_rate != null || value.interest_credit_frequency != null)) {
+    ctx.addIssue({ code: 'custom', path: ['annual_interest_rate'], message: 'Interest details require interest to be enabled.' });
+  }
+  if (earnsInterest && value.account_type !== 'debit') {
+    ctx.addIssue({ code: 'custom', path: ['account_type'], message: 'Interest can only be enabled for debit savings accounts.' });
+  }
+  if (earnsInterest && value.account_purpose !== 'savings') {
+    ctx.addIssue({ code: 'custom', path: ['account_purpose'], message: 'Interest can only be enabled for savings accounts.' });
+  }
+}
 
 export const createWalletSchema = z
   .object({
@@ -11,6 +51,7 @@ export const createWalletSchema = z
     institution_key: z.string().trim().min(1).max(100),
     account_type: walletAccountType.nullable().optional(),
     credit_limit: currencyAmount.nullable().optional(),
+    ...walletMetadata,
     color: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/)
@@ -25,6 +66,7 @@ export const createWalletWithOpeningBalanceSchema = createWalletSchema
   })
   .strict()
   .superRefine((value, ctx) => {
+    validateWalletMetadata(value, ctx);
     if (
       value.account_type === 'credit' &&
       value.credit_limit != null &&
@@ -48,14 +90,11 @@ export const updateWalletSchema = z
     icon: z.string().max(40).nullable().optional(),
     account_type: walletAccountType.nullable().optional(),
     credit_limit: currencyAmount.nullable().optional(),
+    ...walletMetadata,
     default_outgoing_transfer_fee: currencyAmount.nullable().optional(),
-    interest_rate: z.coerce.number().min(0).max(1000).nullable().optional(),
-    interest_crediting_frequency: z
-      .enum(['monthly', 'quarterly', 'yearly', 'other'])
-      .nullable()
-      .optional(),
   })
-  .strict();
+  .strict()
+  .superRefine(validateWalletMetadata);
 
 export const walletDepositSchema = z
   .object({

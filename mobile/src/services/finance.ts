@@ -89,6 +89,10 @@ export type WalletRecord = {
   institution_type: string;
   institution_key: string;
   account_type?: 'debit' | 'credit' | null;
+  account_purpose?: 'everyday' | 'savings' | null;
+  earns_interest?: boolean;
+  annual_interest_rate?: number | string | null;
+  interest_credit_frequency?: string | null;
   credit_limit?: number | string | null;
   balance: number | string;
   color: string;

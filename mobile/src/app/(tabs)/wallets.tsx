@@ -1,6 +1,7 @@
 import { Children, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -634,14 +635,14 @@ export function EditWalletSheet({
       ? ''
       : String(wallet.default_outgoing_transfer_fee),
   );
-  const [interestRate, setInterestRate] = useState(
-    wallet.interest_rate == null ? '' : String(wallet.interest_rate),
+  const [annualInterestRate, setAnnualInterestRate] = useState(
+    wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async () => {
     const fee = defaultFee.trim() ? Number(defaultFee) : null;
-    const rate = interestRate.trim() ? Number(interestRate) : null;
+    const rate = annualInterestRate.trim() ? Number(annualInterestRate) : null;
     if (!name.trim()) {
       setError('Enter a wallet name.');
       return;
@@ -662,7 +663,7 @@ export function EditWalletSheet({
         body: JSON.stringify({
           name: name.trim(),
           default_outgoing_transfer_fee: fee,
-          interest_rate: rate,
+          annual_interest_rate: rate,
         }),
       });
       notifyFinancialMutation();
@@ -737,8 +738,8 @@ export function EditWalletSheet({
           </Text>
           <TextInput
             accessibilityLabel="Annual interest rate"
-            value={interestRate}
-            onChangeText={setInterestRate}
+            value={annualInterestRate}
+            onChangeText={setAnnualInterestRate}
             placeholder="e.g. 3.5"
             keyboardType="decimal-pad"
             placeholderTextColor={colors.textMuted}
@@ -1002,8 +1003,22 @@ function AddWalletSheet({
     institution.supportedAccountTypes.length === 1 ? institution.supportedAccountTypes[0] : null,
   );
   const [creditLimit, setCreditLimit] = useState('');
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
+  const [earnsInterest, setEarnsInterest] = useState(false);
+  const [annualInterestRate, setAnnualInterestRate] = useState('');
+  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>('monthly');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const chooseAccountType = (value: WalletAccountType) => {
+    if (value === 'credit' && (accountPurpose === 'savings' || earnsInterest || annualInterestRate.trim())) {
+      Alert.alert('Remove savings settings?', 'Credit accounts cannot use savings purpose or interest settings.', [
+        { text: 'Keep debit', style: 'cancel' },
+        { text: 'Continue', style: 'destructive', onPress: () => { setAccountType(value); setAccountPurpose('everyday'); setEarnsInterest(false); setAnnualInterestRate(''); } },
+      ]);
+      return;
+    }
+    setAccountType(value);
+  };
   const save = async () => {
     const openingBalance = parseAmount(amount);
     if (!name.trim()) {
@@ -1031,6 +1046,11 @@ function AddWalletSheet({
       setError("Outstanding balance can't be greater than the credit limit.");
       return;
     }
+    const parsedRate = annualInterestRate.trim() ? Number(annualInterestRate) : null;
+    if (accountType === 'debit' && accountPurpose === 'savings' && earnsInterest && (parsedRate === null || !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100)) {
+      setError('Enter an annual interest rate from 0 to 100%.');
+      return;
+    }
     setError('');
     setSubmitting(true);
     try {
@@ -1042,6 +1062,10 @@ function AddWalletSheet({
           institution_type: preset.type,
           institution_key: preset.key,
           account_type: accountType,
+          account_purpose: accountType === 'debit' ? accountPurpose : null,
+          earns_interest: accountType === 'debit' && accountPurpose === 'savings' ? earnsInterest : false,
+          annual_interest_rate: accountType === 'debit' && accountPurpose === 'savings' && earnsInterest ? parsedRate : null,
+          interest_credit_frequency: accountType === 'debit' && accountPurpose === 'savings' && earnsInterest ? interestFrequency : null,
           credit_limit: parsedCreditLimit,
           color: preset.color,
           opening_balance: openingBalance,
@@ -1089,7 +1113,7 @@ function AddWalletSheet({
                   accessibilityRole="radio"
                   accessibilityLabel={value === 'debit' ? 'Debit account' : 'Credit account'}
                   accessibilityState={{ checked: accountType === value }}
-                  onPress={() => setAccountType(value)}
+                  onPress={() => chooseAccountType(value)}
                   style={[
                     styles.accountTypeChip,
                     accountType === value && styles.accountTypeChipSelected,
@@ -1119,6 +1143,52 @@ function AddWalletSheet({
                 </Pressable>
               ))}
           </View>
+        </View>
+      ) : null}
+      {accountType === 'debit' ? (
+        <View style={styles.accountTypeSection}>
+          <Text style={styles.destinationLabel}>Account purpose</Text>
+          <View style={styles.accountTypeRow}>
+            {(['everyday', 'savings'] as const).map((purpose) => (
+              <Pressable
+                key={purpose}
+                accessibilityRole="radio"
+                accessibilityLabel={purpose === 'everyday' ? 'Everyday account' : 'Savings account'}
+                accessibilityState={{ checked: accountPurpose === purpose }}
+                onPress={() => setAccountPurpose(purpose)}
+                style={[styles.accountTypeChip, accountPurpose === purpose && styles.accountTypeChipSelected]}
+              >
+                <Text style={[styles.accountTypeText, accountPurpose === purpose && styles.accountTypeTextSelected]}>{purpose === 'everyday' ? 'Everyday' : 'Savings'}</Text>
+                <Text style={styles.accountTypeDescription}>{purpose === 'everyday' ? 'Regular spending and transfers' : 'Set aside for goals or interest'}</Text>
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
+      {accountType === 'debit' && accountPurpose === 'savings' ? (
+        <View style={styles.accountTypeSection}>
+          <Text style={styles.destinationLabel}>Does this account earn interest?</Text>
+          <View style={styles.accountTypeRow}>
+            {([true, false] as const).map((value) => (
+              <Pressable key={String(value)} accessibilityRole="radio" accessibilityLabel={value ? 'Yes, this account earns interest' : 'No, this account does not earn interest'} accessibilityState={{ checked: earnsInterest === value }} onPress={() => setEarnsInterest(value)} style={[styles.accountTypeChip, earnsInterest === value && styles.accountTypeChipSelected]}>
+                <Text style={[styles.accountTypeText, earnsInterest === value && styles.accountTypeTextSelected]}>{value ? 'Yes' : 'No'}</Text>
+              </Pressable>
+            ))}
+          </View>
+          {earnsInterest ? (
+            <>
+              <FormTextInput label="Annual interest rate" value={annualInterestRate} onChangeText={setAnnualInterestRate} placeholder="e.g. 3.50 (% per year)" />
+              <Text style={styles.muted}>Enter the annual rate provided by your bank or financial institution.</Text>
+              <Text style={[styles.destinationLabel, { marginTop: 15 }]}>Interest credited</Text>
+              <View style={styles.frequencyRow}>
+                {(['monthly', 'quarterly', 'semi_annually', 'annually'] as const).map((frequency) => (
+                  <Pressable key={frequency} accessibilityRole="radio" accessibilityLabel={`Interest credited ${frequency.replace('_', ' ')}`} accessibilityState={{ checked: interestFrequency === frequency }} onPress={() => setInterestFrequency(frequency)} style={[styles.frequencyChip, interestFrequency === frequency && styles.accountTypeChipSelected]}>
+                    <Text style={[styles.accountTypeText, interestFrequency === frequency && styles.accountTypeTextSelected]}>{frequency === 'semi_annually' ? 'Semi-annually' : frequency[0].toUpperCase() + frequency.slice(1)}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </>
+          ) : null}
         </View>
       ) : null}
       <Text style={styles.destinationLabel}>
@@ -1511,9 +1581,11 @@ function makeStyles(themePalette: typeof formPalette) {
     pressed: { opacity: 0.78 },
     accountTypeSection: { marginTop: 15 },
     accountTypeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
+    frequencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
+    frequencyChip: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: formPalette.line, backgroundColor: formPalette.background },
     accountTypeChip: {
       flex: 1,
-      minHeight: 42,
+      minHeight: 48,
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 14,

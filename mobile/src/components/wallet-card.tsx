@@ -29,9 +29,11 @@ export function WalletCard({
   const accountLabel =
     wallet.account_type === 'credit'
       ? 'Credit'
-      : wallet.account_type === 'debit'
-        ? 'Debit'
-        : typeLabel(wallet.institution_type);
+      : wallet.account_purpose === 'savings'
+        ? 'Savings · Debit'
+        : wallet.account_type === 'debit'
+          ? 'Debit'
+          : typeLabel(wallet.institution_type);
   const metadata = `${accountLabel} · PHP`;
   const amountLabel = wallet.account_type === 'credit' ? 'OUTSTANDING' : 'BALANCE';
 
@@ -69,6 +71,9 @@ export function WalletCard({
             <Text numberOfLines={1} ellipsizeMode="tail" style={styles.meta}>
               {metadata}
             </Text>
+            {wallet.earns_interest && wallet.annual_interest_rate != null ? (
+              <Text numberOfLines={1} style={styles.meta}>{wallet.annual_interest_rate}% yearly</Text>
+            ) : null}
           </View>
           <Pressable
             accessibilityRole="button"

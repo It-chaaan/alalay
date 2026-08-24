@@ -201,7 +201,7 @@ Mobile uses Expo Router files rather than these web paths. The currently impleme
 ### Wallets
 
 - Philippine-focused wallet/account presets with a per-user default Cash wallet
-- Wallet cards use the persisted `institution_type` (`cash`, `bank`, `digital_bank`, `e_wallet`, or `other`) as their concise account metadata. There is currently no persisted debit/credit account-type field, so clients must not infer or display one from an institution name.
+- Wallet cards use the persisted `institution_type` (`cash`, `bank`, `digital_bank`, `e_wallet`, or `other`) plus the canonical `account_type` (`debit`/`credit`) and optional `account_purpose` (`everyday`/`savings`). Savings interest fields are metadata only: actual interest is recorded through an explicit income transaction.
 - Income requires a destination wallet; expenses, bills, and subscriptions may optionally reference a source wallet
 - Wallet balances are recomputed from linked income, expenses, and paid bills by database triggers and exposed through the authenticated wallet API
 - New wallet opening balances are recorded as `wallet_adjustments` ledger rows. Creation prefers the atomic `create_wallet_with_opening_balance` RPC and has a guarded rollback fallback during PostgREST schema-cache rollout gaps.

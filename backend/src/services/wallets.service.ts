@@ -8,6 +8,10 @@ export type WalletPayload = {
   institution_key: string;
   account_type?: 'debit' | 'credit' | null;
   credit_limit?: number | null;
+  account_purpose?: 'everyday' | 'savings' | null;
+  earns_interest?: boolean;
+  annual_interest_rate?: number | null;
+  interest_credit_frequency?: 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified' | null;
   color?: string;
   icon?: string | null;
 };
@@ -31,7 +35,7 @@ export type CreditRepaymentPayload = {
 };
 
 function validateAccountType(
-  payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit'>,
+  payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit' | 'account_purpose' | 'earns_interest' | 'annual_interest_rate' | 'interest_credit_frequency'>,
 ) {
   const supportsCardType =
     payload.institution_type === 'bank' || payload.institution_type === 'digital_bank';
@@ -47,6 +51,14 @@ function validateAccountType(
       'invalid_credit_limit',
       'Credit limit is only available for Credit accounts.',
     );
+  if (payload.account_type === 'credit' && payload.account_purpose != null)
+    throw new AppError(422, 'invalid_account_purpose', 'Credit accounts cannot have an account purpose.');
+  if (payload.account_type === 'credit' && (payload.earns_interest || payload.annual_interest_rate != null || payload.interest_credit_frequency != null))
+    throw new AppError(422, 'invalid_interest_metadata', 'Savings interest settings are only available for debit savings accounts.');
+  if (payload.account_purpose !== 'savings' && (payload.annual_interest_rate != null || payload.interest_credit_frequency != null || payload.earns_interest))
+    throw new AppError(422, 'invalid_interest_metadata', 'Interest settings require a savings account.');
+  if (payload.earns_interest && payload.account_type !== 'debit')
+    throw new AppError(422, 'invalid_interest_metadata', 'Interest can only be enabled for debit savings accounts.');
 }
 
 async function ensureCash(userId: string) {
@@ -422,6 +434,10 @@ export async function createWalletWithOpeningBalance(
     opening_amount: payload.opening_balance,
     account_type_value: payload.account_type ?? null,
     credit_limit_value: payload.credit_limit ?? null,
+    account_purpose_value: payload.account_purpose ?? null,
+    earns_interest_value: payload.earns_interest ?? false,
+    annual_interest_rate_value: payload.annual_interest_rate ?? null,
+    interest_credit_frequency_value: payload.interest_credit_frequency ?? null,
   });
   // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
   // rolling deployments PostgREST can briefly have an older schema cache. Use
@@ -440,6 +456,10 @@ export async function createWalletWithOpeningBalance(
         is_default_cash: false,
         account_type: payload.account_type ?? null,
         credit_limit: payload.credit_limit ?? null,
+        account_purpose: payload.account_purpose ?? null,
+        earns_interest: payload.earns_interest ?? false,
+        annual_interest_rate: payload.annual_interest_rate ?? null,
+        interest_credit_frequency: payload.interest_credit_frequency ?? null,
       })
       .select('*')
       .single();
@@ -515,7 +535,7 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
   const ownerId = requireUserId(userId);
   const { data: current, error: currentError } = await client()
     .from('wallets')
-    .select('id, account_type, balance')
+    .select('id, institution_type, account_type, balance, account_purpose, earns_interest, annual_interest_rate, interest_credit_frequency')
     .eq('user_id', ownerId)
     .eq('id', id)
     .single();
@@ -539,6 +559,16 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
       'Credit limit cannot be lower than the current outstanding balance.',
     );
   }
+
+  validateAccountType({
+    institution_type: current.institution_type,
+    account_type: ('account_type' in payload ? payload.account_type : current.account_type) as WalletPayload['account_type'],
+    credit_limit: payload.credit_limit as number | null | undefined,
+    account_purpose: ('account_purpose' in payload ? payload.account_purpose : current.account_purpose) as WalletPayload['account_purpose'],
+    earns_interest: ('earns_interest' in payload ? payload.earns_interest : current.earns_interest) as boolean | undefined,
+    annual_interest_rate: ('annual_interest_rate' in payload ? payload.annual_interest_rate : current.annual_interest_rate) as number | null | undefined,
+    interest_credit_frequency: ('interest_credit_frequency' in payload ? payload.interest_credit_frequency : current.interest_credit_frequency) as WalletPayload['interest_credit_frequency'],
+  });
 
   const { data, error } = await client()
     .from('wallets')
