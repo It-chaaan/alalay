@@ -5,27 +5,10 @@ import { ActivityIndicator, Pressable, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getSupabaseClient } from '@/services/supabase';
+import { processMobileAuthCallback } from '@/services/mobile-auth-callback';
 import { useAppTheme } from '@/theme/theme';
 
 type CallbackState = 'loading' | 'success' | 'error';
-
-function callbackParams(url: string) {
-  const parsed = Linking.parse(url);
-  const query = parsed.queryParams ?? {};
-  const hash = url.split('#')[1] ?? '';
-  const hashParams = new URLSearchParams(hash);
-  const value = (key: string) => {
-    const queryValue = query[key];
-    return typeof queryValue === 'string' ? queryValue : hashParams.get(key);
-  };
-  return {
-    code: value('code'),
-    accessToken: value('access_token'),
-    refreshToken: value('refresh_token'),
-    error: value('error_description') ?? value('error'),
-    mode: value('mode'),
-  };
-}
 
 export default function AuthCallbackScreen() {
   const { colors } = useAppTheme();
@@ -38,13 +21,6 @@ export default function AuthCallbackScreen() {
     const process = async (url: string | null) => {
       if (!url || processedUrl.current === url) return;
       processedUrl.current = url;
-      const params = callbackParams(url);
-      if (params.error) {
-        setError(decodeURIComponent(params.error.replace(/\+/g, ' ')));
-        setState('error');
-        return;
-      }
-
       const supabase = getSupabaseClient();
       if (!supabase) {
         setError('Authentication is unavailable in this app build.');
@@ -53,20 +29,9 @@ export default function AuthCallbackScreen() {
       }
 
       try {
-        if (params.code) {
-          const result = await supabase.auth.exchangeCodeForSession(params.code);
-          if (result.error) throw result.error;
-        } else if (params.accessToken && params.refreshToken) {
-          const result = await supabase.auth.setSession({
-            access_token: params.accessToken,
-            refresh_token: params.refreshToken,
-          });
-          if (result.error) throw result.error;
-        } else {
-          throw new Error('This confirmation link is missing the required parameters or has already been used.');
-        }
+        const callback = await processMobileAuthCallback(supabase, url);
         setState('success');
-        router.replace(params.mode === 'recovery' ? '/settings/change-password' : '/(tabs)');
+        router.replace(callback.mode === 'recovery' ? '/settings/change-password' : '/(tabs)');
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'This confirmation link could not be verified.');
         setState('error');

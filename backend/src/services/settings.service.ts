@@ -9,17 +9,7 @@ export async function getProfile(userId: string, authEmail?: string | null, user
     return { ...data, email: authEmail || data.email, avatar_url: data.avatar_url || providerAvatarUrl || null, avatar_source: data.avatar_url ? "profile" : providerAvatarUrl ? "provider" : null };
   }
 
-  const metadataName = [userMetadata.full_name, userMetadata.name].find((value) => typeof value === "string" && value.trim()) as string | undefined;
-  const fallbackName = authEmail?.split("@")[0] || "User";
-  const providerAvatar = [userMetadata.picture, userMetadata.avatar_url].find((value) => typeof value === "string" && value.trim()) as string | undefined;
-  const { data: created, error: createError } = await client().from("users").insert({
-    id,
-    name: metadataName || fallbackName,
-    email: authEmail || null,
-    avatar_url: providerAvatar || null,
-  }).select("*").single();
-  throwIfError(createError);
-  return { ...created, email: authEmail || created?.email || null, avatar_source: providerAvatar ? "provider" : null };
+  throw new Error("Authenticated profile is missing. The auth.users profile trigger must create it before application access.");
 }
 
 function getProviderAvatar(userMetadata: Record<string, unknown>) {

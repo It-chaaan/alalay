@@ -1,5 +1,4 @@
 import * as Linking from 'expo-linking';
-import * as WebBrowser from 'expo-web-browser';
 import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
@@ -13,6 +12,7 @@ import { OtpInput } from '@/components/otp-input';
 import { getSupabaseClient } from '@/services/supabase';
 import { useAppTheme } from '@/theme/theme';
 import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
+import { signInWithGoogleNative } from '@/services/native-google-auth';
 
 type AuthMode = 'signin' | 'create' | 'mfa';
 type Palette = { background: string; surface: string; ink: string; muted: string; accent: string; accentSoft: string; line: string; danger: string };
@@ -76,22 +76,7 @@ export default function AuthScreen() {
     if (!supabase) { setError('Supabase is not configured for this build.'); return; }
     setLoading(true);
     try {
-      // Keep the callback on the native app scheme. If this URI is not present
-      // in Supabase's redirect allow-list, Auth falls back to the Site URL.
-      const redirectTo = 'mobile://auth/callback';
-      const { data, error: oauthError } = await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo, skipBrowserRedirect: true } });
-      if (oauthError) throw oauthError;
-      if (!data.url) throw new Error('Google sign-in could not start.');
-      const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
-      if (result.type !== 'success') {
-        if (result.type === 'cancel') setError('Google sign-in was cancelled.');
-        return;
-      }
-      const parsed = Linking.parse(result.url);
-      const code = typeof parsed.queryParams?.code === 'string' ? parsed.queryParams.code : null;
-      if (!code) throw new Error('Google sign-in did not return a valid session.');
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (exchangeError) throw exchangeError;
+      await signInWithGoogleNative(supabase);
     } catch (oauthError) {
       setError(getAuthError(oauthError instanceof Error ? oauthError.message : 'Google sign-in failed.'));
     } finally {

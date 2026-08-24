@@ -9,6 +9,7 @@ declare
   orphan_user uuid := gen_random_uuid();
   orphan_email text := 'auth-profile-orphan@example.test';
   repeated_user uuid := gen_random_uuid();
+  null_email_user uuid := gen_random_uuid();
   profile_count integer;
   profile_email text;
 begin
@@ -20,6 +21,14 @@ begin
 
   if (select count(*) from public.users where id in (confirmed_user, unconfirmed_user)) <> 2 then
     raise exception 'New confirmed/unconfirmed auth identities did not get profiles';
+  end if;
+
+  -- Providers may create an Auth row before an email is available. The
+  -- trigger must still use NEW.id and must not invent an email identity.
+  insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
+  values (null_email_user, 'authenticated', 'authenticated', null, null, '{"provider":"google"}', '{"name":"No Email"}', now(), now());
+  if (select count(*) from public.users where id = null_email_user and email is null) <> 1 then
+    raise exception 'Null-email Auth identity did not receive an id-matched profile';
   end if;
 
   -- A legacy public row must not be merged into a different Auth identity.
