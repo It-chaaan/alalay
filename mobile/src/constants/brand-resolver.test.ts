@@ -11,5 +11,5 @@ for (const [key, name] of [['cash', 'Cash'], ['bdo', 'BDO'], ['gcash', 'GCash'],
 assert.equal(resolveBrand('Unknown institution', 'wallet', 'unknown'), null);
 assert.equal(supportsAccountType('metrobank', 'debit'), true);
 assert.equal(supportsAccountType('metrobank', 'credit'), true);
-assert.equal(supportsAccountType('gcash', 'credit'), false);
+assert.equal(supportsAccountType('gcash', 'credit'), true);
 console.log('wallet brand resolver tests passed');

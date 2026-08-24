@@ -423,3 +423,115 @@ a {
 .dark .assistant-message pre {
   background: #111a17;
 }
+
+/* Desktop Wallets presentation. Keep these rules scoped to the web route so
+   mobile screen geometry cannot leak into the browser layout. */
+.wallet-page {
+  min-width: 0;
+  padding-bottom: 2rem;
+}
+.wallet-page-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  max-width: none;
+  padding: 0 0 1.5rem;
+}
+.wallet-page .wallet-icon-button {
+  color: #334155;
+  background: #ffffff;
+  border-color: #dbe4e0;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+.wallet-page .wallet-page-heading h1 {
+  color: #0f172a;
+  font-size: 2rem;
+}
+.wallet-page .wallet-page-heading p { color: #64748b; }
+.wallet-page .wallet-notification-button { margin-left: auto; }
+.wallet-page .wallet-overview-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 1fr);
+  align-items: stretch;
+  gap: 1rem;
+}
+.wallet-page .wallet-hero,
+.wallet-page .wallet-loans-card {
+  min-height: 250px;
+  height: 100%;
+  border-radius: 1.25rem;
+}
+.wallet-page .wallet-hero { padding: 1.5rem; }
+.wallet-page .wallet-hero .font-mono {
+  font-size: clamp(2.75rem, 4vw, 3.75rem);
+}
+.wallet-page .wallet-loans-card {
+  color: #f8fafc;
+  padding: 1.5rem;
+}
+.wallet-page .wallet-loans-card h2 { color: #f8fafc; }
+.wallet-page .wallet-loans-card .text-slate-500 { color: #b7c5d2; }
+.wallet-page .wallet-loans-card .text-slate-400,
+.wallet-page .wallet-loans-card .text-slate-300 { color: #cbd5e1; }
+.wallet-page .wallet-loans-card .wallet-loan-summary p { color: #cbd5e1; }
+.wallet-page .wallet-loans-card .wallet-loan-summary p.font-mono { color: #f8fafc; }
+.wallet-page .wallet-quick-actions {
+  min-height: 96px;
+  margin-top: 1.25rem;
+  padding: 1rem 1.25rem;
+}
+.wallet-page .wallet-quick-actions h2 { color: #0f172a; }
+.wallet-page .wallet-quick-actions > div { margin-top: .65rem; }
+.wallet-page .wallet-quick-actions button { min-height: 3rem; }
+.wallet-page .wallet-wallets-section { margin-top: 1.5rem; }
+.wallet-page .wallet-wallets-section > div:first-child {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: .75rem;
+  margin-bottom: 1rem;
+}
+.wallet-page .wallet-section-title {
+  color: #0f172a;
+  font-size: 1.4rem;
+}
+.wallet-page .wallet-add-button { min-height: 2.75rem; }
+.wallet-page .wallet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(250px, 1fr));
+  gap: 1rem;
+}
+.wallet-page .wallet-card {
+  min-height: 200px;
+  padding: 1.25rem;
+  border-radius: 1.1rem;
+}
+.wallet-page .wallet-card-name { font-size: 1.1rem; }
+.wallet-page .wallet-card-type { max-width: 18rem; font-size: .8rem; }
+.wallet-page .wallet-card-balance { margin-top: 1.5rem !important; }
+.wallet-page .wallet-card-balance .font-mono { font-size: 1.65rem; }
+@media (min-width: 1536px) {
+  .wallet-page .wallet-grid { grid-template-columns: repeat(4, minmax(250px, 1fr)); }
+}
+@media (max-width: 1100px) {
+  .wallet-page .wallet-overview-layout { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wallet-page .wallet-loans-card { min-width: 0; }
+  .wallet-page .wallet-grid { grid-template-columns: repeat(2, minmax(240px, 1fr)); }
+  .wallet-page .wallet-wallets-section > div:first-child { grid-template-columns: 1fr auto; }
+  .wallet-page .wallet-wallets-section > div:first-child > :last-child { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 800px) {
+  .wallet-page .wallet-overview-layout { grid-template-columns: 1fr; }
+  .wallet-page .wallet-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .wallet-page-header { padding-bottom: 1rem; }
+  .wallet-page .wallet-grid { grid-template-columns: 1fr; }
+  .wallet-page .wallet-wallets-section > div:first-child { display: flex; flex-wrap: wrap; }
+  .wallet-page .wallet-wallets-section > div:first-child > :last-child { width: 100%; }
+}
+.dark .wallet-page .wallet-icon-button { color: #e2e8f0; background: #1e293b; border-color: #334155; }
+.dark .wallet-page .wallet-page-heading h1,
+.dark .wallet-page .wallet-quick-actions h2,
+.dark .wallet-page .wallet-section-title { color: #f8fafc; }
+.dark .wallet-page .wallet-page-heading p { color: #94a3b8; }

@@ -1403,8 +1403,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       onSignOut={onSignOut}
       hideHeader
     >
-      <div className="wallet-mobile-page">
-      <header className="wallet-mobile-header">
+      <div className="wallet-page">
+      <header className="wallet-page-header">
         <a href="/app" className="wallet-icon-button" aria-label="Back to home"><ArrowLeft aria-hidden="true" /></a>
         <div className="wallet-page-heading"><h1>Wallets</h1><p>Manage all your money in one place</p></div>
         <a href="/app/settings" className="wallet-icon-button wallet-notification-button" aria-label="Open notification settings"><Bell aria-hidden="true" /><span aria-hidden="true" /></a>

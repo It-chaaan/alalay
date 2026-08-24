@@ -13,9 +13,13 @@ import {
 import {
   ArrowDownToLine,
   ArrowDownUp,
+  ChevronRight,
+  WalletCards,
+  HandCoins,
   MoreHorizontal as MoreHorizontalIcon,
   X as CloseIcon,
 } from 'lucide-react-native';
+import Svg, { Circle, Path, Rect } from 'react-native-svg';
 import { router, useLocalSearchParams } from 'expo-router';
 import {
   SafeAreaView as NativeSafeAreaView,
@@ -29,7 +33,6 @@ import {
   FormTextInput,
   formPalette,
 } from '@/components/finance-form';
-import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPicker, WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { type WalletPreset } from '@/constants/wallets';
 import {
@@ -49,12 +52,11 @@ import {
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { SectionAddButton } from '@/components/header-add-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
-import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
+import { BOTTOM_NAV_CLEARANCE, useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { WalletCard } from '@/components/wallet-card';
 import { BalanceVisibilityToggle } from '@/components/balance-visibility-toggle';
-import { LoansDebtEntryCard } from '@/components/loans-debt-entry-card';
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
@@ -111,8 +113,145 @@ function SafeAreaView(props: SafeAreaViewProps) {
   );
 }
 
+function WalletBalanceHero({
+  totalBalance,
+  walletCount,
+  visible,
+  maskedBalance,
+  onToggle,
+  owedToMe,
+  iOwe,
+  loanLoading,
+  loanError,
+  onLoansPress,
+}: {
+  totalBalance: number;
+  walletCount: number;
+  visible: boolean;
+  maskedBalance: string;
+  onToggle: () => void;
+  owedToMe?: number;
+  iOwe?: number;
+  loanLoading: boolean;
+  loanError: boolean;
+  onLoansPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  const loanSummary =
+    owedToMe != null && iOwe != null
+      ? owedToMe > 0 && iOwe > 0
+        ? `${peso(owedToMe)} owed to you · ${peso(iOwe)} you owe`
+        : owedToMe > 0
+          ? `${peso(owedToMe)} owed to you`
+          : iOwe > 0
+            ? `${peso(iOwe)} you owe`
+            : 'No active loans or debt'
+      : loanError
+        ? 'View loans and debt'
+        : 'Loading summary…';
+  return (
+    <View
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={`Total balance ${visible ? peso(totalBalance) : 'hidden'} across ${walletCount} wallets`}
+      style={[styles.walletHero, { backgroundColor: colors.balance, borderColor: colors.primary }]}
+    >
+      <View pointerEvents="none" style={styles.heroGlow} />
+      <View pointerEvents="none" style={styles.heroLines} />
+      <WalletArtwork />
+      <View style={styles.heroTop}>
+        <Text style={styles.heroEyebrow}>TOTAL BALANCE</Text>
+        <BalanceVisibilityToggle
+          visible={visible}
+          onToggle={onToggle}
+          iconColor={colors.textOnPrimaryMuted}
+        />
+      </View>
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.heroValue}>
+        {visible ? peso(totalBalance) : maskedBalance}
+      </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`View ${walletCount} wallets`}
+        onPress={() => undefined}
+        style={({ pressed }) => [styles.walletCountPill, pressed && styles.pressed]}
+      >
+        <WalletCards size={18} color="#E5F4ED" />
+        <ChevronRight size={18} color="#E5F4ED" />
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Open Loans and Debt. ${
+          visible && owedToMe != null && iOwe != null
+            ? loanSummary
+            : 'Loan and debt balances are hidden'
+        }`}
+        onPress={onLoansPress}
+        style={({ pressed }) => [styles.loanGateway, pressed && styles.pressed]}
+      >
+        <View style={styles.loanGatewayIcon}>
+          <HandCoins size={18} color="#D8EFE2" strokeWidth={2} />
+        </View>
+        <View style={styles.loanGatewayCopy}>
+          <Text style={styles.loanGatewayTitle}>Loans &amp; debt</Text>
+          <Text numberOfLines={2} style={styles.loanGatewaySummary}>
+            {visible || loanLoading ? loanSummary : 'Balances hidden · View loans and debt'}
+          </Text>
+        </View>
+        <ChevronRight size={20} color="#D8EFE2" />
+      </Pressable>
+    </View>
+  );
+}
+
+function WalletArtwork() {
+  return (
+    <Svg pointerEvents="none" style={styles.walletArtwork} viewBox="0 0 180 150">
+      <Path d="M35 55L110 30L152 51L73 77Z" fill="#176A54" opacity={0.55} />
+      <Path
+        d="M45 58L124 36L151 54L70 82Z"
+        fill="#0E4D3E"
+        stroke="#72D8B0"
+        strokeWidth={1.5}
+        opacity={0.92}
+      />
+      <Rect
+        x="40"
+        y="67"
+        width="91"
+        height="58"
+        rx="15"
+        fill="#0F7559"
+        stroke="#45C99A"
+        strokeWidth={1.5}
+        transform="rotate(-13 40 67)"
+      />
+      <Rect
+        x="66"
+        y="48"
+        width="83"
+        height="55"
+        rx="14"
+        fill="#10674F"
+        stroke="#66D0A9"
+        strokeWidth={1.5}
+        transform="rotate(15 66 48)"
+      />
+      <Circle cx="140" cy="100" r="12" fill="#2FD19A" opacity={0.9} />
+      <Circle cx="48" cy="121" r="15" fill="#1DBB86" opacity={0.85} />
+      <Path
+        d="M45 113v16M40 117c8-5 14 4 18-2M39 125c8-5 13 3 18-2"
+        stroke="#073F32"
+        strokeWidth={2.5}
+        fill="none"
+      />
+    </Svg>
+  );
+}
+
 export default function WalletsScreen() {
   const { colors } = useAppTheme();
+  const bottomNavClearance = useBottomNavClearance();
   const toast = useToast();
   styles = makeStyles({
     ...formPalette,
@@ -219,6 +358,7 @@ export default function WalletsScreen() {
       {' '}
       <FinancialScreenHeader
         title="Wallets"
+        subtitle="Manage all your money in one place"
         onBack={() => router.back()}
         rightAction={<NotificationHeaderButton />}
       />
@@ -236,29 +376,18 @@ export default function WalletsScreen() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content}>
-          <FinancialOverviewCard
-            title="WALLET OVERVIEW"
-            icon={
-              <View style={styles.overviewActions}>
-                <BalanceVisibilityToggle
-                  visible={amountsVisible}
-                  onToggle={toggleBalanceVisibility}
-                  iconColor={colors.textOnPrimaryMuted}
-                />
-              </View>
-            }
-            value={amountsVisible ? peso(totalBalance) : maskedBalance}
-            supportingInfo={`Across ${wallets.length} wallet${wallets.length === 1 ? '' : 's'}`}
-            accessibilityLabel={`Wallet overview. Total wallet balance ${amountsVisible ? peso(totalBalance) : 'hidden'} across ${wallets.length} wallet${wallets.length === 1 ? '' : 's'}.`}
-          />
-          <LoansDebtEntryCard
+        <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]}>
+          <WalletBalanceHero
+            totalBalance={totalBalance}
+            walletCount={wallets.length}
+            visible={amountsVisible}
+            maskedBalance={maskedBalance}
+            onToggle={toggleBalanceVisibility}
             owedToMe={loanSummary?.summary.owed_to_me}
             iOwe={loanSummary?.summary.i_owe}
-            activeCount={loanSummary?.loans.filter((loan) => loan.status === 'active').length}
-            isLoading={loanSummaryLoading}
-            hasError={loanSummaryError}
-            onPress={() => router.push('/loans')}
+            loanLoading={loanSummaryLoading}
+            loanError={loanSummaryError}
+            onLoansPress={() => router.push('/loans')}
           />
           <View style={styles.listSection}>
             <View
@@ -1006,15 +1135,33 @@ function AddWalletSheet({
   const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
   const [earnsInterest, setEarnsInterest] = useState(false);
   const [annualInterestRate, setAnnualInterestRate] = useState('');
-  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>('monthly');
+  const [interestFrequency, setInterestFrequency] = useState<
+    'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'
+  >('monthly');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const chooseAccountType = (value: WalletAccountType) => {
-    if (value === 'credit' && (accountPurpose === 'savings' || earnsInterest || annualInterestRate.trim())) {
-      Alert.alert('Remove savings settings?', 'Credit accounts cannot use savings purpose or interest settings.', [
-        { text: 'Keep debit', style: 'cancel' },
-        { text: 'Continue', style: 'destructive', onPress: () => { setAccountType(value); setAccountPurpose('everyday'); setEarnsInterest(false); setAnnualInterestRate(''); } },
-      ]);
+    if (
+      value === 'credit' &&
+      (accountPurpose === 'savings' || earnsInterest || annualInterestRate.trim())
+    ) {
+      Alert.alert(
+        'Remove savings settings?',
+        'Credit accounts cannot use savings purpose or interest settings.',
+        [
+          { text: 'Keep debit', style: 'cancel' },
+          {
+            text: 'Continue',
+            style: 'destructive',
+            onPress: () => {
+              setAccountType(value);
+              setAccountPurpose('everyday');
+              setEarnsInterest(false);
+              setAnnualInterestRate('');
+            },
+          },
+        ],
+      );
       return;
     }
     setAccountType(value);
@@ -1047,7 +1194,12 @@ function AddWalletSheet({
       return;
     }
     const parsedRate = annualInterestRate.trim() ? Number(annualInterestRate) : null;
-    if (accountType === 'debit' && accountPurpose === 'savings' && earnsInterest && (parsedRate === null || !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100)) {
+    if (
+      accountType === 'debit' &&
+      accountPurpose === 'savings' &&
+      earnsInterest &&
+      (parsedRate === null || !Number.isFinite(parsedRate) || parsedRate < 0 || parsedRate > 100)
+    ) {
       setError('Enter an annual interest rate from 0 to 100%.');
       return;
     }
@@ -1063,9 +1215,16 @@ function AddWalletSheet({
           institution_key: preset.key,
           account_type: accountType,
           account_purpose: accountType === 'debit' ? accountPurpose : null,
-          earns_interest: accountType === 'debit' && accountPurpose === 'savings' ? earnsInterest : false,
-          annual_interest_rate: accountType === 'debit' && accountPurpose === 'savings' && earnsInterest ? parsedRate : null,
-          interest_credit_frequency: accountType === 'debit' && accountPurpose === 'savings' && earnsInterest ? interestFrequency : null,
+          earns_interest:
+            accountType === 'debit' && accountPurpose === 'savings' ? earnsInterest : false,
+          annual_interest_rate:
+            accountType === 'debit' && accountPurpose === 'savings' && earnsInterest
+              ? parsedRate
+              : null,
+          interest_credit_frequency:
+            accountType === 'debit' && accountPurpose === 'savings' && earnsInterest
+              ? interestFrequency
+              : null,
           credit_limit: parsedCreditLimit,
           color: preset.color,
           opening_balance: openingBalance,
@@ -1156,10 +1315,24 @@ function AddWalletSheet({
                 accessibilityLabel={purpose === 'everyday' ? 'Everyday account' : 'Savings account'}
                 accessibilityState={{ checked: accountPurpose === purpose }}
                 onPress={() => setAccountPurpose(purpose)}
-                style={[styles.accountTypeChip, accountPurpose === purpose && styles.accountTypeChipSelected]}
+                style={[
+                  styles.accountTypeChip,
+                  accountPurpose === purpose && styles.accountTypeChipSelected,
+                ]}
               >
-                <Text style={[styles.accountTypeText, accountPurpose === purpose && styles.accountTypeTextSelected]}>{purpose === 'everyday' ? 'Everyday' : 'Savings'}</Text>
-                <Text style={styles.accountTypeDescription}>{purpose === 'everyday' ? 'Regular spending and transfers' : 'Set aside for goals or interest'}</Text>
+                <Text
+                  style={[
+                    styles.accountTypeText,
+                    accountPurpose === purpose && styles.accountTypeTextSelected,
+                  ]}
+                >
+                  {purpose === 'everyday' ? 'Everyday' : 'Savings'}
+                </Text>
+                <Text style={styles.accountTypeDescription}>
+                  {purpose === 'everyday'
+                    ? 'For spending, transfers, and daily money management'
+                    : 'Money set aside for saving or earning interest'}
+                </Text>
               </Pressable>
             ))}
           </View>
@@ -1170,20 +1343,69 @@ function AddWalletSheet({
           <Text style={styles.destinationLabel}>Does this account earn interest?</Text>
           <View style={styles.accountTypeRow}>
             {([true, false] as const).map((value) => (
-              <Pressable key={String(value)} accessibilityRole="radio" accessibilityLabel={value ? 'Yes, this account earns interest' : 'No, this account does not earn interest'} accessibilityState={{ checked: earnsInterest === value }} onPress={() => setEarnsInterest(value)} style={[styles.accountTypeChip, earnsInterest === value && styles.accountTypeChipSelected]}>
-                <Text style={[styles.accountTypeText, earnsInterest === value && styles.accountTypeTextSelected]}>{value ? 'Yes' : 'No'}</Text>
+              <Pressable
+                key={String(value)}
+                accessibilityRole="radio"
+                accessibilityLabel={
+                  value
+                    ? 'Yes, this account earns interest'
+                    : 'No, this account does not earn interest'
+                }
+                accessibilityState={{ checked: earnsInterest === value }}
+                onPress={() => setEarnsInterest(value)}
+                style={[
+                  styles.accountTypeChip,
+                  earnsInterest === value && styles.accountTypeChipSelected,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.accountTypeText,
+                    earnsInterest === value && styles.accountTypeTextSelected,
+                  ]}
+                >
+                  {value ? 'Yes' : 'No'}
+                </Text>
               </Pressable>
             ))}
           </View>
           {earnsInterest ? (
             <>
-              <FormTextInput label="Annual interest rate" value={annualInterestRate} onChangeText={setAnnualInterestRate} placeholder="e.g. 3.50 (% per year)" />
-              <Text style={styles.muted}>Enter the annual rate provided by your bank or financial institution.</Text>
+              <FormTextInput
+                label="Annual interest rate"
+                value={annualInterestRate}
+                onChangeText={setAnnualInterestRate}
+                placeholder="e.g. 3.50 (% per year)"
+              />
+              <Text style={styles.muted}>
+                Enter the annual rate provided by your bank or financial institution.
+              </Text>
               <Text style={[styles.destinationLabel, { marginTop: 15 }]}>Interest credited</Text>
               <View style={styles.frequencyRow}>
-                {(['monthly', 'quarterly', 'semi_annually', 'annually'] as const).map((frequency) => (
-                  <Pressable key={frequency} accessibilityRole="radio" accessibilityLabel={`Interest credited ${frequency.replace('_', ' ')}`} accessibilityState={{ checked: interestFrequency === frequency }} onPress={() => setInterestFrequency(frequency)} style={[styles.frequencyChip, interestFrequency === frequency && styles.accountTypeChipSelected]}>
-                    <Text style={[styles.accountTypeText, interestFrequency === frequency && styles.accountTypeTextSelected]}>{frequency === 'semi_annually' ? 'Semi-annually' : frequency[0].toUpperCase() + frequency.slice(1)}</Text>
+                {(
+                  ['monthly', 'quarterly', 'semi_annually', 'annually', 'unspecified'] as const
+                ).map((frequency) => (
+                  <Pressable
+                    key={frequency}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Interest credited ${frequency.replace('_', ' ')}`}
+                    accessibilityState={{ checked: interestFrequency === frequency }}
+                    onPress={() => setInterestFrequency(frequency)}
+                    style={[
+                      styles.frequencyChip,
+                      interestFrequency === frequency && styles.accountTypeChipSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.accountTypeText,
+                        interestFrequency === frequency && styles.accountTypeTextSelected,
+                      ]}
+                    >
+                      {frequency === 'semi_annually'
+                        ? 'Semi-annually'
+                        : frequency[0].toUpperCase() + frequency.slice(1)}
+                    </Text>
                   </Pressable>
                 ))}
               </View>
@@ -1192,11 +1414,11 @@ function AddWalletSheet({
         </View>
       ) : null}
       <Text style={styles.destinationLabel}>
-        {accountType === 'credit' ? 'Outstanding balance' : 'Opening balance'}
+        {accountType === 'credit' ? 'Current balance owed' : 'Opening balance'}
       </Text>
       <Text style={styles.muted}>
         {accountType === 'credit'
-          ? 'Enter the amount currently owed on this card. ₱0 is valid.'
+          ? 'Enter the amount currently owed on this credit account. ₱0 means there is no outstanding balance.'
           : 'Enter the amount currently held in this account. ₱0 is valid.'}
       </Text>
       {accountType === 'credit' ? (
@@ -1424,6 +1646,101 @@ function makeStyles(themePalette: typeof formPalette) {
     eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
     title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' },
     content: { padding: 20, paddingBottom: BOTTOM_NAV_CLEARANCE },
+    walletHero: {
+      minHeight: 312,
+      overflow: 'hidden',
+      padding: 20,
+      borderRadius: 26,
+      borderWidth: 1,
+      position: 'relative',
+    },
+    heroGlow: {
+      position: 'absolute',
+      width: 220,
+      height: 220,
+      right: -70,
+      top: -80,
+      borderRadius: 110,
+      backgroundColor: 'rgba(0, 255, 180, 0.08)',
+    },
+    heroLines: {
+      position: 'absolute',
+      width: 300,
+      height: 120,
+      right: -80,
+      bottom: -55,
+      borderRadius: 160,
+      borderWidth: 1,
+      borderColor: 'rgba(77, 215, 169, 0.22)',
+      transform: [{ rotate: '-14deg' }],
+    },
+    heroTop: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      zIndex: 2,
+    },
+    heroEyebrow: { color: '#D8EFE2', fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
+    heroValue: {
+      width: '68%',
+      marginTop: 28,
+      color: '#FFFFFF',
+      fontSize: 40,
+      fontWeight: '900',
+      letterSpacing: -1,
+    },
+    walletCountPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      gap: 8,
+      minHeight: 48,
+      marginTop: 20,
+      paddingHorizontal: 15,
+      borderRadius: 24,
+      backgroundColor: 'rgba(0, 31, 25, 0.42)',
+      zIndex: 2,
+    },
+    walletCountText: { color: '#E5F4ED', fontSize: 13, fontWeight: '800' },
+    loanGateway: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      minHeight: 64,
+      marginTop: 12,
+      paddingHorizontal: 12,
+      borderRadius: 18,
+      backgroundColor: 'rgba(0, 31, 25, 0.46)',
+      borderWidth: 1,
+      borderColor: 'rgba(216,239,226,0.18)',
+      zIndex: 2,
+    },
+    loanGatewayIcon: {
+      width: 38,
+      height: 38,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 19,
+      backgroundColor: 'rgba(46, 170, 125, 0.28)',
+    },
+    loanGatewayCopy: { flex: 1, minWidth: 0 },
+    loanGatewayTitle: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+    loanGatewaySummary: {
+      marginTop: 3,
+      color: '#C6DFD3',
+      fontSize: 11,
+      lineHeight: 15,
+      fontWeight: '700',
+    },
+    walletArtwork: {
+      position: 'absolute',
+      width: 150,
+      height: 126,
+      right: -12,
+      bottom: 58,
+      zIndex: 1,
+      opacity: 0.72,
+    },
     listSection: { marginTop: 24 },
     sectionTitle: { marginBottom: 12, color: formPalette.ink, fontSize: 16, fontWeight: '900' },
     grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
@@ -1582,7 +1899,16 @@ function makeStyles(themePalette: typeof formPalette) {
     accountTypeSection: { marginTop: 15 },
     accountTypeRow: { flexDirection: 'row', gap: 8, marginTop: 8 },
     frequencyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
-    frequencyChip: { minHeight: 44, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: formPalette.line, backgroundColor: formPalette.background },
+    frequencyChip: {
+      minHeight: 44,
+      paddingHorizontal: 12,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+      backgroundColor: formPalette.background,
+    },
     accountTypeChip: {
       flex: 1,
       minHeight: 48,

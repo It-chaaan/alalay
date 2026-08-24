@@ -3,6 +3,7 @@ import { asNumber, client, monthRange, requireUserId, todayIso, throwIfError } f
 import { incomeForRange } from "./financial-summary.service.js";
 import { processSubscriptionBilling } from "./subscription-billing.service.js";
 import { getProfile } from "./settings.service.js";
+import { resolveAiDateRange } from "./ai.date-range.service.js";
 
 type ContextTopic = "overview" | "spending" | "bills" | "subscriptions" | "budget" | "savings" | "reports";
 
@@ -126,6 +127,7 @@ export async function buildFinancialContext(userId: string, message: string) {
   const lastMonthDate = new Date();
   lastMonthDate.setMonth(lastMonthDate.getMonth() - 1);
   const previous = monthRange(lastMonthDate);
+  const requestedRange = resolveAiDateRange(message);
 
   const [
     profile,
@@ -182,6 +184,36 @@ export async function buildFinancialContext(userId: string, message: string) {
     },
     risk_alerts: riskAlerts,
   };
+
+  if (requestedRange) {
+    const requestedReport = await getReports(userId, {
+      period: "custom",
+      from: requestedRange.start,
+      to: requestedRange.end,
+    }) as {
+      total_expenses: number;
+      average_daily_spending: number;
+      average_weekly_spending: number;
+      categories: unknown[];
+      charts: { daily_spending: unknown[] };
+      total_income: number;
+      net_savings: number;
+    };
+    context.requested_period = {
+      label: requestedRange.label,
+      start: requestedRange.start,
+      end: requestedRange.end,
+      spending: {
+        total: requestedReport.total_expenses,
+        average_daily: requestedReport.average_daily_spending,
+        average_weekly: requestedReport.average_weekly_spending,
+        categories: requestedReport.categories,
+        daily: requestedReport.charts.daily_spending,
+      },
+      income: requestedReport.total_income,
+      net_savings: requestedReport.net_savings,
+    };
+  }
 
   if (topics.includes("spending") || topics.includes("overview")) {
     context.spending = {

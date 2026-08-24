@@ -60,7 +60,7 @@ begin
   if auth.uid() is null then raise exception 'Authentication is required'; end if;
   if opening_amount < 0 then raise exception 'Opening balance cannot be negative'; end if;
   if account_type_value is not null and account_type_value not in ('debit', 'credit') then raise exception 'Invalid account type'; end if;
-  if wallet_type not in ('bank', 'digital_bank') and account_type_value is not null then raise exception 'This institution does not support Debit or Credit classification'; end if;
+  if wallet_type not in ('bank', 'digital_bank', 'e_wallet') and account_type_value is not null then raise exception 'This institution does not support Debit or Credit classification'; end if;
   if account_type_value = 'credit' and account_purpose_value is not null then raise exception 'Credit accounts cannot have an account purpose'; end if;
   if account_type_value = 'credit' and (earns_interest_value or annual_interest_rate_value is not null or interest_credit_frequency_value is not null) then raise exception 'Savings interest settings require a debit savings account'; end if;
   if account_purpose_value is distinct from 'savings' and (earns_interest_value or annual_interest_rate_value is not null or interest_credit_frequency_value is not null) then raise exception 'Interest settings require a savings account'; end if;

@@ -26,6 +26,17 @@ const initialMessages: ChatMessage[] = [
   { id: 'welcome', role: 'assistant', content: 'Hi! I’m Alalay. Ask me about your bills, spending, savings, or budget.' },
 ];
 
+const faqPrompts = [
+  'How much did I spend this week?',
+  'What bills are due soon?',
+  'How am I doing against my budget?',
+  'How are my savings goals going?',
+  'Show my spending by category this month.',
+  'What subscriptions do I have?',
+  'How much did I spend last month?',
+  'What is my total wallet balance?',
+];
+
 function newRequestId() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (character) => {
     const random = Math.random() * 16 | 0;
@@ -162,6 +173,8 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  const [showFaqs, setShowFaqs] = useState(true);
+  const [showMoreFaqs, setShowMoreFaqs] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -176,13 +189,14 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     };
   }, []);
 
-  const sendMessage = async () => {
-    const content = draft.trim();
+  const sendMessage = async (prompt = draft.trim()) => {
+    const content = prompt.trim();
     if (!content || sending) return;
     const userMessage: ChatMessage = { id: `user-${Date.now()}`, role: 'user', content };
     const history = messages.map(({ role, content: messageContent }) => ({ role, content: messageContent }));
     setMessages((current) => [...current, userMessage]);
     setDraft('');
+    setShowFaqs(false);
     setSending(true);
     try {
       const response = await authenticatedApiRequest<{ message: string; financialMutation?: boolean; pendingAction?: PendingAction | null }>('/api/ai/chat', {
@@ -211,9 +225,16 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     </View>
     <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
       {messages.map((message) => <View key={message.id} style={[styles.messageBubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}><Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : styles.assistantMessageText]}>{message.content}</Text></View>)}
+      {showFaqs && messages.length === 1 && <View style={styles.faqSection}>
+        <Text style={styles.faqTitle}>Frequently asked</Text>
+        <View style={styles.faqList}>
+          {faqPrompts.slice(0, showMoreFaqs ? faqPrompts.length : 4).map((prompt) => <Pressable key={prompt} accessibilityRole="button" accessibilityLabel={`Ask: ${prompt}`} onPress={() => void sendMessage(prompt)} style={({ pressed }) => [styles.faqChip, pressed && styles.pressed]}><Text style={styles.faqChipText}>{prompt}</Text></Pressable>)}
+        </View>
+        <Pressable accessibilityRole="button" accessibilityLabel={showMoreFaqs ? 'Show fewer frequently asked questions' : 'See more frequently asked questions'} onPress={() => setShowMoreFaqs((current) => !current)} style={styles.seeMore}><Text style={styles.seeMoreText}>{showMoreFaqs ? 'Show less' : 'See more'}</Text></Pressable>
+      </View>}
       {sending && <View style={[styles.messageBubble, styles.assistantBubble, styles.typingBubble]}><ActivityIndicator size="small" color={colors.accent} /><Text style={styles.typingText}>Alalay is thinking…</Text></View>}
     </ScrollView>
-    <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={sendMessage} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={colors.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={sendMessage} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color={colors.textOnPrimary} strokeWidth={2} /></Pressable></View>
+    <View style={styles.composer}><TextInput accessibilityLabel="Ask Alalay a question" value={draft} onChangeText={setDraft} onSubmitEditing={() => void sendMessage()} returnKeyType="send" placeholder="Ask about your money…" placeholderTextColor={colors.muted} style={styles.composerInput} multiline /><Pressable accessibilityRole="button" accessibilityLabel="Send message" disabled={!draft.trim() || sending} onPress={() => void sendMessage()} style={({ pressed }) => [styles.sendButton, (!draft.trim() || sending) && styles.sendDisabled, pressed && styles.pressed]}><Send size={19} color={colors.textOnPrimary} strokeWidth={2} /></Pressable></View>
     {!keyboardVisible && <View pointerEvents="none" style={{ height: bottomNavClearance }} />}
     </KeyboardAvoidingView>
   </SafeAreaView>;
@@ -245,6 +266,13 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
   userMessageText: { color: colors.textOnPrimary },
   typingBubble: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   typingText: { color: colors.muted, fontSize: 12, fontWeight: '600' },
+  faqSection: { marginTop: 4, padding: 14, borderRadius: 17, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line },
+  faqTitle: { color: colors.ink, fontSize: 13, fontWeight: '900' },
+  faqList: { marginTop: 10, gap: 8 },
+  faqChip: { minHeight: 44, justifyContent: 'center', paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: colors.surfaceElevated, borderWidth: 1, borderColor: colors.line },
+  faqChipText: { color: colors.ink, fontSize: 13, lineHeight: 18 },
+  seeMore: { alignSelf: 'flex-start', minHeight: 44, justifyContent: 'center', paddingHorizontal: 4 },
+  seeMoreText: { color: colors.accent, fontSize: 13, fontWeight: '800' },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, paddingHorizontal: 18, paddingTop: 12, paddingBottom: 16, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.line },
   composerInput: { flex: 1, minHeight: 46, maxHeight: 108, paddingHorizontal: 14, paddingVertical: 12, borderRadius: 18, backgroundColor: colors.surfaceInput, color: colors.ink, fontSize: 14 },
   sendButton: { width: 46, height: 46, borderRadius: 23, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent },

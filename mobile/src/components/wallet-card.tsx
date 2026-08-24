@@ -26,16 +26,15 @@ export function WalletCard({
   const { visible } = useBalanceVisibility();
   const amountsVisible = visible === true;
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
-  const accountLabel =
-    wallet.account_type === 'credit'
-      ? 'Credit'
-      : wallet.account_purpose === 'savings'
-        ? 'Savings · Debit'
-        : wallet.account_type === 'debit'
-          ? 'Debit'
-          : typeLabel(wallet.institution_type);
-  const metadata = `${accountLabel} · PHP`;
-  const amountLabel = wallet.account_type === 'credit' ? 'OUTSTANDING' : 'BALANCE';
+  const accountLabel = wallet.account_type === 'credit' ? 'Credit' : 'Debit';
+  const purposeLabel =
+    wallet.account_purpose === 'savings'
+      ? 'Savings'
+      : wallet.account_purpose === 'everyday'
+        ? 'Everyday'
+        : typeLabel(wallet.institution_type);
+  const metadata = `${purposeLabel} · ${accountLabel}`;
+  const amountLabel = wallet.account_type === 'credit' ? 'BALANCE OWED' : 'BALANCE';
 
   return (
     <Pressable
@@ -68,11 +67,13 @@ export function WalletCard({
             <Text numberOfLines={1} ellipsizeMode="tail" style={styles.name}>
               {wallet.name}
             </Text>
-            <Text numberOfLines={1} ellipsizeMode="tail" style={styles.meta}>
+            <Text numberOfLines={2} style={styles.meta}>
               {metadata}
             </Text>
             {wallet.earns_interest && wallet.annual_interest_rate != null ? (
-              <Text numberOfLines={1} style={styles.meta}>{wallet.annual_interest_rate}% yearly</Text>
+              <Text numberOfLines={1} style={styles.meta}>
+                {wallet.annual_interest_rate}% yearly
+              </Text>
             ) : null}
           </View>
           <Pressable
@@ -110,8 +111,7 @@ const styles = StyleSheet.create({
   // Width is supplied by the two-column parent; this stays compact and equal-height.
   card: {
     width: '48%',
-    minHeight: 124,
-    aspectRatio: 1.3,
+    minHeight: 190,
     overflow: 'hidden',
     padding: 12,
     borderRadius: 22,

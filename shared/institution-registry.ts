@@ -6,12 +6,12 @@ export type InstitutionDefinition = {
 };
 const debitAndCredit: readonly WalletAccountType[] = ['debit', 'credit'];
 export const institutionRegistry: readonly InstitutionDefinition[] = [
-  { id: 'gcash', displayName: 'GCash', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: [], brandColor: '#007DFE', mark: 'G', aliases: ['g cash'] },
-  { id: 'maya', displayName: 'Maya', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: [], brandColor: '#00A878', mark: 'M', aliases: [] },
-  { id: 'gotyme', displayName: 'GoTyme', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: [], brandColor: '#E65C4F', mark: 'GT', aliases: ['go tyme'] },
-  { id: 'maribank', displayName: 'MariBank', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: ['debit'], brandColor: '#7A5AF8', mark: 'M', aliases: ['mari bank'] },
-  { id: 'cimb_ph', displayName: 'CIMB Bank PH', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: ['debit'], brandColor: '#D94A75', mark: 'C', aliases: ['cimb', 'cimb bank'] },
-  { id: 'tonik', displayName: 'Tonik', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: ['debit'], brandColor: '#3A9FBF', mark: 'T', aliases: [] },
+  { id: 'gcash', displayName: 'GCash', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#007DFE', mark: 'G', aliases: ['g cash'] },
+  { id: 'maya', displayName: 'Maya', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#00A878', mark: 'M', aliases: [] },
+  { id: 'gotyme', displayName: 'GoTyme', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#E65C4F', mark: 'GT', aliases: ['go tyme'] },
+  { id: 'maribank', displayName: 'MariBank', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#7A5AF8', mark: 'M', aliases: ['mari bank'] },
+  { id: 'cimb_ph', displayName: 'CIMB Bank PH', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#D94A75', mark: 'C', aliases: ['cimb', 'cimb bank'] },
+  { id: 'tonik', displayName: 'Tonik', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#3A9FBF', mark: 'T', aliases: [] },
   { id: 'bpi', displayName: 'BPI', institutionType: 'bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#B43F4B', mark: 'BPI', aliases: [] },
   { id: 'bdo', displayName: 'BDO', institutionType: 'bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#2F5DA8', mark: 'BDO', aliases: [] },
   { id: 'metrobank', displayName: 'Metrobank', institutionType: 'bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#176B87', mark: 'M', aliases: ['metro bank'] },

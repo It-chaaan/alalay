@@ -56,6 +56,8 @@ type Category = {
   color?: string;
   icon?: string;
   goal?: boolean;
+  committed_amount?: number;
+  upcoming_amount?: number;
 };
 type GoalAlloc = { goal_id: string; title: string; amount: number; progress_percent: number };
 type Summary = {
@@ -76,6 +78,42 @@ type Summary = {
   goal_allocations: GoalAlloc[];
 };
 type BudgetEntry = { id: string; name: string; budget: number; icon?: string; persisted: boolean };
+type Shortfall = {
+  id: string;
+  name: string;
+  budget: number;
+  spent: number;
+  shortfall: number;
+  recommended: number;
+  reason: string;
+};
+
+function getShortfalls(categories: Category[]): Shortfall[] {
+  return categories
+    .filter(
+      (category) =>
+        !category.goal &&
+        category.spent + (category.committed_amount ?? category.upcoming_amount ?? 0) >
+          category.budget,
+    )
+    .map((category) => ({
+      id: category.id,
+      name: category.name,
+      budget: category.budget,
+      spent: category.spent,
+      shortfall: Math.max(
+        0,
+        category.spent +
+          (category.committed_amount ?? category.upcoming_amount ?? 0) -
+          category.budget,
+      ),
+      recommended: category.spent + (category.committed_amount ?? category.upcoming_amount ?? 0),
+      reason:
+        category.committed_amount || category.upcoming_amount
+          ? `${peso(category.spent)} spent plus ${peso(category.committed_amount ?? category.upcoming_amount ?? 0)} in confirmed commitments`
+          : `Spent ${peso(category.spent)} of a ${peso(category.budget)} budget`,
+    }));
+}
 
 const customCategoryIcons: { key: string; label: string; icon: LucideIcon }[] = [
   { key: 'heart', label: 'Health', icon: Heart },
@@ -142,6 +180,7 @@ export default function Budget() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  const [contextCategoryId, setContextCategoryId] = useState<string | undefined>();
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -162,6 +201,8 @@ export default function Budget() {
   const label = monthLabel(month);
   const budgeted = data?.budget_amount ?? 0;
   const spent = data?.spent_amount ?? 0;
+  const shortfalls = useMemo(() => getShortfalls(data?.categories ?? []), [data?.categories]);
+  const totalShortfall = shortfalls.reduce((sum, item) => sum + item.shortfall, 0);
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
@@ -246,6 +287,25 @@ export default function Budget() {
               </Pressable>
             }
           >
+            {shortfalls.length ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${shortfalls.length} categories need adjustment, ${peso(totalShortfall)} total shortfall`}
+                onPress={() => {
+                  setContextCategoryId(shortfalls.length === 1 ? shortfalls[0].id : undefined);
+                  setOpen(true);
+                }}
+                style={({ pressed }) => [styles.shortfallNotice, pressed && styles.pressed]}
+              >
+                <Text style={styles.shortfallNoticeTitle}>
+                  {shortfalls.length} categor{shortfalls.length === 1 ? 'y needs' : 'ies need'}{' '}
+                  adjustment
+                </Text>
+                <Text style={styles.shortfallNoticeText}>
+                  {peso(totalShortfall)} total shortfall · Open Edit Budget for recommendations
+                </Text>
+              </Pressable>
+            ) : null}
             <View style={styles.categoryList}>
               {data.categories
                 ?.filter((category) => !category.goal)
@@ -265,9 +325,12 @@ export default function Budget() {
         <BudgetForm
           month={month}
           summary={data}
+          shortfalls={shortfalls}
+          initialCategoryId={contextCategoryId}
           onClose={() => setOpen(false)}
           onSaved={async () => {
             setOpen(false);
+            setContextCategoryId(undefined);
             await refresh();
           }}
         />
@@ -470,38 +533,48 @@ function BudgetProgressRow({
 function BudgetForm({
   month,
   summary,
+  shortfalls,
+  initialCategoryId,
   onClose,
   onSaved,
 }: {
   month: string;
   summary: Summary | null;
+  shortfalls: Shortfall[];
+  initialCategoryId?: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const initialEntries = useMemo(() => {
     const current = summary?.categories.filter((category) => !category.goal) ?? [];
     if (current.length)
-      return current.map(({ id, name, budget, icon }) => ({
-        id,
-        name,
-        budget,
-        icon,
-        persisted: true,
-      }));
+      return [...current]
+        .sort(
+          (a, b) =>
+            (shortfalls.some((item) => item.id === a.id) ? 0 : 1) -
+            (shortfalls.some((item) => item.id === b.id) ? 0 : 1),
+        )
+        .map(({ id, name, budget, icon }) => ({
+          id,
+          name,
+          budget,
+          icon,
+          persisted: true,
+        }));
     return budgetCategories.slice(0, 7).map((category) => ({
       id: `budget-${category.label.toLowerCase()}`,
       name: category.label,
       budget: 0,
       persisted: false,
     }));
-  }, [summary]);
+  }, [summary, shortfalls]);
   const [entries, setEntries] = useState<BudgetEntry[]>(initialEntries);
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialEntries.map((entry) => [entry.id, entry.budget ? String(entry.budget) : '']),
     ),
   );
-  const [selectedId, setSelectedId] = useState(initialEntries[0]?.id ?? '');
+  const [selectedId, setSelectedId] = useState(initialCategoryId ?? initialEntries[0]?.id ?? '');
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
   const [customCategoryOpen, setCustomCategoryOpen] = useState(false);
   const [customCategoryError, setCustomCategoryError] = useState('');
@@ -523,9 +596,62 @@ function BudgetForm({
     [entries],
   );
   const selectedLabel = selectedEntry?.name ?? 'Category';
+  const liveShortfalls = useMemo(() => {
+    const source = summary?.categories ?? [];
+    return entries.flatMap((entry) => {
+      const category = source.find((item) => item.id === entry.id);
+      if (!category || category.goal) return [];
+      const budget = parseAmount(drafts[entry.id] ?? '') ?? 0;
+      const committed = category.committed_amount ?? category.upcoming_amount ?? 0;
+      const projected = category.spent + committed;
+      if (projected <= budget) return [];
+      return [
+        {
+          id: entry.id,
+          name: entry.name,
+          budget,
+          spent: category.spent,
+          shortfall: projected - budget,
+          recommended: projected,
+          reason: committed
+            ? `${peso(category.spent)} spent plus ${peso(committed)} in confirmed commitments`
+            : `Spent ${peso(category.spent)} of a ${peso(budget)} budget`,
+        },
+      ];
+    });
+  }, [drafts, entries, summary]);
+  const selectedShortfall = liveShortfalls.find((item) => item.id === selectedId);
+  const availableIncome = summary?.unallocated_income ?? 0;
+  const requiredShortfall = liveShortfalls.reduce((sum, item) => sum + item.shortfall, 0);
+  const currentAllocation = entries.reduce(
+    (sum, entry) => sum + (parseAmount(drafts[entry.id] ?? '') ?? 0),
+    0,
+  );
+  const originalAllocation = entries.reduce((sum, entry) => sum + entry.budget, 0);
+  const allocationDelta = currentAllocation - originalAllocation;
+  const remainingUnallocated = availableIncome - allocationDelta;
 
   const changeAmount = (value: string) => {
     setDrafts((current) => ({ ...current, [selectedId]: value }));
+  };
+
+  const useRecommended = () => {
+    if (!selectedShortfall) return;
+    setDrafts((current) => ({
+      ...current,
+      [selectedId]: String(Math.ceil(selectedShortfall.recommended)),
+    }));
+  };
+
+  const applyAllRecommendations = () => {
+    setDrafts((current) =>
+      Object.fromEntries(
+        Object.entries(current).map(([id, value]) => {
+          const recommendation = liveShortfalls.find((item) => item.id === id);
+          return [id, recommendation ? String(Math.ceil(recommendation.recommended)) : value];
+        }),
+      ),
+    );
   };
 
   const addCategory = (label: string, icon?: string) => {
@@ -594,6 +720,48 @@ function BudgetForm({
       onClose={onClose}
     >
       <Text style={styles.formHint}>Set the monthly limit for one category at a time.</Text>
+      {liveShortfalls.length ? (
+        <View style={styles.editSummary} accessibilityRole="summary">
+          <Text style={styles.editSummaryTitle}>
+            {summary ? `Adjust ${monthLabel(month)}` : 'Set your budget'}
+          </Text>
+          <Text style={styles.editSummaryText}>
+            {liveShortfalls.length} categor{liveShortfalls.length === 1 ? 'y needs' : 'ies need'}{' '}
+            {peso(requiredShortfall)} more.
+          </Text>
+          <Text style={styles.editSummaryLine}>
+            Available to allocate:{' '}
+            <Text style={styles.editSummaryValue}>{peso(availableIncome)}</Text>
+          </Text>
+          <Text style={styles.editSummaryLine}>
+            Required adjustment:{' '}
+            <Text style={styles.editSummaryValue}>{peso(requiredShortfall)}</Text>
+          </Text>
+          <Text style={[styles.editSummaryLine, remainingUnallocated < 0 && styles.over]}>
+            After changes:{' '}
+            <Text style={styles.editSummaryValue}>
+              {remainingUnallocated >= 0
+                ? peso(remainingUnallocated)
+                : `${peso(Math.abs(remainingUnallocated))} overallocated`}
+            </Text>
+          </Text>
+          {availableIncome >= requiredShortfall ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Apply all recommended budget adjustments"
+              onPress={applyAllRecommendations}
+              style={({ pressed }) => [styles.recommendButton, pressed && styles.pressed]}
+            >
+              <Text style={styles.recommendButtonText}>Apply all recommendations</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.shortfallWarning}>
+              You have {peso(availableIncome)} available, but categories need{' '}
+              {peso(requiredShortfall)}. Review adjustments before saving.
+            </Text>
+          )}
+        </View>
+      ) : null}
       <CategoryChipRow
         label="Budget category"
         value={selectedLabel}
@@ -602,8 +770,38 @@ function BudgetForm({
         }
         options={options}
         showAllOptions
+        warningByLabel={Object.fromEntries(
+          liveShortfalls.map((item) => [item.name, peso(item.shortfall)]),
+        )}
         onAdd={() => setAddCategoryOpen(true)}
       />
+      {selectedShortfall ? (
+        <View
+          style={styles.shortfallCard}
+          accessibilityRole="summary"
+          accessibilityLabel={`${selectedShortfall.name} short by ${Math.round(selectedShortfall.shortfall)} pesos`}
+        >
+          <Text style={styles.shortfallCardTitle}>{selectedShortfall.name} needs attention</Text>
+          <Text style={styles.formHint}>{selectedShortfall.reason}</Text>
+          <Text style={styles.shortfallDetail}>
+            Current budget: {peso(selectedShortfall.budget)}
+          </Text>
+          <Text style={styles.shortfallDetail}>
+            Additional amount needed: {peso(selectedShortfall.shortfall)}
+          </Text>
+          <Text style={styles.shortfallDetail}>
+            Recommended new budget: {peso(selectedShortfall.recommended)}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Add ${Math.round(selectedShortfall.shortfall)} pesos to ${selectedShortfall.name} budget`}
+            onPress={useRecommended}
+            style={({ pressed }) => [styles.recommendButton, pressed && styles.pressed]}
+          >
+            <Text style={styles.recommendButtonText}>Add {peso(selectedShortfall.shortfall)}</Text>
+          </Pressable>
+        </View>
+      ) : null}
       <BudgetCategoryPicker
         visible={addCategoryOpen}
         options={availableCategories}
@@ -1049,6 +1247,22 @@ function createStyles(palette: typeof formPalette) {
       backgroundColor: palette.accentPale,
     },
     sectionActionText: { color: palette.accentDark, fontSize: 11, fontWeight: '900' },
+    shortfallNotice: {
+      marginBottom: 12,
+      padding: 13,
+      borderRadius: 15,
+      backgroundColor: '#9A670018',
+      borderWidth: 1,
+      borderColor: '#B7791F66',
+    },
+    shortfallNoticeTitle: { color: '#B7791F', fontSize: 12, fontWeight: '900' },
+    shortfallNoticeText: {
+      marginTop: 4,
+      color: palette.muted,
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: '700',
+    },
     categoryHeader: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -1203,6 +1417,45 @@ function createStyles(palette: typeof formPalette) {
       backgroundColor: palette.accentPale,
     },
     limitLabel: { color: palette.accentDark, fontSize: 12, fontWeight: '900' },
+    editSummary: {
+      marginTop: 14,
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: palette.background,
+      borderWidth: 1,
+      borderColor: palette.line,
+    },
+    editSummaryTitle: { color: palette.ink, fontSize: 16, fontWeight: '900' },
+    editSummaryText: { marginTop: 4, color: palette.muted, fontSize: 12, fontWeight: '800' },
+    editSummaryLine: { marginTop: 8, color: palette.muted, fontSize: 11, fontWeight: '700' },
+    editSummaryValue: { color: palette.ink, fontWeight: '900' },
+    recommendButton: {
+      minHeight: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 11,
+      paddingHorizontal: 14,
+      borderRadius: 22,
+      backgroundColor: palette.accentPale,
+    },
+    recommendButtonText: { color: palette.accentDark, fontSize: 11, fontWeight: '900' },
+    shortfallWarning: {
+      marginTop: 10,
+      color: '#B7791F',
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: '800',
+    },
+    shortfallCard: {
+      marginTop: 14,
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: '#9A670018',
+      borderWidth: 1,
+      borderColor: '#B7791F66',
+    },
+    shortfallCardTitle: { color: '#B7791F', fontSize: 13, fontWeight: '900' },
+    shortfallDetail: { marginTop: 7, color: palette.ink, fontSize: 11, fontWeight: '800' },
     recurring: {
       flexDirection: 'row',
       alignItems: 'center',

@@ -84,17 +84,34 @@ export const billCategories: CategoryOption[] = [
   { label: 'Internet', icon: Wifi },
   { label: 'Rent', icon: Home },
   { label: 'Mobile / Phone', icon: Smartphone },
-  { label: 'Mortgage', icon: Home }, { label: 'Gas', icon: Bolt }, { label: 'Cable / TV', icon: Film },
-  { label: 'Credit Card', icon: CreditCard }, { label: 'Loan', icon: HandCoins }, { label: 'Insurance', icon: ShieldCheck }, { label: 'Taxes', icon: Receipt },
-  { label: 'HOA / Association', icon: Home }, { label: 'Tuition / School', icon: GraduationCap }, { label: 'Maintenance', icon: Bolt },
+  { label: 'Mortgage', icon: Home },
+  { label: 'Gas', icon: Bolt },
+  { label: 'Cable / TV', icon: Film },
+  { label: 'Credit Card', icon: CreditCard },
+  { label: 'Loan', icon: HandCoins },
+  { label: 'Insurance', icon: ShieldCheck },
+  { label: 'Taxes', icon: Receipt },
+  { label: 'HOA / Association', icon: Home },
+  { label: 'Tuition / School', icon: GraduationCap },
+  { label: 'Maintenance', icon: Bolt },
   { label: 'Other', icon: MoreHorizontal },
 ];
 
 export const subscriptionCategories: CategoryOption[] = [
-  { label: 'Streaming', icon: Film }, { label: 'Music', icon: Smartphone }, { label: 'Gaming', icon: Grid2X2 }, { label: 'News / Media', icon: Receipt },
-  { label: 'Software', icon: Laptop }, { label: 'AI Tools', icon: Sparkles }, { label: 'Cloud Storage', icon: Wifi }, { label: 'Productivity', icon: BriefcaseBusiness },
-  { label: 'Developer Tools', icon: Code2 }, { label: 'Fitness', icon: Dumbbell }, { label: 'Membership', icon: Users }, { label: 'Education', icon: GraduationCap },
-  { label: 'Delivery / Shopping', icon: ShoppingBag }, { label: 'Other', icon: MoreHorizontal },
+  { label: 'Streaming', icon: Film },
+  { label: 'Music', icon: Smartphone },
+  { label: 'Gaming', icon: Grid2X2 },
+  { label: 'News / Media', icon: Receipt },
+  { label: 'Software', icon: Laptop },
+  { label: 'AI Tools', icon: Sparkles },
+  { label: 'Cloud Storage', icon: Wifi },
+  { label: 'Productivity', icon: BriefcaseBusiness },
+  { label: 'Developer Tools', icon: Code2 },
+  { label: 'Fitness', icon: Dumbbell },
+  { label: 'Membership', icon: Users },
+  { label: 'Education', icon: GraduationCap },
+  { label: 'Delivery / Shopping', icon: ShoppingBag },
+  { label: 'Other', icon: MoreHorizontal },
 ];
 
 // Expense creation/editing use the shared catalog. It serializes the established
@@ -143,7 +160,13 @@ export function formatAmountForDisplay(value: string) {
 }
 
 const BACKSPACE_KEY = '\u232B';
-export function NumericKeypad({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+export function NumericKeypad({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
   const { colors } = useAppTheme();
   const press = (key: string) => {
     if (key === 'clear') {
@@ -165,81 +188,407 @@ export function NumericKeypad({ value, onChange }: { value: string; onChange: (v
   };
 
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', BACKSPACE_KEY];
-  return <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
-    <View style={keypadStyles.row}>
-      <Text style={[keypadStyles.expression, { color: colors.textPrimary }]}>{formatAmountForDisplay(value)}</Text>
+  return (
+    <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
+      <View style={keypadStyles.row}>
+        <Text style={[keypadStyles.expression, { color: colors.textPrimary }]}>
+          {formatAmountForDisplay(value)}
+        </Text>
+      </View>
+      <View style={keypadStyles.grid}>
+        {keys.map((key) => {
+          const isBackspace = key === BACKSPACE_KEY;
+          const action = isBackspace || key === '00';
+          return (
+            <Pressable
+              key={key}
+              accessibilityRole="button"
+              accessibilityLabel={isBackspace ? 'Backspace' : key}
+              onPress={() => press(key)}
+              style={({ pressed }) => [
+                keypadStyles.key,
+                { backgroundColor: action ? colors.accentPale : colors.surfaceSecondary },
+                pressed && keypadStyles.pressed,
+              ]}
+            >
+              <Text
+                style={[
+                  keypadStyles.keyText,
+                  { color: action ? colors.accent : colors.textPrimary },
+                ]}
+              >
+                {isBackspace ? BACKSPACE_KEY : key}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
-    <View style={keypadStyles.grid}>
-      {keys.map((key) => {
-        const isBackspace = key === BACKSPACE_KEY;
-        const action = isBackspace || key === '00';
-        return <Pressable
-          key={key}
-          accessibilityRole="button"
-          accessibilityLabel={isBackspace ? 'Backspace' : key}
-          onPress={() => press(key)}
-          style={({ pressed }) => [keypadStyles.key, { backgroundColor: action ? colors.accentPale : colors.surfaceSecondary }, pressed && keypadStyles.pressed]}
-        >
-          <Text style={[keypadStyles.keyText, { color: action ? colors.accent : colors.textPrimary }]}>{isBackspace ? BACKSPACE_KEY : key}</Text>
-        </Pressable>;
-      })}
-    </View>
-  </View>;
+  );
 }
 
-export function CategoryChipRow({ value, onChange, options, label = 'Category (optional)', customValue, onCustomValueChange, customLabel = 'Specify category *', showAllOptions = false, onAdd }: { value: string; onChange: (value: string) => void; options: CategoryOption[]; label?: string; customValue?: string; onCustomValueChange?: (value: string) => void; customLabel?: string; showAllOptions?: boolean; onAdd?: () => void }) {
+export function CategoryChipRow({
+  value,
+  onChange,
+  options,
+  label = 'Category (optional)',
+  customValue,
+  onCustomValueChange,
+  customLabel = 'Specify category *',
+  showAllOptions = false,
+  onAdd,
+  warningByLabel = {},
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: CategoryOption[];
+  label?: string;
+  customValue?: string;
+  onCustomValueChange?: (value: string) => void;
+  customLabel?: string;
+  showAllOptions?: boolean;
+  onAdd?: () => void;
+  warningByLabel?: Record<string, string>;
+}) {
   const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
-  return <View style={chipStyles.section}>
-    <Text style={chipStyles.label}>{label}</Text>
-    <View style={chipStyles.wrap}>
-      {visibleOptions.map(({ label: optionLabel }) => { const meta = getCategoryMeta(optionLabel); const Icon = meta.icon; return <Pressable
-        key={optionLabel}
-        accessibilityRole="button"
-        accessibilityState={{ selected: value === optionLabel }}
-        onPress={() => onChange(optionLabel)}
-        style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, value === optionLabel && { backgroundColor: colors.primarySoft, borderColor: colors.primary }, pressed && chipStyles.pressed]}
-      >
-        <Icon size={17} color={value === optionLabel ? meta.color : colors.textSecondary} strokeWidth={1.9} />
-        <Text style={[chipStyles.text, { color: value === optionLabel ? meta.color : colors.textSecondary }, value === optionLabel && chipStyles.activeText]}>{optionLabel}</Text>
-      </Pressable>; })}
-      {onAdd ? <Pressable accessibilityRole="button" accessibilityLabel="Add budget category" onPress={onAdd} style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, pressed && chipStyles.pressed]}><Plus size={17} color={colors.primary} /><Text style={[chipStyles.text, { color: colors.primary }]}>+ Add</Text></Pressable> : options.length > 6 ? <Pressable accessibilityRole="button" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={formPalette.muted} /><Text style={chipStyles.text}>More</Text></Pressable> : null}
+  return (
+    <View style={chipStyles.section}>
+      <Text style={chipStyles.label}>{label}</Text>
+      <View style={chipStyles.wrap}>
+        {visibleOptions.map(({ label: optionLabel }) => {
+          const meta = getCategoryMeta(optionLabel);
+          const Icon = meta.icon;
+          const warning = warningByLabel[optionLabel];
+          return (
+            <Pressable
+              key={optionLabel}
+              accessibilityRole="button"
+              accessibilityLabel={
+                warning
+                  ? `${optionLabel} category, short by ${warning} pesos`
+                  : `${optionLabel} category`
+              }
+              accessibilityState={{ selected: value === optionLabel }}
+              onPress={() => onChange(optionLabel)}
+              style={({ pressed }) => [
+                chipStyles.chip,
+                {
+                  backgroundColor: colors.surfaceInput,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                },
+                value === optionLabel && {
+                  backgroundColor: colors.primarySoft,
+                  borderColor: colors.primary,
+                },
+                pressed && chipStyles.pressed,
+              ]}
+            >
+              <Icon
+                size={17}
+                color={value === optionLabel ? meta.color : colors.textSecondary}
+                strokeWidth={1.9}
+              />
+              <Text
+                style={[
+                  chipStyles.text,
+                  { color: value === optionLabel ? meta.color : colors.textSecondary },
+                  value === optionLabel && chipStyles.activeText,
+                ]}
+              >
+                {optionLabel}
+              </Text>
+              {warning ? (
+                <View style={chipStyles.warningBadge}>
+                  <Text style={chipStyles.warningBadgeText}>{warning} short</Text>
+                </View>
+              ) : null}
+            </Pressable>
+          );
+        })}
+        {onAdd ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Add budget category"
+            onPress={onAdd}
+            style={({ pressed }) => [
+              chipStyles.chip,
+              { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 },
+              pressed && chipStyles.pressed,
+            ]}
+          >
+            <Plus size={17} color={colors.primary} />
+            <Text style={[chipStyles.text, { color: colors.primary }]}>Add</Text>
+          </Pressable>
+        ) : options.length > 6 ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setOpen(true)}
+            style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}
+          >
+            <Grid2X2 size={17} color={formPalette.muted} />
+            <Text style={chipStyles.text}>More</Text>
+          </Pressable>
+        ) : null}
+      </View>
+      {value === 'Other' && onCustomValueChange ? (
+        <FormTextInput
+          label={customLabel}
+          placeholder="Specify what this means"
+          value={customValue ?? ''}
+          onChangeText={onCustomValueChange}
+        />
+      ) : null}
+      {options.length > 6 && !showAllOptions && !onAdd ? (
+        <Modal
+          visible={open}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setOpen(false)}
+        >
+          <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
+            <Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}>
+              <View style={pickerStyles.header}>
+                <Text style={pickerStyles.title}>{label.replace(' *', '')}</Text>
+                <Pressable accessibilityRole="button" onPress={() => setOpen(false)}>
+                  <Text style={pickerStyles.close}>×</Text>
+                </Pressable>
+              </View>
+              <ScrollView contentContainerStyle={pickerStyles.list}>
+                {options.map(({ label: optionLabel, icon: Icon }) => (
+                  <CategoryButton
+                    key={optionLabel}
+                    label={optionLabel}
+                    Icon={Icon}
+                    selected={value === optionLabel}
+                    onPress={() => {
+                      onChange(optionLabel);
+                      setOpen(false);
+                    }}
+                  />
+                ))}
+              </ScrollView>
+            </Pressable>
+          </Pressable>
+        </Modal>
+      ) : null}
     </View>
-    {value === 'Other' && onCustomValueChange ? <FormTextInput label={customLabel} placeholder="Specify what this means" value={customValue ?? ''} onChangeText={onCustomValueChange} /> : null}
-    {options.length > 6 && !showAllOptions && !onAdd ? <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={pickerStyles.title}>{label.replace(' *', '')}</Text><Pressable accessibilityRole="button" onPress={() => setOpen(false)}><Text style={pickerStyles.close}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{options.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</ScrollView></Pressable></Pressable></Modal> : null}
-  </View>;
+  );
 }
 
-export function ExpenseCategoryPicker({ value, onChange, customCategory, onCustomCategoryChange }: { value: string; onChange: (value: string) => void; customCategory?: string; onCustomCategoryChange?: (value: string) => void }) {
+export function ExpenseCategoryPicker({
+  value,
+  onChange,
+  customCategory,
+  onCustomCategoryChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  customCategory?: string;
+  onCustomCategoryChange?: (value: string) => void;
+}) {
   const [open, setOpen] = useState(false);
   const { colors } = useAppTheme();
-  const quick = expenseCategories.filter((option) => ['Food', 'Groceries', 'Transport', 'Bills'].includes(option.label));
-  const groups: [CategoryGroup, string][] = [['everyday', 'EVERYDAY'], ['home', 'HOME'], ['transportation', 'TRANSPORT'], ['health', 'HEALTH'], ['education', 'EDUCATION'], ['financial', 'FINANCIAL'], ['lifestyle', 'LIFESTYLE'], ['family', 'FAMILY'], ['work', 'WORK'], ['other', 'OTHER']];
-  return <View style={chipStyles.section}><Text style={chipStyles.label}>Category</Text><View style={chipStyles.wrap}>{quick.map(({ label: optionLabel, icon: Icon }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={Icon} selected={value === optionLabel} onPress={() => onChange(optionLabel)} />)}<Pressable accessibilityRole="button" accessibilityLabel="Choose more categories" onPress={() => setOpen(true)} style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}><Grid2X2 size={17} color={colors.textSecondary} /><Text style={[chipStyles.text, { color: colors.textSecondary }]}>More categories</Text></Pressable></View>{value === 'Other' && onCustomCategoryChange ? <FormTextInput label="Specify category" placeholder="e.g. Motorcycle repair" value={customCategory ?? ''} onChangeText={onCustomCategoryChange} /> : null}<Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}><Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}><Pressable style={[pickerStyles.sheet, { backgroundColor: colors.surface }]} onPress={(event) => event.stopPropagation()}><View style={pickerStyles.header}><Text style={[pickerStyles.title, { color: colors.textPrimary }]}>Choose category</Text><Pressable accessibilityRole="button" accessibilityLabel="Close category picker" onPress={() => setOpen(false)}><Text style={[pickerStyles.close, { color: colors.textPrimary }]}>×</Text></Pressable></View><ScrollView contentContainerStyle={pickerStyles.list}>{groups.map(([group, title]) => { const options = categoryDefinitions.filter((item) => item.group === group); return <View key={group} style={pickerStyles.group}><Text style={[pickerStyles.groupTitle, { color: colors.textSecondary }]}>{title}</Text><View style={pickerStyles.groupChips}>{options.map(({ label: optionLabel }) => <CategoryButton key={optionLabel} label={optionLabel} Icon={getCategoryMeta(optionLabel).icon} selected={value === optionLabel} onPress={() => { onChange(optionLabel); setOpen(false); }} />)}</View></View>; })}</ScrollView></Pressable></Pressable></Modal></View>;
+  const quick = expenseCategories.filter((option) =>
+    ['Food', 'Groceries', 'Transport', 'Bills'].includes(option.label),
+  );
+  const groups: [CategoryGroup, string][] = [
+    ['everyday', 'EVERYDAY'],
+    ['home', 'HOME'],
+    ['transportation', 'TRANSPORT'],
+    ['health', 'HEALTH'],
+    ['education', 'EDUCATION'],
+    ['financial', 'FINANCIAL'],
+    ['lifestyle', 'LIFESTYLE'],
+    ['family', 'FAMILY'],
+    ['work', 'WORK'],
+    ['other', 'OTHER'],
+  ];
+  return (
+    <View style={chipStyles.section}>
+      <Text style={chipStyles.label}>Category</Text>
+      <View style={chipStyles.wrap}>
+        {quick.map(({ label: optionLabel, icon: Icon }) => (
+          <CategoryButton
+            key={optionLabel}
+            label={optionLabel}
+            Icon={Icon}
+            selected={value === optionLabel}
+            onPress={() => onChange(optionLabel)}
+          />
+        ))}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Choose more categories"
+          onPress={() => setOpen(true)}
+          style={({ pressed }) => [chipStyles.chip, pressed && chipStyles.pressed]}
+        >
+          <Grid2X2 size={17} color={colors.textSecondary} />
+          <Text style={[chipStyles.text, { color: colors.textSecondary }]}>More categories</Text>
+        </Pressable>
+      </View>
+      {value === 'Other' && onCustomCategoryChange ? (
+        <FormTextInput
+          label="Specify category"
+          placeholder="e.g. Motorcycle repair"
+          value={customCategory ?? ''}
+          onChangeText={onCustomCategoryChange}
+        />
+      ) : null}
+      <Modal visible={open} transparent animationType="slide" onRequestClose={() => setOpen(false)}>
+        <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
+          <Pressable
+            style={[pickerStyles.sheet, { backgroundColor: colors.surface }]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <View style={pickerStyles.header}>
+              <Text style={[pickerStyles.title, { color: colors.textPrimary }]}>
+                Choose category
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close category picker"
+                onPress={() => setOpen(false)}
+              >
+                <Text style={[pickerStyles.close, { color: colors.textPrimary }]}>×</Text>
+              </Pressable>
+            </View>
+            <ScrollView contentContainerStyle={pickerStyles.list}>
+              {groups.map(([group, title]) => {
+                const options = categoryDefinitions.filter((item) => item.group === group);
+                return (
+                  <View key={group} style={pickerStyles.group}>
+                    <Text style={[pickerStyles.groupTitle, { color: colors.textSecondary }]}>
+                      {title}
+                    </Text>
+                    <View style={pickerStyles.groupChips}>
+                      {options.map(({ label: optionLabel }) => (
+                        <CategoryButton
+                          key={optionLabel}
+                          label={optionLabel}
+                          Icon={getCategoryMeta(optionLabel).icon}
+                          selected={value === optionLabel}
+                          onPress={() => {
+                            onChange(optionLabel);
+                            setOpen(false);
+                          }}
+                        />
+                      ))}
+                    </View>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </Pressable>
+        </Pressable>
+      </Modal>
+    </View>
+  );
 }
 
-function CategoryButton({ label, Icon, selected, onPress }: { label: string; Icon: LucideIcon; selected: boolean; onPress: () => void }) {
+function CategoryButton({
+  label,
+  Icon,
+  selected,
+  onPress,
+}: {
+  label: string;
+  Icon: LucideIcon;
+  selected: boolean;
+  onPress: () => void;
+}) {
   const { colors } = useAppTheme();
   const meta = getCategoryMeta(label);
   const CategoryIcon = meta.icon;
-  return <Pressable accessibilityRole="button" accessibilityLabel={`${label} category`} accessibilityState={{ selected }} onPress={onPress} style={({ pressed }) => [chipStyles.chip, { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 }, selected && { backgroundColor: colors.primarySoft, borderColor: meta.color }, pressed && chipStyles.pressed]}><CategoryIcon size={17} color={selected ? meta.color : colors.textSecondary} strokeWidth={1.9} /><Text style={[chipStyles.text, { color: selected ? meta.color : colors.textSecondary }, selected && { fontWeight: '900' }]}>{label}</Text></Pressable>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${label} category`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      style={({ pressed }) => [
+        chipStyles.chip,
+        { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 },
+        selected && { backgroundColor: colors.primarySoft, borderColor: meta.color },
+        pressed && chipStyles.pressed,
+      ]}
+    >
+      <CategoryIcon
+        size={17}
+        color={selected ? meta.color : colors.textSecondary}
+        strokeWidth={1.9}
+      />
+      <Text
+        style={[
+          chipStyles.text,
+          { color: selected ? meta.color : colors.textSecondary },
+          selected && { fontWeight: '900' },
+        ]}
+      >
+        {label}
+      </Text>
+    </Pressable>
+  );
 }
 
-export function MultiCategoryChipRow({ value, onChange, options, label = 'Category' }: { value: string[]; onChange: (value: string[]) => void; options: CategoryOption[]; label?: string }) {
-  const toggle = (category: string) => onChange(value.includes(category) ? value.filter((item) => item !== category) : [...value, category]);
-  return <View style={chipStyles.section}>
-    <View style={chipStyles.labelRow}><Text style={chipStyles.label}>{label}</Text>{value.length > 1 ? <Text style={chipStyles.selectionCount}>{value.length} selected</Text> : null}</View>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={chipStyles.row}>
-      {options.map(({ label: optionLabel, icon: Icon }) => {
-        const selected = value.includes(optionLabel);
-        return <Pressable key={optionLabel} accessibilityRole="button" accessibilityState={{ selected }} onPress={() => toggle(optionLabel)} style={({ pressed }) => [chipStyles.chip, selected && chipStyles.active, pressed && chipStyles.pressed]}>
-          <Icon size={17} color={selected ? formPalette.accent : formPalette.muted} strokeWidth={1.9} />
-          <Text style={[chipStyles.text, selected && chipStyles.activeText]}>{optionLabel}</Text>
-        </Pressable>;
-      })}
-    </ScrollView>
-  </View>;
+export function MultiCategoryChipRow({
+  value,
+  onChange,
+  options,
+  label = 'Category',
+}: {
+  value: string[];
+  onChange: (value: string[]) => void;
+  options: CategoryOption[];
+  label?: string;
+}) {
+  const toggle = (category: string) =>
+    onChange(
+      value.includes(category) ? value.filter((item) => item !== category) : [...value, category],
+    );
+  return (
+    <View style={chipStyles.section}>
+      <View style={chipStyles.labelRow}>
+        <Text style={chipStyles.label}>{label}</Text>
+        {value.length > 1 ? (
+          <Text style={chipStyles.selectionCount}>{value.length} selected</Text>
+        ) : null}
+      </View>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={chipStyles.row}
+      >
+        {options.map(({ label: optionLabel, icon: Icon }) => {
+          const selected = value.includes(optionLabel);
+          return (
+            <Pressable
+              key={optionLabel}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => toggle(optionLabel)}
+              style={({ pressed }) => [
+                chipStyles.chip,
+                selected && chipStyles.active,
+                pressed && chipStyles.pressed,
+              ]}
+            >
+              <Icon
+                size={17}
+                color={selected ? formPalette.accent : formPalette.muted}
+                strokeWidth={1.9}
+              />
+              <Text style={[chipStyles.text, selected && chipStyles.activeText]}>
+                {optionLabel}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+    </View>
+  );
 }
 
 function toDate(value: string) {
@@ -251,7 +600,17 @@ function dateString(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
-export function DatePickerField({ label, value, onChange, compact = false }: { label: string; value: string; onChange: (value: string) => void; compact?: boolean }) {
+export function DatePickerField({
+  label,
+  value,
+  onChange,
+  compact = false,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  compact?: boolean;
+}) {
   const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const initial = toDate(value);
@@ -259,7 +618,13 @@ export function DatePickerField({ label, value, onChange, compact = false }: { l
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
   const selected = toDate(value);
-  const cells = useMemo(() => Array.from({ length: firstDay + daysInMonth }, (_, index) => index < firstDay ? null : index - firstDay + 1), [daysInMonth, firstDay]);
+  const cells = useMemo(
+    () =>
+      Array.from({ length: firstDay + daysInMonth }, (_, index) =>
+        index < firstDay ? null : index - firstDay + 1,
+      ),
+    [daysInMonth, firstDay],
+  );
 
   const choose = (day: number) => {
     onChange(dateString(new Date(month.getFullYear(), month.getMonth(), day)));
@@ -267,76 +632,334 @@ export function DatePickerField({ label, value, onChange, compact = false }: { l
   };
 
   const today = dateString(new Date());
-  const displayValue = value === today ? 'Today' : selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-  const rowSurface = { backgroundColor: colors.surfaceInput, borderWidth: 1, borderColor: colors.border };
-  return <>
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label}, ${displayValue}`} onPress={() => { setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1)); setOpen(true); }} style={({ pressed }) => [compact ? dateStyles.rowField : dateStyles.field, rowSurface, compact && dateStyles.compactSurface, pressed && dateStyles.pressed]}>
-      <CalendarDays size={19} color={colors.primary} />
-      <Text style={[dateStyles.label, compact && dateStyles.rowLabel, { color: compact ? colors.textPrimary : colors.textSecondary }]}>{label}</Text>
-      <View style={dateStyles.spacer} />
-      <Text style={[dateStyles.value, { color: colors.textPrimary }]}>{displayValue}</Text>
-      {compact ? <ChevronRight size={18} color={colors.textSecondary} /> : <ChevronDown size={18} color={colors.textSecondary} />}
-    </Pressable>
-    <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-      <View style={dateStyles.backdrop}><View style={[dateStyles.modal, { backgroundColor: colors.surface }] }>
-        <View style={dateStyles.modalHeader}><Text style={[dateStyles.modalTitle, { color: colors.textPrimary }]}>{label}</Text><Pressable accessibilityLabel="Close date picker" onPress={() => setOpen(false)}><Text style={[dateStyles.close, { color: colors.textPrimary }]}>×</Text></Pressable></View>
-        <View style={dateStyles.monthHeader}><Pressable accessibilityLabel="Previous month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))} style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}><ArrowLeft size={17} color={colors.textPrimary} /></Pressable><Text style={[dateStyles.month, { color: colors.textPrimary }]}>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</Text><Pressable accessibilityLabel="Next month" onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))} style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}><ArrowRight size={17} color={colors.textPrimary} /></Pressable></View>
-        <View style={dateStyles.weekRow}>{['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => <Text key={`${day}-${index}`} style={[dateStyles.weekDay, { color: colors.textSecondary }]}>{day}</Text>)}</View>
-        <View style={dateStyles.calendar}>{cells.map((day, index) => day === null ? <View key={`empty-${index}`} style={dateStyles.day} /> : <Pressable key={day} onPress={() => choose(day)} style={[dateStyles.day, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && { backgroundColor: colors.primary }]}><Text style={[dateStyles.dayText, { color: colors.textPrimary }, selected.getFullYear() === month.getFullYear() && selected.getMonth() === month.getMonth() && selected.getDate() === day && { color: colors.textOnPrimary, fontWeight: '900' }]}>{day}</Text></Pressable>)}</View>
-        <Pressable onPress={() => { onChange(dateString(new Date())); setOpen(false); }} style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}><Text style={[dateStyles.todayText, { color: colors.primary } ]}>Use today</Text></Pressable>
-      </View></View>
-    </Modal>
-  </>;
+  const displayValue =
+    value === today
+      ? 'Today'
+      : selected.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const rowSurface = {
+    backgroundColor: colors.surfaceInput,
+    borderWidth: 1,
+    borderColor: colors.border,
+  };
+  return (
+    <>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label}, ${displayValue}`}
+        onPress={() => {
+          setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+          setOpen(true);
+        }}
+        style={({ pressed }) => [
+          compact ? dateStyles.rowField : dateStyles.field,
+          rowSurface,
+          compact && dateStyles.compactSurface,
+          pressed && dateStyles.pressed,
+        ]}
+      >
+        <CalendarDays size={19} color={colors.primary} />
+        <Text
+          style={[
+            dateStyles.label,
+            compact && dateStyles.rowLabel,
+            { color: compact ? colors.textPrimary : colors.textSecondary },
+          ]}
+        >
+          {label}
+        </Text>
+        <View style={dateStyles.spacer} />
+        <Text style={[dateStyles.value, { color: colors.textPrimary }]}>{displayValue}</Text>
+        {compact ? (
+          <ChevronRight size={18} color={colors.textSecondary} />
+        ) : (
+          <ChevronDown size={18} color={colors.textSecondary} />
+        )}
+      </Pressable>
+      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
+        <View style={dateStyles.backdrop}>
+          <View style={[dateStyles.modal, { backgroundColor: colors.surface }]}>
+            <View style={dateStyles.modalHeader}>
+              <Text style={[dateStyles.modalTitle, { color: colors.textPrimary }]}>{label}</Text>
+              <Pressable accessibilityLabel="Close date picker" onPress={() => setOpen(false)}>
+                <Text style={[dateStyles.close, { color: colors.textPrimary }]}>×</Text>
+              </Pressable>
+            </View>
+            <View style={dateStyles.monthHeader}>
+              <Pressable
+                accessibilityLabel="Previous month"
+                onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+                style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
+              >
+                <ArrowLeft size={17} color={colors.textPrimary} />
+              </Pressable>
+              <Text style={[dateStyles.month, { color: colors.textPrimary }]}>
+                {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+              </Text>
+              <Pressable
+                accessibilityLabel="Next month"
+                onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+                style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
+              >
+                <ArrowRight size={17} color={colors.textPrimary} />
+              </Pressable>
+            </View>
+            <View style={dateStyles.weekRow}>
+              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
+                <Text
+                  key={`${day}-${index}`}
+                  style={[dateStyles.weekDay, { color: colors.textSecondary }]}
+                >
+                  {day}
+                </Text>
+              ))}
+            </View>
+            <View style={dateStyles.calendar}>
+              {cells.map((day, index) =>
+                day === null ? (
+                  <View key={`empty-${index}`} style={dateStyles.day} />
+                ) : (
+                  <Pressable
+                    key={day}
+                    onPress={() => choose(day)}
+                    style={[
+                      dateStyles.day,
+                      selected.getFullYear() === month.getFullYear() &&
+                        selected.getMonth() === month.getMonth() &&
+                        selected.getDate() === day && { backgroundColor: colors.primary },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        dateStyles.dayText,
+                        { color: colors.textPrimary },
+                        selected.getFullYear() === month.getFullYear() &&
+                          selected.getMonth() === month.getMonth() &&
+                          selected.getDate() === day && {
+                            color: colors.textOnPrimary,
+                            fontWeight: '900',
+                          },
+                      ]}
+                    >
+                      {day}
+                    </Text>
+                  </Pressable>
+                ),
+              )}
+            </View>
+            <Pressable
+              onPress={() => {
+                onChange(dateString(new Date()));
+                setOpen(false);
+              }}
+              style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}
+            >
+              <Text style={[dateStyles.todayText, { color: colors.primary }]}>Use today</Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
 }
 
-export function FrequencyChips({ value, onChange, includeOneTime = false }: { value: Frequency | 'one-time'; onChange: (value: Frequency | 'one-time') => void; includeOneTime?: boolean }) {
-  const values: (Frequency | 'one-time')[] = includeOneTime ? ['one-time', 'weekly', 'monthly', 'quarterly', 'yearly'] : ['weekly', 'monthly', 'quarterly', 'yearly'];
-  return <View style={chipStyles.section}><Text style={chipStyles.label}>Frequency</Text><View style={chipStyles.wrap}>{values.map((item) => <Pressable key={item} onPress={() => onChange(item)} style={({ pressed }) => [chipStyles.frequency, value === item && chipStyles.active, pressed && chipStyles.pressed]}><Text style={[chipStyles.text, value === item && chipStyles.activeText]}>{item === 'one-time' ? 'One-time' : item[0].toUpperCase() + item.slice(1)}</Text></Pressable>)}</View></View>;
+export function FrequencyChips({
+  value,
+  onChange,
+  includeOneTime = false,
+}: {
+  value: Frequency | 'one-time';
+  onChange: (value: Frequency | 'one-time') => void;
+  includeOneTime?: boolean;
+}) {
+  const values: (Frequency | 'one-time')[] = includeOneTime
+    ? ['one-time', 'weekly', 'monthly', 'quarterly', 'yearly']
+    : ['weekly', 'monthly', 'quarterly', 'yearly'];
+  return (
+    <View style={chipStyles.section}>
+      <Text style={chipStyles.label}>Frequency</Text>
+      <View style={chipStyles.wrap}>
+        {values.map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => onChange(item)}
+            style={({ pressed }) => [
+              chipStyles.frequency,
+              value === item && chipStyles.active,
+              pressed && chipStyles.pressed,
+            ]}
+          >
+            <Text style={[chipStyles.text, value === item && chipStyles.activeText]}>
+              {item === 'one-time' ? 'One-time' : item[0].toUpperCase() + item.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 export type IncomeFrequency = 'weekly' | 'monthly' | 'biweekly' | 'yearly';
 
-export function IncomeFrequencyChips({ value, onChange }: { value: IncomeFrequency; onChange: (value: IncomeFrequency) => void }) {
-  return <View style={chipStyles.section}><Text style={chipStyles.label}>Frequency</Text><View style={chipStyles.wrap}>{(['weekly', 'monthly', 'biweekly', 'yearly'] as const).map((item) => <Pressable key={item} onPress={() => onChange(item)} style={({ pressed }) => [chipStyles.frequency, value === item && chipStyles.active, pressed && chipStyles.pressed]}><Text style={[chipStyles.text, value === item && chipStyles.activeText]}>{item[0].toUpperCase() + item.slice(1)}</Text></Pressable>)}</View></View>;
+export function IncomeFrequencyChips({
+  value,
+  onChange,
+}: {
+  value: IncomeFrequency;
+  onChange: (value: IncomeFrequency) => void;
+}) {
+  return (
+    <View style={chipStyles.section}>
+      <Text style={chipStyles.label}>Frequency</Text>
+      <View style={chipStyles.wrap}>
+        {(['weekly', 'monthly', 'biweekly', 'yearly'] as const).map((item) => (
+          <Pressable
+            key={item}
+            onPress={() => onChange(item)}
+            style={({ pressed }) => [
+              chipStyles.frequency,
+              value === item && chipStyles.active,
+              pressed && chipStyles.pressed,
+            ]}
+          >
+            <Text style={[chipStyles.text, value === item && chipStyles.activeText]}>
+              {item[0].toUpperCase() + item.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
 }
-
 
 export function useKeyboardVisible() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setVisible(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setVisible(false));
-    return () => { show.remove(); hide.remove(); };
+    return () => {
+      show.remove();
+      hide.remove();
+    };
   }, []);
   return visible;
 }
 
 type FinanceFormInteraction = { deactivateAmount: () => void };
 const FinanceFormInteractionContext = createContext<FinanceFormInteraction | null>(null);
-type FinanceFormSheetProps = { title: string; eyebrow: string; amount: string; onAmountChange: (value: string) => void; children: ReactNode; error?: string; saving?: boolean; saveLabel: string; onSave: () => void; onClose: () => void };
+type FinanceFormSheetProps = {
+  title: string;
+  eyebrow: string;
+  amount: string;
+  onAmountChange: (value: string) => void;
+  children: ReactNode;
+  error?: string;
+  saving?: boolean;
+  saveLabel: string;
+  onSave: () => void;
+  onClose: () => void;
+};
 
-export function FinanceFormSheetLegacy({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
+export function FinanceFormSheetLegacy({
+  title,
+  eyebrow,
+  amount,
+  onAmountChange,
+  children,
+  error,
+  saving = false,
+  saveLabel,
+  onSave,
+  onClose,
+}: FinanceFormSheetProps) {
   const { colors } = useAppTheme();
   const keyboardVisible = useKeyboardVisible();
   const { setModalVisible } = useModalVisibility();
-  useEffect(() => { setModalVisible(true); return () => setModalVisible(false); }, [setModalVisible]);
-  return <View style={sheetStyles.overlay}><Pressable accessibilityLabel="Close add form" onPress={onClose} style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={sheetStyles.keyboard}>
-    <View
-      style={[sheetStyles.sheet, { backgroundColor: colors.surface }]}
-    >
-      <View style={sheetStyles.header}><View><Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text><Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}><Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text></Pressable></View>
-      <ScrollView contentContainerStyle={sheetStyles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <View style={sheetStyles.amountBlock}><Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text><Text style={[sheetStyles.amount, { color: colors.ink }]}>{formatAmountForDisplay(amount)}</Text></View>
-        {children}
-        {error ? <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text> : null}
-        <Pressable accessibilityRole="button" disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable>
-      </ScrollView>
-      {!keyboardVisible && <NumericKeypad value={amount} onChange={onAmountChange} />}
+  useEffect(() => {
+    setModalVisible(true);
+    return () => setModalVisible(false);
+  }, [setModalVisible]);
+  return (
+    <View style={sheetStyles.overlay}>
+      <Pressable
+        accessibilityLabel="Close add form"
+        onPress={onClose}
+        style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        style={sheetStyles.keyboard}
+      >
+        <View style={[sheetStyles.sheet, { backgroundColor: colors.surface }]}>
+          <View style={sheetStyles.header}>
+            <View>
+              <Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
+              <Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              onPress={onClose}
+              style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}
+            >
+              <Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text>
+            </Pressable>
+          </View>
+          <ScrollView
+            contentContainerStyle={sheetStyles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={sheetStyles.amountBlock}>
+              <Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text>
+              <Text style={[sheetStyles.amount, { color: colors.ink }]}>
+                {formatAmountForDisplay(amount)}
+              </Text>
+            </View>
+            {children}
+            {error ? (
+              <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text>
+            ) : null}
+            <Pressable
+              accessibilityRole="button"
+              disabled={saving}
+              onPress={onSave}
+              style={({ pressed }) => [
+                sheetStyles.save,
+                { backgroundColor: colors.accent },
+                saving && sheetStyles.saveDisabled,
+                pressed && sheetStyles.pressed,
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.inverse} />
+              ) : (
+                <>
+                  <Plus size={19} color={colors.inverse} strokeWidth={2.4} />
+                  <Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text>
+                </>
+              )}
+            </Pressable>
+          </ScrollView>
+          {!keyboardVisible && <NumericKeypad value={amount} onChange={onAmountChange} />}
+        </View>
+      </KeyboardAvoidingView>
     </View>
-  </KeyboardAvoidingView></View>;
+  );
 }
 
-export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, children, error, saving = false, saveLabel, onSave, onClose }: FinanceFormSheetProps) {
+export function FinanceFormSheet({
+  title,
+  eyebrow,
+  amount,
+  onAmountChange,
+  children,
+  error,
+  saving = false,
+  saveLabel,
+  onSave,
+  onClose,
+}: FinanceFormSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const keyboardVisible = useKeyboardVisible();
@@ -344,45 +967,417 @@ export function FinanceFormSheet({ title, eyebrow, amount, onAmountChange, child
   // Keep the form discoverable on small screens. The keypad is opened explicitly
   // when the user taps the amount instead of consuming the initial form viewport.
   const [amountActive, setAmountActive] = useState(false);
-  useEffect(() => { setModalVisible(true); return () => setModalVisible(false); }, [setModalVisible]);
+  useEffect(() => {
+    setModalVisible(true);
+    return () => setModalVisible(false);
+  }, [setModalVisible]);
   const deactivateAmount = () => setAmountActive(false);
-  const activateAmount = () => { Keyboard.dismiss(); setAmountActive(true); };
-  return <View style={sheetStyles.overlay}><Pressable accessibilityLabel="Close add form" onPress={onClose} style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]} /><KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0} style={sheetStyles.keyboard}>
-    <View style={[sheetStyles.sheet, financeEntryStyles.sheet, { backgroundColor: colors.surface }]}>
-      <View style={sheetStyles.header}><View><Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text><Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}><Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text></Pressable></View>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${title} amount, ${formatAmountForDisplay(amount)}`} onPress={activateAmount} style={sheetStyles.amountBlock}><Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text><Text style={[sheetStyles.amount, { color: amountActive ? colors.accent : colors.ink }]}>{formatAmountForDisplay(amount)}</Text></Pressable>
-      <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
-        <View style={financeEntryStyles.body} onTouchStart={() => { if (!keyboardVisible) deactivateAmount(); }}><ScrollView style={financeEntryStyles.scroll} contentContainerStyle={sheetStyles.scrollContent} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{children}{error ? <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text> : null}</ScrollView></View>
-      </FinanceFormInteractionContext.Provider>
-      <View style={[financeEntryStyles.footer, { backgroundColor: colors.surface, borderTopColor: colors.border, paddingBottom: Math.max(10, insets.bottom + 8) }]}><Pressable accessibilityRole="button" accessibilityLabel={saveLabel} disabled={saving} onPress={onSave} style={({ pressed }) => [sheetStyles.save, { backgroundColor: colors.accent }, saving && sheetStyles.saveDisabled, pressed && sheetStyles.pressed]}>{saving ? <ActivityIndicator color={colors.inverse} /> : <><Plus size={19} color={colors.inverse} strokeWidth={2.4} /><Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text></>}</Pressable></View>
-      {amountActive && !keyboardVisible ? <NumericKeypad value={amount} onChange={onAmountChange} /> : null}
+  const activateAmount = () => {
+    Keyboard.dismiss();
+    setAmountActive(true);
+  };
+  return (
+    <View style={sheetStyles.overlay}>
+      <Pressable
+        accessibilityLabel="Close add form"
+        onPress={onClose}
+        style={[sheetStyles.dismiss, { backgroundColor: colors.overlay }]}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+        style={sheetStyles.keyboard}
+      >
+        <View
+          style={[sheetStyles.sheet, financeEntryStyles.sheet, { backgroundColor: colors.surface }]}
+        >
+          <View style={sheetStyles.header}>
+            <View>
+              <Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
+              <Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close"
+              onPress={onClose}
+              style={[sheetStyles.closeButton, { backgroundColor: colors.surfaceSecondary }]}
+            >
+              <Text style={[sheetStyles.closeText, { color: colors.ink }]}>×</Text>
+            </Pressable>
+          </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`${title} amount, ${formatAmountForDisplay(amount)}`}
+            onPress={activateAmount}
+            style={sheetStyles.amountBlock}
+          >
+            <Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text>
+            <Text
+              style={[sheetStyles.amount, { color: amountActive ? colors.accent : colors.ink }]}
+            >
+              {formatAmountForDisplay(amount)}
+            </Text>
+          </Pressable>
+          <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
+            <View
+              style={financeEntryStyles.body}
+              onTouchStart={() => {
+                if (!keyboardVisible) deactivateAmount();
+              }}
+            >
+              <ScrollView
+                style={financeEntryStyles.scroll}
+                contentContainerStyle={sheetStyles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+              >
+                {children}
+                {error ? (
+                  <Text style={[sheetStyles.error, { color: colors.danger }]}>{error}</Text>
+                ) : null}
+              </ScrollView>
+            </View>
+          </FinanceFormInteractionContext.Provider>
+          <View
+            style={[
+              financeEntryStyles.footer,
+              {
+                backgroundColor: colors.surface,
+                borderTopColor: colors.border,
+                paddingBottom: Math.max(10, insets.bottom + 8),
+              },
+            ]}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saveLabel}
+              disabled={saving}
+              onPress={onSave}
+              style={({ pressed }) => [
+                sheetStyles.save,
+                { backgroundColor: colors.accent },
+                saving && sheetStyles.saveDisabled,
+                pressed && sheetStyles.pressed,
+              ]}
+            >
+              {saving ? (
+                <ActivityIndicator color={colors.inverse} />
+              ) : (
+                <>
+                  <Plus size={19} color={colors.inverse} strokeWidth={2.4} />
+                  <Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
+          {amountActive && !keyboardVisible ? (
+            <NumericKeypad value={amount} onChange={onAmountChange} />
+          ) : null}
+        </View>
+      </KeyboardAvoidingView>
     </View>
-  </KeyboardAvoidingView></View>;
+  );
 }
 
-export const formInputStyle = { minHeight: 54, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background, color: formPalette.ink, fontSize: 15 };
+export const formInputStyle = {
+  minHeight: 54,
+  paddingHorizontal: 16,
+  borderRadius: 17,
+  backgroundColor: formPalette.background,
+  color: formPalette.ink,
+  fontSize: 15,
+};
 
-export function FormTextInput({ label, placeholder, value, onChangeText, multiline = false }: { label?: string; placeholder: string; value: string; onChangeText: (value: string) => void; multiline?: boolean }) {
+export function FormTextInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  multiline = false,
+}: {
+  label?: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (value: string) => void;
+  multiline?: boolean;
+}) {
   const { colors } = useAppTheme();
   const interaction = useContext(FinanceFormInteractionContext);
-  return <View style={inputStyles.wrap}>{label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}<TextInput accessibilityLabel={label ?? placeholder} value={value} onFocus={() => interaction?.deactivateAmount()} onChangeText={onChangeText} placeholder={placeholder} placeholderTextColor={colors.subtle} style={[formInputStyle, { backgroundColor: colors.input, color: colors.ink }, multiline && inputStyles.multiline]} multiline={multiline} textAlignVertical={multiline ? 'top' : 'center'} /></View>;
+  return (
+    <View style={inputStyles.wrap}>
+      {label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}
+      <TextInput
+        accessibilityLabel={label ?? placeholder}
+        value={value}
+        onFocus={() => interaction?.deactivateAmount()}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.subtle}
+        style={[
+          formInputStyle,
+          { backgroundColor: colors.input, color: colors.ink },
+          multiline && inputStyles.multiline,
+        ]}
+        multiline={multiline}
+        textAlignVertical={multiline ? 'top' : 'center'}
+      />
+    </View>
+  );
 }
 
 const keypadStyles = StyleSheet.create({
-  wrap: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 14, backgroundColor: formPalette.surface }, row: { alignItems: 'flex-end', minHeight: 28, marginBottom: 7 }, expression: { color: formPalette.ink, fontSize: 13, fontWeight: '800' }, grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, key: { width: '31.5%', minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15, backgroundColor: formPalette.background }, actionKey: { backgroundColor: formPalette.accentPale }, keyText: { color: formPalette.ink, fontSize: 18, fontWeight: '800' }, actionText: { color: formPalette.accentDark }, pressed: { opacity: 0.68 },
+  wrap: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
+    backgroundColor: formPalette.surface,
+  },
+  row: { alignItems: 'flex-end', minHeight: 28, marginBottom: 7 },
+  expression: { color: formPalette.ink, fontSize: 13, fontWeight: '800' },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  key: {
+    width: '31.5%',
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 15,
+    backgroundColor: formPalette.background,
+  },
+  actionKey: { backgroundColor: formPalette.accentPale },
+  keyText: { color: formPalette.ink, fontSize: 18, fontWeight: '800' },
+  actionText: { color: formPalette.accentDark },
+  pressed: { opacity: 0.68 },
 });
 
-const chipStyles = StyleSheet.create({ section: { marginTop: 15 }, labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 }, label: { marginBottom: 9, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 }, selectionCount: { marginLeft: 8, marginBottom: 9, color: formPalette.accent, fontSize: 11, fontWeight: '800' }, row: { gap: 8, paddingRight: 16 }, wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 }, chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 46, paddingHorizontal: 13, borderRadius: 16, backgroundColor: formPalette.background }, frequency: { flexDirection: 'row', alignItems: 'center', gap: 7, minHeight: 42, paddingHorizontal: 13, borderRadius: 15, backgroundColor: formPalette.background }, active: { backgroundColor: formPalette.accentPale, borderWidth: 1, borderColor: formPalette.accent }, text: { color: formPalette.muted, fontSize: 12, fontWeight: '800' }, activeText: { color: formPalette.accentDark }, pressed: { opacity: 0.7 },
+const chipStyles = StyleSheet.create({
+  section: { marginTop: 15 },
+  labelRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 9 },
+  label: {
+    marginBottom: 9,
+    color: formPalette.muted,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  selectionCount: {
+    marginLeft: 8,
+    marginBottom: 9,
+    color: formPalette.accent,
+    fontSize: 11,
+    fontWeight: '800',
+  },
+  row: { gap: 8, paddingRight: 16 },
+  wrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 46,
+    paddingHorizontal: 13,
+    borderRadius: 16,
+    backgroundColor: formPalette.background,
+  },
+  frequency: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    minHeight: 42,
+    paddingHorizontal: 13,
+    borderRadius: 15,
+    backgroundColor: formPalette.background,
+  },
+  active: {
+    backgroundColor: formPalette.accentPale,
+    borderWidth: 1,
+    borderColor: formPalette.accent,
+  },
+  text: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },
+  activeText: { color: formPalette.accentDark },
+  warningBadge: {
+    marginLeft: 2,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 7,
+    backgroundColor: '#B7791F22',
+  },
+  warningBadgeText: { color: '#B7791F', fontSize: 9, fontWeight: '900' },
+  pressed: { opacity: 0.7 },
 });
 
-const pickerStyles = StyleSheet.create({ backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' }, sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26 }, header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, title: { fontSize: 20, fontWeight: '900' }, close: { fontSize: 28 }, list: { paddingTop: 18, paddingBottom: 20, gap: 16 }, group: { gap: 8 }, groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1 }, groupChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 } });
-
-const dateStyles = StyleSheet.create({ field: { flexDirection: 'row', alignItems: 'center', minHeight: 58, marginTop: 15, paddingHorizontal: 16, borderRadius: 17, backgroundColor: formPalette.background }, rowField: { flexDirection: 'row', alignItems: 'center', minHeight: 54, marginTop: 15, paddingHorizontal: 14, borderRadius: 14 }, compactSurface: { minHeight: 52 }, copy: { flex: 1, marginLeft: 11 }, spacer: { flex: 1 }, label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' }, rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' }, pressed: { opacity: 0.72 }, backdrop: { flex: 1, justifyContent: 'center', padding: 22, backgroundColor: 'rgba(17,35,28,0.34)' }, modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface }, modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' }, close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 }, monthHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 18 }, arrow: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background }, month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' }, weekRow: { flexDirection: 'row', marginTop: 14 }, weekDay: { width: '14.28%', color: formPalette.muted, textAlign: 'center', fontSize: 11, fontWeight: '900' }, calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 }, day: { width: '14.28%', height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21 }, dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' }, selected: { backgroundColor: formPalette.accent }, selectedText: { color: '#FFFFFF', fontWeight: '900' }, today: { alignItems: 'center', marginTop: 12, paddingVertical: 12, borderRadius: 14, backgroundColor: formPalette.accentPale }, todayText: { color: formPalette.accentDark, fontWeight: '900' },
+const pickerStyles = StyleSheet.create({
+  backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' },
+  sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  title: { fontSize: 20, fontWeight: '900' },
+  close: { fontSize: 28 },
+  list: { paddingTop: 18, paddingBottom: 20, gap: 16 },
+  group: { gap: 8 },
+  groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },
+  groupChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 });
 
-const sheetStyles = StyleSheet.create({ overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' }, dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' }, keyboard: { flex: 1, justifyContent: 'flex-end' }, sheet: { height: '96%', maxHeight: '96%', borderTopLeftRadius: 28, borderTopRightRadius: 28, overflow: 'hidden', backgroundColor: formPalette.surface }, header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 18, paddingBottom: 8 }, eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' }, closeButton: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 21, backgroundColor: formPalette.background }, closeText: { color: formPalette.ink, fontSize: 28, lineHeight: 29 }, scrollContent: { paddingHorizontal: 20, paddingBottom: 16 }, amountBlock: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', minHeight: 68, marginBottom: 2 }, amountPrefix: { marginRight: 5, color: formPalette.accent, fontSize: 28, fontWeight: '900' }, amount: { maxWidth: '90%', color: formPalette.ink, fontSize: 42, fontWeight: '900', letterSpacing: -1.5 }, error: { marginTop: 12, color: formPalette.danger, fontSize: 12, fontWeight: '700' }, save: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 56, marginTop: 12, borderRadius: 28, backgroundColor: formPalette.accent }, saveDisabled: { opacity: 0.6 }, saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' }, pressed: { opacity: 0.72 },
+const dateStyles = StyleSheet.create({
+  field: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 58,
+    marginTop: 15,
+    paddingHorizontal: 16,
+    borderRadius: 17,
+    backgroundColor: formPalette.background,
+  },
+  rowField: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 54,
+    marginTop: 15,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+  },
+  compactSurface: { minHeight: 52 },
+  copy: { flex: 1, marginLeft: 11 },
+  spacer: { flex: 1 },
+  label: { color: formPalette.muted, fontSize: 11, fontWeight: '800' },
+  rowLabel: { marginLeft: 11, color: formPalette.ink, fontSize: 14, fontWeight: '800' },
+  value: { marginRight: 8, color: formPalette.ink, fontSize: 14, fontWeight: '800' },
+  pressed: { opacity: 0.72 },
+  backdrop: {
+    flex: 1,
+    justifyContent: 'center',
+    padding: 22,
+    backgroundColor: 'rgba(17,35,28,0.34)',
+  },
+  modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' },
+  close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 },
+  monthHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 18,
+  },
+  arrow: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 20,
+    backgroundColor: formPalette.background,
+  },
+  month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' },
+  weekRow: { flexDirection: 'row', marginTop: 14 },
+  weekDay: {
+    width: '14.28%',
+    color: formPalette.muted,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '900',
+  },
+  calendar: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
+  day: {
+    width: '14.28%',
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 21,
+  },
+  dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' },
+  selected: { backgroundColor: formPalette.accent },
+  selectedText: { color: '#FFFFFF', fontWeight: '900' },
+  today: {
+    alignItems: 'center',
+    marginTop: 12,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: formPalette.accentPale,
+  },
+  todayText: { color: formPalette.accentDark, fontWeight: '900' },
 });
 
-const financeEntryStyles = StyleSheet.create({ sheet: { flex: 1, minHeight: 0 }, body: { flex: 1, minHeight: 0 }, scroll: { flex: 1 }, footer: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 10, borderTopWidth: StyleSheet.hairlineWidth }, });
+const sheetStyles = StyleSheet.create({
+  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' },
+  dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' },
+  keyboard: { flex: 1, justifyContent: 'flex-end' },
+  sheet: {
+    height: '96%',
+    maxHeight: '96%',
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    overflow: 'hidden',
+    backgroundColor: formPalette.surface,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 8,
+  },
+  eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
+  title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' },
+  closeButton: {
+    width: 42,
+    height: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 21,
+    backgroundColor: formPalette.background,
+  },
+  closeText: { color: formPalette.ink, fontSize: 28, lineHeight: 29 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 16 },
+  amountBlock: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 68,
+    marginBottom: 2,
+  },
+  amountPrefix: { marginRight: 5, color: formPalette.accent, fontSize: 28, fontWeight: '900' },
+  amount: {
+    maxWidth: '90%',
+    color: formPalette.ink,
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: -1.5,
+  },
+  error: { marginTop: 12, color: formPalette.danger, fontSize: 12, fontWeight: '700' },
+  save: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 56,
+    marginTop: 12,
+    borderRadius: 28,
+    backgroundColor: formPalette.accent,
+  },
+  saveDisabled: { opacity: 0.6 },
+  saveText: { color: '#FFFFFF', fontSize: 15, fontWeight: '900' },
+  pressed: { opacity: 0.72 },
+});
 
-const inputStyles = StyleSheet.create({ wrap: { marginTop: 12 }, label: { marginBottom: 7, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 }, multiline: { minHeight: 84, paddingTop: 15 }, });
+const financeEntryStyles = StyleSheet.create({
+  sheet: { flex: 1, minHeight: 0 },
+  body: { flex: 1, minHeight: 0 },
+  scroll: { flex: 1 },
+  footer: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
+});
+
+const inputStyles = StyleSheet.create({
+  wrap: { marginTop: 12 },
+  label: {
+    marginBottom: 7,
+    color: formPalette.muted,
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  multiline: { minHeight: 84, paddingTop: 15 },
+});

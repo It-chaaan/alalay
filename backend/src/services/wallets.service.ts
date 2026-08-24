@@ -38,7 +38,9 @@ function validateAccountType(
   payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit' | 'account_purpose' | 'earns_interest' | 'annual_interest_rate' | 'interest_credit_frequency'>,
 ) {
   const supportsCardType =
-    payload.institution_type === 'bank' || payload.institution_type === 'digital_bank';
+    payload.institution_type === 'bank' ||
+    payload.institution_type === 'digital_bank' ||
+    payload.institution_type === 'e_wallet';
   if (payload.account_type && !supportsCardType)
     throw new AppError(
       422,
