@@ -1,189 +1,133 @@
 # Alalay
 
-Wallet transfers are atomic internal movements: transfer principal does not affect income or spending, while any recorded transfer fee is a `Bank Fees` expense. Actual interest credits are recorded as income and are separate from wallet interest-rate metadata.
+Alalay is a Filipino-first personal finance application for tracking income, expenses, bills, subscriptions, budgets, savings goals, wallets, loans, reports, and financial reminders. It includes a React web client, an Expo mobile client, an Express API, and a shared Supabase/PostgreSQL data layer.
 
-Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
+<!-- Maintainers may add screenshots here when stable, repository-relative assets are available. -->
 
-The mobile Loans & Debt experience is opened from Wallets and supports direction-first entry, optional due dates, expected fixed/simple interest, active/history grouping, payment detail history, split principal/interest repayments, overdue display, and confirmed receivable write-offs.
+## Status
 
-Loans and personal debt use a shared balance-sheet ledger: money lent is a receivable and money borrowed is a liability. Principal movements change the chosen wallet and outstanding balance without affecting reports; only interest received is income and interest paid is a `Debt / Loan` expense. The backend records loan creation, partial repayments, and write-offs atomically through authenticated database functions.
+The web application and backend expose the broadest feature surface. The Expo mobile application is active development and shares the same Supabase project and API; its navigation and feature coverage do not yet mirror the web application completely.
 
-## Security controls and deployment requirements
+## Contents
 
-- Supabase Auth is called directly by the frontend, so login, signup, password-reset, and MFA throttling must be enabled in the Supabase Auth settings and/or the production edge gateway. The backend rate limiters cover authenticated API writes, AI/OCR cost surfaces, and trusted-device issuance; the in-memory limiter must use a shared gateway/Redis policy when running multiple backend instances.
-- Production backend startup requires `NODE_ENV=production`, `HTTPS_ENABLED=true`, HTTPS `APP_URL`/`CORS_ORIGIN`, and HSTS. Keep `HTTPS_TERMINATE_LOCALLY=false` on Render/Heroku/Railway/Vercel-style platforms; set it to `true` and provide certificate/key paths only for a self-hosted process that terminates TLS itself.
-- Set `SUPABASE_ANON_KEY` so authenticated request paths use the caller JWT and Supabase RLS. The service-role key is reserved for auth verification and background schedulers; never expose it to the frontend or mobile app.
-- Confirm in the Supabase dashboard that passwords use bcrypt or an equivalent strong scheme, breached-password checks are enabled, and password-strength rules are appropriate for the product.
-- Mobile receipt OCR is server-side: Expo uploads an authenticated receipt image to Node, which runs `tesseract.js` and returns a review-only candidate. Images use bounded request memory and are not retained in Supabase Storage. A physical Expo Go device needs a LAN, tunnel, or production API URL rather than `localhost`.
-- Bearer tokens remain a product architecture decision. A BFF with HttpOnly, SameSite cookies is the preferred follow-up for web; until then, keep the frontend CSP and hosting headers strict and use short-lived Supabase sessions with refresh enabled. The mobile app stores its session using secure on-device storage (see `mobile/lib/supabase.ts`), not browser storage patterns.
+- [Features](#features)
+- [Supported platforms](#supported-platforms)
+- [Technology stack](#technology-stack)
+- [Architecture](#architecture)
+- [Repository structure](#repository-structure)
+- [Data flow](#data-flow)
+- [Prerequisites](#prerequisites)
+- [Installation](#installation)
+- [Environment configuration](#environment-configuration)
+- [Database setup](#database-setup)
+- [Running the project](#running-the-project)
+- [Authentication configuration](#authentication-configuration)
+- [API overview](#api-overview)
+- [Testing and quality checks](#testing-and-quality-checks)
+- [Build and deployment](#build-and-deployment)
+- [Troubleshooting](#troubleshooting)
+- [Contributing](#contributing)
+- [Security](#security)
+- [License](#license)
 
-Alalay is a Filipino-first personal finance app for managing bills, subscriptions, expenses, income, savings goals, budgets, reports, OCR-assisted entry, and AI-guided financial insights. It currently ships as a web application, with a React Native (Expo) mobile app in active development that shares the same backend and Supabase project.
+## Features
+
+- Supabase email/password and Google authentication.
+- Password reset, profile management, trusted devices, and authenticator-app TOTP verification.
+- Dashboard summaries, reports, analytics, and financial trends.
+- Income, expenses, bills, subscriptions, budgets, savings goals, wallets, transfers, and loans/debt.
+- Notifications and scheduled financial reminders.
+- AI chat and financial context through the backend’s Google Gemini integration.
+- OCR-assisted receipt entry. Web OCR runs in the browser; mobile receipt images are sent to the authenticated backend for server-side processing and review.
+- Responsive web UI and an Expo mobile application with light/dark theme support.
+
+## Supported platforms
+
+- Web browsers through Vite.
+- Expo Go, Android, iOS, and Expo development builds for the mobile client.
+- Node.js backend deployments that provide the required environment variables and HTTPS configuration.
+
+## Technology stack
+
+| Layer          | Technology                                                  | Purpose                                                             |
+| -------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
+| Web            | React 19, TypeScript, Vite                                  | Browser application                                                 |
+| Web styling    | Tailwind CSS and project CSS                                | Responsive interface styling                                        |
+| Mobile         | React Native, Expo SDK 54, Expo Router                      | iOS, Android, and Expo web client                                   |
+| API            | Express, TypeScript, Zod                                    | Authenticated application API and validation                        |
+| Database       | Supabase PostgreSQL                                         | Shared application data, migrations, RLS, and database functions    |
+| Authentication | Supabase Auth                                               | Email/password, Google OAuth, PKCE, password recovery, and TOTP MFA |
+| AI             | Google Gemini through the backend                           | Chat and financial insights                                         |
+| OCR            | `tesseract.js`                                              | Browser and server-side receipt text extraction                     |
+| Validation     | Zod                                                         | Backend environment and request validation                          |
+| Testing        | TypeScript, ESLint, SQL test scripts, workflow test scripts | Static, database, contract, and workflow checks                     |
+
+## Architecture
+
+```mermaid
+flowchart TD
+    Web[React web client]
+    Mobile[Expo mobile client]
+    Auth[Supabase Auth]
+    API[Express API]
+    DB[(Supabase PostgreSQL)]
+    Providers[Gemini and Tesseract]
+
+    Web --> Auth
+    Mobile --> Auth
+    Web --> API
+    Mobile --> API
+    API --> Auth
+    API --> DB
+    API --> Providers
+```
+
+Supabase Auth owns the authenticated identity and session. Protected web and mobile API requests send the caller’s Supabase access token to the Express API. The API validates the token, applies application rules, and reads or writes PostgreSQL through Supabase. AI and OCR providers are used only by the relevant backend or client flows.
 
 ## Repository structure
 
 ```text
-frontend/   React web application
-backend/    Express + TypeScript API server (shared by web and mobile)
-mobile/     React Native (Expo) mobile application
-supabase/   SQL migrations, config, generated types (shared by web and mobile)
-.agents/    AI-facing project instructions for web, mobile, backend, and shared infrastructure
+frontend/   React/Vite web client
+backend/    Express/TypeScript API
+mobile/     React Native/Expo client
+shared/     Shared TypeScript registries and definitions
+supabase/   PostgreSQL migrations, local Supabase configuration, and SQL tests
+tools/      Workflow and database test runners
+docs/       Generated workflow and financial validation reports
 ```
 
-Mobile setup is documented in `mobile/.env.example` and its `.agents` guidance; there is no `mobile/README.md` in the current repository.
+| Path                             | Responsibility                                                 |
+| -------------------------------- | -------------------------------------------------------------- |
+| `frontend/src/App.tsx`           | Web route selection and authenticated shell                    |
+| `frontend/src/pages/`            | Web authentication and application pages                       |
+| `backend/src/services/server.ts` | Express middleware, health endpoint, and `/api` mounting       |
+| `backend/src/routes/index.ts`    | Authenticated API route groups                                 |
+| `mobile/src/app/`                | Expo Router screens and route layouts                          |
+| `mobile/src/services/`           | Supabase, API, OCR, notifications, and authentication services |
+| `supabase/migrations/`           | Ordered database schema and function migrations                |
+| `supabase/tests/`                | SQL regression and workflow tests                              |
 
-The mobile app is a separate client only — it does not have its own backend or database. See `mobile/README.md` for mobile-specific setup, and `mobile/.agents/AGENTS.md` / `mobile/.agents/SKILL.md` for mobile-specific implementation and design guidance.
+## Data flow
 
-## Current implementation status
+1. A user interacts with the web or mobile client.
+2. The client authenticates with Supabase Auth and stores the resulting session using the platform-appropriate storage implementation.
+3. Protected client requests call the Express API with a Supabase bearer token.
+4. Backend middleware validates the token and establishes the request user identity.
+5. Route handlers and services apply validation and business rules before reading or writing Supabase PostgreSQL.
+6. AI and OCR integrations run only for the relevant features; OCR results require user review before an expense is created.
+7. The API response is returned to the originating client.
 
-The capability notes in this section describe the implemented web/shared-backend surface. They should not be read as a claim that the mobile client already exposes every web feature; mobile is active development and its verified status is documented in `mobile/.agents/AGENTS.md`.
+The mobile client also uses Supabase directly for authentication and selected database-backed flows. `auth.users.id` is the authoritative identity; application profile data is stored in `public.users` with the matching UUID.
 
-This repository already contains:
+## Prerequisites
 
-- a React frontend (web)
-- a React Native (Expo) mobile app, in active development
-- an Express backend, shared by both clients
-- Supabase-backed auth and data storage
-- a Gemini-backed AI chat assistant; the dashboard AI insight card is still a placeholder
-- a browser-side OCR flow using `tesseract.js` on web (mobile OCR approach is a separate, not-yet-finalized implementation decision — see `mobile/.agents/AGENTS.md`)
+- Node.js with npm. The repository does not declare an `engines` requirement; use a current LTS release compatible with the installed dependencies.
+- A Supabase project for hosted development, or the Supabase CLI and Docker for local database work.
+- Expo Go for device testing, or Android Studio/iOS tooling for native emulators and development builds.
 
-## Architecture
+## Installation
 
-### Frontend (web)
-
-- React 19
-- TypeScript
-- Vite
-- Tailwind CSS plus shared app CSS
-- manual routing in `frontend/src/App.tsx`
-
-### Mobile
-
-- React Native via Expo (SDK 54)
-- TypeScript
-- Expo Router
-- StyleSheet-based screen styling and palette objects
-- Platform-aware Supabase session persistence: Expo SecureStore on iOS/Android and guarded `localStorage` for Expo web preview
-- Expo WebBrowser/Linking and Supabase PKCE settings for Google OAuth
-- `react-native-svg` for the landing feature carousel artwork
-- The current app contains a landing carousel, auth screens, and a tailored two-tab authenticated shell. The shared mobile API helper currently powers the authenticated Alalay chat-head's dashboard insight and AI chat; the remaining feature screens are still partial.
-
-### Backend
-
-- Express
-- TypeScript
-- Zod validation
-- Supabase integration
-- Shared by both the web frontend and the mobile app — no mobile-specific backend exists
-
-### Database
-
-- Supabase Postgres
-- migrations under `supabase/migrations/`
-- RLS-enabled application tables
-- Shared by both web and mobile; no separate mobile schema
-
-### AI
-
-- Google Gemini Flash 2.5
-- backend routes for status, chat, and streaming chat
-- These routes are currently consumed by the web client; mobile has not yet implemented its API/data layer
-
-### OCR
-
-- Web: frontend-side OCR implemented with `tesseract.js`
-- Mobile: Expo Camera/Image Picker uploads a still image to authenticated `POST /api/ocr/receipt`; Node runs `tesseract.js`, parses a candidate, and the user must explicitly create the expense after review.
-
-## Current routes
-
-Frontend (web) routes currently implemented:
-
-- `/`
-- `/login`, `/register`, `/forgot-password`, `/reset-password`
-- `/auth/callback`
-- `/app`
-- `/app/bills`
-- `/app/subscriptions`
-- `/app/expenses`
-- `/app/income`
-- `/app/savings-goals`
-- `/app/budget`
-- `/app/reports`
-- `/app/ai-assistant`
-- `/app/ocr-scanner`
-- `/app/settings`
-
-Mobile does not yet mirror this route list. Its current Expo Router inventory is the landing screen (`app/index.tsx`), auth (`app/auth.tsx`), modal, and authenticated Home, Budget, Settings, and Explore destinations under `app/(tabs)/`; the default tab chrome is hidden behind the custom Home floating nav.
-
-## Current feature set
-
-- authentication and protected app shell
-- email/password and Google OAuth sign-in
-- authenticator-app TOTP two-factor verification
-- dashboard summary presentation (mobile Home currently uses mock display data, with a real authenticated AI insight/chat-head)
-- mobile Home fixed monthly overview card and compact finance shortcuts, with totals supplied by the shared dashboard summary API
-- mobile Budget category-limit view backed by the shared budget summary API
-- mobile Settings destination placeholder
-- bills management
-- subscriptions management
-- expenses tracking
-- income tracking
-- Goals (legacy internal route/table names may still use savings terminology)
-- budget planning
-- reports and analytics
-  - Report expense totals reconcile with category breakdowns, and daily trends include zero-spend dates across the selected period.
-  - Report navigation, timeline statuses, budget filters, and chart labels help users interpret long report pages.
-- AI assistant
-- OCR scanner on web and mobile (mobile uses server-side OCR)
-- settings and profile management
-
-This feature set is the target for both web and mobile. Mobile implementation status may lag behind web — check `mobile/README.md` for what's currently working on mobile specifically.
-
-## Backend API summary
-
-The backend exposes authenticated `/api/*` routes plus supporting endpoints, shared by both web and mobile clients. Notable implemented areas include:
-
-- auth and user profile APIs
-- dashboard preference APIs (`/api/users/me/dashboard-preferences`)
-- bills
-- subscriptions
-- expenses
-- income
-- savings goals
-- budget
-- reports and analytics
-- AI assistant:
-  - `GET /api/ai/status`
-  - `POST /api/ai/chat`
-  - `POST /api/ai/chat/stream`
-- OCR capability/demo endpoints plus authenticated multipart receipt OCR (`POST /api/ocr/receipt`)
-
-## Database tables currently present
-
-- `users`
-- `families`
-- `bills`
-- `expenses`
-- `income`
-- `subscriptions`
-- `savings_goals`
-- `notifications`
-- `ai_insights`
-- `gmail_connections`
-- `bill_suggestions`
-- `budget_plans`
-- `savings_preferences`
-
-The current schema includes `users.phone`.
-
-## Setup
-
-### Prerequisites
-
-- Node.js 20+
-- npm
-- For mobile: Expo Go app (matching the project's pinned Expo SDK — currently SDK 54) on a physical device, or an iOS/Android simulator
-
-### Install
+Install each workspace independently:
 
 ```bash
 cd frontend
@@ -191,97 +135,248 @@ npm install
 ```
 
 ```bash
-cd backend
+cd ../backend
 npm install
 ```
 
 ```bash
-cd mobile
+cd ../mobile
 npm install
 ```
 
-### Run the frontend (web)
+The repository root also contains shared test and formatting scripts. Install root dependencies before using them:
+
+```bash
+cd ..
+npm install
+```
+
+## Environment configuration
+
+Copy the relevant example file to `.env` in that workspace. Never commit populated `.env` files.
+
+### Web: `frontend/.env`
+
+| Variable                 | Required | Description                    | Example format                     |
+| ------------------------ | -------- | ------------------------------ | ---------------------------------- |
+| `VITE_SUPABASE_URL`      | Yes      | Supabase project URL           | `https://your-project.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | Yes      | Browser-safe Supabase anon key | `your-anon-key`                    |
+| `VITE_API_URL`           | No       | Backend base URL               | `http://localhost:3000`            |
+
+Vite variables are client-visible. Do not place service-role keys or provider secrets in this file.
+
+### Mobile: `mobile/.env`
+
+| Variable                        | Required                   | Description                   | Example format                     |
+| ------------------------------- | -------------------------- | ----------------------------- | ---------------------------------- |
+| `EXPO_PUBLIC_SUPABASE_URL`      | Yes                        | Supabase project URL          | `https://your-project.supabase.co` |
+| `EXPO_PUBLIC_SUPABASE_ANON_KEY` | Yes                        | Mobile-safe Supabase anon key | `your-anon-key`                    |
+| `EXPO_PUBLIC_API_URL`           | Yes for API-backed screens | Reachable backend URL         | `http://192.168.1.50:3000`         |
+
+On a physical device, do not use `localhost` for the backend URL; use a reachable LAN address, tunnel, or deployed API URL.
+
+### Backend: `backend/.env`
+
+| Variable                         | Required                             | Description                               | Example format                      |
+| -------------------------------- | ------------------------------------ | ----------------------------------------- | ----------------------------------- |
+| `PORT`                           | No                                   | Listen port; defaults to 3000             | `3000`                              |
+| `SUPABASE_URL`                   | Yes for Supabase-backed routes       | Supabase project URL                      | `https://your-project.supabase.co`  |
+| `SUPABASE_ANON_KEY`              | Yes for caller-authenticated access  | Supabase anon key                         | `your-anon-key`                     |
+| `SUPABASE_SERVICE_ROLE_KEY`      | Required for service-role operations | Server-only Supabase key                  | `your-service-role-key`             |
+| `GEMINI_API_KEY`                 | Required for Gemini features         | Server-only provider key                  | `your-gemini-key`                   |
+| `GEMINI_MODEL`                   | No                                   | Gemini model name                         | `gemini-2.5-flash`                  |
+| `GEMINI_THINKING_BUDGET`         | No                                   | Gemini thinking budget; defaults to 0     | `0`                                 |
+| `CORS_ORIGIN`                    | No                                   | Comma-separated allowed browser origins   | `http://localhost:5173`             |
+| `APP_URL`                        | No                                   | Application URL                           | `http://localhost:5173`             |
+| `HTTPS_ENABLED`                  | No                                   | Enables HTTPS; required in production     | `false`                             |
+| `HTTPS_TERMINATE_LOCALLY`        | No                                   | Whether this process owns TLS termination | `false`                             |
+| `HTTPS_CERT_PATH`                | Only for local TLS                   | Certificate path                          | `./certs/server.crt`                |
+| `HTTPS_KEY_PATH`                 | Only for local TLS                   | Private-key path                          | `./certs/server.key`                |
+| `RESEND_API_KEY`                 | Optional                             | Email notification provider key           | `your-resend-key`                   |
+| `EMAIL_FROM`                     | No                                   | Notification sender                       | `Alalay <notifications@alalay.app>` |
+| `NOTIFICATION_SCHEDULER_ENABLED` | No                                   | Enables scheduled notifications           | `true`                              |
+| `BILLING_DEBUG`                  | No                                   | Enables billing diagnostics               | `false`                             |
+
+Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, TLS keys, and production credentials server-side.
+
+## Database setup
+
+Database changes are SQL migrations under `supabase/migrations/`. Local configuration is in `supabase/config.toml` and targets PostgreSQL 17.
+
+With the Supabase CLI and Docker available:
+
+```bash
+supabase start
+supabase db reset
+```
+
+To apply migrations to a linked hosted project:
+
+```bash
+supabase link --project-ref your-project-ref
+supabase db push
+```
+
+Review migrations before applying them to production. The schema includes RLS policies, Auth profile triggers, wallet/accounting functions, and financial workflow functions. The configured seed path references `supabase/seed.sql`; no seed file is currently present in this repository.
+
+The SQL test runner expects a running local container named `supabase_db_alalay`:
+
+```bash
+npm run test:db
+```
+
+## Running the project
+
+Start the backend:
+
+```bash
+cd backend
+npm run dev
+```
+
+The backend defaults to `http://localhost:3000`; its health check is `GET /health`.
+
+Start the web client:
 
 ```bash
 cd frontend
 npm run dev
 ```
 
-### Run the backend
+Use the URL printed by Vite and keep `VITE_API_URL` pointed at the backend.
 
-```bash
-cd backend
-npm run dev
-```
-
-The frontend runs on the Vite dev server. The backend currently defaults to port `4000` in active project usage unless overridden by `PORT` — note this has been a source of confusion where some frontend code paths pointed at the wrong port during development; confirm the actual running port with `npm run dev`'s startup log if requests aren't reaching the backend.
-
-### Run the mobile app
+Start the mobile client:
 
 ```bash
 cd mobile
-npx expo start
+npm start
 ```
 
-Scan the printed QR code with Expo Go (physical device) or press `a`/`i` to launch an Android/iOS simulator, if configured. Mobile environment variables are documented below and in `mobile/.env.example`.
+Use Expo Go to scan the printed QR code. Native development builds use:
 
-## Environment variables
+```bash
+npm run android
+npm run ios
+```
 
-### Frontend (web)
+Expo Go uses the generated `exp://.../--/auth/callback` deep link. Development and production builds use the configured `alalay` scheme and must be rebuilt after native configuration changes.
 
-- `VITE_SUPABASE_URL` - Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Supabase browser anon key
-- `VITE_API_URL` - optional backend base URL override used by the frontend API client
+## Authentication configuration
 
-### Mobile
+Authentication uses Supabase Auth. The web client uses its current web origin for web callbacks. The mobile client uses `Linking.createURL('/auth/callback')`, PKCE, and `WebBrowser.openAuthSessionAsync` for native Google OAuth.
 
-- `EXPO_PUBLIC_SUPABASE_URL` - Supabase project URL (same project as web)
-- `EXPO_PUBLIC_SUPABASE_ANON_KEY` - Supabase anon key (same value as web's `VITE_SUPABASE_ANON_KEY`)
-- `EXPO_PUBLIC_API_URL` - backend base URL used by the mobile API client. When testing on a physical device over Wi-Fi, this must be a reachable network address (deployed backend URL, or your machine's local network IP for local backend testing) — `localhost` will not resolve correctly from a phone.
+Configure these Supabase Authentication URL Configuration entries:
 
-Expo requires the `EXPO_PUBLIC_` prefix for any environment variable exposed to client code; this is not interchangeable with the web app's `VITE_` prefix.
+- Existing web Site URL and web callback URLs.
+- The current Expo Go callback generated by the running Expo LAN host, for example `exp://192.168.1.50:8081/--/auth/callback`.
+- `alalay://auth/callback` for development and production builds.
 
-### Backend
+For Google Cloud OAuth, the authorized redirect URI remains Supabase’s provider callback:
 
-- `PORT`
-- `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `GEMINI_API_KEY`
-- `GEMINI_MODEL`
-- `GEMINI_THINKING_BUDGET`
-- `CORS_ORIGIN`
-- `HTTPS_ENABLED`
-- `HTTPS_TERMINATE_LOCALLY`
-- `HTTPS_CERT_PATH` / `HTTPS_KEY_PATH` (only for local TLS termination)
+```text
+https://your-project.supabase.co/auth/v1/callback
+```
 
-`VITE_API_URL` is not currently listed in `frontend/.env.example`.
+Do not add `exp://` or `alalay://` to Google Cloud. Supabase redirects from the provider callback to the client-specific `redirect_to` value.
 
-## Supabase notes
+Email confirmation and mobile password recovery use `mobile/src/app/auth/callback.tsx`.
 
-- schema changes must go through `supabase/migrations/`
-- RLS is enabled on the current application tables
-- `supabase/config.toml` references `seed.sql`, but that file is currently missing
-- schema and migrations are shared between web and mobile — do not create a mobile-specific schema fork
+## API overview
 
-## AI and OCR notes
+`GET /health` is public. All `/api` route groups require Supabase bearer authentication through backend middleware.
 
-- AI chat is implemented with Google Gemini Flash through the backend for web and the mobile chat-head; mobile uses `mobile/src/services/api.ts` to authenticate its dashboard-insight and chat requests
-- The web dashboard insight card and mobile chat-head obtain their insight from the authenticated dashboard summary. Mobile's other dashboard figures remain presentation-only mock data.
-- Assistant responses are rendered as markdown in the chat UI on web. Mobile's chat-head currently presents the backend response as native text bubbles; add a React Native markdown renderer before relying on rich markdown formatting there.
-- Web OCR is browser-side. Mobile uploads only an explicitly selected/captured image to the authenticated backend, where Node runs `tesseract.js` and returns an editable review candidate; it never creates an expense automatically or retains the image.
+| Method                           | Endpoint              | Authentication | Description                                  |
+| -------------------------------- | --------------------- | -------------- | -------------------------------------------- |
+| `GET`                            | `/health`             | None           | Backend health check                         |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/bills`          | Required       | Bill management and payment flows            |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/expenses`       | Required       | Expense resources and receipt-linked entries |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/income`         | Required       | Income resources and summaries               |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/subscriptions`  | Required       | Subscription resources and billing data      |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/savings-goals`  | Required       | Savings goals and contributions              |
+| `GET`, `POST`, `PATCH`           | `/api/budget`         | Required       | Budget summaries and planning                |
+| `GET`                            | `/api/dashboard`      | Required       | Dashboard summaries and insights             |
+| `GET`                            | `/api/reports`        | Required       | Reports and analytics                        |
+| `GET`, `PATCH`                   | `/api/users`          | Required       | Profile and preferences                      |
+| `GET`, `POST`                    | `/api/ai`             | Required       | Gemini status, chat, and streaming chat      |
+| `POST`                           | `/api/ocr/receipt`    | Required       | Authenticated receipt OCR                    |
+| `GET`, `POST`, `DELETE`          | `/api/trusted-device` | Required       | Trusted-device operations                    |
+| `GET`, `POST`, `PATCH`, `DELETE` | `/api/wallets`        | Required       | Wallets, transfers, and adjustments          |
+| `GET`, `POST`, `PATCH`           | `/api/loans`          | Required       | Loans, repayments, and debt workflows        |
+| `GET`, `PATCH`                   | `/api/notifications`  | Required       | Notifications and preferences                |
 
-## Documentation
+The exact operations and validation rules are defined in `backend/src/routes/` and the corresponding services.
 
-Implementation-facing AI documentation:
+## Testing and quality checks
 
-- Web/backend: [.agents/Agents.md](./.agents/Agents.md), [.agents/SKILL.md](./.agents/SKILL.md)
-- Mobile: [mobile/.agents/AGENTS.md](./mobile/.agents/AGENTS.md), [mobile/.agents/SKILL.md](./mobile/.agents/SKILL.md)
+From the repository root:
 
-These files must be updated whenever architecture, schema, AI flows, OCR flows, navigation, or financial logic changes, for the relevant client(s).
+```bash
+npm run test:contracts
+npm run test:workflows
+npm run test:db
+npm run format:check
+```
 
-## Profile data flow
+Workspace checks:
 
-Supabase Auth owns the authenticated user identity and email. Application profile fields are stored in `public.users` and accessed through the authenticated shared `GET/PATCH /api/users/me` endpoint. Mobile screens share normalized profile state so saved display-name, phone, and avatar changes propagate to Home and Settings.
+```bash
+cd backend
+npm run build
+```
 
-Mobile appearance is persisted device-locally as `system`, `light`, or `dark` and resolved centrally by `mobile/src/theme/theme.tsx`.
+```bash
+cd frontend
+npx tsc --noEmit -p tsconfig.json
+npm run build
+```
+
+```bash
+cd mobile
+npx tsc --noEmit -p tsconfig.json
+npm run lint
+```
+
+Database tests require the local Supabase container. The repository does not define a separate frontend lint or end-to-end test script.
+
+## Build and deployment
+
+Build the web client with `npm run build` from `frontend` and type-check/build the backend with `npm run build` from `backend`. The mobile package provides `expo run:android` and `expo run:ios` for native development builds; no hosted mobile deployment workflow is documented beyond the EAS project identifier in `mobile/app.json`.
+
+Production backend configuration requires HTTPS according to `backend/src/config/env.ts`. Configure `APP_URL`, `CORS_ORIGIN`, Supabase credentials, and server-only provider keys in the deployment environment.
+
+## Troubleshooting
+
+### The mobile API cannot connect
+
+A physical device cannot reach a backend configured as `localhost`. Set `EXPO_PUBLIC_API_URL` to the machine’s LAN address, a tunnel, or a deployed API URL.
+
+### Google OAuth returns to the web application
+
+Check the mobile development log for the generated `redirectTo` and decoded `redirect_to` inside Supabase’s authorization URL. Expo Go requires the exact generated `exp://.../--/auth/callback` URL in Supabase. A native build uses `alalay://auth/callback`. Google Cloud should continue to use the Supabase callback URL.
+
+### Email confirmation or password recovery does not return to mobile
+
+Confirm that `mobile/src/app/auth/callback.tsx` exists, the generated Expo callback is allowlisted in Supabase, and the device is running the same Expo host and port used in the allowlist.
+
+### The backend rejects startup configuration
+
+Review `backend/.env.example` and the validation rules in `backend/src/config/env.ts`. Production requires `HTTPS_ENABLED=true` and HTTPS-compatible `APP_URL`/`CORS_ORIGIN` values.
+
+### Database tests fail immediately
+
+Start the local Supabase stack and confirm that the expected database container is running before executing `npm run test:db`.
+
+## Contributing
+
+There is no `CONTRIBUTING.md` in the repository. Keep application behavior, migrations, and documentation scoped to the task; run relevant workspace type checks, linting, tests, and formatting checks before review.
+
+## Security
+
+- Never commit `.env` files, service-role keys, provider keys, passwords, tokens, or TLS private keys.
+- Keep Supabase service-role, Gemini, Resend, and TLS credentials on the backend only.
+- Do not include financial records or authentication data in issue reports.
+- Report suspected vulnerabilities privately to project maintainers rather than publishing credentials or exploit details.
+
+## License
+
+No `LICENSE` file is currently present, so the project’s license is not specified here.

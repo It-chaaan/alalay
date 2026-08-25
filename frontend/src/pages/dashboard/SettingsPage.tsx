@@ -2,7 +2,7 @@ import * as React from "react";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import type { Profile } from "../../hooks/types";
-import { Check, ChevronDown, ChevronUp, ImagePlus, Plus, ShieldCheck, Trash2, Upload, X } from "lucide-react";
+import { Check, ChevronDown, ChevronUp, Eye, EyeOff, ImagePlus, Plus, ShieldCheck, Trash2, Upload, X } from "lucide-react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { getSupabaseClient } from "../../lib/supabase";
 import { apiRequest } from "../../lib/apiClient";
@@ -34,9 +34,12 @@ function readLocalProfile(userId: string) {
   try { return JSON.parse(window.localStorage.getItem(profileStorageKey(userId)) || "{}"); } catch { return {}; }
 }
 
-function Field({ label, value, onChange, type = "text", error, placeholder }: { label: string; value: string; onChange: (value: string) => void; type?: string; error?: string; placeholder?: string }) {
+function Field({ label, value, onChange, type = "text", error, placeholder, rightSlot }: { label: string; value: string; onChange: (value: string) => void; type?: string; error?: string; placeholder?: string; rightSlot?: ReactNode }) {
   const readOnly = label === "Email address";
-  return <label className="block"><span className="text-xs font-semibold text-slate-950">{label}{readOnly ? " (managed by your sign-in provider)" : ""}</span><input type={type} value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`mt-2 h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 ${readOnly ? "bg-slate-50 text-slate-500" : ""} ${error ? "border-red-300" : "border-slate-200"}`} />{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>;
+  const isPassword = type === "password";
+  const [visible, setVisible] = useState(false);
+  const action = rightSlot ?? (isPassword ? <button type="button" aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`} aria-pressed={visible} onClick={() => setVisible((current) => !current)} className="grid h-9 w-9 place-items-center rounded-lg text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/30">{visible ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}</button> : null);
+  return <label className="block"><span className="text-xs font-semibold text-slate-950">{label}{readOnly ? " (managed by your sign-in provider)" : ""}</span><span className="relative mt-2 block"><input type={isPassword && visible ? "text" : type} value={value} readOnly={readOnly} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className={`h-10 w-full rounded-xl border bg-white px-3 text-sm outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 ${action ? "pr-12" : ""} ${readOnly ? "bg-slate-50 text-slate-500" : ""} ${error ? "border-red-300" : "border-slate-200"}`} />{action ? <span className="absolute inset-y-0 right-1 flex items-center">{action}</span> : null}</span>{error ? <span className="mt-1 block text-xs text-red-600">{error}</span> : null}</label>;
 }
 
 function SaveButton({ children, disabled, saving }: { children: string; disabled: boolean; saving: boolean }) {
@@ -166,6 +169,7 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
   const [verifyingTwoFactor, setVerifyingTwoFactor] = useState(false);
   const [disablingTwoFactor, setDisablingTwoFactor] = useState(false);
   const [code, setCode] = useState("");
+  const [secretCopied, setSecretCopied] = useState(false);
 
   async function loadPasswordState() {
     if (!supabase) {
@@ -310,6 +314,13 @@ function SecurityTab({ notify }: { notify: (message: string, error?: boolean) =>
     } finally {
       setDisablingTwoFactor(false);
     }
+  }
+
+  async function copyAuthenticatorSecret() {
+    if (!factor?.secret || !navigator.clipboard) return;
+    await navigator.clipboard.writeText(factor.secret);
+    setSecretCopied(true);
+    window.setTimeout(() => setSecretCopied(false), 1800);
   }
 
   const twoFactorEnabled = Boolean(verifiedFactor);

@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FinancialSummaryBackground } from '@/components/financial-summary-background';
 
 import {
   CategoryChipRow,
@@ -360,8 +361,9 @@ function BudgetSummary({
     <View
       accessibilityRole="summary"
       accessibilityLabel={`${percent} percent of budget used. Total budget ${amountsVisible ? peso(budgeted) : 'hidden'}. Used ${amountsVisible ? peso(spent) : 'hidden'}. Remaining ${amountsVisible ? peso(remaining) : 'hidden'}.`}
-      style={styles.summaryCard}
+      style={[styles.summaryCard, { backgroundColor: formPalette.balance }]}
     >
+      <FinancialSummaryBackground motif="budget" />
       <View style={styles.summaryHeader}>
         <Text style={styles.summaryEyebrow}>BUDGET SUMMARY</Text>
         <Text style={styles.summaryMonth}>{month.toUpperCase()}</Text>
@@ -369,7 +371,7 @@ function BudgetSummary({
       <View style={styles.summaryBody}>
         <View style={styles.percentBlock}>
           <Text
-            style={[styles.percentValue, { color: over ? formPalette.danger : formPalette.accent }]}
+            style={[styles.percentValue, { color: over ? '#FFD3D0' : '#FFFFFF' }]}
           >
             {percent}%
           </Text>
@@ -393,7 +395,7 @@ function BudgetSummary({
             styles.summaryFill,
             {
               width: `${progress}%`,
-              backgroundColor: over ? formPalette.danger : formPalette.accent,
+              backgroundColor: over ? '#FFD3D0' : '#B7E8D0',
             },
           ]}
         />
@@ -445,6 +447,7 @@ function BudgetCategoryRow({
   return (
     <BudgetProgressRow
       icon={<CategoryIcon size={19} color={tone} />}
+      backgroundIcon={<CategoryIcon size={76} color={color} opacity={0.045} />}
       title={category.name}
       detail={
         amountsVisible ? `${peso(category.spent)} / ${peso(category.budget)}` : '•••••• / ••••••'
@@ -492,6 +495,7 @@ function GoalAllocationRows({ summary }: { summary: Summary }) {
 
 function BudgetProgressRow({
   icon,
+  backgroundIcon,
   title,
   detail,
   percent,
@@ -499,6 +503,7 @@ function BudgetProgressRow({
   remaining,
 }: {
   icon: ReactNode;
+  backgroundIcon?: ReactNode;
   title: string;
   detail: string;
   percent: number;
@@ -512,6 +517,7 @@ function BudgetProgressRow({
       accessibilityLabel={`${title}, ${detail}, ${percent}% used, ${remaining}.`}
       style={styles.categoryCard}
     >
+      {backgroundIcon ? <View pointerEvents="none" style={styles.categoryBackdrop}>{backgroundIcon}</View> : null}
       <View style={styles.categoryHeader}>
         <View style={[styles.categoryIcon, { backgroundColor: `${color}22` }]}>{icon}</View>
         <View style={styles.categoryMain}>
@@ -1106,6 +1112,7 @@ function createStyles(palette: typeof formPalette) {
     tipWarningText: { color: palette.danger },
     summaryCard: {
       marginBottom: 14,
+      overflow: 'hidden',
       padding: 16,
       borderRadius: 20,
       backgroundColor: palette.surface,
@@ -1114,12 +1121,12 @@ function createStyles(palette: typeof formPalette) {
     },
     summaryHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     summaryEyebrow: {
-      color: palette.accent,
+      color: '#D8EFE2',
       fontSize: 10,
       fontWeight: '900',
       letterSpacing: 1.2,
     },
-    summaryMonth: { color: palette.muted, fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
+    summaryMonth: { color: '#BFE3D0', fontSize: 10, fontWeight: '800', letterSpacing: 0.6 },
     summaryBody: { flexDirection: 'row', alignItems: 'center', gap: 16, marginTop: 16 },
     percentBlock: {
       width: 68,
@@ -1127,28 +1134,30 @@ function createStyles(palette: typeof formPalette) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 34,
-      backgroundColor: palette.accentPale,
+      backgroundColor: 'rgba(5, 64, 46, 0.38)',
+      borderWidth: 1,
+      borderColor: 'rgba(216, 239, 226, 0.18)',
     },
     percentValue: { fontSize: 18, fontWeight: '900' },
     percentLabel: {
       marginTop: 1,
-      color: palette.muted,
+      color: '#BFE3D0',
       fontSize: 8,
       fontWeight: '900',
       letterSpacing: 0.8,
     },
     summaryMetrics: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
     metric: { flex: 1, minWidth: 0 },
-    metricLabel: { color: palette.muted, fontSize: 10, fontWeight: '800' },
-    metricValue: { marginTop: 5, color: palette.ink, fontSize: 14, fontWeight: '900' },
-    metricPositive: { color: palette.accent },
-    metricDanger: { color: palette.danger },
+    metricLabel: { color: '#BFE3D0', fontSize: 10, fontWeight: '800' },
+    metricValue: { marginTop: 5, color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
+    metricPositive: { color: '#A9F0C9' },
+    metricDanger: { color: '#FFD3D0' },
     summaryTrack: {
       height: 6,
       marginTop: 16,
       overflow: 'hidden',
       borderRadius: 3,
-      backgroundColor: palette.accentPale,
+      backgroundColor: 'rgba(216, 239, 226, 0.22)',
     },
     summaryFill: { height: '100%', borderRadius: 3 },
     // Screen layout and category budget cards
@@ -1278,7 +1287,8 @@ function createStyles(palette: typeof formPalette) {
     },
     fill: { height: '100%', borderRadius: 4, backgroundColor: palette.accent },
     categoryList: { gap: 10 },
-    categoryCard: { padding: 14, borderRadius: 17, backgroundColor: palette.background },
+    categoryCard: { position: 'relative', overflow: 'hidden', padding: 14, borderRadius: 17, backgroundColor: palette.background },
+    categoryBackdrop: { position: 'absolute', right: -12, bottom: -22 },
     categoryIcon: {
       width: 42,
       height: 42,

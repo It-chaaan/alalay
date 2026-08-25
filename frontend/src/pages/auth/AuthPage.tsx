@@ -1,6 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
@@ -672,7 +673,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                           onClick={() => setShowPassword((value) => !value)}
                           className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
                         >
-                          {showPassword ? "Hide" : "Show"}
+                          {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                         </button>
                       }
                       {...register("password")}
@@ -695,7 +696,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                         onClick={() => setShowConfirmPassword((value) => !value)}
                         className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
                       >
-                        {showConfirmPassword ? "Hide" : "Show"}
+                          {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
                       </button>
                     }
                     {...register("confirmPassword")}

@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CircleAlert, Lock, Mail, ShieldCheck, User } from 'lucide-react-native';
+import { ArrowLeft, CircleAlert, Eye, EyeOff, Lock, Mail, ShieldCheck, User } from 'lucide-react-native';
 
 import { BrandLockup } from '@/components/brand-lockup';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
@@ -29,13 +29,16 @@ function getAuthError(message: string) {
   return message;
 }
 
-function AuthInput({ palette, icon: Icon, label, value, onChangeText, secureTextEntry, autoCapitalize = 'none', keyboardType = 'default' }: { palette: Palette; icon: FieldIcon; label: string; value: string; onChangeText: (value: string) => void; secureTextEntry?: boolean; autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters'; keyboardType?: 'default' | 'email-address' }) {
+function AuthInput({ palette, icon: Icon, label, value, onChangeText, secureTextEntry, onToggleVisibility, autoCapitalize = 'none', keyboardType = 'default' }: { palette: Palette; icon: FieldIcon; label: string; value: string; onChangeText: (value: string) => void; secureTextEntry?: boolean; onToggleVisibility?: () => void; autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters'; keyboardType?: 'default' | 'email-address' }) {
   return (
     <View style={styles.field}>
       <Icon size={20} strokeWidth={1.75} color={palette.muted} />
       <View style={styles.fieldBody}>
         <Text style={[styles.fieldLabel, { color: palette.muted }]}>{label}</Text>
-        <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText} secureTextEntry={secureTextEntry} autoCapitalize={autoCapitalize} autoCorrect={false} keyboardType={keyboardType} placeholderTextColor={palette.muted} style={[styles.input, { color: palette.ink }]} />
+        <View style={styles.inputWithAction}>
+          <TextInput accessibilityLabel={label} value={value} onChangeText={onChangeText} secureTextEntry={secureTextEntry} autoCapitalize={autoCapitalize} autoCorrect={false} keyboardType={keyboardType} placeholderTextColor={palette.muted} style={[styles.input, { color: palette.ink }, onToggleVisibility && styles.inputWithVisibility]} />
+          {onToggleVisibility ? <Pressable accessibilityRole="button" accessibilityLabel={secureTextEntry ? 'Show password' : 'Hide password'} accessibilityState={{ checked: !secureTextEntry }} onPress={onToggleVisibility} style={styles.visibilityButton} hitSlop={4}>{secureTextEntry ? <Eye size={20} color={palette.muted} /> : <EyeOff size={20} color={palette.muted} />}</Pressable> : null}
+        </View>
       </View>
     </View>
   );
@@ -62,6 +65,7 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [confirmationNotice, setConfirmationNotice] = useState('');
+  const [passwordVisibility, setPasswordVisibility] = useState({ password: false, confirm: false });
   const googleFlowStarted = useRef(false);
   const { colors } = useAppTheme();
   const palette: Palette = { ...colors, accentSoft: colors.accentPale };
@@ -183,8 +187,8 @@ export default function AuthScreen() {
           <View style={styles.fields}>
             {isCreate && <AuthInput palette={palette} icon={User} label="Full Name" value={fullName} onChangeText={setFullName} autoCapitalize="words" />}
             <AuthInput palette={palette} icon={Mail} label="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" />
-            <AuthInput palette={palette} icon={Lock} label="Password" value={password} onChangeText={setPassword} secureTextEntry />
-            {isCreate && <AuthInput palette={palette} icon={ShieldCheck} label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />}
+            <AuthInput palette={palette} icon={Lock} label="Password" value={password} onChangeText={setPassword} secureTextEntry={!passwordVisibility.password} onToggleVisibility={() => setPasswordVisibility((state) => ({ ...state, password: !state.password }))} />
+            {isCreate && <AuthInput palette={palette} icon={ShieldCheck} label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!passwordVisibility.confirm} onToggleVisibility={() => setPasswordVisibility((state) => ({ ...state, confirm: !state.confirm }))} />}
           </View>
           <View style={styles.actionSlot}>
             {!isCreate && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()} style={styles.forgotButton}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password?</Text></Pressable>}
@@ -209,6 +213,7 @@ function MfaVerification() {
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState('');
   const [expired, setExpired] = useState(false);
+  const autoSubmittedCode = useRef<string | null>(null);
 
   useEffect(() => {
     void getMfaState().then((state) => {
@@ -216,6 +221,15 @@ function MfaVerification() {
       if (!state.factor) setError('No verified authenticator was found for this account.');
     }).catch(() => setError('Unable to start verification. Please sign in again.')).finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (code.length !== 6 || loading || verifying || expired || autoSubmittedCode.current === code) return;
+    autoSubmittedCode.current = code;
+    void verify();
+  // verify is intentionally stable for this mounted MFA screen; the guarded
+  // ref prevents duplicate submissions when the code changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [code, loading, verifying, expired]);
 
   const verify = async () => {
     if (!factorId || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; }
@@ -235,6 +249,7 @@ function MfaVerification() {
       setExpired(challengeExpired);
       setError(challengeExpired ? 'This verification request expired. Please sign in again.' : 'That code isn\'t valid. Try again.');
       setCode('');
+      autoSubmittedCode.current = null;
     } finally { setVerifying(false); }
   };
 
@@ -261,6 +276,9 @@ const styles = StyleSheet.create({
   fields: { marginTop: 26, gap: 18 },
   field: { minHeight: 54, flexDirection: 'row', alignItems: 'center', gap: 12, borderBottomWidth: 1, borderBottomColor: '#8BA79A' },
   fieldBody: { flex: 1 },
+  inputWithAction: { position: 'relative', justifyContent: 'center' },
+  inputWithVisibility: { paddingRight: 46 },
+  visibilityButton: { position: 'absolute', right: 0, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   fieldLabel: { fontSize: 11, fontWeight: '700', marginBottom: 2 },
   input: { minHeight: 31, paddingVertical: 0, fontSize: 15 },
   actionSlot: { minHeight: 44, justifyContent: 'center' },
