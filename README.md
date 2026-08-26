@@ -193,7 +193,7 @@ On a physical device, do not use `localhost` for the backend URL; use a reachabl
 | `HTTPS_CERT_PATH`                | Only for local TLS                   | Certificate path                          | `./certs/server.crt`                |
 | `HTTPS_KEY_PATH`                 | Only for local TLS                   | Private-key path                          | `./certs/server.key`                |
 | `RESEND_API_KEY`                 | Optional                             | Email notification provider key           | `your-resend-key`                   |
-| `EMAIL_FROM`                     | No                                   | Notification sender                       | `Alalay <notifications@alalay.app>` |
+| `EMAIL_FROM`                     | No                                   | Notification sender                       | `Alalay <guillermochristian19@gmail.com>` |
 | `NOTIFICATION_SCHEDULER_ENABLED` | No                                   | Enables scheduled notifications           | `true`                              |
 | `BILLING_DEBUG`                  | No                                   | Enables billing diagnostics               | `false`                             |
 

@@ -19,7 +19,7 @@ const envSchema = z.object({
   GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
   GEMINI_THINKING_BUDGET: z.coerce.number().int().min(0).default(0),
   RESEND_API_KEY: z.string().optional(),
-  EMAIL_FROM: z.string().default("Alalay <notifications@alalay.app>"),
+  EMAIL_FROM: z.string().default("Alalay <guillermochristian19@gmail.com>"),
   APP_URL: z.string().url().default("http://localhost:5173"),
   NOTIFICATION_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
   BILLING_DEBUG: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),

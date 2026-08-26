@@ -404,7 +404,7 @@ export function HomePage() {
               <h3 className="text-sm font-semibold text-slate-950">Company</h3>
               <ul className="mt-4 space-y-3 text-sm text-slate-600">
                 <li>
-                  <a href="#privacy" className="transition hover:text-[#0f8a6b]">
+                  <a href="/privacy" className="transition hover:text-[#0f8a6b]">
                     Privacy
                   </a>
                 </li>
@@ -430,7 +430,7 @@ export function HomePage() {
                   </a>
                 </li>
                 <li>
-                  <a href="#contact" className="transition hover:text-[#0f8a6b]">
+                  <a href="/contact" className="transition hover:text-[#0f8a6b]">
                     Contact
                   </a>
                 </li>

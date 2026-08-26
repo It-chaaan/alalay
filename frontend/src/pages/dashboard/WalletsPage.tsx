@@ -20,7 +20,7 @@ import {
   Home,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { institutionFor, institutionRegistry } from '@shared/institution-registry';
+import { institutionFor, institutionRegistry, sanitizeWalletMetadata } from '@shared/institution-registry';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { SlideOver } from '../../components/ui/SlideOver';
@@ -58,7 +58,7 @@ type WalletFormProps = { onClose: () => void; onSaved: () => void };
 type WalletView = 'grid' | 'list';
 type WalletFilters = {
   asset: 'all' | 'liquid' | 'credit';
-  institution: 'all' | 'cash' | 'bank' | 'e_wallet';
+  institution: 'all' | 'cash' | 'bank' | 'digital_bank' | 'e_wallet';
   account: 'all' | 'debit' | 'credit';
 };
 
@@ -89,10 +89,11 @@ function requestKey() {
 
 function InstitutionMark({ wallet }: { wallet: Wallet }) {
   const institution = institutionFor(wallet.institution_key);
+  const known = institutionRegistry.find((item) => item.id === wallet.institution_key);
   return (
     <span
       className="grid h-11 w-11 place-items-center rounded-2xl text-sm font-bold text-white shadow-sm"
-      style={{ backgroundColor: wallet.color || institution.brandColor }}
+      style={{ backgroundColor: known?.brandColor || wallet.color || institution.brandColor }}
       aria-hidden="true"
     >
       {institution.mark}
@@ -114,12 +115,14 @@ function WalletCard({
   onRepay: (wallet: Wallet) => void;
 }) {
   const { settings } = useAppPreferences();
+  const knownInstitution = institutionRegistry.find((item) => item.id === wallet.institution_key);
+  const institutionType = knownInstitution?.institutionType ?? wallet.institution_type;
   const isCredit = wallet.account_type === 'credit';
   const label = wallet.account_type
     ? `${wallet.account_type} · ${settings.currency}`
     : `${wallet.institution_type.replace('_', ' ')} · ${settings.currency}`;
   return (
-    <article className={`wallet-card wallet-card-${wallet.institution_type} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}>
+    <article className={`wallet-card wallet-card-${institutionType} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}>
       <a
         href={`/app/wallets/${wallet.id}`}
         aria-label={`Open ${wallet.name} wallet details`}
@@ -310,6 +313,7 @@ function WalletFilterPopover({
           <option value="all">All institutions</option>
           <option value="cash">Cash</option>
           <option value="bank">Bank</option>
+          <option value="digital_bank">Digital bank</option>
           <option value="e_wallet">E-wallet</option>
         </select>
       </label>
@@ -390,6 +394,10 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
   const [openingBalance, setOpeningBalance] = useState('');
   const [accountType, setAccountType] = useState<'debit' | 'credit' | ''>('');
   const [creditLimit, setCreditLimit] = useState('');
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
+  const [earnsInterest, setEarnsInterest] = useState(false);
+  const [annualInterestRate, setAnnualInterestRate] = useState('');
+  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>('monthly');
   const institution = institutionFor(institutionKey);
   const canClassify = institution.supportedAccountTypes.length > 0;
   function selectInstitution(key: string) {
@@ -398,6 +406,9 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
     setName(selected.displayName);
     setAccountType('');
     setCreditLimit('');
+    setAccountPurpose('everyday');
+    setEarnsInterest(false);
+    setAnnualInterestRate('');
   }
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -410,7 +421,13 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
         name,
         institution_type: institution.institutionType,
         institution_key: institution.id,
-        account_type: canClassify && accountType ? accountType : null,
+        ...sanitizeWalletMetadata(institution.id, {
+          accountType: canClassify && accountType ? accountType : null,
+          accountPurpose,
+          earnsInterest,
+          annualInterestRate: annualInterestRate ? Number(annualInterestRate) : null,
+          interestCreditFrequency: interestFrequency,
+        }),
         credit_limit: accountType === 'credit' && creditLimit ? Number(creditLimit) : null,
         color: institution.brandColor,
         opening_balance: Number(openingBalance || 0),
@@ -500,6 +517,29 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
           value={creditLimit}
           onChange={setCreditLimit}
         />
+      ) : null}
+      {accountType === 'debit' ? (
+        <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+          Account purpose
+          <select value={accountPurpose} onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
+            <option value="everyday">Everyday</option>
+            <option value="savings">Savings</option>
+          </select>
+        </label>
+      ) : null}
+      {accountType === 'debit' && accountPurpose === 'savings' ? (
+        <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
+          <label className="flex items-center gap-2 text-sm font-semibold">
+            <input type="checkbox" checked={earnsInterest} onChange={(event) => setEarnsInterest(event.target.checked)} />
+            This account earns interest
+          </label>
+          {earnsInterest ? (
+            <>
+              <label className="block text-sm font-semibold">Annual interest rate (%)<input type="number" min="0" max="100" step="0.01" value={annualInterestRate} onChange={(event) => setAnnualInterestRate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" /></label>
+              <label className="block text-sm font-semibold">Interest credited<select value={interestFrequency} onChange={(event) => setInterestFrequency(event.target.value as typeof interestFrequency)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi_annually">Semi-annually</option><option value="annually">Annually</option><option value="unspecified">Unspecified</option></select></label>
+            </>
+          ) : null}
+        </div>
       ) : null}
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
@@ -777,6 +817,9 @@ export function EditWalletForm({
   const [annualInterestRate, setAnnualInterestRate] = useState(
     wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(wallet.account_purpose ?? 'everyday');
+  const [earnsInterest, setEarnsInterest] = useState(wallet.earns_interest === true);
+  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>((wallet.interest_credit_frequency as 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? 'monthly');
   const [transferFee, setTransferFee] = useState(
     wallet.default_outgoing_transfer_fee == null
       ? ''
@@ -790,7 +833,13 @@ export function EditWalletForm({
       body: JSON.stringify({
         name,
         credit_limit: wallet.account_type === 'credit' && creditLimit ? Number(creditLimit) : null,
-        annual_interest_rate: annualInterestRate ? Number(annualInterestRate) : null,
+        ...sanitizeWalletMetadata(wallet.institution_key, {
+          accountType: wallet.account_type,
+          accountPurpose,
+          earnsInterest,
+          annualInterestRate: annualInterestRate ? Number(annualInterestRate) : null,
+          interestCreditFrequency: interestFrequency,
+        }),
         default_outgoing_transfer_fee: transferFee ? Number(transferFee) : null,
       }),
     });
@@ -832,6 +881,13 @@ export function EditWalletForm({
           value={transferFee}
           onChange={setTransferFee}
         />
+      ) : null}
+      {wallet.account_type === 'debit' ? (
+        <>
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Account purpose<select value={accountPurpose} onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="everyday">Everyday</option><option value="savings">Savings</option></select></label>
+          {accountPurpose === 'savings' ? <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={earnsInterest} onChange={(event) => setEarnsInterest(event.target.checked)} /> This account earns interest</label> : null}
+          {accountPurpose === 'savings' && earnsInterest ? <select value={interestFrequency} onChange={(event) => setInterestFrequency(event.target.value as typeof interestFrequency)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi_annually">Semi-annually</option><option value="annually">Annually</option><option value="unspecified">Unspecified</option></select> : null}
+        </>
       ) : null}
       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
         Annual interest rate (%)
@@ -1344,9 +1400,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
         .replace(/[-_]/g, ' ');
       const institutionMatches =
         filters.institution === 'all' ||
-        (filters.institution === 'bank' &&
-          (wallet.institution_type === 'bank' || wallet.institution_type === 'digital_bank')) ||
-        wallet.institution_type === filters.institution;
+        (filters.institution === 'bank' && institution.institutionType === 'bank') ||
+        institution.institutionType === filters.institution;
       const assetMatches =
         filters.asset === 'all' ||
         (filters.asset === 'credit' && wallet.account_type === 'credit') ||

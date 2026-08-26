@@ -36,6 +36,7 @@ import { WalletPicker, WalletPickerModal, type Wallet } from '@/components/walle
 import { type WalletPreset } from '@/constants/wallets';
 import {
   institutionFor,
+  sanitizeWalletMetadata,
   supportsAccountType,
   type WalletAccountType,
 } from '@/constants/institution-registry';
@@ -756,6 +757,8 @@ export function EditWalletSheet({
   const [annualInterestRate, setAnnualInterestRate] = useState(
     wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(wallet.account_purpose ?? 'everyday');
+  const [earnsInterest, setEarnsInterest] = useState(wallet.earns_interest === true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const save = async () => {
@@ -781,7 +784,13 @@ export function EditWalletSheet({
         body: JSON.stringify({
           name: name.trim(),
           default_outgoing_transfer_fee: fee,
-          annual_interest_rate: rate,
+          ...sanitizeWalletMetadata(wallet.institution_key, {
+            accountType: wallet.account_type,
+            accountPurpose,
+            earnsInterest,
+            annualInterestRate: rate,
+            interestCreditFrequency: (wallet.interest_credit_frequency as 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? null,
+          }),
         }),
       });
       notifyFinancialMutation();
@@ -832,6 +841,26 @@ export function EditWalletSheet({
               },
             ]}
           />
+          {wallet.account_type === 'debit' ? (
+            <>
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>Account purpose</Text>
+              <View style={editStyles.choiceRow}>
+                {(['everyday', 'savings'] as const).map((purpose) => (
+                  <Pressable key={purpose} onPress={() => setAccountPurpose(purpose)} style={[editStyles.choice, accountPurpose === purpose && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+                    <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{purpose === 'everyday' ? 'Everyday' : 'Savings'}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {accountPurpose === 'savings' ? (
+                <>
+                  <Text style={[editStyles.label, { color: colors.textSecondary }]}>Earns interest?</Text>
+                  <View style={editStyles.choiceRow}>
+                    {[true, false].map((value) => <Pressable key={String(value)} onPress={() => setEarnsInterest(value)} style={[editStyles.choice, earnsInterest === value && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}><Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{value ? 'Yes' : 'No'}</Text></Pressable>)}
+                  </View>
+                </>
+              ) : null}
+            </>
+          ) : null}
           <Text style={[editStyles.label, { color: colors.textSecondary }]}>
             Suggested outgoing transfer fee (optional)
           </Text>
@@ -1219,18 +1248,13 @@ function AddWalletSheet({
           name: name.trim(),
           institution_type: preset.type,
           institution_key: preset.key,
-          account_type: canChooseAccountType ? accountType : null,
-          account_purpose: accountType === 'debit' ? accountPurpose : null,
-          earns_interest:
-            accountType === 'debit' && accountPurpose === 'savings' ? earnsInterest : false,
-          annual_interest_rate:
-            accountType === 'debit' && accountPurpose === 'savings' && earnsInterest
-              ? parsedRate
-              : null,
-          interest_credit_frequency:
-            accountType === 'debit' && accountPurpose === 'savings' && earnsInterest
-              ? interestFrequency
-              : null,
+          ...sanitizeWalletMetadata(preset.key, {
+            accountType: canChooseAccountType ? accountType : null,
+            accountPurpose,
+            earnsInterest,
+            annualInterestRate: parsedRate,
+            interestCreditFrequency: interestFrequency,
+          }),
           credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
           color: preset.color,
           opening_balance: openingBalance,
@@ -1579,6 +1603,8 @@ const editStyles = StyleSheet.create({
   closeText: { fontSize: 27, lineHeight: 29 },
   label: { marginTop: 24, marginBottom: 7, fontSize: 11, fontWeight: '900' },
   input: { minHeight: 54, paddingHorizontal: 15, borderRadius: 16, borderWidth: 1, fontSize: 15 },
+  choiceRow: { flexDirection: 'row', gap: 8 },
+  choice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: '#D7E2DE' },
   error: { marginTop: 10, fontSize: 12, fontWeight: '800' },
   save: {
     minHeight: 52,

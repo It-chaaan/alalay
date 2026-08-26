@@ -2,6 +2,7 @@ import { MoreHorizontal } from 'lucide-react-native';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
+import { institutionFor } from '@/constants/institution-registry';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useAppTheme } from '@/theme/theme';
 import type { Wallet } from './wallet-picker';
@@ -26,15 +27,19 @@ export function WalletCard({
   const { visible } = useBalanceVisibility();
   const amountsVisible = visible === true;
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
-  const accountLabel = wallet.account_type === 'credit' ? 'Credit' : 'Debit';
+  const accountLabel = wallet.account_type
+    ? wallet.account_type === 'credit' ? 'Credit' : 'Debit'
+    : '';
+  const institution = institutionFor(wallet.institution_key);
   const purposeLabel =
     wallet.account_purpose === 'savings'
       ? 'Savings'
       : wallet.account_purpose === 'everyday'
         ? 'Everyday'
-        : typeLabel(wallet.institution_type);
+        : typeLabel(institution.institutionType);
   const metadata = `${purposeLabel} · ${accountLabel}`;
   const amountLabel = wallet.account_type === 'credit' ? 'BALANCE OWED' : 'BALANCE';
+  const cardColor = wallet.institution_key && institution.id !== 'cash' ? institution.brandColor : wallet.color;
 
   return (
     <Pressable
@@ -43,7 +48,7 @@ export function WalletCard({
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
-        { backgroundColor: wallet.color, borderColor: `${wallet.color}CC` },
+        { backgroundColor: cardColor, borderColor: `${cardColor}CC` },
         pressed && styles.pressed,
       ]}
     >

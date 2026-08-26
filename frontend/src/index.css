@@ -216,6 +216,56 @@ a {
   text-decoration: none;
 }
 
+/* Dashboard uses independent stacks so a tall calendar cannot create a
+   matching blank area in the secondary column. */
+.dashboard-columns {
+  display: grid;
+  grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+  align-items: start;
+  gap: 1rem;
+}
+
+.dashboard-stack {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 1rem;
+}
+
+@media (max-width: 1279px) {
+  .dashboard-columns {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 900px) {
+  .dashboard-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-columns,
+  .dashboard-stack {
+    display: grid;
+  }
+
+  .dashboard-stack {
+    display: contents;
+  }
+
+  .dashboard-card {
+    min-width: 0;
+  }
+
+  .dashboard-budget-insight { order: 1; }
+  .dashboard-money-flow { order: 2; }
+  .dashboard-top-spending { order: 3; }
+  .dashboard-due-dates { order: 4; }
+  .dashboard-upcoming-bills { order: 5; }
+  .dashboard-recent-transactions { order: 6; }
+}
+
 .assistant-message {
   color: inherit;
   overflow-wrap: anywhere;

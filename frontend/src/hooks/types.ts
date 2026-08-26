@@ -347,6 +347,7 @@ export type Wallet = {
   account_purpose?: 'everyday' | 'savings' | null;
   earns_interest?: boolean;
   annual_interest_rate?: number | string | null;
+  interest_credit_frequency?: string | null;
   credit_limit?: number | string | null;
   color?: string | null;
   interest_rate?: number | string | null;

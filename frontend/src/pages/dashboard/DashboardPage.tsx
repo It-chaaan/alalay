@@ -267,7 +267,7 @@ function SummaryCards({
 
   return (
     <section
-      className="relative grid gap-4 sm:grid-cols-2 2xl:grid-cols-4"
+      className="relative grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
       aria-label="Account summary"
     >
       {cards.map((item) => (
@@ -612,7 +612,7 @@ function DueDatesCalendar({
   }
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold text-slate-950">Due Dates</h2>
         <div className="flex items-center gap-1">
@@ -644,7 +644,7 @@ function DueDatesCalendar({
       </div>
       <div className="mt-1 grid grid-cols-7 gap-0.5">
         {cells.map((date, index) => {
-          if (!date) return <span key={`empty-${index}`} className="min-h-10 rounded-lg" />;
+          if (!date) return <span key={`empty-${index}`} className="min-h-9 rounded-lg" />;
           const dateKey = toDateKey(date);
           const dayItems = itemsByDate.get(dateKey) ?? [];
           const selected = selectedDate === dateKey;
@@ -653,7 +653,7 @@ function DueDatesCalendar({
               key={dateKey}
               type="button"
               onClick={() => dayItems.length && setSelectedDate(selected ? null : dateKey)}
-              className={`min-h-10 rounded-lg px-0.5 py-0.5 text-left transition ${dayItems.length ? 'hover:bg-brand-soft' : 'cursor-default'} ${selected ? 'bg-brand-soft ring-1 ring-brand-primary' : ''}`}
+              className={`min-h-9 rounded-lg px-0.5 py-0.5 text-left transition ${dayItems.length ? 'hover:bg-brand-soft' : 'cursor-default'} ${selected ? 'bg-brand-soft ring-1 ring-brand-primary' : ''}`}
               aria-label={`${date.toDateString()}${dayItems.length ? `, ${dayItems.length} due` : ''}`}
             >
               <span
@@ -737,7 +737,7 @@ function UpcomingWidget({
   const visibleItems = upcoming.length ? upcoming : items.slice(0, 5);
 
   return (
-    <article className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="flex flex-col rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
         <h2 className="font-semibold text-slate-950">Upcoming</h2>
         <button
@@ -1060,30 +1060,40 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
             onTogglePrivacy={() => setIsPrivate((current) => !current)}
           />
 
-          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.65fr_1fr]">
-            <MoneyFlowCard report={report ?? undefined} isPrivate={isPrivate} />
-            <BudgetUsedCard budget={budget ?? undefined} insight={summary.ai_insight} isPrivate={isPrivate} />
-          </section>
-
-          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">
-            {scheduleLoading ? (
-              <SkeletonCard className="h-[390px]">
-                <SkeletonText className="w-28" />
-                <SkeletonBlock className="mt-5 h-72 w-full" />
-              </SkeletonCard>
-            ) : (
-              <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
-            )}
-            <TopSpendingCard report={monthlyReport ?? undefined} isPrivate={isPrivate} />
-          </section>
-
-          <section className="mt-4 grid items-start gap-4 2xl:grid-cols-[1.35fr_1fr]">
-            {scheduleLoading ? (
-              <ListSkeleton rows={2} />
-            ) : (
-              <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />
-            )}
-            <RecentTransactions items={summary.recent_activity} isPrivate={isPrivate} />
+          <section className="dashboard-columns mt-4" aria-label="Dashboard details">
+            <div className="dashboard-stack dashboard-main-stack">
+              <div className="dashboard-card dashboard-money-flow">
+                <MoneyFlowCard report={report ?? undefined} isPrivate={isPrivate} />
+              </div>
+              <div className="dashboard-card dashboard-due-dates">
+                {scheduleLoading ? (
+                  <SkeletonCard className="min-h-[280px]">
+                    <SkeletonText className="w-28" />
+                    <SkeletonBlock className="mt-5 h-52 w-full" />
+                  </SkeletonCard>
+                ) : (
+                  <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
+                )}
+              </div>
+              <div className="dashboard-card dashboard-upcoming-bills">
+                {scheduleLoading ? (
+                  <ListSkeleton rows={2} />
+                ) : (
+                  <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />
+                )}
+              </div>
+            </div>
+            <div className="dashboard-stack dashboard-secondary-stack">
+              <div className="dashboard-card dashboard-budget-insight">
+                <BudgetUsedCard budget={budget ?? undefined} insight={summary.ai_insight} isPrivate={isPrivate} />
+              </div>
+              <div className="dashboard-card dashboard-top-spending">
+                <TopSpendingCard report={monthlyReport ?? undefined} isPrivate={isPrivate} />
+              </div>
+              <div className="dashboard-card dashboard-recent-transactions">
+                <RecentTransactions items={summary.recent_activity} isPrivate={isPrivate} />
+              </div>
+            </div>
           </section>
         </>
       ) : null}
