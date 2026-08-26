@@ -2,7 +2,10 @@ import { Children, useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Keyboard,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +26,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import {
   SafeAreaView as NativeSafeAreaView,
   type SafeAreaViewProps,
+  useSafeAreaInsets,
 } from 'react-native-safe-area-context';
 
 import {
@@ -748,6 +752,7 @@ export function EditWalletSheet({
   onSaved: () => Promise<void>;
 }) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState(wallet.name);
   const [defaultFee, setDefaultFee] = useState(
     wallet.default_outgoing_transfer_fee == null
@@ -809,6 +814,11 @@ export function EditWalletSheet({
           onPress={onClose}
           style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.overlay }]}
         />
+        <KeyboardAvoidingView
+          style={editStyles.keyboard}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
+        >
         <View
           style={[editStyles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
         >
@@ -825,11 +835,19 @@ export function EditWalletSheet({
               <Text style={[editStyles.closeText, { color: colors.textPrimary }]}>×</Text>
             </Pressable>
           </View>
+          <ScrollView
+            style={editStyles.formScroll}
+            contentContainerStyle={[editStyles.formContent, { paddingBottom: insets.bottom + 24 }]}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="none"
+            showsVerticalScrollIndicator={false}
+          >
           <Text style={[editStyles.label, { color: colors.textSecondary }]}>Wallet name</Text>
           <TextInput
             accessibilityLabel="Wallet name"
             value={name}
             onChangeText={setName}
+            returnKeyType="next"
             placeholder="e.g. Payroll account"
             placeholderTextColor={colors.textMuted}
             style={[
@@ -870,6 +888,8 @@ export function EditWalletSheet({
             onChangeText={setDefaultFee}
             placeholder="0"
             keyboardType="decimal-pad"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             placeholderTextColor={colors.textMuted}
             style={[
               editStyles.input,
@@ -889,6 +909,8 @@ export function EditWalletSheet({
             onChangeText={setAnnualInterestRate}
             placeholder="e.g. 3.5"
             keyboardType="decimal-pad"
+            returnKeyType="done"
+            onSubmitEditing={Keyboard.dismiss}
             placeholderTextColor={colors.textMuted}
             style={[
               editStyles.input,
@@ -915,7 +937,9 @@ export function EditWalletSheet({
               {saving ? 'Saving…' : 'Save changes'}
             </Text>
           </Pressable>
+          </ScrollView>
         </View>
+        </KeyboardAvoidingView>
       </View>
     </Modal>
   );
@@ -1589,7 +1613,8 @@ void CustomWalletSheet;
 
 const editStyles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 420, padding: 20, borderRadius: 24, borderWidth: 1 },
+  keyboard: { width: '100%', height: '88%', maxWidth: 420, maxHeight: '92%', flexShrink: 1, minHeight: 0 },
+  card: { width: '100%', height: '100%', maxHeight: '100%', flexShrink: 1, minHeight: 0, padding: 20, borderRadius: 24, borderWidth: 1 },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   eyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   title: { marginTop: 4, fontSize: 22, fontWeight: '900' },
@@ -1601,6 +1626,8 @@ const editStyles = StyleSheet.create({
     borderRadius: 20,
   },
   closeText: { fontSize: 27, lineHeight: 29 },
+  formScroll: { flex: 1, flexShrink: 1 },
+  formContent: { flexGrow: 1 },
   label: { marginTop: 24, marginBottom: 7, fontSize: 11, fontWeight: '900' },
   input: { minHeight: 54, paddingHorizontal: 15, borderRadius: 16, borderWidth: 1, fontSize: 15 },
   choiceRow: { flexDirection: 'row', gap: 8 },
