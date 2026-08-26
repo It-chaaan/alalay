@@ -39,9 +39,9 @@ import { NotificationHeaderButton } from '@/components/notification-header-butto
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
-import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { filterSubscriptions } from '@/utils/subscription-search';
+import { getCategoryMeta } from '@/constants/categories';
 
 type Sub = {
   id: string;
@@ -342,7 +342,7 @@ export default function Subscriptions() {
                   ]}
                 >
                   <View style={styles.subTop}>
-                    <BrandLogo name={row.name} entity="subscription" size={42} />
+                    {(() => { const meta = getCategoryMeta(row.category ?? row.custom_category); const CategoryIcon = meta.icon; return <View accessible={false} style={[styles.categoryIcon, { backgroundColor: meta.tint }]}><CategoryIcon size={22} color={meta.color} strokeWidth={2} /></View>; })()}
                     <View style={styles.main}>
                       <Text style={[styles.name, { color: colors.textPrimary }]}>{row.name}</Text>
                       <Text style={[styles.muted, { color: colors.textSecondary }]}>
@@ -696,6 +696,13 @@ function makeStyles(themePalette: typeof formPalette) {
       justifyContent: 'center',
       borderRadius: 14,
       backgroundColor: formPalette.accentPale,
+    },
+    categoryIcon: {
+      width: 42,
+      height: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
     },
     main: { flex: 1, marginLeft: 11 },
     name: { color: formPalette.ink, fontSize: 15, fontWeight: '900' },

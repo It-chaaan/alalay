@@ -500,8 +500,8 @@ export function OcrScannerPage({ session, onSignOut }: { session: Session; onSig
   return (
     <DashboardShell
       activeLabel="OCR Scanner"
-      title="OCR Scanner"
-      subtitle="Scan a receipt to log expenses automatically"
+      title="Receipt Scanner"
+      subtitle="Capture transaction details from receipts"
       name={name}
       onSignOut={onSignOut}
     >

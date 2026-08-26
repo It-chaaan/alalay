@@ -1,6 +1,20 @@
 import type { ReactNode } from "react";
 import { QuickActions } from "../dashboard/QuickActions";
 import { DashboardSidebar } from "../navigation/DashboardSidebar";
+import { DesktopPageHeader } from "./DesktopPageHeader";
+
+const defaultSubtitles: Record<string, string> = {
+  "AI Assistant": "Your financial companion",
+  Bills: "Track upcoming, paid, and overdue bills",
+  Budget: "Plan how your monthly income is allocated",
+  Expenses: "Review and manage your spending",
+  Goals: "Build and monitor your savings goals",
+  Income: "Track earnings and income sources",
+  Reports: "Understand your financial activity and progress",
+  Settings: "Manage your account and preferences",
+  Subscriptions: "Manage recurring payments and renewals",
+  Wallets: "Manage all your money in one place",
+};
 
 export function DashboardShell({
   activeLabel,
@@ -8,7 +22,10 @@ export function DashboardShell({
   subtitle,
   action,
   headerBottom,
-  stickyHeader = false,
+  stickyHeaderBottom = false,
+  searchData,
+  backHref,
+  backLabel,
   children,
   secondaryAction,
   footerNote,
@@ -21,7 +38,14 @@ export function DashboardShell({
   subtitle?: ReactNode;
   action?: ReactNode;
   headerBottom?: ReactNode;
-  stickyHeader?: boolean;
+  stickyHeaderBottom?: boolean;
+  searchData?: {
+    wallets: Array<{ name: string }>;
+    bills: Array<{ title: string }>;
+    subscriptions: Array<{ name: string }>;
+  };
+  backHref?: string;
+  backLabel?: string;
   children: ReactNode;
   secondaryAction?: ReactNode;
   footerNote?: ReactNode;
@@ -34,17 +58,12 @@ export function DashboardShell({
       <DashboardSidebar activeLabel={activeLabel} name={name} onSignOut={onSignOut} footerNote={footerNote} />
       <section className="mx-auto min-w-0 flex-1 px-5 py-8 sm:px-8 lg:overflow-y-auto lg:px-12">
         <div className="mx-auto w-full max-w-[1480px]">
-        {!hideHeader ? (
-          <header className={`mb-7 ${stickyHeader ? 'sticky top-0 z-30 border-b border-slate-200 bg-app-background/95 pb-5 backdrop-blur dark:border-slate-700' : ''}`}>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">{title}</h1>
-                {subtitle ? <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
-              </div>
-              <div className="flex items-center gap-3">{secondaryAction}{action}</div>
-            </div>
-            {headerBottom ? <div className="mt-5">{headerBottom}</div> : null}
-          </header>
+        {!hideHeader ? <DesktopPageHeader title={title} subtitle={subtitle ?? defaultSubtitles[activeLabel]} searchData={searchData} backHref={backHref} backLabel={backLabel} /> : null}
+        {secondaryAction || action ? <div className="mb-7 flex flex-wrap items-center justify-end gap-3">{secondaryAction}{action}</div> : null}
+        {headerBottom ? (
+          <div className={stickyHeaderBottom ? "sticky top-0 z-20 mb-7 py-1" : "mb-7"}>
+            {headerBottom}
+          </div>
         ) : null}
         {children}
         </div>

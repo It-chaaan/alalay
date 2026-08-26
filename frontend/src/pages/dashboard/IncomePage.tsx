@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { IncomeFormPanel } from "../../components/forms/FinancialActionPanels";
 import { DashboardShell } from "../../components/layout/DashboardShell";
+import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
+import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useIncome } from "../../hooks/useIncome";
 import { useIncomeSummary } from "../../hooks/useIncomeSummary";
@@ -238,18 +240,9 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     <DashboardShell
       activeLabel="Income"
       title="Income"
-      subtitle={`All sources - ${monthLabel}`}
+      subtitle="Track earnings and income sources"
       name={name}
       onSignOut={onSignOut}
-      action={
-        <button
-          type="button"
-          onClick={addIncomeDialog.open}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"
-        >
-          <span className="text-xl leading-none">+</span>Add income source
-        </button>
-      }
     >
 {isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
@@ -257,26 +250,14 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records yet. Add an income source to start tracking earnings.</div> : null}
       {!isLoading && !error && rows.length > 0 ? (
         <>
-      <section className="grid gap-4 md:grid-cols-4">
-        {[
-          { label: "This month", value: thisMonthTotal, note: "Current month" },
-          { label: "Sources", value: bySource.length, note: "Active income sources", count: true },
-          { label: "YTD earnings", value: ytd, note: "This year" },
-          { label: "Avg / month", value: ytd / Math.max(1, new Date().getMonth() + 1), note: "Year average" },
-        ].map((item) => (
-          <article key={item.label} className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-xs text-slate-500">{item.label}</p>
-            <p className="mt-4 font-mono text-xl font-bold text-slate-950">{item.count ? item.value : formatCurrency(item.value)}</p>
-            <p className="mt-1 text-xs text-slate-500">{item.note}</p>
-          </article>
-        ))}
-      </section>
+      <FinancialOverviewCard label="Income overview" period={monthLabel} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income this month" metrics={[{ label: 'Active sources', value: String(bySource.length) }, { label: 'Year to date', value: formatCurrency(ytd) }, { label: 'Average / month', value: formatCurrency(ytd / Math.max(1, new Date().getMonth() + 1)) }]} />
 
       <section className="mt-5">
         <IncomeChart entries={rows} today={today} />
       </section>
 
-      <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
+      <section className="mt-6"><SectionToolbar title="Income activity" description="Manage sources and review recorded income"><button type="button" onClick={addIncomeDialog.open} className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Add income source</button></SectionToolbar></section>
+      <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
         <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
           <h2 className="text-sm font-semibold text-slate-950">Income sources</h2>
           <div className="mt-4 space-y-3">

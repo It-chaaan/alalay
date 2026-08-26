@@ -1,6 +1,5 @@
 import type { Session } from '@supabase/supabase-js';
 import {
-  Bell,
   CalendarDays,
   ChevronLeft,
   ChevronRight,
@@ -8,7 +7,6 @@ import {
   EyeOff,
   Landmark,
   Receipt,
-  Search,
   TrendingDown,
   TrendingUp,
   WalletCards,
@@ -989,90 +987,6 @@ function RecentTransactions({
   );
 }
 
-function DashboardUtilities({
-  wallets,
-  bills,
-  subscriptions,
-}: {
-  wallets: Wallet[];
-  bills: Bill[];
-  subscriptions: Subscription[];
-}) {
-  const [query, setQuery] = useState('');
-  const { data: unread } = useApiQuery<{ count: number }>('/notifications/unread-count');
-  const normalizedQuery = query.trim().toLowerCase();
-  const matches = normalizedQuery
-    ? [
-        ...wallets
-          .filter((wallet) => wallet.name.toLowerCase().includes(normalizedQuery))
-          .map((wallet) => ({ label: wallet.name, group: 'Wallets', href: '/app/wallets' })),
-        ...bills
-          .filter((bill) => bill.title.toLowerCase().includes(normalizedQuery))
-          .map((bill) => ({ label: bill.title, group: 'Bills', href: '/app/bills' })),
-        ...subscriptions
-          .filter((subscription) => subscription.name.toLowerCase().includes(normalizedQuery))
-          .map((subscription) => ({
-            label: subscription.name,
-            group: 'Subscriptions',
-            href: '/app/subscriptions',
-          })),
-      ].slice(0, 6)
-    : [];
-
-  return (
-    <div className="flex items-center gap-2">
-      <div className="relative hidden sm:block">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-        <input
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Escape') setQuery('');
-          }}
-          placeholder="Search wallets, bills…"
-          aria-label="Search wallets, bills, and subscriptions"
-          className="h-10 w-56 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-950 outline-none transition focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
-        />
-        {normalizedQuery ? (
-          <div className="absolute right-0 top-12 z-30 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-            {matches.length ? (
-              matches.map((match, index) => (
-                <a
-                  key={`${match.group}-${match.label}-${index}`}
-                  href={match.href}
-                  className="block rounded-lg px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
-                >
-                  <span className="block text-xs text-slate-400">{match.group}</span>
-                  <span className="block truncate text-sm font-medium">{match.label}</span>
-                </a>
-              ))
-            ) : (
-              <p className="px-3 py-3 text-sm text-slate-500">No dashboard matches.</p>
-            )}
-          </div>
-        ) : null}
-      </div>
-      <a
-        href="/app/settings"
-        aria-label={
-          unread?.count
-            ? 'Open settings notifications: unread notifications'
-            : 'Open notification settings'
-        }
-        className="relative grid h-10 w-10 place-items-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
-      >
-        <Bell className="h-4 w-4" />
-        {unread?.count ? (
-          <span
-            className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500"
-            aria-hidden="true"
-          />
-        ) : null}
-      </a>
-    </div>
-  );
-}
-
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const greeting = getPhilippineGreeting();
@@ -1115,15 +1029,9 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
       activeLabel="Dashboard"
       title={`${greeting}, ${name.trim().split(' ')[0]}!`}
       subtitle={formattedDate}
+      searchData={{ wallets: wallets ?? [], bills: bills ?? [], subscriptions: subscriptions ?? [] }}
       name={name}
       onSignOut={onSignOut}
-      action={
-        <DashboardUtilities
-          wallets={wallets ?? []}
-          bills={bills ?? []}
-          subscriptions={subscriptions ?? []}
-        />
-      }
     >
       {isLoading ? (
         <>

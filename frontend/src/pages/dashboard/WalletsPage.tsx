@@ -2,8 +2,6 @@ import type { Session } from '@supabase/supabase-js';
 import {
   ArrowLeftRight,
   ArrowRight,
-  ArrowLeft,
-  Bell,
   BarChart3,
   CreditCard,
   ChevronRight,
@@ -74,6 +72,17 @@ function getName(session: Session) {
   return session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
 }
 
+function BalanceAmount({ value, hidden }: { value: number; hidden: boolean }) {
+  const formatted = formatCurrency(value, true);
+  const amount = formatted.replace(/^₱\s?/, '');
+  return hidden ? <span aria-label="Wallet balance hidden">••••••</span> : <span className="inline-flex items-baseline gap-2"><span aria-hidden="true">₱</span><span>{amount}</span></span>;
+}
+
+function AddWalletTemplate({ onAdd, list = false }: { onAdd: () => void; list?: boolean }) {
+  if (list) return <button type="button" onClick={onAdd} className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/40 px-5 text-left text-brand-dark transition hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/40"><Plus className="h-5 w-5" aria-hidden="true" /><span><span className="block text-sm font-semibold">Add wallet</span><span className="block text-xs text-slate-500">Create a new wallet</span></span></button>;
+  return <button type="button" onClick={onAdd} aria-label="Add a new wallet" className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/30 p-5 text-center text-brand-dark transition hover:-translate-y-0.5 hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/50"><Plus className="h-8 w-8" aria-hidden="true" /><span className="mt-3 font-semibold">Add wallet</span><span className="mt-1 text-xs text-slate-500">Create a new wallet</span></button>;
+}
+
 function requestKey() {
   return globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`;
 }
@@ -131,7 +140,7 @@ function WalletCard({
       </div>
       <div className="wallet-card-balance mt-5">
         <p className="font-mono text-xl font-bold text-slate-950 dark:text-white">
-          {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance), true)}
+    {isPrivate ? '••••••' : <BalanceAmount value={Number(wallet.balance)} hidden={false} />}
         </p>
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">
           {isCredit ? 'Outstanding' : 'Balance'}
@@ -214,7 +223,7 @@ function WalletList({
             <p
               className={`font-mono text-sm font-bold md:text-base ${isCredit ? 'text-rose-600' : 'text-slate-950 dark:text-white'}`}
             >
-              {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance), true)}
+              {isPrivate ? '••••••' : <BalanceAmount value={Number(wallet.balance)} hidden={false} />}
             </p>
             <span
               className={`justify-self-end rounded-full px-2.5 py-1 text-[11px] font-semibold md:justify-self-start ${isCredit ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'}`}
@@ -323,20 +332,17 @@ function WalletFilterPopover({
 }
 
 function WalletQuickActions({
-  onAdd,
   onTransfer,
   onRecordLoan,
   onRepayment,
   onLoansOverview,
 }: {
-  onAdd: () => void;
   onTransfer: () => void;
   onRecordLoan: () => void;
   onRepayment: () => void;
   onLoansOverview: () => void;
 }) {
   const actions = [
-    { label: 'Add wallet', helper: 'New account', icon: Plus, onClick: onAdd },
     { label: 'Transfer money', helper: 'Move funds', icon: ArrowLeftRight, onClick: onTransfer },
     { label: 'Record loan', helper: 'Lend or borrow', icon: HandCoins, onClick: onRecordLoan },
     { label: 'Make repayment', helper: 'Pay or receive', icon: WalletCards, onClick: onRepayment },
@@ -1395,14 +1401,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       subtitle="Manage all your money in one place"
       name={getName(session)}
       onSignOut={onSignOut}
-      hideHeader
     >
       <div className="wallet-page">
-      <header className="wallet-page-header">
-        <a href="/app" className="wallet-icon-button" aria-label="Back to home"><ArrowLeft aria-hidden="true" /></a>
-        <div className="wallet-page-heading"><h1>Wallets</h1><p>Manage all your money in one place</p></div>
-        <a href="/app/settings" className="wallet-icon-button wallet-notification-button" aria-label="Open notification settings"><Bell aria-hidden="true" /><span aria-hidden="true" /></a>
-      </header>
       {walletsQuery.isLoading ? (
         <>
           <PageSkeleton kind="budget" />
@@ -1421,7 +1421,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
               </p>
               <div className="mt-5 flex items-center justify-between gap-3">
                 <p className="font-mono text-4xl font-bold">
-                  {isPrivate ? '••••••' : formatCurrency(liquidBalance, true)}
+                  <BalanceAmount value={liquidBalance} hidden={isPrivate} />
                 </p>
                 <button
                   type="button"
@@ -1459,7 +1459,6 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
             />
           </section>
           <WalletQuickActions
-            onAdd={() => setIsAddWalletOpen(true)}
             onTransfer={() => setIsTransferOpen(true)}
             onRecordLoan={() => setLoanDialog('record')}
             onRepayment={() => setLoanDialog('repayment')}
@@ -1468,7 +1467,6 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           <section className="wallet-wallets-section mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
               <h2 className="wallet-section-title font-semibold">Your wallets</h2>
-              <button type="button" onClick={() => setIsAddWalletOpen(true)} className="wallet-add-button inline-flex min-h-11 items-center gap-2 rounded-full px-5 font-semibold"><Plus className="h-5 w-5" /> Add wallet</button>
               <DataToolbar className="justify-end">
                 <SearchField
                   value={search}
@@ -1540,8 +1538,9 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                       onRepay={setCreditRepaymentWallet}
                     />
                   ))}
+                  <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />
                 </div>
-              ) : (
+              ) : <>
                 <WalletList
                   wallets={visibleWallets}
                   isPrivate={isPrivate}
@@ -1549,7 +1548,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                   onDelete={setDeletingWallet}
                   onRepay={setCreditRepaymentWallet}
                 />
-              )
+                <AddWalletTemplate list onAdd={() => setIsAddWalletOpen(true)} />
+              </>
             ) : wallets.length ? (
               <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
                 <p className="font-semibold text-slate-700 dark:text-slate-200">
@@ -1567,7 +1567,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                   Clear filters
                 </button>
               </div>
-            ) : null}
+            ) : <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />}
             <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-slate-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-slate-300">
               <p className="font-semibold text-slate-900 dark:text-white">
                 Wallets are where your money or liability lives.

@@ -8,7 +8,7 @@ import type { ComponentPropsWithoutRef } from "react";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { type AiLanguage, useAiAssistant, useAiChat } from "../../hooks/useAiAssistant";
 import { isSafeMarkdownUrl } from "../../utils/markdownSecurity";
-import { SkeletonText, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { SlowLoadNotice } from "../../components/ui/Skeleton";
 
 const aiPromptSuggestions = [
   "How much did I spend this month?",
@@ -65,7 +65,6 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
   const [draft, setDraft] = useState("");
   const { messages, sendMessage, clearMessages, isStreaming, error } = useAiChat(session.user.id, language);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
-  const isConfigured = status?.status === "configured";
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -89,20 +88,9 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
   }
 
   return (
-    <DashboardShell activeLabel="AI Assistant" title="AI Assistant" name={name} onSignOut={onSignOut} hideHeader>
+    <DashboardShell activeLabel="AI Assistant" title="Ask Alalay" subtitle="Your financial companion" name={name} onSignOut={onSignOut}>
       <section className="flex min-h-[calc(100vh-64px)] flex-col">
-        <header className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 pb-5">
-          <div className="flex items-center gap-3">
-            <AlalayMark />
-            <div>
-              <h1 className="page-header-title text-base font-semibold text-slate-950">Alalay AI</h1>
-              <p className="page-header-subtitle flex items-center gap-1.5 text-xs text-slate-500">
-                <span className={`h-1.5 w-1.5 rounded-full ${isConfigured ? "bg-[#3f7d16]" : "bg-amber-500"}`} />
-                {isStatusLoading ? <SkeletonText className="inline-block w-28 align-middle" /> : isConfigured ? `${status.provider} - ${status.model}` : "AI backend not configured"}
-              </p>
-            </div>
-          </div>
-
+        <div className="flex flex-wrap justify-end gap-2 border-b border-slate-200 pb-5">
           <div className="flex flex-wrap items-center gap-2">
             <div className="inline-flex rounded-xl border border-slate-200 bg-white p-0.5 text-xs">
               {languageOptions.map((option) => (
@@ -126,7 +114,7 @@ export function AiAssistantPage({ session, onSignOut }: { session: Session; onSi
               <Trash2 className="h-3.5 w-3.5" aria-hidden="true" /> Clear
             </button>
           </div>
-        </header>
+        </div>
 
         <section className="mt-4 rounded-xl border border-slate-200 bg-white p-4 text-xs leading-5 text-slate-600 shadow-sm">
           <div className="flex items-start gap-3">

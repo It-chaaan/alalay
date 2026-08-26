@@ -50,6 +50,7 @@ import {
   Wifi,
   type LucideIcon,
 } from 'lucide-react-native';
+import { evaluateAmountExpression, formatCalculatorExpression } from '@/utils/amount-calculator';
 
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
@@ -160,6 +161,7 @@ export function formatAmountForDisplay(value: string) {
 }
 
 const BACKSPACE_KEY = '\u232B';
+const calculatorOperators = new Set(['+', '-', '*', '/', '×', '÷']);
 export function NumericKeypad({
   value,
   onChange,
@@ -168,63 +170,63 @@ export function NumericKeypad({
   onChange: (value: string) => void;
 }) {
   const { colors } = useAppTheme();
-  const press = (key: string) => {
-    if (key === 'clear') {
-      onChange('');
-      return;
-    }
-    if (key === BACKSPACE_KEY) {
-      onChange(value.slice(0, -1));
-      return;
-    }
-    if (key === '00') {
-      onChange(value === '0' ? '0' : value + '00');
-      return;
-    }
-    if (/\d/.test(key)) {
-      onChange(value === '0' ? key : value + key);
-      return;
-    }
-  };
-
-  const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '00', '0', BACKSPACE_KEY];
+  const [expression, setExpression] = useState(value || '');
+  const [message, setMessage] = useState('');
+  const [evaluated, setEvaluated] = useState<number | null>(null);
+  const press = (key: string) => { setMessage(''); if (key === 'AC') { setExpression(''); setEvaluated(null); return; } if (key === BACKSPACE_KEY) { setExpression((current) => current.slice(0, -1)); setEvaluated(null); return; } if (key === '=') { const result = evaluateAmountExpression(expression); if (result.error) setMessage(result.error); else setEvaluated(result.value); return; } if (calculatorOperators.has(key)) { setExpression((current) => calculatorOperators.has(current.slice(-1)) ? current.slice(0, -1) + key : current + key); setEvaluated(null); return; } if (key === '.') { setExpression((current) => { const operand = current.split(/[+*/×÷-]/).pop() ?? ''; return operand.includes('.') ? current : current + (operand ? '.' : '0.'); }); setEvaluated(null); return; } setExpression((current) => current === '0' || evaluated !== null ? key : current + key); setEvaluated(null); };
+  const keys = [['⌫', 'AC', '', '÷'], ['7', '8', '9', '×'], ['4', '5', '6', '-'], ['1', '2', '3', '+'], ['0', '0', '.', '=']];
   return (
     <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
-      <View style={keypadStyles.row}>
-        <Text style={[keypadStyles.expression, { color: colors.textPrimary }]}>
-          {formatAmountForDisplay(value)}
-        </Text>
-      </View>
+      <View style={keypadStyles.display}><Text numberOfLines={1} style={[keypadStyles.expression, { color: colors.textSecondary }]}>{formatCalculatorExpression(expression) || '0'}</Text><Text style={[keypadStyles.result, { color: colors.textPrimary }]}>{formatAmountForDisplay(String(evaluated ?? evaluateAmountExpression(expression).value ?? 0))}</Text>{message ? <Text accessibilityRole="alert" style={[keypadStyles.message, { color: colors.danger }]}>{message}</Text> : null}</View>
       <View style={keypadStyles.grid}>
-        {keys.map((key) => {
-          const isBackspace = key === BACKSPACE_KEY;
-          const action = isBackspace || key === '00';
+        {keys.flatMap((row) => row).map((key, index) => {
+          if (!key) return <View key={`empty-${index}`} style={keypadStyles.key} />;
+          const isOperator = calculatorOperators.has(key) || key === '=';
+          const isAction = key === 'AC' || key === '⌫';
           return (
             <Pressable
               key={key}
               accessibilityRole="button"
-              accessibilityLabel={isBackspace ? 'Backspace' : key}
+              accessibilityLabel={key === 'AC' ? 'Clear all' : key === '⌫' ? 'Delete last character' : key === '.' ? 'Decimal point' : key === '=' ? 'Equals' : key === '+' ? 'Plus' : key === '-' ? 'Minus' : key === '×' ? 'Multiply' : key === '÷' ? 'Divide' : key}
               onPress={() => press(key)}
               style={({ pressed }) => [
                 keypadStyles.key,
-                { backgroundColor: action ? colors.accentPale : colors.surfaceSecondary },
+                { backgroundColor: isOperator ? colors.accent : isAction ? colors.surfaceSecondary : colors.surfaceSecondary },
                 pressed && keypadStyles.pressed,
               ]}
             >
               <Text
                 style={[
                   keypadStyles.keyText,
-                  { color: action ? colors.accent : colors.textPrimary },
+                  { color: isOperator ? colors.inverse : isAction ? colors.accent : colors.textPrimary },
                 ]}
               >
-                {isBackspace ? BACKSPACE_KEY : key}
+                {key}
               </Text>
             </Pressable>
           );
         })}
       </View>
+      <Pressable accessibilityRole="button" accessibilityLabel="Use calculated amount" disabled={evaluated === null && evaluateAmountExpression(expression).value === null} onPress={() => { const result = evaluated ?? evaluateAmountExpression(expression).value; if (result !== null && result > 0) { onChange(result.toFixed(2)); } else setMessage('Amount must be greater than ₱0.'); }} style={({ pressed }) => [keypadStyles.useAmount, { backgroundColor: colors.accent }, pressed && keypadStyles.pressed]}><Text style={{ color: colors.inverse, fontWeight: '900' }}>Use amount</Text></Pressable>
     </View>
   );
+}
+
+function CalculatorKeypadFixed({ value, onChange, onConfirm }: { value: string; onChange: (value: string) => void; onConfirm?: () => void }) {
+  const { colors } = useAppTheme();
+  const [expression, setExpression] = useState(value || '');
+  const [evaluated, setEvaluated] = useState<number | null>(null);
+  const [message, setMessage] = useState('');
+  const rows = [
+    { id: 'control-row', keys: [{ id: 'backspace', value: '⌫', span: 1 }, { id: 'clear-all', value: 'AC', span: 2 }, { id: 'divide', value: '÷', span: 1 }] },
+    { id: 'seven-nine-row', keys: [{ id: 'seven', value: '7', span: 1 }, { id: 'eight', value: '8', span: 1 }, { id: 'nine', value: '9', span: 1 }, { id: 'multiply', value: '×', span: 1 }] },
+    { id: 'four-six-row', keys: [{ id: 'four', value: '4', span: 1 }, { id: 'five', value: '5', span: 1 }, { id: 'six', value: '6', span: 1 }, { id: 'minus', value: '-', span: 1 }] },
+    { id: 'one-three-row', keys: [{ id: 'one', value: '1', span: 1 }, { id: 'two', value: '2', span: 1 }, { id: 'three', value: '3', span: 1 }, { id: 'plus', value: '+', span: 1 }] },
+    { id: 'zero-equals-row', keys: [{ id: 'zero', value: '0', span: 2 }, { id: 'decimal', value: '.', span: 1 }, { id: 'equals', value: '=', span: 1 }] },
+  ];
+  const press = (valueToPress: string) => { setMessage(''); if (valueToPress === 'AC') { setExpression(''); setEvaluated(null); return; } if (valueToPress === '⌫') { setExpression((current) => current.slice(0, -1)); setEvaluated(null); return; } if (valueToPress === '=') { const result = evaluateAmountExpression(expression); if (result.error) setMessage(result.error); else setEvaluated(result.value); return; } if (calculatorOperators.has(valueToPress)) { setExpression((current) => calculatorOperators.has(current.slice(-1)) ? current.slice(0, -1) + valueToPress : current + valueToPress); setEvaluated(null); return; } if (valueToPress === '.') { setExpression((current) => { const operand = current.split(/[+*/×÷-]/).pop() ?? ''; return operand.includes('.') ? current : current + (operand ? '.' : '0.'); }); setEvaluated(null); return; } setExpression((current) => evaluated !== null || current === '0' ? valueToPress : current + valueToPress); setEvaluated(null); };
+  const result = evaluated ?? evaluateAmountExpression(expression).value;
+  return <View style={[calculatorKeypadStyles.wrap, { backgroundColor: colors.surface }]}><View style={calculatorKeypadStyles.display}>{expression ? <Text numberOfLines={1} style={[calculatorKeypadStyles.expression, { color: colors.textSecondary }]}>{formatCalculatorExpression(expression)}</Text> : null}<Text style={[calculatorKeypadStyles.result, { color: colors.textPrimary }]}>₱{formatAmountForDisplay(String(result ?? 0))}</Text>{message ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 11 }}>{message}</Text> : null}</View><View style={calculatorKeypadStyles.grid}>{rows.map((row) => <View key={row.id} style={calculatorKeypadStyles.row}>{row.keys.map((key) => <Pressable key={key.id} accessibilityRole="button" accessibilityLabel={key.value === '⌫' ? 'Delete last character' : key.value === 'AC' ? 'Clear all' : key.value === '=' ? 'Equals' : key.value === '.' ? 'Decimal point' : key.value === '+' ? 'Plus' : key.value === '-' ? 'Minus' : key.value === '×' ? 'Multiply' : key.value === '÷' ? 'Divide' : key.value} onPress={() => press(key.value)} style={({ pressed }) => [calculatorKeypadStyles.key, key.span === 2 && calculatorKeypadStyles.wide, { backgroundColor: calculatorOperators.has(key.value) || key.value === '=' ? colors.primary : colors.surfaceSecondary }, pressed && calculatorKeypadStyles.pressed]}><Text style={{ color: calculatorOperators.has(key.value) || key.value === '=' ? colors.textOnPrimary : colors.textPrimary, fontSize: 20, fontWeight: '900' }}>{key.value}</Text></Pressable>)}</View>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Use calculated amount" disabled={result === null || result <= 0} onPress={() => { if (result !== null && result > 0) { onChange(result.toFixed(2)); onConfirm?.(); } }} style={({ pressed }) => [calculatorKeypadStyles.use, { backgroundColor: colors.primary }, pressed && calculatorKeypadStyles.pressed]}><Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Use amount</Text></Pressable></View>;
 }
 
 export function CategoryChipRow({
@@ -253,11 +255,13 @@ export function CategoryChipRow({
   const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
+  const selectedExtended = options.find((option) => option.label === value && !visibleOptions.some((item) => item.label === value));
+  const chipOptions = selectedExtended ? [...visibleOptions, selectedExtended] : visibleOptions;
   return (
     <View style={chipStyles.section}>
       <Text style={chipStyles.label}>{label}</Text>
       <View style={chipStyles.wrap}>
-        {visibleOptions.map(({ label: optionLabel }) => {
+        {chipOptions.map(({ label: optionLabel }) => {
           const meta = getCategoryMeta(optionLabel);
           const Icon = meta.icon;
           const warning = warningByLabel[optionLabel];
@@ -322,7 +326,7 @@ export function CategoryChipRow({
             <Plus size={17} color={colors.primary} />
             <Text style={[chipStyles.text, { color: colors.primary }]}>Add</Text>
           </Pressable>
-        ) : options.length > 6 ? (
+        ) : options.length > 6 && !selectedExtended ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setOpen(true)}
@@ -349,14 +353,14 @@ export function CategoryChipRow({
           onRequestClose={() => setOpen(false)}
         >
           <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
-            <Pressable style={pickerStyles.sheet} onPress={(event) => event.stopPropagation()}>
+            <Pressable style={[pickerStyles.sheet, { backgroundColor: colors.surface }]} onPress={(event) => event.stopPropagation()}>
               <View style={pickerStyles.header}>
                 <Text style={pickerStyles.title}>{label.replace(' *', '')}</Text>
                 <Pressable accessibilityRole="button" onPress={() => setOpen(false)}>
                   <Text style={pickerStyles.close}>×</Text>
                 </Pressable>
               </View>
-              <ScrollView contentContainerStyle={pickerStyles.list}>
+              <ScrollView style={pickerStyles.scroll} contentContainerStyle={pickerStyles.list} showsVerticalScrollIndicator>
                 {options.map(({ label: optionLabel, icon: Icon }) => (
                   <CategoryButton
                     key={optionLabel}
@@ -941,7 +945,7 @@ export function FinanceFormSheetLegacy({
               )}
             </Pressable>
           </ScrollView>
-          {!keyboardVisible && <NumericKeypad value={amount} onChange={onAmountChange} />}
+          {!keyboardVisible && <CalculatorKeypadFixed value={amount} onChange={onAmountChange} />}
         </View>
       </KeyboardAvoidingView>
     </View>
@@ -1038,7 +1042,7 @@ export function FinanceFormSheet({
               </ScrollView>
             </View>
           </FinanceFormInteractionContext.Provider>
-          <View
+          {!amountActive && <View
             style={[
               financeEntryStyles.footer,
               {
@@ -1069,9 +1073,9 @@ export function FinanceFormSheet({
                 </>
               )}
             </Pressable>
-          </View>
+          </View>}
           {amountActive && !keyboardVisible ? (
-            <NumericKeypad value={amount} onChange={onAmountChange} />
+            <CalculatorKeypadFixed value={amount} onChange={onAmountChange} onConfirm={deactivateAmount} />
           ) : null}
         </View>
       </KeyboardAvoidingView>
@@ -1125,6 +1129,19 @@ export function FormTextInput({
   );
 }
 
+const calculatorKeypadStyles = StyleSheet.create({
+  wrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14 },
+  display: { minHeight: 54, alignItems: 'flex-end', justifyContent: 'flex-end', marginBottom: 8 },
+  expression: { fontSize: 13, fontWeight: '800' },
+  result: { fontSize: 30, fontWeight: '900' },
+  grid: { gap: 8 },
+  row: { flexDirection: 'row', gap: 8 },
+  key: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
+  wide: { flex: 2 },
+  use: { minHeight: 44, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  pressed: { opacity: 0.68 },
+});
+
 const keypadStyles = StyleSheet.create({
   wrap: {
     paddingHorizontal: 16,
@@ -1134,6 +1151,9 @@ const keypadStyles = StyleSheet.create({
   },
   row: { alignItems: 'flex-end', minHeight: 28, marginBottom: 7 },
   expression: { color: formPalette.ink, fontSize: 13, fontWeight: '800' },
+  display: { alignItems: 'flex-end', minHeight: 58, marginBottom: 8 },
+  result: { fontSize: 29, fontWeight: '900' },
+  message: { marginTop: 3, fontSize: 11, fontWeight: '700' },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   key: {
     width: '31.5%',
@@ -1146,6 +1166,7 @@ const keypadStyles = StyleSheet.create({
   actionKey: { backgroundColor: formPalette.accentPale },
   keyText: { color: formPalette.ink, fontSize: 18, fontWeight: '800' },
   actionText: { color: formPalette.accentDark },
+  useAmount: { minHeight: 44, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   pressed: { opacity: 0.68 },
 });
 
@@ -1206,7 +1227,8 @@ const chipStyles = StyleSheet.create({
 
 const pickerStyles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' },
-  sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26 },
+  sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26, overflow: 'hidden' },
+  scroll: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 20, fontWeight: '900' },
   close: { fontSize: 28 },

@@ -17,6 +17,11 @@ export function useApiQuery<T>(path: string) {
   const [isSlowLoading, setIsSlowLoading] = useState(false);
 
   useEffect(() => {
+    if (!path) {
+      setState({ data: null, isLoading: false, error: null });
+      return;
+    }
+
     let isMounted = true;
 
     setState((current) => ({ ...current, isLoading: true, error: null }));

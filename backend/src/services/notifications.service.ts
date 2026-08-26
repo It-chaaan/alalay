@@ -35,3 +35,13 @@ export async function markNotificationsRead(userId: string) {
   const { error } = await client().from("notifications").update({ read: true, read_at: new Date().toISOString() }).eq("user_id", requireUserId(userId)).is("read_at", null);
   throwIfError(error);
 }
+
+export async function markNotificationRead(userId: string, notificationId: string) {
+  const { error } = await client().from("notifications").update({ read: true, read_at: new Date().toISOString() }).eq("id", notificationId).eq("user_id", requireUserId(userId));
+  throwIfError(error);
+}
+
+export async function markNotificationUnread(userId: string, notificationId: string) {
+  const { error } = await client().from("notifications").update({ read: false, read_at: null }).eq("id", notificationId).eq("user_id", requireUserId(userId));
+  throwIfError(error);
+}

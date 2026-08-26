@@ -429,15 +429,11 @@ export function WalletDetailsPage({
       activeLabel="Wallets"
       title="Wallet details"
       subtitle="Account overview and wallet-specific activity"
+      backHref="/app/wallets"
+      backLabel="Back to wallets"
       name={getName(session)}
       onSignOut={onSignOut}
     >
-      <a
-        href="/app/wallets"
-        className="mb-5 inline-flex min-h-10 items-center gap-2 rounded-xl pr-3 text-sm font-semibold text-slate-600 hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary/50 dark:text-slate-300"
-      >
-        <ArrowLeft className="h-4 w-4" aria-hidden="true" /> Back to wallets
-      </a>
       {detailQuery.isLoading ? (
         <>
           <PageSkeleton kind="budget" />

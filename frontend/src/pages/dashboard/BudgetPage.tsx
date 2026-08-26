@@ -1,7 +1,8 @@
 import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { Info } from "lucide-react";
 import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
+import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
+import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
@@ -99,48 +100,30 @@ function getFallbackGoalAllocations(
 
 function MonthPicker({ label, onPrevious, onNext }: { label: string; onPrevious: () => void; onNext: () => void }) {
   return (
-    <div className="inline-flex h-9 items-center gap-4 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-950 shadow-sm">
-      <button type="button" onClick={onPrevious} className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-50" aria-label="Previous month">
+    <div className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-2 text-xs text-white shadow-none">
+      <button type="button" onClick={onPrevious} className="grid h-7 w-7 place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70" aria-label="Previous month">
         <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m15 18-6-6 6-6" /></svg>
       </button>
-      <span>{label}</span>
-      <button type="button" onClick={onNext} className="grid h-7 w-7 place-items-center rounded-lg text-slate-500 transition hover:bg-slate-50" aria-label="Next month">
+      <span aria-live="polite">{label}</span>
+      <button type="button" onClick={onNext} className="grid h-7 w-7 place-items-center rounded-lg text-white/75 transition hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-white/70" aria-label="Next month">
         <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m9 18 6-6-6-6" /></svg>
       </button>
     </div>
   );
 }
 
-function FlowCard({ label, value, note, detail, tone = "default" }: { label: string; value: string; note?: string; detail?: string; tone?: "default" | "income" | "savings" | "warning" }) {
-  const [showDetails, setShowDetails] = useState(false);
-
+function BudgetAction({ label, monthLabel, onOpen, disabled = false }: { label: string; monthLabel: string; onOpen: () => void; disabled?: boolean }) {
   return (
-    <article className="h-full rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-center gap-1.5">
-        <p className="text-xs text-slate-500">{label}</p>
-        {detail ? (
-          <span className="group relative inline-flex">
-            <button
-              type="button"
-              onClick={() => setShowDetails((visible) => !visible)}
-              aria-label={`More information about ${label}`}
-              aria-expanded={showDetails}
-              className="rounded-full text-slate-400 transition hover:text-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-muted"
-            >
-              <Info className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-            <span
-              role="tooltip"
-              className={`${showDetails ? "block" : "hidden group-hover:block"} absolute left-0 top-6 z-10 w-64 rounded-lg border border-slate-200 bg-white p-3 text-xs leading-5 text-slate-700 shadow-lg`}
-            >
-              {detail}
-            </span>
-          </span>
-        ) : null}
-      </div>
-      <p className={`mt-3 font-mono text-xl font-bold ${tone === "income" ? "text-[#3f7d16]" : tone === "savings" ? "text-brand-primary" : tone === "warning" ? "text-[#c57a12]" : "text-slate-950"}`}>{value}</p>
-      {note ? <p className="mt-1 text-xs text-slate-500">{note}</p> : null}
-    </article>
+    <button
+      type="button"
+      onClick={onOpen}
+      disabled={disabled}
+      aria-label={`${label} for ${monthLabel}`}
+      className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+    >
+      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>
+      {label}
+    </button>
   );
 }
 
@@ -167,7 +150,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
   const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
   const budgetSummary = optimisticBudgetSummary ?? fetchedBudgetSummary;
-  const hasBudget = Boolean(budgetSummary);
   const monthLabel = getMonthLabel(selectedMonth);
   const goals = savingsGoals ?? [];
   const activeGoals = goals.filter((goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount));
@@ -191,7 +173,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       : Math.max(0, savingsBudget - goalAllocationTotal);
   const remainingSavingsLabel = budgetSummary?.remaining_savings_label ?? "Automatically move remaining savings into General Savings";
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
-  const categoryBudget = spendingCategories.reduce((sum, category) => sum + Number(category.budget), 0);
   const monthlyIncome = Number(incomeSummary?.this_month ?? budgetSummary?.monthly_income ?? 0);
   const budgetAmount = Number(budgetSummary?.budget_amount ?? budgetSummary?.total_budget ?? 0);
   const spentAmount = Number(budgetSummary?.spent_amount ?? budgetSummary?.total_spent ?? 0);
@@ -226,27 +207,37 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
     <DashboardShell
       activeLabel="Budget"
       title="Budget"
-      subtitle={`Monthly plan - ${monthLabel}`}
+      subtitle="Plan how your monthly income is allocated"
       name={name}
       onSignOut={onSignOut}
-      secondaryAction={<MonthPicker label={monthLabel} onPrevious={() => setSelectedMonth((month) => addMonthsToMonthKey(month, -1))} onNext={() => setSelectedMonth((month) => addMonthsToMonthKey(month, 1))} />}
-      action={
-        <button
-          type="button"
-          onClick={budgetDialog.open}
-          disabled={isLoading}
-          className="inline-flex h-9 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5L8 21H3v-5L16 3Z" /></svg>{hasBudget ? "Edit Budget" : "Create Budget"}
-        </button>
-      }
     >
 {isLoading ? <><PageSkeleton kind="budget" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
-      {!isLoading && !error && !budgetSummary ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div> : null}
+      {!isLoading && !error && !budgetSummary ? (
+        <section className="mt-5">
+          <SectionToolbar title="Budget plan">
+            <BudgetAction label="Create Budget" monthLabel={monthLabel} onOpen={budgetDialog.open} />
+          </SectionToolbar>
+          <div className="mt-4 rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div>
+        </section>
+      ) : null}
       {budgetSummary ? (
         <>
-      <section className="rounded-[14px] border border-emerald-200 bg-[#dff4ed] p-4 text-sm text-brand-dark dark:border-emerald-700 dark:bg-[#1d3a30] dark:text-brand-muted">
+      <FinancialOverviewCard
+        label="Budget overview"
+        period={<MonthPicker label={monthLabel} onPrevious={() => setSelectedMonth((month) => addMonthsToMonthKey(month, -1))} onNext={() => setSelectedMonth((month) => addMonthsToMonthKey(month, 1))} />}
+        primary={formatSignedCurrency(remainingBudget, "over")}
+        primaryLabel="Remaining budget"
+        metrics={[
+          { label: "Monthly income", value: formatCurrency(monthlyIncome) },
+          { label: "Budgeted amount", value: formatCurrency(budgetAmount) },
+          { label: "Spent", value: formatCurrency(spentAmount) },
+          { label: "Unallocated income", value: formatSignedCurrency(unallocatedIncome, "over") },
+          { label: "Saved this month", value: formatCurrency(savedAmount) },
+        ]}
+      />
+
+      <section className="mt-5 rounded-[14px] border border-emerald-200 bg-[#dff4ed] p-4 text-sm text-brand-dark dark:border-emerald-700 dark:bg-[#1d3a30] dark:text-brand-muted">
         <div className="flex gap-3">
           <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-primary text-white">
             <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v18M3 12h18M6 6l12 12M18 6 6 18" /></svg>
@@ -261,26 +252,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
             </p>
           </div>
         </div>
-      </section>
-
-      <section className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <FlowCard label="Monthly Income" value={formatCurrency(monthlyIncome)} note="Income received this month" tone="income" />
-        <FlowCard
-          label="Budgeted Amount"
-          value={formatCurrency(budgetAmount)}
-          note="Includes category budgets + savings budget"
-          detail={`${budgetHealth.budgeted_percent}% of income. ${formatCurrency(categoryBudget)} category budgets + ${formatCurrency(savingsBudget)} savings budget = ${formatCurrency(budgetAmount)} total.`}
-        />
-        <FlowCard label="Saved This Month" value={formatCurrency(savedAmount)} note="Monthly savings budget" tone="savings" />
-        <FlowCard label="Spent" value={formatCurrency(spentAmount)} note={`${budgetSummary.used_percent}% of budget`} />
-        <FlowCard label="Remaining Budget" value={formatSignedCurrency(remainingBudget, "over")} note="Budgeted amount minus spending" tone={remainingBudget < 0 ? "warning" : "savings"} />
-        <FlowCard
-          label="Unallocated Income"
-          value={formatSignedCurrency(unallocatedIncome, "over")}
-          note="Income not assigned to budget"
-          detail={`Monthly income (${formatCurrency(monthlyIncome)}) minus total planned budget (${formatCurrency(budgetAmount)}) = ${formatSignedCurrency(unallocatedIncome, "over")} unallocated.`}
-          tone={unallocatedIncome < 0 ? "warning" : "default"}
-        />
       </section>
 
       <section className="mt-5 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
@@ -358,11 +329,11 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
         )}
       </section>
 
-      <section className="mt-5 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-sm font-semibold">Category budgets</h2>
-          <p className="text-xs text-slate-500">Use Edit Budget to adjust</p>
-        </div>
+      <section className="mt-5">
+        <SectionToolbar title="Category budgets" count={spendingCategories.length}>
+          <BudgetAction label="Edit Budget" monthLabel={monthLabel} onOpen={budgetDialog.open} disabled={isLoading} />
+        </SectionToolbar>
+        <div className="mt-4 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="space-y-4">
           {spendingCategories.length === 0 ? (
             <p className="text-sm text-slate-500">No spending categories yet. Add category budgets from Edit Budget.</p>
@@ -386,6 +357,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
               </div>
             );
           })}
+        </div>
         </div>
       </section>
         </>

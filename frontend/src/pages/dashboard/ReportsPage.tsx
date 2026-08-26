@@ -1,6 +1,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { CalendarDays, Download } from "lucide-react";
 import { useMemo, useState, type ReactNode } from "react";
+import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
 import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useReports } from "../../hooks/useReports";
 import type { ReportPeriod, ReportsSummary } from "../../hooks/types";
@@ -14,9 +15,9 @@ const periodOptions: Array<{ label: string; value: ReportPeriod }> = [
   { label: "This month", value: "this_month" },
   { label: "Last month", value: "last_month" },
   { label: "Last 3 months", value: "last_3_months" },
-  { label: "Quarter", value: "quarter" },
-  { label: "YTD", value: "ytd" },
-  { label: "Custom", value: "custom" },
+  { label: "This quarter", value: "quarter" },
+  { label: "Year to date", value: "ytd" },
+  { label: "Custom range", value: "custom" },
 ];
 
 function getDisplayName(session: Session) {
@@ -76,6 +77,8 @@ function ReportControls({
   disabled,
   onPeriodChange,
   onCustomRangeChange,
+  onCustomApply,
+  onCustomCancel,
 }: {
   period: ReportPeriod;
   customRange: { from: string; to: string };
@@ -83,50 +86,55 @@ function ReportControls({
   disabled: boolean;
   onPeriodChange: (period: ReportPeriod) => void;
   onCustomRangeChange: (range: { from: string; to: string }) => void;
+  onCustomApply: () => void;
+  onCustomCancel: () => void;
 }) {
   return (
-    <div className="flex w-full max-w-full flex-col items-stretch gap-3 lg:items-end">
-      <div className="flex w-full max-w-full flex-wrap items-center justify-end gap-3">
-        <div className="max-w-full overflow-x-auto rounded-2xl border border-slate-200 bg-white p-1.5 text-xs text-slate-500 shadow-sm">
-          <div className="inline-flex min-w-max items-center gap-1">
-            {periodOptions.map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => onPeriodChange(option.value)}
-                className={`min-h-10 rounded-xl px-4 py-2 leading-5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 ${period === option.value ? "bg-brand-primary font-semibold text-white" : "hover:bg-slate-50 hover:text-slate-700"}`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <label className="sr-only" htmlFor="reports-period">Reporting period</label>
+      <div className="relative inline-flex items-center">
+        <CalendarDays aria-hidden="true" className="pointer-events-none absolute left-3 h-4 w-4 text-white/75" />
+        <select
+          id="reports-period"
+          value={period}
+          onChange={(event) => onPeriodChange(event.target.value as ReportPeriod)}
+          disabled={disabled}
+          className="h-9 appearance-none rounded-xl border border-white/20 bg-white/10 py-2 pl-9 pr-8 text-xs font-semibold text-white outline-none transition hover:bg-white/15 focus:ring-2 focus:ring-white/70"
+          aria-label="Reporting period"
+        >
+          {periodOptions.map((option) => <option key={option.value} value={option.value} className="text-slate-950">{option.value === "custom" && period === "custom" && report ? report.range.label : option.label}</option>)}
+        </select>
+        <span aria-hidden="true" className="pointer-events-none absolute right-3 text-white/75">⌄</span>
+      </div>
         <button
           type="button"
           onClick={() => report ? exportReport(report) : undefined}
           disabled={!report || disabled}
-          className="inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40 disabled:cursor-not-allowed disabled:opacity-50"
+          aria-label={`Export report for ${report?.range.label ?? "selected period"}`}
+          className="inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border border-white/25 bg-white/10 px-4 text-xs font-semibold text-white transition hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Download aria-hidden="true" className="h-4 w-4" />
           Export
         </button>
-      </div>
       {period === "custom" ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-600 shadow-sm">
-          <CalendarDays aria-hidden="true" className="h-4 w-4 text-slate-400" />
+        <div className="basis-full flex flex-wrap items-center justify-end gap-2 rounded-xl border border-white/20 bg-white/10 px-3 py-2 text-xs text-white/90">
           <input
             type="date"
             value={customRange.from}
             onChange={(event) => onCustomRangeChange({ ...customRange, from: event.target.value })}
-            className="h-8 rounded-lg border border-slate-200 px-2"
+            className="h-8 rounded-lg border border-white/20 bg-white px-2 text-slate-950"
+            aria-label="Custom range start date"
           />
           <span>to</span>
           <input
             type="date"
             value={customRange.to}
             onChange={(event) => onCustomRangeChange({ ...customRange, to: event.target.value })}
-            className="h-8 rounded-lg border border-slate-200 px-2"
+            className="h-8 rounded-lg border border-white/20 bg-white px-2 text-slate-950"
+            aria-label="Custom range end date"
           />
+          <button type="button" onClick={onCustomApply} disabled={disabled || !customRange.from || !customRange.to || customRange.to < customRange.from} className="rounded-lg bg-white px-3 py-2 font-semibold text-brand-dark disabled:cursor-not-allowed disabled:opacity-50">Apply</button>
+          <button type="button" onClick={onCustomCancel} disabled={disabled} className="rounded-lg px-2 py-2 font-semibold text-white/80 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 disabled:cursor-not-allowed disabled:opacity-50">Cancel</button>
         </div>
       ) : null}
     </div>
@@ -323,15 +331,37 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
   const defaultCustomRange = useMemo(getDefaultCustomRange, []);
   const [period, setPeriod] = useState<ReportPeriod>("this_month");
   const [customRange, setCustomRange] = useState(defaultCustomRange);
+  const [draftCustomRange, setDraftCustomRange] = useState(defaultCustomRange);
+  const [periodBeforeCustom, setPeriodBeforeCustom] = useState<ReportPeriod>("this_month");
   const [budgetFilter, setBudgetFilter] = useState<BudgetFilter>("all");
   const { data: report, isLoading, isSlowLoading, error } = useReports({ period, ...customRange });
   const categories = (report?.categories ?? []).map((category, index) => ({ ...category, color: getCategoryColor(category.name, index) }));
   const hasAnyFinancialData = report ? Object.entries(report.data_sources).some(([key, count]) => key !== "ai_insights" && count > 0) : false;
-  const reportsNavigation = report ? (
-    <nav className="flex min-h-14 gap-2 overflow-x-auto rounded-2xl border border-slate-200 bg-white/95 p-2 shadow-sm" aria-label="Report sections">
-      {["overview", "budget", "trends", "savings", "timeline"].map((section) => <a key={section} href={`#reports-${section}`} className="shrink-0 rounded-xl px-5 py-3 text-xs font-semibold capitalize text-slate-600 transition hover:bg-slate-50 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/40">{section}</a>)}
-    </nav>
-  ) : null;
+
+  function handlePeriodChange(nextPeriod: ReportPeriod) {
+    if (nextPeriod === "custom") {
+      setPeriodBeforeCustom(period);
+      setDraftCustomRange(customRange);
+      setPeriod("custom");
+      return;
+    }
+
+    setPeriod(nextPeriod);
+  }
+
+  function applyCustomRange() {
+    if (!draftCustomRange.from || !draftCustomRange.to || draftCustomRange.to < draftCustomRange.from) {
+      return;
+    }
+
+    setCustomRange(draftCustomRange);
+    setPeriod("custom");
+  }
+
+  function cancelCustomRange() {
+    setPeriod(periodBeforeCustom);
+    setDraftCustomRange(customRange);
+  }
 
   function showBudgetRows(filter: Exclude<BudgetFilter, "all">) {
     setBudgetFilter(filter);
@@ -342,21 +372,9 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
     <DashboardShell
       activeLabel="Reports"
       title="Reports"
-      subtitle={report ? report.range.label : "Financial analytics"}
+      subtitle="Understand your financial activity and progress"
       name={name}
       onSignOut={onSignOut}
-      stickyHeader
-      headerBottom={reportsNavigation}
-      action={
-        <ReportControls
-          period={period}
-          customRange={customRange}
-          report={report}
-          disabled={isLoading}
-          onPeriodChange={setPeriod}
-          onCustomRangeChange={setCustomRange}
-        />
-      }
     >
 {isLoading ? <><PageSkeleton kind="report" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
@@ -365,25 +383,30 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
 
       {report ? (
         <>
-          <section id="reports-overview" className="scroll-mt-40 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Total income" value={formatCurrency(report.total_income)} note={`${report.data_sources.income} income record${report.data_sources.income === 1 ? "" : "s"}`} tone="income" />
-            <StatCard label="Total expenses" value={formatCurrency(report.total_expenses)} note="Manual expenses, paid bills, and subscriptions" />
-            <StatCard label="Net savings" value={formatSignedCurrency(report.net_savings, "short")} note={`${report.savings_rate}% savings rate`} tone={report.net_savings < 0 ? "warning" : "savings"} />
-            <StatCard label="Budget utilization" value={`${report.budget_utilization}%`} note={`${formatSignedCurrency(report.remaining_budget, "over")} remaining`} tone={report.remaining_budget < 0 ? "warning" : "default"} />
-          </section>
+          <FinancialOverviewCard
+            label="Reports overview"
+            period={<ReportControls period={period} customRange={period === "custom" ? draftCustomRange : customRange} report={report} disabled={isLoading} onPeriodChange={handlePeriodChange} onCustomRangeChange={setDraftCustomRange} onCustomApply={applyCustomRange} onCustomCancel={cancelCustomRange} />}
+            primary={formatSignedCurrency(report.net_savings, "short")}
+            primaryLabel={`${report.savings_rate}% savings rate · Net savings`}
+            metrics={[
+              { label: "Total income", value: formatCurrency(report.total_income), tone: "text-emerald-100" },
+              { label: "Total expenses", value: formatCurrency(report.total_expenses) },
+              { label: "Budget utilization", value: `${report.budget_utilization}%` },
+              { label: "Average daily spend", value: formatCurrency(report.average_daily_spending) },
+              { label: "Bills paid", value: formatCurrency(report.total_bills_paid) },
+              { label: "Outstanding bills", value: formatCurrency(report.outstanding_bills) },
+              { label: "Subscriptions", value: formatCurrency(report.subscription_spending) },
+            ]}
+          />
 
-          <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Bills paid" value={formatCurrency(report.total_bills_paid)} note={`${report.data_sources.bills} bill${report.data_sources.bills === 1 ? "" : "s"} in range`} />
-            <StatCard label="Outstanding bills" value={formatCurrency(report.outstanding_bills)} tone={report.outstanding_bills > 0 ? "warning" : "default"} />
-            <StatCard label="Subscriptions" value={formatCurrency(report.subscription_spending)} note={`${report.data_sources.subscriptions} tracked subscription${report.data_sources.subscriptions === 1 ? "" : "s"}`} />
-            <StatCard label="Average daily spend" value={formatCurrency(report.average_daily_spending)} note={`${formatCurrency(report.average_weekly_spending)} weekly average`} />
-          </section>
-
-          <section className="mt-5">
+          <section id="reports-trend" className="mt-6">
+            <div className="mb-3"><h2 className="text-lg font-semibold">Financial trend</h2><p className="text-xs text-slate-500">Daily spending for {report.range.label}</p></div>
             <LineChart title={`Daily spending trend - ${report.range.label}`} values={report.charts.daily_spending} labelFormatter={formatDateShort} dateRange={report.range} />
           </section>
 
-          <section className="mt-5 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <section id="reports-expense-analysis" className="mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Expense analysis</h2>
+            <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Expense distribution</h2>
               <div className="mt-6 grid place-items-center">
@@ -395,9 +418,12 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
               </div>
             </article>
             <CategoryBreakdown categories={categories} />
+            </div>
           </section>
 
-          <section id="reports-budget" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
+          <section id="reports-budget-performance" className="mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Budget performance</h2>
+            <div className="grid gap-4 lg:grid-cols-2">
             <ComparisonBars title="Budget vs actual spending" rows={report.charts.budget_vs_actual} filter={budgetFilter} onClearFilter={() => setBudgetFilter("all")} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Budget integration</h2>
@@ -416,9 +442,12 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                 <p className="rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-600">General savings: <span className="font-mono font-semibold text-slate-950">{formatCurrency(report.budget.general_savings)}</span></p>
               </div>
             </article>
+            </div>
           </section>
 
-          <section id="reports-trends" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
+          <section id="reports-trends" className="mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Trend analysis</h2>
+            <div className="grid gap-4 lg:grid-cols-2">
             <LineChart title="Monthly spending trend" values={report.charts.monthly_spending.map((item) => ({ date: `${item.month}-01`, amount: item.amount }))} labelFormatter={formatMonthYear} />
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Income vs expenses</h2>
@@ -443,9 +472,12 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                 })}
               </div>
             </article>
+            </div>
           </section>
 
-          <section id="reports-savings" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
+          <section id="reports-savings-progress" className="mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Savings progress</h2>
+            <div className="grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
             <article className="rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="text-sm font-semibold">Savings goals</h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -491,11 +523,15 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
                 ))}
               </div>
             </article>
+            </div>
           </section>
 
-          <section id="reports-timeline" className="mt-5 scroll-mt-40 grid gap-4 lg:grid-cols-2">
-            <Timeline title="Bills timeline" rows={report.charts.bills_timeline} empty="No bills due in this date range." />
-            <Timeline title="Subscriptions timeline" rows={report.charts.subscriptions_timeline} empty="No subscription renewals in this date range." />
+          <section id="reports-timeline" className="mt-6">
+            <h2 className="mb-3 text-lg font-semibold">Bills and subscriptions timeline</h2>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <Timeline title="Bills timeline" rows={report.charts.bills_timeline} empty="No bills due in this date range." />
+              <Timeline title="Subscriptions timeline" rows={report.charts.subscriptions_timeline} empty="No subscription renewals in this date range." />
+            </div>
           </section>
         </>
       ) : null}

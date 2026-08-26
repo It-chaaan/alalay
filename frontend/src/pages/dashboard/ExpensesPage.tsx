@@ -15,6 +15,8 @@ import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { groupExpensesByDate } from "../../utils/expenseGrouping";
 import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
+import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
 
 type ExpenseListItem = Expense & { source: "expense" | "bill" };
 
@@ -109,34 +111,21 @@ const isSlowLoading = expensesSlow || billsSlow;
     <DashboardShell
       activeLabel="Expenses"
       title="Expenses"
+      subtitle="Review and manage your spending"
       name={name}
       onSignOut={onSignOut}
-      secondaryAction=
-      {<button
-          type="button"
-          onClick={() => window.location.assign("/app/ocr-scanner")}
-          className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-full border border-slate-200 bg-white px-6 py-2.5 text-sm font-medium min-w-20"
-        >
-          <Scan className="h-4 w-4" /> Scan receipt
-        </button>}
-      action={
-        <button
-          type="button"
-          onClick={() => {
-            setSelectedExpense(null);
-            logExpenseDialog.open();
-          }}
-          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          <span className="text-lg leading-none">+</span> Log expense
-        </button>
-      }
     >
-      <div className="grid gap-4 md:grid-cols-3">
-        <Stat label="Total spent" value={formatCurrency(total)} />
-        <Stat label="Categories" value={String(categories.length)} accent="text-green-600" />
-        <Stat label="Transactions" value={String(items.length)} accent="text-amber-600" />
-      </div>
+      <FinancialOverviewCard
+        label="Expenses overview"
+        period="All activity"
+        primary={formatCurrency(total)}
+        primaryLabel="Total spent"
+        metrics={[
+          { label: "Categories", value: String(categories.length) },
+          { label: "Transactions", value: String(items.length) },
+          { label: "Average transaction", value: formatCurrency(items.length ? total / items.length : 0) },
+        ]}
+      />
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-semibold">Spending by category</h2>
@@ -158,7 +147,14 @@ const isSlowLoading = expensesSlow || billsSlow;
         ) : null}
       </div>
 
-      <div className="mt-6 space-y-5">
+      <div className="mt-5">
+        <SectionToolbar title="Recent Expenses" count={items.length}>
+          <button type="button" onClick={() => window.location.assign("/app/ocr-scanner")} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Scan className="h-4 w-4" />Scan receipt</button>
+          <button type="button" onClick={() => { setSelectedExpense(null); logExpenseDialog.open(); }} className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><span className="text-lg leading-none">+</span>Log expense</button>
+        </SectionToolbar>
+      </div>
+
+      <div className="mt-4 space-y-5">
 {isLoading ? <><PageSkeleton kind="list" /><SlowLoadNotice show={isSlowLoading} /></> : null}
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
         {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
@@ -217,8 +213,4 @@ const isSlowLoading = expensesSlow || billsSlow;
       />
     </DashboardShell>
   );
-}
-
-function Stat({ label, value, accent }: { label: string; value: string; accent?: string }) {
-  return <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"><div className="text-sm text-slate-500">{label}</div><div className={`mt-2 text-2xl font-bold ${accent || ""}`}>{value}</div></div>;
 }

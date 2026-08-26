@@ -17,28 +17,58 @@ export type SharedCategoryMeta = {
   color: string;
   tint: string;
   group: CategoryGroup;
+  transactionTypes: Array<'expense' | 'budget' | 'bill' | 'subscription' | 'income'>;
+  sortOrder: number;
+  isSystem: boolean;
+  isActive: boolean;
 };
 
-const palettes: Record<CategoryGroup, Pick<SharedCategoryMeta, 'color' | 'tint'>> = {
-  everyday: { color: '#5B9B73', tint: '#E3F2E8' },
-  home: { color: '#C98228', tint: '#FFF0D8' },
-  transportation: { color: '#5D8FC4', tint: '#E2EFFB' },
-  health: { color: '#D96C80', tint: '#FBE3E8' },
-  education: { color: '#6675C7', tint: '#E8EAFF' },
-  financial: { color: '#60758A', tint: '#E7EDF2' },
-  lifestyle: { color: '#9B6BD6', tint: '#F0E6FF' },
-  family: { color: '#A66BB8', tint: '#F0E5F5' },
-  work: { color: '#2D9C95', tint: '#DDF3F0' },
-  other: { color: '#8B8B8B', tint: '#ECECEC' },
-};
+function hashCategoryKey(value: string) {
+  return [...value].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 7);
+}
+
+function hslToHex(hue: number, saturation: number, lightness: number) {
+  const chroma = (1 - Math.abs((2 * lightness) - 1)) * saturation;
+  const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
+  const match = lightness - (chroma / 2);
+  const rgb = hue < 60 ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x]
+    : hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
+  return `#${rgb.map((value) => Math.round((value + match) * 255).toString(16).padStart(2, '0')).join('')}`;
+}
+
+function categoryColor(key: string) {
+  const hash = hashCategoryKey(key);
+  const saturation = 0.46 + ((hash >>> 8) % 18) / 100;
+  const lightness = 0.38 + ((hash >>> 16) % 14) / 100;
+  return hslToHex(hash % 360, saturation, lightness);
+}
+
+function categoryTint(key: string) {
+  const hash = hashCategoryKey(key);
+  const saturation = 0.48 + ((hash >>> 8) % 16) / 100;
+  return hslToHex(hash % 360, saturation, 0.93);
+}
 
 function category(
   key: string,
   label: string,
   iconKey: string,
   group: CategoryGroup,
+  transactionTypes: SharedCategoryMeta['transactionTypes'] = ['expense', 'budget'],
+  sortOrder = 0,
 ): SharedCategoryMeta {
-  return { key, label, iconKey, group, ...palettes[group] };
+  return {
+    key,
+    label,
+    iconKey,
+    group,
+    color: categoryColor(key),
+    tint: categoryTint(key),
+    transactionTypes,
+    sortOrder,
+    isSystem: true,
+    isActive: true,
+  };
 }
 
 export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.fromEntries(
@@ -46,15 +76,15 @@ export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.f
     category('essentials', 'Essentials', 'package', 'everyday'),
     category('food', 'Food', 'utensils', 'everyday'),
     category('groceries', 'Groceries', 'shopping-basket', 'everyday'),
-    category('dining-out', 'Dining Out', 'utensils', 'everyday'),
+    category('dining-out', 'Dining Out', 'utensils-crossed', 'everyday'),
     category('coffee-cafes', 'Coffee / Cafes', 'coffee', 'everyday'),
-    category('household', 'Household', 'package', 'everyday'),
+    category('household', 'Household', 'home', 'everyday'),
     category('clothing', 'Clothing', 'shirt', 'everyday'),
     category('shopping', 'Shopping', 'shopping-bag', 'everyday'),
     category('personal-care', 'Personal Care', 'sparkles', 'everyday'),
     category('housing-rent', 'Housing / Rent', 'house', 'home'),
-    category('rent', 'Rent', 'house', 'home'),
-    category('mortgage', 'Mortgage', 'house', 'home'),
+    category('rent', 'Rent', 'building-2', 'home'),
+    category('mortgage', 'Mortgage', 'landmark', 'home'),
     category('utilities', 'Utilities', 'utility-pole', 'home'),
     category('electricity', 'Electricity', 'zap', 'home'),
     category('water', 'Water', 'droplet', 'home'),
@@ -73,7 +103,7 @@ export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.f
     category('healthcare', 'Healthcare', 'heart-pulse', 'health'),
     category('medicine-pharmacy', 'Medicine / Pharmacy', 'pill', 'health'),
     category('doctor-medical', 'Doctor / Medical', 'stethoscope', 'health'),
-    category('dental', 'Dental', 'heart-pulse', 'health'),
+    category('dental', 'Dental', 'tooth', 'health'),
     category('fitness', 'Fitness', 'dumbbell', 'health'),
     category('wellness', 'Wellness', 'activity', 'health'),
     category('education', 'Education', 'graduation-cap', 'education'),
@@ -85,11 +115,11 @@ export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.f
     category('insurance', 'Insurance', 'shield', 'financial'),
     category('debt-loan', 'Debt / Loan', 'credit-card', 'financial'),
     category('bank-fees', 'Bank Fees', 'landmark', 'financial'),
-    category('taxes', 'Taxes', 'receipt', 'financial'),
+    category('taxes', 'Taxes', 'file-text', 'financial'),
     category('savings', 'Savings', 'piggy-bank', 'financial'),
     category('investments', 'Investments', 'trending-up', 'financial'),
     category('financial-other', 'Financial / Other', 'hand-coins', 'financial'),
-    category('lifestyle', 'Lifestyle', 'sparkles', 'lifestyle'),
+    category('lifestyle', 'Lifestyle', 'layers-2', 'lifestyle'),
     category('entertainment', 'Entertainment', 'ticket', 'lifestyle'),
     category('movies-streaming', 'Movies / Streaming', 'film', 'lifestyle'),
     category('games', 'Games', 'gamepad-2', 'lifestyle'),
@@ -102,11 +132,11 @@ export const CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = Object.f
     category('children', 'Children', 'baby', 'family'),
     category('pets', 'Pets', 'paw-print', 'family'),
     category('gifts', 'Gifts', 'gift', 'family'),
-    category('gifts-donations', 'Gifts / Donations', 'gift', 'family'),
+    category('gifts-donations', 'Gifts / Donations', 'heart-handshake', 'family'),
     category('donations-charity', 'Donations / Charity', 'heart-handshake', 'family'),
     category('work-business', 'Work / Business', 'briefcase', 'work'),
     category('office-supplies', 'Office Supplies', 'clipboard-list', 'work'),
-    category('professional-services', 'Professional Services', 'briefcase', 'work'),
+    category('professional-services', 'Professional Services', 'briefcase-business', 'work'),
     category('other', 'Other', 'shapes', 'other'),
   ].map((item) => [item.key, item]),
 );
@@ -144,6 +174,11 @@ export const CATEGORY_ALIASES: Record<string, string> = {
   'gifts-donations': 'gifts-donations',
   custom: 'other',
   'other-custom': 'other',
+  others: 'other',
+  repair: 'home-maintenance',
+  repairs: 'home-maintenance',
+  'credit-cards': 'debt-loan',
+  essentials: 'essentials',
 };
 
 export function normalizeCategoryKey(value: string | null | undefined) {
@@ -163,6 +198,23 @@ export function getSharedCategoryMeta(
   return CATEGORY_DEFINITIONS[key] ?? INCOME_CATEGORY_DEFINITIONS[key];
 }
 
+export function getCustomCategoryMeta(value: string | null | undefined): SharedCategoryMeta {
+  const label = value?.trim() || 'Other';
+  const key = normalizeCategoryKey(label) || 'other';
+  return {
+    key,
+    label,
+    iconKey: 'shapes',
+    color: categoryColor(key),
+    tint: categoryTint(key),
+    group: 'other',
+    transactionTypes: ['expense', 'budget', 'bill', 'subscription'],
+    sortOrder: Number.MAX_SAFE_INTEGER,
+    isSystem: false,
+    isActive: true,
+  };
+}
+
 export const categoryDefinitions = Object.values(CATEGORY_DEFINITIONS);
 export const categoryLabels = categoryDefinitions.map((item) => item.label);
 
@@ -173,10 +225,10 @@ export const INCOME_CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = O
     category('business', 'Business', 'store', 'work'),
     category('remittance', 'Remittance', 'send', 'family'),
     category('allowance', 'Allowance', 'hand-coins', 'family'),
-    category('bonus', 'Bonus', 'gift', 'work'),
+    category('bonus', 'Bonus', 'party-popper', 'work'),
     category('commission', 'Commission', 'badge-percent', 'work'),
     category('overtime', 'Overtime', 'clock-3', 'work'),
-    category('tips', 'Tips', 'hand-coins', 'work'),
+    category('tips', 'Tips', 'hand-heart', 'work'),
     category('investment-income', 'Investment Income', 'chart-no-axes-combined', 'financial'),
     category('interest', 'Interest Income', 'percent', 'financial'),
     category('dividend', 'Dividend', 'coins', 'financial'),
@@ -184,7 +236,7 @@ export const INCOME_CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = O
     category('government-benefit', 'Government Benefit', 'landmark', 'financial'),
     category('pension', 'Pension', 'shield-check', 'financial'),
     category('scholarship', 'Scholarship', 'graduation-cap', 'education'),
-    category('gift-received', 'Gift Received', 'gift', 'family'),
+    category('gift-received', 'Gift Received', 'gift-card', 'family'),
     category('refund', 'Refund', 'undo-2', 'financial'),
     category('reimbursement', 'Reimbursement', 'receipt', 'financial'),
     category('cashback-rewards', 'Cashback / Rewards', 'award', 'financial'),
@@ -192,7 +244,7 @@ export const INCOME_CATEGORY_DEFINITIONS: Record<string, SharedCategoryMeta> = O
     category('side-hustle', 'Side Hustle', 'briefcase-business', 'work'),
     category('royalties', 'Royalties', 'music-2', 'work'),
     category('other-income', 'Other Income', 'circle-dollar-sign', 'other'),
-  ].map((item) => [item.key, item]),
+  ].map((item) => [item.key, { ...item, transactionTypes: ['income'] }]),
 );
 
 export const incomeCategoryDefinitions = Object.values(INCOME_CATEGORY_DEFINITIONS);
