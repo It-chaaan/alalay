@@ -13,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import alalayLogo from '../../assets/alalay.svg';
+import alalayLogo from '../../assets/alalay.png';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { useBills } from '../../hooks/useBills';
 import { useDashboard } from '../../hooks/useDashboard';

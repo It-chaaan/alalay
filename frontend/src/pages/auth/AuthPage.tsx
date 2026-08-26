@@ -6,7 +6,7 @@ import { z } from "zod";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { OtpInput } from "../../components/auth/OtpInput";
-import alalayLogo from "../../assets/alalay.svg";
+import alalayLogo from "../../assets/alalay.png";
 import { authCopy, authStats } from "../../constants/auth";
 import { getSupabaseClient } from "../../lib/supabase";
 import { apiRequest } from "../../lib/apiClient";

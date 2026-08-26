@@ -1,4 +1,4 @@
-import alalayLogo from "../../assets/alalay.svg";
+import alalayLogo from "../../assets/alalay.png";
 import { Container } from "../../components/layout/Container";
 import { MarketingFooter } from "../../components/layout/MarketingFooter";
 import { Navbar } from "../../components/navigation/Navbar";

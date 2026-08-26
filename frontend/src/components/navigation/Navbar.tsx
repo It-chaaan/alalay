@@ -1,4 +1,4 @@
-import alalayLogo from "../../assets/alalay.svg";
+import alalayLogo from "../../assets/alalay.png";
 
 const navItems = [
   { label: "Home", href: "#top" },

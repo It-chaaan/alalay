@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "dc58c7bf-0f40-4eb0-96d5-617edddd4fb8"
+      }
+    },
+    "android": {
+      "package": "com.it_chaaan.alalay"
+    }
+  }
+}

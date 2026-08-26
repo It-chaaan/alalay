@@ -1,13 +1,15 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Alalay",
+    "slug": "alalay",
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "alalay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "icon": "./assets/alalay.png",
     "ios": {
+      "icon": "./assets/alalay.png",
       "supportsTablet": true
     },
     "android": {
@@ -16,6 +18,7 @@
       "permissions": [
         "android.permission.CAMERA"
       ],
+      "icon": "./assets/alalay.png",
       "package": "com.anonymous.mobile"
     },
     "web": {

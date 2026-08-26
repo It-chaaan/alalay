@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { dashboardSidebarSections } from '../../constants/dashboard';
-import alalayLogo from '../../assets/alalay.svg';
+import alalayLogo from '../../assets/alalay.png';
 import {
   LayoutDashboard,
   ReceiptText,

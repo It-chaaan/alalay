@@ -217,7 +217,7 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
     <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
       <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}><ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} /></Pressable>
       <View style={styles.chatTitleWrap}><Text style={styles.chatTitle}>Ask Alalay</Text><Text style={styles.chatSubtitle}>Your financial companion</Text></View>
-      <View style={styles.headerLogo}><Image source={require('@/assets/images/alalay.svg')} style={styles.headerLogoImage} contentFit="contain" /></View>
+      <View style={styles.headerLogo}><Image source={require('@/assets/images/alalay.png')} style={styles.headerLogoImage} contentFit="contain" /></View>
     </View>
     <ScrollView ref={scrollRef} style={styles.messageList} contentContainerStyle={styles.messages} onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: true })} keyboardShouldPersistTaps="handled">
       {messages.map((message) => <View key={message.id} style={[styles.messageBubble, message.role === 'user' ? styles.userBubble : styles.assistantBubble]}><Text style={[styles.messageText, message.role === 'user' ? styles.userMessageText : styles.assistantMessageText]}>{message.content}</Text>{message.retryPrompt && <Pressable accessibilityRole="button" accessibilityLabel="Retry Alalay request" onPress={() => void sendMessage(message.retryPrompt, message.id)} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable>}</View>)}
