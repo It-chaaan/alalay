@@ -1,5 +1,5 @@
 import { addDaysIso, client, requireUserId, throwIfError, todayIso } from './db.js';
-import { createOwned, getOwned, updateOwned } from './crud.service.js';
+import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.service.js';
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { selectCurrentBillOccurrence, selectCurrentBillOccurrences } from './bill-occurrence.service.js';
@@ -42,12 +42,10 @@ export async function deleteBill(userId: string, id: string) {
   if (error) {
     const message = error.message.toLowerCase();
     if (error.code === 'pgrst202' || message.includes('could not find the function')) {
-      throw new AppError(
-        503,
-        'bill_delete_rpc_unavailable',
-        'Bill deletion is temporarily unavailable because the database migration is not deployed.',
-        error.message,
-      );
+      // Keep deployments compatible while the RPC migration is rolling out.
+      // This path is still an owner-scoped UPDATE and never falls back to a
+      // physical DELETE, so linked bill-payment expenses remain protected.
+      return softDeleteOwned('bills', userId, id);
     }
     if (error.code === '42501' || message.includes('authentication required')) {
       throw new AppError(401, 'unauthorized', 'Your session is no longer valid.');

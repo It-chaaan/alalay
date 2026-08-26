@@ -1,66 +1,79 @@
--- READ-ONLY reconciliation report. Review these results before changing data.
--- Do not delete or merge rows by email: auth.users.id is authoritative.
+-- READ-ONLY incident report. Run in Supabase SQL Editor with a role allowed
+-- to inspect auth metadata. This intentionally reports counts and booleans,
+-- never profile emails, balances, receipt content, or full records.
 
--- Public profiles with no corresponding Supabase Auth identity.
+with incident(auth_id, stale_id) as (
+  values (
+    'd1c42961-11b2-4cdf-a8c0-aa6f5fa65b58'::uuid,
+    '3ce04d2c-648d-40fe-9206-f012ac56bc48'::uuid
+  )
+)
 select
-  profile.id,
-  profile.email,
-  profile.created_at
-from public.users as profile
-left join auth.users as auth_user on auth_user.id = profile.id
-where auth_user.id is null
-order by profile.created_at, profile.id;
+  exists(select 1 from auth.users a, incident i where a.id = i.auth_id) as auth_identity_exists,
+  exists(select 1 from auth.users a, incident i where a.id = i.stale_id) as stale_auth_identity_exists,
+  exists(select 1 from public.users p, incident i where p.id = i.auth_id) as authoritative_profile_exists,
+  exists(select 1 from public.users p, incident i where p.id = i.stale_id) as stale_profile_exists,
+  (
+    select lower(nullif(trim(a.email), '')) = lower(nullif(trim(p.email), ''))
+    from auth.users a
+    join public.users p on p.id = (select stale_id from incident)
+    where a.id = (select auth_id from incident)
+  ) as normalized_identity_matches,
+  (
+    select lower(nullif(trim(p.email), '')) is null
+    from public.users p where p.id = (select auth_id from incident)
+  ) as authoritative_profile_email_is_null;
 
--- Auth identities missing their public profile row.
-select
-  auth_user.id,
-  auth_user.email,
-  auth_user.email_confirmed_at,
-  auth_user.created_at
-from auth.users as auth_user
-left join public.users as profile on profile.id = auth_user.id
-where profile.id is null
-order by auth_user.created_at, auth_user.id;
-
--- Rows whose stored profile email differs from Auth. The backend should use
--- auth.users.email for display until a reviewed reconciliation is completed.
-select
-  auth_user.id,
-  auth_user.email as auth_email,
-  profile.email as profile_email
-from auth.users as auth_user
-join public.users as profile on profile.id = auth_user.id
-where coalesce(lower(trim(auth_user.email)), '') <> coalesce(lower(trim(profile.email)), '');
-
--- Duplicate normalized profile emails.
-select lower(nullif(trim(email), '')) as normalized_email, count(*) as profile_count,
-       array_agg(id order by id) as profile_ids
-from public.users
-where nullif(trim(email), '') is not null
-group by lower(nullif(trim(email), ''))
-having count(*) > 1;
-
--- Every public FK that still points at the reviewed stale UUID.
 do $$
-declare fk record; row_count bigint;
+declare
+  auth_id constant uuid := 'd1c42961-11b2-4cdf-a8c0-aa6f5fa65b58';
+  stale_id constant uuid := '3ce04d2c-648d-40fe-9206-f012ac56bc48';
+  child record;
+  row_count bigint;
 begin
-  for fk in
+  raise notice 'Incident child-reference counts follow; no row contents are emitted.';
+  for child in
     select n.nspname as schema_name, c.relname as table_name, a.attname as column_name
-    from pg_constraint con
-    join pg_class c on c.oid = con.conrelid
+    from pg_constraint fk
+    join pg_class c on c.oid = fk.conrelid
     join pg_namespace n on n.oid = c.relnamespace
-    join unnest(con.conkey) with ordinality key(attnum, ord) on true
+    join unnest(fk.conkey) with ordinality key(attnum, ord) on true
     join pg_attribute a on a.attrelid = c.oid and a.attnum = key.attnum
-    where con.contype = 'f' and con.confrelid = 'public.users'::regclass
-      and array_length(con.conkey, 1) = 1 and n.nspname = 'public'
+    where fk.contype = 'f'
+      and fk.confrelid = 'public.users'::regclass
+      and array_length(fk.conkey, 1) = 1
+      and n.nspname = 'public'
+    order by n.nspname, c.relname, a.attname
   loop
-    execute format('select count(*) from %I.%I where %I = $1', fk.schema_name, fk.table_name, fk.column_name)
-      into row_count using '3ce04d2c-648d-40fe-9206-f012ac56bc48'::uuid;
-    raise notice 'stale UUID reference %.%(%) = %', fk.schema_name, fk.table_name, fk.column_name, row_count;
+    execute format('select count(*) from %I.%I where %I = $1', child.schema_name, child.table_name, child.column_name)
+      into row_count using stale_id;
+    raise notice '%.%(%): stale_count=%', child.schema_name, child.table_name, child.column_name, row_count;
+  end loop;
+
+  raise notice 'Ownership arrays: families.member_ids stale_count=%, expenses.split_with stale_count=%',
+    (select count(*) from public.families where stale_id = any(member_ids)),
+    (select count(*) from public.expenses where stale_id = any(split_with));
+  raise notice 'Unique constraints involving direct ownership columns are listed below.';
+  for child in
+    select n.nspname as schema_name, c.relname as table_name, a.attname as column_name
+    from pg_constraint fk
+    join pg_class c on c.oid = fk.conrelid
+    join pg_namespace n on n.oid = c.relnamespace
+    join unnest(fk.conkey) with ordinality key(attnum, ord) on true
+    join pg_attribute a on a.attrelid = c.oid and a.attnum = key.attnum
+    where fk.contype = 'f'
+      and fk.confrelid = 'public.users'::regclass
+      and array_length(fk.conkey, 1) = 1
+      and n.nspname = 'public'
+      and exists (
+        select 1 from pg_index i
+        where i.indrelid = c.oid and i.indisunique and a.attnum = any(i.indkey)
+      )
+    order by n.nspname, c.relname, a.attname
+  loop
+    raise notice 'unique ownership key: %.%(%)', child.schema_name, child.table_name, child.column_name;
   end loop;
 end;
 $$;
 
--- After the reviewed orphan rows have been reconciled, validate the forward
--- identity constraint. This is intentionally not executed by this report.
--- alter table public.users validate constraint users_id_auth_users_fkey;
+-- Migration history must be checked separately with `supabase migration list`.
