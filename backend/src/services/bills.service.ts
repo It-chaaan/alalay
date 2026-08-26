@@ -1,5 +1,5 @@
 import { addDaysIso, client, requireUserId, throwIfError, todayIso } from './db.js';
-import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.service.js';
+import { createOwned, getOwned, updateOwned } from './crud.service.js';
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { selectCurrentBillOccurrence, selectCurrentBillOccurrences } from './bill-occurrence.service.js';
@@ -36,7 +36,29 @@ export const createBill = (userId: string, payload: Record<string, unknown>) =>
   createOwned('bills', userId, payload);
 export const updateBill = (userId: string, id: string, payload: Record<string, unknown>) =>
   updateOwned('bills', userId, id, payload);
-export const deleteBill = (userId: string, id: string) => softDeleteOwned('bills', userId, id);
+export async function deleteBill(userId: string, id: string) {
+  requireUserId(userId);
+  const { data, error } = await client().rpc('soft_delete_bill', { target_bill_id: id });
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (error.code === 'pgrst202' || message.includes('could not find the function')) {
+      throw new AppError(
+        503,
+        'bill_delete_rpc_unavailable',
+        'Bill deletion is temporarily unavailable because the database migration is not deployed.',
+        error.message,
+      );
+    }
+    if (error.code === '42501' || message.includes('authentication required')) {
+      throw new AppError(401, 'unauthorized', 'Your session is no longer valid.');
+    }
+    if (error.code === 'p0002' || message.includes('bill not found')) {
+      throw new AppError(404, 'not_found', 'Bill not found.');
+    }
+    throw new AppError(500, 'database_error', 'Unable to delete this bill.', error.message);
+  }
+  return { id: data as string };
+}
 
 export async function payBill(
   userId: string,
