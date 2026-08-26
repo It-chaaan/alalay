@@ -50,6 +50,13 @@ export async function createTrustedDevice(userId: string, userAgent: string | un
     user_agent: userAgent?.slice(0, 500) || null,
   });
 
-  if (error) throw new AppError(500, "trusted_device_create_failed", "Unable to remember this device.");
+  if (error) {
+    throw new AppError(
+      500,
+      "trusted_device_create_failed",
+      "Unable to remember this device.",
+      `${error.code ?? "unknown"}: ${error.message}`,
+    );
+  }
   return { token, expiresAt };
 }

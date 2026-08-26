@@ -1129,6 +1129,19 @@ function AddWalletSheet({
   >('monthly');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  useEffect(() => {
+    const nextInstitution = institutionFor(preset.key);
+    setName(preset.key === 'custom' ? '' : preset.name);
+    setAccountType(
+      nextInstitution.supportedAccountTypes.length === 1
+        ? nextInstitution.supportedAccountTypes[0]
+        : null,
+    );
+    setCreditLimit('');
+    setAccountPurpose('everyday');
+    setEarnsInterest(false);
+    setAnnualInterestRate('');
+  }, [preset.key, preset.name]);
   const chooseAccountType = (value: WalletAccountType) => {
     if (
       value === 'credit' &&
@@ -1169,6 +1182,10 @@ function AddWalletSheet({
       setError('Select an account type.');
       return;
     }
+    if (accountType && !supportsAccountType(preset.key, accountType)) {
+      setError('Debit or Credit classification is not available for this institution.');
+      return;
+    }
     const parsedCreditLimit = creditLimit.trim() ? parseAmount(creditLimit) : null;
     if (accountType === 'credit' && parsedCreditLimit === null && creditLimit.trim()) {
       setError('Enter a valid credit limit.');
@@ -1202,7 +1219,7 @@ function AddWalletSheet({
           name: name.trim(),
           institution_type: preset.type,
           institution_key: preset.key,
-          account_type: accountType,
+          account_type: canChooseAccountType ? accountType : null,
           account_purpose: accountType === 'debit' ? accountPurpose : null,
           earns_interest:
             accountType === 'debit' && accountPurpose === 'savings' ? earnsInterest : false,
@@ -1214,7 +1231,7 @@ function AddWalletSheet({
             accountType === 'debit' && accountPurpose === 'savings' && earnsInterest
               ? interestFrequency
               : null,
-          credit_limit: parsedCreditLimit,
+          credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
           color: preset.color,
           opening_balance: openingBalance,
         }),

@@ -38,14 +38,12 @@ function validateAccountType(
   payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit' | 'account_purpose' | 'earns_interest' | 'annual_interest_rate' | 'interest_credit_frequency'>,
 ) {
   const supportsCardType =
-    payload.institution_type === 'bank' ||
-    payload.institution_type === 'digital_bank' ||
-    payload.institution_type === 'e_wallet';
+    payload.institution_type === 'bank' || payload.institution_type === 'digital_bank';
   if (payload.account_type && !supportsCardType)
     throw new AppError(
       422,
-      'unsupported_account_type',
-      'This institution does not support Debit or Credit classification.',
+      'wallet_classification_not_supported',
+      'Debit or Credit classification is not available for the selected institution.',
     );
   if (payload.account_type !== 'credit' && payload.credit_limit != null)
     throw new AppError(
@@ -441,6 +439,14 @@ export async function createWalletWithOpeningBalance(
     annual_interest_rate_value: payload.annual_interest_rate ?? null,
     interest_credit_frequency_value: payload.interest_credit_frequency ?? null,
   });
+  if (error?.code === 'P0001' && error.message.includes('classification')) {
+    throw new AppError(
+      422,
+      'wallet_classification_not_supported',
+      'Debit or Credit classification is not available for the selected institution.',
+      `${error.code}: ${error.message}`,
+    );
+  }
   // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
   // rolling deployments PostgREST can briefly have an older schema cache. Use
   // the same ledger tables as a compatibility path instead of creating a

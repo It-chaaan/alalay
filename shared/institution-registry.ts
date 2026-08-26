@@ -5,10 +5,11 @@ export type InstitutionDefinition = {
   supportedAccountTypes: readonly WalletAccountType[]; brandColor: string; mark: string; aliases: readonly string[];
 };
 const debitAndCredit: readonly WalletAccountType[] = ['debit', 'credit'];
+const noAccountClassification: readonly WalletAccountType[] = [];
 export const institutionRegistry: readonly InstitutionDefinition[] = [
-  { id: 'gcash', displayName: 'GCash', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#007DFE', mark: 'G', aliases: ['g cash'] },
-  { id: 'maya', displayName: 'Maya', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#00A878', mark: 'M', aliases: [] },
-  { id: 'gotyme', displayName: 'GoTyme', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#E65C4F', mark: 'GT', aliases: ['go tyme'] },
+  { id: 'gcash', displayName: 'GCash', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: noAccountClassification, brandColor: '#007DFE', mark: 'G', aliases: ['g cash'] },
+  { id: 'maya', displayName: 'Maya', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: noAccountClassification, brandColor: '#00A878', mark: 'M', aliases: [] },
+  { id: 'gotyme', displayName: 'GoTyme', institutionType: 'e_wallet', defaultCurrency: 'PHP', supportedAccountTypes: noAccountClassification, brandColor: '#E65C4F', mark: 'GT', aliases: ['go tyme'] },
   { id: 'maribank', displayName: 'MariBank', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#7A5AF8', mark: 'M', aliases: ['mari bank'] },
   { id: 'cimb_ph', displayName: 'CIMB Bank PH', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#D94A75', mark: 'C', aliases: ['cimb', 'cimb bank'] },
   { id: 'tonik', displayName: 'Tonik', institutionType: 'digital_bank', defaultCurrency: 'PHP', supportedAccountTypes: debitAndCredit, brandColor: '#3A9FBF', mark: 'T', aliases: [] },
