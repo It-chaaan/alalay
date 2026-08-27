@@ -15,3 +15,13 @@ test("monthly occurrences clamp day 31 to the last day of shorter months", () =>
   assert.equal(nextOccurrenceDate(schedule, "2026-02-01"), "2026-02-28");
   assert.equal(nextOccurrenceDate(schedule, "2028-02-01"), "2028-02-29");
 });
+
+test("posted income stays distinct from active schedules in a monthly recorded list", () => {
+  const rows = expandIncomeRows([
+    { id: "posted-a", source: "Salary", amount: 5000, date: "2026-08-01", is_posted: true, schedule_status: "posted" },
+    { id: "posted-b", source: "Freelance", amount: 5000, date: "2026-08-31", is_posted: true, schedule_status: "posted" },
+    { id: "future-schedule", source: "Salary", amount: 5000, date: "2026-08-28", is_recurring: true, frequency: "monthly", is_posted: false, schedule_status: "active" },
+  ], "2026-08-01", "2026-08-31");
+  const recorded = rows.filter((row) => !row.is_scheduled);
+  assert.deepEqual(recorded.map((row) => row.id).sort(), ["posted-a", "posted-b"]);
+});

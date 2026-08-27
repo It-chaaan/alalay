@@ -5,8 +5,19 @@ import { sendSuccess } from "../utils/api.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 import { resourceRouter } from "./resource.routes.js";
 import { nextPayday } from "../services/payday.service.js";
+import { incomeQuerySchema } from "../schemas/income.schema.js";
+import { validateRequest } from "../middleware/validateRequest.js";
 
 export const incomeRouter = Router();
+
+/** Posted transactions only; schedule definitions and future projections stay out of Recent Income. */
+incomeRouter.get("/recorded", validateRequest({ query: incomeQuerySchema.pick({ from: true, to: true }) }), asyncHandler(async (req, res) => {
+  const query = req.validated?.query as { from?: string; to?: string } | undefined;
+  const from = query?.from ?? `${todayIso().slice(0, 7)}-01`;
+  const to = query?.to ?? todayIso();
+  const summary = await incomeForRange(req.user!.id, from, to);
+  return sendSuccess(res, summary.actualRows);
+}));
 
 incomeRouter.get("/summary", asyncHandler(async (req, res) => {
   const month = typeof req.query.month === "string" ? req.query.month : undefined;

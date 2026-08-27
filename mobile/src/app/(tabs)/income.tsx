@@ -8,7 +8,7 @@ import { CategoryChipRow, DatePickerField, parseAmount, FinanceFormSheet, FormTe
 import { SectionAddButton } from '@/components/header-add-button';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
-import { authenticatedApiRequest } from '@/services/api';
+import { ApiRequestError, authenticatedApiRequest } from '@/services/api';
 import { dateKeyInManila, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations } from '@/services/finance';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
@@ -18,7 +18,7 @@ import { RecordActionSheet } from '@/components/record-action-sheet';
 import { useToast } from '@/components/toast-provider';
 import { useIncomeWorkflow, type IncomeWorkflowDraft } from '@/context/income-workflow';
 
-type Income = { id: string; source: string; type: string; custom_type?: string | null; amount: number | string; date: string; is_recurring: boolean; frequency?: string | null; wallet_id: string };
+type Income = { id: string; source: string; type: string; custom_type?: string | null; amount: number | string; date: string; is_recurring: boolean; is_posted?: boolean; is_scheduled?: boolean; frequency?: string | null; wallet_id: string };
 type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
 
 const incomeTypes = [
@@ -44,6 +44,24 @@ function monthName(month: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'long' }).format(new Date(`${month}-01T12:00:00`)).toUpperCase();
 }
 
+function monthRange(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+  return { from: `${month}-01`, to: `${month}-${String(lastDay).padStart(2, '0')}` };
+}
+
+async function fetchRecordedIncome(from: string, to: string) {
+  try {
+    return await authenticatedApiRequest<Income[]>(`/api/income/recorded?from=${from}&to=${to}`);
+  } catch (error) {
+    // Allow a staggered mobile/backend rollout to keep working. The fallback
+    // remains owner-scoped and removes projected schedule rows client-side.
+    if (!(error instanceof ApiRequestError) || error.status !== 404) throw error;
+    const rows = await authenticatedApiRequest<Income[]>(`/api/income?from=${from}&to=${to}`);
+    return rows.filter((row) => row.is_posted !== false && !row.is_scheduled);
+  }
+}
+
 export default function IncomeScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -59,14 +77,16 @@ export default function IncomeScreen() {
   const [managing, setManaging] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [walletSelection, setWalletSelection] = useState<{ id: string; version: number } | null>(null);
+  const currentMonth = currentMonthKey();
+  const selectedRange = monthRange(currentMonth);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
     try {
       const [income, incomeSummary, walletRows] = await Promise.all([
-        authenticatedApiRequest<Income[]>('/api/income'),
-        authenticatedApiRequest<IncomeSummary>('/api/income/summary'),
+        fetchRecordedIncome(selectedRange.from, selectedRange.to),
+        authenticatedApiRequest<IncomeSummary>(`/api/income/summary?month=${currentMonth}`),
         fetchWallets(),
       ]);
       setRows(income);
@@ -77,7 +97,7 @@ export default function IncomeScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentMonth, selectedRange.from, selectedRange.to]);
 
   useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
   useFocusEffect(useCallback(() => {
@@ -85,7 +105,6 @@ export default function IncomeScreen() {
     if (createdId) { setWalletSelection({ id: createdId, version: Date.now() }); setOpen(true); void refresh(); }
   }, [refresh, workflow]));
 
-  const currentMonth = currentMonthKey();
   const supportingText = summary.monthly_sources > 0
     ? `${summary.monthly_sources} monthly income source${summary.monthly_sources === 1 ? '' : 's'}${summary.actual_transactions ? ` · ${summary.actual_transactions} recorded transaction${summary.actual_transactions === 1 ? '' : 's'}` : ''}`
     : summary.actual_transactions > 0
@@ -94,7 +113,7 @@ export default function IncomeScreen() {
 
   return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
-    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={colors.primary} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${row.source}`} onPress={() => setManaging(row)} style={styles.more}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
+    {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>Check your connection and try again.</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={colors.primary} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${row.source}`} onPress={() => setManaging(row)} style={styles.more}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>Recorded income for this month will appear here.</Text></View>}</View></ScrollView>}
     {open && <IncomeForm wallets={wallets} selectedWalletId={walletSelection?.id} onAddWallet={(draft) => { workflow.saveDraft(draft); setOpen(false); router.push({ pathname: '/(tabs)/wallets', params: { openAddWallet: '1', returnTo: 'income' } }); }} onClose={() => { workflow.clear(); setOpen(false); }} onSaved={async () => { workflow.clear(); setOpen(false); await refresh(); }} />}
     {editing && <IncomeForm initial={editing} wallets={wallets} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {managing && <RecordActionSheet visible title="Income options" recordName={managing.source} onClose={() => setManaging(null)} actions={[{ label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } }, { label: 'Delete', tone: 'destructive', confirm: { title: `Delete ${managing.source}?`, message: 'This income will be removed and its wallet balance will be recomputed.' }, onPress: async () => { await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); toast.success('Income deleted successfully'); } }]} />}

@@ -1,6 +1,8 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from 'react-native-reanimated';
+import Svg, { Path } from 'react-native-svg';
+import { AccessibilityInfo, ActivityIndicator, PanResponder, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowDown,
@@ -23,7 +25,6 @@ import { BalanceVisibilityToggle } from '@/components/balance-visibility-toggle'
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
-import { authenticatedApiRequest } from '@/services/api';
 import {
   combineRecentTransactions,
   dateKeyInManila,
@@ -96,7 +97,6 @@ export default function HomeScreen() {
   const [financeLoading, setFinanceLoading] = useState(true);
   const [financeError, setFinanceError] = useState('');
   const [recentTransactions, setRecentTransactions] = useState<RecentTransaction[]>([]);
-  const [dashboardSummary, setDashboardSummary] = useState<DashboardSummary | null>(null);
   const [wallets, setWallets] = useState<WalletRecord[]>([]);
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
@@ -108,15 +108,13 @@ export default function HomeScreen() {
     setFinanceError('');
     setWalletError('');
     try {
-      const [items, expenseRows, incomeRows, summary] = await Promise.all([
+      const [items, expenseRows, incomeRows] = await Promise.all([
         fetchFinanceItems(),
         fetchExpenses(),
         fetchRecentIncome(),
-        authenticatedApiRequest<DashboardSummary>('/api/dashboard/summary'),
       ]);
       setFinanceItems(items);
       setRecentTransactions(combineRecentTransactions(expenseRows, incomeRows));
-      setDashboardSummary(summary);
       try {
         setWallets(await fetchWallets());
         setWalletError('');
@@ -190,22 +188,12 @@ export default function HomeScreen() {
           */}
         </View>
 
-        <SummaryCard
-          summary={dashboardSummary}
-          loading={financeLoading}
+        <WalletHero
           wallets={wallets}
           walletLoading={walletLoading}
           walletError={walletError}
         />
         <QuickActionsCard />
-
-        <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>Wallets</Text>
-          <Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}>
-            <Text style={[styles.link, { color: colors.primary }]}>View all</Text>
-          </Pressable>
-        </View>
-        <WalletQuickView wallets={wallets} loading={walletLoading} error={walletError} />
 
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This month</Text>
@@ -281,6 +269,8 @@ export default function HomeScreen() {
   );
 }
 
+// Retained as a compatibility reference for the previous dashboard card.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SummaryCard({
   summary,
   loading,
@@ -435,6 +425,88 @@ type QuickAction = {
   onPress: () => void;
 };
 
+function WalletHero({ wallets, walletLoading, walletError }: { wallets: WalletRecord[]; walletLoading: boolean; walletError: string }) {
+  const { colors } = useAppTheme();
+  const { visible, toggle } = useBalanceVisibility();
+  const [selectedWalletId, setSelectedWalletId] = useState<string | null>(null);
+  const [reducedMotion, setReducedMotion] = useState(false);
+  const gestureStart = useRef(0);
+  const gestureActive = useRef(false);
+  const position = useSharedValue(0);
+  const amountsVisible = visible === true;
+  const selectedIndex = Math.max(0, wallets.findIndex((wallet) => wallet.id === selectedWalletId));
+  const mask = '••••••';
+  useEffect(() => {
+    if (!wallets.length) {
+      setSelectedWalletId(null);
+      position.value = 0;
+      return;
+    }
+    if (!selectedWalletId || !wallets.some((wallet) => wallet.id === selectedWalletId)) setSelectedWalletId(wallets[0].id);
+    position.value = reducedMotion ? selectedIndex : withSpring(selectedIndex, { damping: 18, stiffness: 150 });
+  }, [position, reducedMotion, selectedIndex, selectedWalletId, wallets]);
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReducedMotion);
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReducedMotion);
+    return () => subscription.remove();
+  }, []);
+  const total = totalWalletBalance(wallets);
+  const unavailable = Boolean(walletError) || walletLoading;
+  const panResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => Math.abs(gesture.dx) > 12 && wallets.length > 1,
+    onPanResponderGrant: () => { gestureStart.current = selectedIndex; gestureActive.current = true; },
+    onPanResponderRelease: (_event, gesture) => {
+      if (Math.abs(gesture.dx) >= 30 && wallets.length > 1) {
+        const direction = gesture.dx < 0 ? 1 : -1;
+        const nextWallet = wallets[(gestureStart.current + direction + wallets.length) % wallets.length];
+        if (nextWallet) setSelectedWalletId(nextWallet.id);
+      }
+      setTimeout(() => { gestureActive.current = false; }, 0);
+    },
+    onPanResponderTerminate: () => { gestureActive.current = false; },
+  }), [selectedIndex, wallets]);
+  return (
+    <View style={styles.walletHero}>
+      <View pointerEvents="none" style={[styles.rearWalletCover, { backgroundColor: colors.balanceRear, borderColor: colors.primary }]} />
+      <View pointerEvents="none" style={styles.rearWalletHighlight} />
+      <View pointerEvents="none" style={[styles.pocketRim, { backgroundColor: colors.balanceRear }]} />
+      <View pointerEvents="none" style={styles.pocketCurve}>
+        <Svg width="100%" height="72" viewBox="0 0 360 72" preserveAspectRatio="none">
+          <Path d="M0 2 C74 60 286 60 360 2 L360 72 L0 72 Z" fill={colors.balance} />
+        </Svg>
+      </View>
+      <View pointerEvents="none" style={[styles.walletPocket, { backgroundColor: colors.balance, borderColor: colors.primary }]} />
+      <View pointerEvents="none" style={styles.pocketStitch} />
+      <View style={styles.walletHeroHeader}>
+        <Text style={styles.summaryEyebrow}>TOTAL BALANCE</Text>
+        <BalanceVisibilityToggle visible={amountsVisible} onToggle={toggle} iconColor={colors.textOnPrimaryMuted} positioned accessibilityLabel={amountsVisible ? 'Hide balances' : 'Show balances'} />
+      </View>
+      <Text accessibilityLabel={amountsVisible ? `Total balance ${formatBalancePeso(total)}` : 'Total balance hidden'} style={styles.balanceValue}>
+        {unavailable ? (walletLoading ? 'Loading…' : 'Unavailable') : amountsVisible ? formatBalancePeso(total) : mask}
+      </Text>
+      {unavailable ? <View style={styles.walletState}><ActivityIndicator color={colors.textOnPrimary} /><Text style={styles.walletStateText}>{walletError || 'Loading wallets…'}</Text></View> : wallets.length === 0 ? (
+        <View style={styles.walletState}><Text style={styles.walletStateText}>No wallets yet</Text><Text style={styles.walletStateHint}>Add a wallet to start tracking your balance.</Text><Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/wallets')}><Text style={styles.walletAction}>Add wallet</Text></Pressable></View>
+      ) : (
+        <View {...panResponder.panHandlers} style={styles.cardStack} accessibilityLabel={`Wallet cards, ${wallets.length} available`}>
+          {wallets.map((wallet, index) => <WalletStackCard key={wallet.id} wallet={wallet} index={index} count={wallets.length} position={position} visible={amountsVisible} selected={index === selectedIndex} onPress={() => { if (!gestureActive.current && wallets.some((item) => item.id === wallet.id)) setSelectedWalletId(wallet.id); }} />)}
+        </View>
+      )}
+      {wallets.length > 4 && !unavailable ? <Text style={styles.walletCount}>{selectedIndex + 1} of {wallets.length}</Text> : null}
+    </View>
+  );
+}
+
+function WalletStackCard({ wallet, index, count, position, visible, selected, onPress }: { wallet: WalletRecord; index: number; count: number; position: { value: number }; visible: boolean; selected: boolean; onPress: () => void }) {
+  const { colors } = useAppTheme();
+  const style = useAnimatedStyle(() => {
+    const distance = (index - position.value + count) % count;
+    const cardTop = distance < 0.5 ? 28 : Math.max(0, 28 - distance * 14);
+    return { transform: [{ translateY: Number.isFinite(cardTop) ? cardTop : 0 }, { scale: Number.isFinite(distance) ? 1 - Math.min(distance, 3) * 0.025 : 1 }], opacity: distance > 3.5 ? 0 : 1 };
+  }, [count, index]);
+  const type = wallet.account_type === 'credit' ? 'Credit' : wallet.account_type === 'debit' ? 'Debit' : typeLabel(wallet.institution_type);
+  return <Animated.View style={[styles.walletStackCard, { backgroundColor: selected ? colors.primary : colors.balanceRear, borderColor: selected ? colors.primarySoft : colors.balance }, style]}><Pressable accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${wallet.name}, ${type}, PHP${visible ? `, ${formatBalancePeso(Number(wallet.balance))}` : ''}${selected ? ', selected. Double tap to open wallet details.' : ', double tap to select'}`} onPress={onPress} style={styles.walletCardPress}><BrandLogo name={wallet.name} entity="wallet" institutionKey={wallet.institution_key} category={wallet.institution_type} size={38} /><View style={styles.rowMain}><Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textOnPrimary }]}>{wallet.name}</Text><Text style={[styles.rowMeta, { color: colors.textOnPrimaryMuted }]}>{type} · PHP</Text></View><Text style={[styles.walletBalance, { color: colors.textOnPrimary }]}>{visible ? formatBalancePeso(Number(wallet.balance)) : '••••••'}</Text></Pressable></Animated.View>;
+}
+
 function QuickActionsCard() {
   const { colors } = useAppTheme();
   const actions: QuickAction[] = [
@@ -443,8 +515,8 @@ function QuickActionsCard() {
       label: 'Expense',
       accessibilityLabel: 'Add expense',
       icon: BanknoteArrowDown,
-      iconBackground: colors.primarySoft,
-      iconColor: colors.primary,
+      iconBackground: colors.surfaceSecondary,
+      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/expenses'),
     },
     {
@@ -452,8 +524,8 @@ function QuickActionsCard() {
       label: 'Income',
       accessibilityLabel: 'Add income',
       icon: BanknoteArrowUp,
-      iconBackground: colors.primarySoft,
-      iconColor: colors.primary,
+      iconBackground: colors.surfaceSecondary,
+      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/income'),
     },
     {
@@ -461,8 +533,8 @@ function QuickActionsCard() {
       label: 'Bills',
       accessibilityLabel: 'Open bills',
       icon: ReceiptText,
-      iconBackground: colors.primarySoft,
-      iconColor: colors.primary,
+      iconBackground: colors.surfaceSecondary,
+      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/bills'),
     },
     {
@@ -470,8 +542,8 @@ function QuickActionsCard() {
       label: 'Subscription',
       accessibilityLabel: 'Open subscriptions',
       icon: Repeat,
-      iconBackground: colors.primarySoft,
-      iconColor: colors.primary,
+      iconBackground: colors.surfaceSecondary,
+      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/subscriptions'),
     },
     {
@@ -479,8 +551,8 @@ function QuickActionsCard() {
       label: 'Goals',
       accessibilityLabel: 'Open savings goals',
       icon: Target,
-      iconBackground: colors.primarySoft,
-      iconColor: colors.primary,
+      iconBackground: colors.surfaceSecondary,
+      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/savings'),
     },
   ];
@@ -504,6 +576,8 @@ function QuickActionsCard() {
   );
 }
 
+// Retained as a compatibility reference for the previous wallet list.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function WalletQuickView({
   wallets,
   loading,
@@ -802,6 +876,25 @@ const styles = StyleSheet.create({
   sectionTitle: { color: palette.ink, fontSize: 18, fontWeight: '800', letterSpacing: -0.3 },
   sectionHint: { color: palette.muted, fontSize: 12, fontWeight: '600' },
   link: { color: palette.accent, fontSize: 13, fontWeight: '800' },
+  walletHero: { height: 306, marginTop: 18, position: 'relative' },
+  rearWalletCover: { position: 'absolute', top: 8, left: 4, right: 4, height: 171, borderTopLeftRadius: 33, borderTopRightRadius: 33, borderBottomLeftRadius: 20, borderBottomRightRadius: 20, borderWidth: 1, shadowColor: '#000000', shadowOpacity: 0.28, shadowRadius: 10, elevation: 1, zIndex: 0 },
+  rearWalletHighlight: { position: 'absolute', top: 19, left: 17, right: 17, height: 46, borderTopLeftRadius: 24, borderTopRightRadius: 24, borderTopWidth: 1, borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(216,239,226,0.20)', zIndex: 1 },
+  pocketRim: { position: 'absolute', top: 110, left: 10, right: 10, height: 85, borderRadius: 28, opacity: 0.9, shadowColor: '#063224', shadowOpacity: 0.25, shadowRadius: 10, elevation: 30, zIndex: 30 },
+  pocketCurve: { position: 'absolute', top: 99, left: 4, right: 4, height: 72, zIndex: 31, elevation: 31 },
+  walletPocket: { position: 'absolute', top: 133, left: 4, right: 4, bottom: 0, borderRadius: 30, borderWidth: 1, zIndex: 40, elevation: 40 },
+  pocketStitch: { position: 'absolute', top: 151, left: 22, right: 22, height: 124, borderRadius: 23, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(216,239,226,0.35)', zIndex: 41, elevation: 41 },
+  walletHeroHeader: { position: 'absolute', top: 168, left: 26, right: 26, zIndex: 42, elevation: 42, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  walletState: { zIndex: 7, alignItems: 'center', justifyContent: 'center', minHeight: 185 },
+  walletStateText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', textAlign: 'center' },
+  walletStateHint: { marginTop: 6, color: '#D8EFE2', fontSize: 12, textAlign: 'center' },
+  walletAction: { marginTop: 14, color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
+  cardStack: { position: 'absolute', top: 0, left: 18, right: 18, height: 166, zIndex: 10, elevation: 10 },
+  walletStackCard: { position: 'absolute', left: 0, right: 0, height: 148, borderRadius: 22, borderWidth: 1, shadowColor: '#000000', shadowOpacity: 0.18, shadowRadius: 7, elevation: 20 },
+  walletCardPress: { flex: 1, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 14, gap: 10 },
+  walletPager: { display: 'none' },
+  walletCount: { position: 'absolute', right: 26, bottom: 17, zIndex: 42, elevation: 42, color: '#D8EFE2', fontSize: 11, fontWeight: '800' },
+  walletDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(216,239,226,0.38)' },
+  walletDotSelected: { width: 20, backgroundColor: '#FFFFFF' },
   balanceStack: { position: 'relative', marginTop: 18, paddingTop: 12 },
   balanceRearCard: {
     position: 'absolute',
@@ -896,13 +989,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   balanceValue: {
-    zIndex: 1,
-    marginTop: 13,
+    position: 'absolute', top: 198, left: 26, right: 64, zIndex: 42, elevation: 42,
+    marginTop: 0,
     color: '#FFFFFF',
     fontSize: 36,
     fontWeight: '900',
     letterSpacing: -1,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   supportingMetrics: {
     zIndex: 1,
