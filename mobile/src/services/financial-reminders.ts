@@ -14,6 +14,7 @@ type StoredReminder = { notificationId: string; eventType: 'bill'; eventId: stri
 const defaults: ReminderPreferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, bill_reminder_hour: 9, bill_reminder_minute: 0 };
 const fallbackDelayMs = 5 * 60 * 1000;
 let reconciliation: Promise<ReminderReconciliationResult> | null = null;
+let accountCleanup: Promise<void> = Promise.resolve();
 
 export type ReminderReconciliationResult = { permissionGranted: boolean; scheduled: number };
 
@@ -109,6 +110,7 @@ function copy(item: FinanceItem, kind: ReminderKind) { const body = amount(item.
 async function cancelStored(record: StoredReminder) { try { await Notifications.cancelScheduledNotificationAsync(record.notificationId); } catch { /* stale OS IDs are harmless during reconciliation */ } }
 
 async function reconcileFinancialRemindersInternal(items?: FinanceItem[]): Promise<ReminderReconciliationResult> {
+  await accountCleanup;
   const prefs = await preferences(); const stored = await readStored();
   if (!prefs.bill_reminders) { for (const record of Object.values(stored)) await cancelStored(record); await writeStored({}); return { permissionGranted: true, scheduled: 0 }; }
   if (!(await ensureReminderPermission())) return { permissionGranted: false, scheduled: 0 };
@@ -139,6 +141,21 @@ export async function reconcileFinancialReminders(items?: FinanceItem[]): Promis
 }
 
 export async function cancelBillReminders(eventId: string) { const stored = await readStored(); const remaining: Record<string, StoredReminder> = {}; for (const [key, record] of Object.entries(stored)) { if (record.eventId === eventId) await cancelStored(record); else remaining[key] = record; } await writeStored(remaining); }
+
+/** OS scheduled notifications are process-global, so clear them on account changes. */
+export function cancelAllFinancialReminders() {
+  accountCleanup = (async () => {
+    try {
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(scheduled.map((notification) =>
+        Notifications.cancelScheduledNotificationAsync(notification.identifier),
+      ));
+    } catch (error) {
+      logReminderFailure('cancel scheduled reminders during account change', error);
+    }
+  })();
+  return accountCleanup;
+}
 
 export async function reconcileOnAppResume() { return reconcileFinancialReminders(); }
 

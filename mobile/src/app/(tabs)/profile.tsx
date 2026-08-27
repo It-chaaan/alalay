@@ -7,6 +7,7 @@ import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileInitials } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
 import { clearMobileTrust } from '@/services/mfa';
+import { cancelAllFinancialReminders } from '@/services/financial-reminders';
 
 const p = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
 
@@ -15,7 +16,7 @@ export default function ProfileScreen() {
   const { colors } = useAppTheme();
   const { profile } = useCurrentProfile();
   const name = profile?.name || 'Profile';
-  const signOut = async () => { await clearMobileTrust(); await getSupabaseClient()?.auth.signOut(); router.replace('/auth'); };
+  const signOut = async () => { await cancelAllFinancialReminders(); await clearMobileTrust(); await getSupabaseClient()?.auth.signOut(); router.replace('/auth'); };
   const goBack = () => returnTo ? router.replace(returnTo as Href) : router.back();
   return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}><View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.line }]}><Pressable accessibilityLabel="Back" onPress={goBack} style={styles.back}><ArrowLeft size={22} color={colors.ink} /></Pressable><Text style={[styles.headerTitle, { color: colors.ink }]}>Profile</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.profileHeader}>{profile?.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={[styles.avatarFallback, { backgroundColor: colors.accent }]}><Text style={styles.initials}>{getProfileInitials(name)}</Text></View>}<Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} style={[styles.edit, { backgroundColor: colors.accentPale }]}><Text style={[styles.editText, { color: colors.accent }]}>Edit</Text></Pressable><Text style={[styles.name, { color: colors.ink }]}>{name}</Text><Text style={[styles.email, { color: colors.muted }]}>{profile?.email || 'Loading your profile...'}</Text></View><Text style={[styles.groupLabel, { color: colors.muted }]}>ACCOUNT</Text><View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.line }]}><Row icon={UserCircle} label="Profile" value="Personal information" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} /><Row icon={Bell} label="Notifications" value="View updates and reminders" onPress={() => router.push('/(tabs)/notifications')} /><Row icon={Settings} label="Settings" value="Preferences and security" onPress={() => router.push('/(tabs)/settings')} /></View><Pressable onPress={() => void signOut()} style={[styles.signOut, { backgroundColor: colors.surface, borderColor: colors.line }]}><LogOut size={19} color={colors.danger} /><Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text></Pressable></ScrollView></SafeAreaView>;
 }

@@ -15,7 +15,7 @@ import { ToastProvider } from '@/components/toast-provider';
 import { getSupabaseClient } from '@/services/supabase';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme';
 import { requiresMfa } from '@/services/mfa';
-import { reconcileOnAppResume } from '@/services/financial-reminders';
+import { cancelAllFinancialReminders, reconcileOnAppResume } from '@/services/financial-reminders';
 import { IncomeWorkflowProvider } from '@/context/income-workflow';
 
 export default function RootLayout() {
@@ -50,8 +50,16 @@ function SessionGate() {
     }
 
     let mounted = true;
+    let activeUserId: string | null = null;
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       if (mounted) {
+        const nextUserId = nextSession?.user.id ?? null;
+        if (nextUserId !== activeUserId) {
+          activeUserId = nextUserId;
+          // The OS queue is process-global; remove the previous account's
+          // reminders before the new account can reconcile its own bills.
+          void cancelAllFinancialReminders();
+        }
         setCheckingSession(true);
         setSession(nextSession);
         void (nextSession ? requiresMfa() : Promise.resolve({ required: false })).then((state) => {
@@ -65,6 +73,8 @@ function SessionGate() {
     void supabase.auth.getSession().then(async ({ data, error }) => {
       if (!mounted) return;
       if (error && __DEV__) console.warn('[Auth] Could not restore the saved session.', error);
+      await cancelAllFinancialReminders();
+      if (!mounted) return;
       setSession(data.session);
       const mfaState = data.session ? await requiresMfa() : { required: false };
       setMfaPending(mfaState.required);
