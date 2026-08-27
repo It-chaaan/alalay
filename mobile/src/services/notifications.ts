@@ -1,6 +1,6 @@
 import { authenticatedApiRequest } from './api';
 
-export type InAppNotification = { id: string; type: string; title: string; body: string; read_at: string | null; created_at: string; related_bill_id?: string | null; related_subscription_id?: string | null; related_wallet_id?: string | null };
+export type InAppNotification = { id: string; type: string; title: string; body: string; read_at: string | null; created_at: string; related_bill_id?: string | null; related_subscription_id?: string | null; related_wallet_id?: string | null; source_type?: string | null; source_id?: string | null; action?: { route?: string; params?: Record<string, string> } | null };
 
 export function fetchNotifications() {
   return authenticatedApiRequest<InAppNotification[]>('/api/notifications');
@@ -13,4 +13,8 @@ export async function getUnreadNotificationCount() {
 
 export function markNotificationsRead() {
   return authenticatedApiRequest<{ success: boolean }>('/api/notifications/read', { method: 'POST' });
+}
+
+export function markNotificationRead(id: string) {
+  return authenticatedApiRequest<{ success: boolean }>(`/api/notifications/${encodeURIComponent(id)}/read`, { method: 'POST' });
 }

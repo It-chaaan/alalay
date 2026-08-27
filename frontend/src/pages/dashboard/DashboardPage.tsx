@@ -422,8 +422,8 @@ function BudgetUsedCard({
 function TopSpendingCard({ report, isPrivate }: { report?: ReportsSummary; isPrivate: boolean }) {
   const categories = report?.categories.slice(0, 3) ?? [];
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex items-center justify-between">
+    <article className="min-w-0 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-3 gap-y-2">
         <h2 className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500">
           Top spending this month
         </h2>
@@ -431,30 +431,30 @@ function TopSpendingCard({ report, isPrivate }: { report?: ReportsSummary; isPri
           View all →
         </a>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+      <div className="top-spending-grid mt-4">
         {categories.length ? (
           categories.map((category) => {
             const meta = getCategoryMeta(category.name);
             return (
               <div
                 key={category.name}
-                className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
+                className="top-spending-item rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800"
               >
                 <CategoryIcon category={category.name} size="sm" />
-                <p className="mt-3 truncate text-xs font-semibold text-slate-900 dark:text-white">
+                <p className="top-spending-label mt-3 text-xs font-semibold text-slate-900 dark:text-white" title={meta.label}>
                   {meta.label}
                 </p>
-                <p className="mt-1 font-mono text-lg font-bold">
+                <p className="top-spending-value mt-1 font-mono text-lg font-bold">
                   {isPrivate ? '••••••' : `${category.percent}%`}
                 </p>
-                <p className="text-[10px] text-slate-500">
+                <p className="top-spending-value text-[10px] text-slate-500">
                   {isPrivate ? 'Hidden' : formatCurrency(category.amount)} of spending
                 </p>
               </div>
             );
           })
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 sm:col-span-3 xl:col-span-1 2xl:col-span-3">
+          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
             No spending categories this month.
           </p>
         )}

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { billReminder, shouldSendMonthlySummary, shouldSendReminder } from "./notification-scheduler.service.js";
+import { notificationCutoff } from "./notifications.service.js";
 
 const reminderPrefs = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, summaries: false, overspending_alerts: true };
 
@@ -12,5 +13,7 @@ assert.deepEqual(billReminder({ due_date: "2026-08-14" }, reminderPrefs, "2026-0
 assert.equal(shouldSendMonthlySummary(false, "2026-08-01"), false, "disabled summary must not send");
 assert.equal(shouldSendMonthlySummary(true, "2026-08-01"), true, "enabled summary sends on the first");
 assert.equal(shouldSendMonthlySummary(true, "2026-08-02"), false, "summary must not send on other days");
+const cutoffNow = new Date("2026-08-27T12:00:00.000Z");
+assert.equal(notificationCutoff(cutoffNow), "2026-08-20T12:00:00.000Z", "inbox cutoff is exactly seven rolling days");
 
 console.log("notification scheduler preference tests passed");

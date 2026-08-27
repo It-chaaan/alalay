@@ -48,7 +48,7 @@ export async function processMobileAuthCallback(supabase: SupabaseClient, url: s
 async function processMobileAuthCallbackOnce(supabase: SupabaseClient, url: string): Promise<MobileCallbackResult> {
   if (__DEV__) console.info('[Mobile OAuth] Callback processing started:', true);
   const params = getCallbackParams(url);
-  if (params.error) throw new Error(decodeURIComponent(params.error.replace(/\+/g, ' ')));
+  if (params.error) throw new Error('Google sign-in could not be completed. Please try again.');
 
   if (params.code) {
     const result = await supabase.auth.exchangeCodeForSession(params.code);

@@ -30,12 +30,14 @@ export function WalletPicker({
   onChange,
   required = false,
   label = 'Wallet',
+  onAddWallet,
 }: {
   wallets: Wallet[];
   value: string | null;
   onChange: (walletId: string | null) => void;
   required?: boolean;
   label?: string;
+  onAddWallet?: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const selected = wallets.find((wallet) => wallet.id === value);
@@ -80,6 +82,7 @@ export function WalletPicker({
           setOpen(false);
         }}
         allowUnset={!required}
+        onAddWallet={onAddWallet}
       />
     </View>
   );
@@ -94,6 +97,7 @@ export function WalletPickerModal({
   allowUnset,
   showPresets = false,
   onPreset,
+  onAddWallet,
 }: {
   visible: boolean;
   wallets: Wallet[];
@@ -103,6 +107,7 @@ export function WalletPickerModal({
   allowUnset: boolean;
   showPresets?: boolean;
   onPreset?: (preset: WalletPreset) => void;
+  onAddWallet?: () => void;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(
@@ -203,6 +208,16 @@ export function WalletPickerModal({
               </Pressable>
             )}
           </ScrollView>
+          {onAddWallet ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Add a new wallet and return to this form"
+              onPress={onAddWallet}
+              style={({ pressed }) => [styles.addWallet, pressed && styles.pressed]}
+            >
+              <Text style={styles.addWalletText}>＋ Add new wallet</Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -345,5 +360,7 @@ const styles = StyleSheet.create({
   status: { marginRight: 8, color: formPalette.accent, fontSize: 11, fontWeight: '800' },
   unset: { alignItems: 'center', padding: 13 },
   unsetText: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },
+  addWallet: { minHeight: 52, alignItems: 'center', justifyContent: 'center', marginTop: 8, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: formPalette.accent, backgroundColor: formPalette.accentPale },
+  addWalletText: { color: formPalette.accent, fontSize: 13, fontWeight: '900' },
   pressed: { backgroundColor: formPalette.background, opacity: 0.9 },
 });

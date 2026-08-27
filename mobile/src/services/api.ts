@@ -56,6 +56,45 @@ function logApi(message: string, details?: Record<string, unknown>) {
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[API] ${message}`, details ?? '');
 }
 
+function requestId() {
+  return `mobile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function requestFailure(error: unknown, timedOut: boolean, externallyAborted: boolean) {
+  if (timedOut) return { code: 'timeout_error', message: 'The request timed out.' } as const;
+  if (externallyAborted) return { code: 'request_aborted', message: 'The request was cancelled.' } as const;
+  if (error instanceof TypeError) return { code: 'network_error', message: error.message } as const;
+  return { code: 'request_error', message: error instanceof Error ? error.message : String(error) } as const;
+}
+
+type TransportFailure = Error & { apiFailureCode?: string };
+
+function timedSignal(signal: AbortSignal | null | undefined, timeoutMs: number) {
+  const controller = new AbortController();
+  let timedOut = false;
+  let externallyAborted = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const abort = () => {
+    externallyAborted = true;
+    controller.abort();
+  };
+  if (signal?.aborted) abort();
+  else signal?.addEventListener('abort', abort, { once: true });
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
+    },
+    wasTimedOut: () => timedOut,
+    wasExternallyAborted: () => externallyAborted,
+  };
+}
+
 export async function authenticatedApiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL;
   const supabase = getSupabaseClient();
@@ -74,20 +113,35 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
   }
 
   const url = `${normalizeApiBaseUrl(apiUrl)}${path}`;
+  const clientRequestId = requestId();
   const headers = {
     Accept: 'application/json',
     Authorization: `Bearer ${accessToken}`,
+    'X-Request-Id': clientRequestId,
     ...(trustedDeviceToken ? { 'X-Trusted-Device': trustedDeviceToken } : {}),
     ...init.headers,
   };
-  const send = () => fetch(url, { ...init, headers });
+  const send = (requestHeaders: typeof headers) => {
+    const request = timedSignal(init.signal, 30_000);
+    return fetch(url, { ...init, headers: requestHeaders, signal: request.signal }).catch((error: unknown) => {
+      const failure = requestFailure(error, request.wasTimedOut(), request.wasExternallyAborted());
+      const transportError = new Error(failure.message) as TransportFailure;
+      transportError.apiFailureCode = failure.code;
+      throw transportError;
+    }).finally(request.cleanup);
+  };
   let response: Response;
   try {
-    logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> request`);
-    response = await send();
-  } catch {
-    logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> network_error`);
-    throw new ApiRequestError('The service is temporarily unavailable. Please try again.', 0, 'network_error');
+    logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> request`, { requestId: clientRequestId });
+    response = await send(headers);
+  } catch (error) {
+    const failureCode = (error as TransportFailure).apiFailureCode ?? 'request_error';
+    logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${failureCode}`, { requestId: clientRequestId, detail: error instanceof Error ? error.message : String(error) });
+    throw new ApiRequestError(
+      failureCode === 'request_aborted' ? 'The request was cancelled.' : failureCode === 'timeout_error' ? 'The request timed out. Please try again.' : 'The service is temporarily unavailable. Please try again.',
+      0,
+      failureCode,
+    );
   }
 
   // A persisted mobile session can outlive its access token. Refresh once,
@@ -97,9 +151,9 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     const refreshedToken = refreshed.data.session?.access_token;
     if (refreshedToken) {
       try {
-        response = await fetch(url, { ...init, headers: { ...headers, Authorization: `Bearer ${refreshedToken}` } });
-      } catch {
-        logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> network_error_after_refresh`);
+        response = await send({ ...headers, Authorization: `Bearer ${refreshedToken}` });
+      } catch (error) {
+        logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> network_error_after_refresh`, { requestId: clientRequestId, detail: error instanceof Error ? error.message : String(error) });
         throw new ApiRequestError('The service is temporarily unavailable. Please try again.', 0, 'network_error_after_refresh');
       }
     }
@@ -113,9 +167,14 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
     throw new ApiRequestError(messageForResponse(response.status), response.status, 'invalid_response');
   }
 
-  logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, { code: payload.error?.code, message: payload.error?.message });
+  logApi(`${init.method ?? 'GET'} ${requestPath(url)} -> ${response.status}`, {
+    requestId: clientRequestId,
+    ...(payload.error?.code ? { code: payload.error.code } : {}),
+    ...(payload.error?.message ? { message: payload.error.message } : {}),
+    ...(payload.error?.correlationId ? { correlationId: payload.error.correlationId } : {}),
+  });
   if (!response.ok || payload.data === undefined) {
-    throw new ApiRequestError(messageForResponse(response.status, payload.error?.message, payload.error?.code), response.status, payload.error?.code ?? 'api_error', payload.error?.correlationId);
+    throw new ApiRequestError(messageForResponse(response.status, payload.error?.message, payload.error?.code), response.status, payload.error?.code ?? 'api_error', payload.error?.correlationId ?? response.headers.get('X-Correlation-Id') ?? undefined);
   }
 
   return payload.data;

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -34,6 +35,7 @@ import { FinancialSummaryBackground } from '@/components/financial-summary-backg
 
 import {
   CategoryChipRow,
+  CurrencyInput,
   parseAmount,
   FinanceFormSheet,
   budgetCategories,
@@ -79,6 +81,7 @@ type Summary = {
   goal_allocations: GoalAlloc[];
 };
 type BudgetEntry = { id: string; name: string; budget: number; icon?: string; persisted: boolean };
+type BudgetTemplate = { id: string; name: string; description: string; preview: string; allocations: { label: string; weight: number }[] };
 type Shortfall = {
   id: string;
   name: string;
@@ -129,6 +132,29 @@ const customCategoryIcons: { key: string; label: string; icon: LucideIcon }[] = 
   { key: 'car', label: 'Car', icon: Car },
 ];
 
+const budgetTemplates: BudgetTemplate[] = [
+  { id: 'balanced', name: 'Balanced 50/30/20', description: 'A flexible starting point for needs, wants, and savings.', preview: '50% Needs · 30% Wants · 20% Savings', allocations: [{ label: 'Rent', weight: .20 }, { label: 'Food', weight: .15 }, { label: 'Electricity', weight: .10 }, { label: 'Transport', weight: .05 }, { label: 'Entertainment', weight: .10 }, { label: 'Shopping', weight: .10 }, { label: 'Savings budget', weight: .20 }] },
+  { id: 'essentials', name: 'Essentials First', description: 'Prioritize housing, food, utilities, and everyday needs.', preview: '85% essentials · 10% savings · 5% wants', allocations: [{ label: 'Rent', weight: .30 }, { label: 'Food', weight: .20 }, { label: 'Electricity', weight: .10 }, { label: 'Transport', weight: .10 }, { label: 'Healthcare', weight: .05 }, { label: 'Debt / Loan', weight: .05 }, { label: 'Savings budget', weight: .10 }, { label: 'Personal Care', weight: .05 }, { label: 'Entertainment', weight: .05 }] },
+  { id: 'savings', name: 'Savings Focus', description: 'Set aside more for savings while keeping essentials practical.', preview: '25% savings · 62% essentials · 13% flexible', allocations: [{ label: 'Rent', weight: .25 }, { label: 'Food', weight: .15 }, { label: 'Electricity', weight: .10 }, { label: 'Transport', weight: .08 }, { label: 'Healthcare', weight: .05 }, { label: 'Debt / Loan', weight: .05 }, { label: 'Savings budget', weight: .25 }, { label: 'Entertainment', weight: .03 }, { label: 'Personal Care', weight: .04 }] },
+  { id: 'minimal', name: 'Minimal Starter', description: 'A small set of categories for a simple first budget.', preview: 'Food · Transport · Utilities · Savings · Personal', allocations: [{ label: 'Food', weight: .25 }, { label: 'Transport', weight: .15 }, { label: 'Electricity', weight: .15 }, { label: 'Savings budget', weight: .20 }, { label: 'Personal Care', weight: .15 }, { label: 'Shopping', weight: .10 }] },
+];
+
+function templateEntries(template: BudgetTemplate, total: number): BudgetEntry[] {
+  const cents = Math.max(0, Math.round(total * 100));
+  let allocated = 0;
+  return template.allocations.map((allocation, index) => {
+    const amount = index === template.allocations.length - 1 ? cents - allocated : Math.floor(cents * allocation.weight);
+    allocated += amount;
+    return { id: `budget-${allocation.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, name: allocation.label, budget: amount / 100, persisted: false };
+  });
+}
+
+function previousMonthKey(month: string) {
+  const date = new Date(`${month}-01T12:00:00`);
+  date.setMonth(date.getMonth() - 1);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
 const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
 
 function currentManilaMonth() {
@@ -178,6 +204,7 @@ export default function Budget() {
   const amountsVisible = visible === true;
   const [month] = useState(currentManilaMonth);
   const [data, setData] = useState<Summary | null>(null);
+  const [previousData, setPreviousData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
@@ -198,6 +225,12 @@ export default function Budget() {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  useEffect(() => {
+    void authenticatedApiRequest<Summary | null>(`/api/budget/summary?month=${previousMonthKey(month)}`)
+      .then(setPreviousData)
+      .catch(() => setPreviousData(null));
+  }, [month]);
 
   const label = monthLabel(month);
   const budgeted = data?.budget_amount ?? 0;
@@ -326,6 +359,7 @@ export default function Budget() {
         <BudgetForm
           month={month}
           summary={data}
+          previousSummary={previousData}
           shortfalls={shortfalls}
           initialCategoryId={contextCategoryId}
           onClose={() => setOpen(false)}
@@ -539,6 +573,7 @@ function BudgetProgressRow({
 function BudgetForm({
   month,
   summary,
+  previousSummary,
   shortfalls,
   initialCategoryId,
   onClose,
@@ -546,6 +581,7 @@ function BudgetForm({
 }: {
   month: string;
   summary: Summary | null;
+  previousSummary: Summary | null;
   shortfalls: Shortfall[];
   initialCategoryId?: string;
   onClose: () => void;
@@ -575,6 +611,9 @@ function BudgetForm({
     }));
   }, [summary, shortfalls]);
   const [entries, setEntries] = useState<BudgetEntry[]>(initialEntries);
+  const [monthlyBudget, setMonthlyBudget] = useState(() => String(summary?.budget_amount ?? ''));
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialEntries.map((entry) => [entry.id, entry.budget ? String(entry.budget) : '']),
@@ -602,6 +641,32 @@ function BudgetForm({
     [entries],
   );
   const selectedLabel = selectedEntry?.name ?? 'Category';
+  const confirmedBudget = parseAmount(monthlyBudget) ?? 0;
+  const replaceDraftEntries = (nextEntries: BudgetEntry[], templateId: string | null) => {
+    setEntries(nextEntries);
+    setDrafts(Object.fromEntries(nextEntries.map((entry) => [entry.id, entry.budget ? String(entry.budget) : ''])));
+    setSelectedId(nextEntries[0]?.id ?? '');
+    setSelectedTemplate(templateId);
+    setTemplateOpen(false);
+  };
+  const applyTemplate = (template: BudgetTemplate) => {
+    const total = parseAmount(monthlyBudget);
+    if (total === null || total <= 0) {
+      setError('Enter a monthly budget before choosing a template.');
+      setTemplateOpen(false);
+      return;
+    }
+    const apply = () => replaceDraftEntries(templateEntries(template, total), template.id);
+    if (summary && currentAllocation > 0) {
+      Alert.alert('Replace current allocations?', 'This replaces the editable draft with the selected template. Nothing is saved until you confirm.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Replace', onPress: apply }]);
+    } else apply();
+  };
+  const copyLastMonth = () => {
+    if (!previousSummary?.categories.length) return;
+    const copied = previousSummary.categories.filter((category) => !category.goal).map((category) => ({ id: category.id, name: category.name, budget: category.budget, icon: category.icon, persisted: false }));
+    setMonthlyBudget(String(previousSummary.budget_amount || copied.reduce((sum, entry) => sum + entry.budget, 0)));
+    replaceDraftEntries(copied, null);
+  };
   const liveShortfalls = useMemo(() => {
     const source = summary?.categories ?? [];
     return entries.flatMap((entry) => {
@@ -633,6 +698,7 @@ function BudgetForm({
     (sum, entry) => sum + (parseAmount(drafts[entry.id] ?? '') ?? 0),
     0,
   );
+  const allocationRemaining = confirmedBudget - currentAllocation;
   const originalAllocation = entries.reduce((sum, entry) => sum + entry.budget, 0);
   const allocationDelta = currentAllocation - originalAllocation;
   const remainingUnallocated = availableIncome - allocationDelta;
@@ -684,6 +750,18 @@ function BudgetForm({
   };
 
   const save = async () => {
+    if (confirmedBudget <= 0) {
+      setError('Enter a valid monthly budget.');
+      return;
+    }
+    if (allocationRemaining < 0) {
+      setError(`${peso(Math.abs(allocationRemaining))} is overallocated. Reduce a category before saving.`);
+      return;
+    }
+    if (new Set(entries.map((entry) => entry.id)).size !== entries.length) {
+      setError('Each budget category must be unique.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -725,7 +803,18 @@ function BudgetForm({
       onSave={() => void save()}
       onClose={onClose}
     >
-      <Text style={styles.formHint}>Set the monthly limit for one category at a time.</Text>
+      <CurrencyInput label="Monthly budget" value={monthlyBudget} onChangeText={setMonthlyBudget} placeholder="e.g. 20,000" />
+      <View style={styles.templateSummary} accessibilityRole="summary">
+        <Text style={styles.templateSummaryText}>{selectedTemplate ? `${budgetTemplates.find((template) => template.id === selectedTemplate)?.name} · editable draft` : 'Choose how you want to start'}</Text>
+        <Text style={styles.templateSummaryText}>Allocated {peso(currentAllocation)} · {allocationRemaining >= 0 ? `${peso(allocationRemaining)} remaining` : `${peso(Math.abs(allocationRemaining))} overallocated`}</Text>
+      </View>
+      <View style={styles.templateActions}>
+        <Pressable accessibilityRole="button" onPress={() => setTemplateOpen(true)} style={styles.templatePrimary}><Text style={styles.templatePrimaryText}>Choose a template</Text></Pressable>
+        <Pressable accessibilityRole="button" onPress={() => replaceDraftEntries(initialEntries, null)} style={styles.templateSecondary}><Text style={styles.templateSecondaryText}>Start from scratch</Text></Pressable>
+        {previousSummary?.categories.length ? <Pressable accessibilityRole="button" onPress={copyLastMonth} style={styles.templateSecondary}><Text style={styles.templateSecondaryText}>Copy last month</Text></Pressable> : null}
+      </View>
+      <TemplatePicker month={month} visible={templateOpen} onClose={() => setTemplateOpen(false)} onSelect={applyTemplate} onCustom={() => replaceDraftEntries(initialEntries, null)} />
+      <Text style={styles.formHint}>Edit category limits below. Templates only fill this draft and never save automatically.</Text>
       {liveShortfalls.length ? (
         <View style={styles.editSummary} accessibilityRole="summary">
           <Text style={styles.editSummaryTitle}>
@@ -834,6 +923,38 @@ function BudgetForm({
         </Text>
       </View>
     </FinanceFormSheet>
+  );
+}
+
+function TemplatePicker({
+  month,
+  visible,
+  onClose,
+  onSelect,
+  onCustom,
+}: {
+  month: string;
+  visible: boolean;
+  onClose: () => void;
+  onSelect: (template: BudgetTemplate) => void;
+  onCustom: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.addCategoryBackdrop} onPress={onClose}>
+        <Pressable style={[styles.addCategorySheet, { backgroundColor: colors.surface }]} onPress={(event) => event.stopPropagation()}>
+          <View style={styles.addCategoryHeader}>
+            <View><Text style={[styles.addCategoryTitle, { color: colors.textPrimary }]}>Choose a template</Text><Text style={[styles.muted, { color: colors.textSecondary }]}>Start with an editable plan for {monthLabel(month)}.</Text></View>
+            <Pressable accessibilityRole="button" accessibilityLabel="Close template picker" onPress={onClose} style={styles.iconClose}><X size={20} color={colors.textPrimary} /></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.templateList} showsVerticalScrollIndicator={false}>
+            {budgetTemplates.map((template) => <Pressable key={template.id} accessibilityRole="button" accessibilityLabel={`Use ${template.name} template`} onPress={() => onSelect(template)} style={({ pressed }) => [styles.templateCard, { backgroundColor: colors.surfaceInput, borderColor: colors.border }, pressed && styles.pressed]}><Text style={[styles.templateName, { color: colors.textPrimary }]}>{template.name}</Text><Text style={[styles.templateDescription, { color: colors.textSecondary }]}>{template.description}</Text><Text style={[styles.templatePreview, { color: colors.primary }]}>{template.preview}</Text></Pressable>)}
+            <Pressable accessibilityRole="button" onPress={onCustom} style={[styles.templateCard, styles.templateCustom, { borderColor: colors.primary, backgroundColor: colors.primarySoft }]}><Text style={[styles.templateName, { color: colors.primary }]}>Custom</Text><Text style={[styles.templateDescription, { color: colors.textSecondary }]}>Start with no template allocations and build your own plan.</Text></Pressable>
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -1417,6 +1538,19 @@ function createStyles(palette: typeof formPalette) {
     emptyActionText: { color: '#fff', fontWeight: '900' },
     pressed: { opacity: 0.72 },
     formHint: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+    templateSummary: { marginTop: 12, padding: 12, borderRadius: 15, backgroundColor: palette.background },
+    templateSummaryText: { color: palette.muted, fontSize: 11, lineHeight: 17, fontWeight: '700' },
+    templateActions: { gap: 8, marginTop: 12 },
+    templatePrimary: { minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 16, backgroundColor: palette.accent },
+    templatePrimaryText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+    templateSecondary: { minHeight: 42, alignItems: 'center', justifyContent: 'center', borderRadius: 15, borderWidth: 1, borderColor: palette.line, backgroundColor: palette.surface },
+    templateSecondaryText: { color: palette.accent, fontSize: 12, fontWeight: '900' },
+    templateList: { gap: 10, paddingTop: 18, paddingBottom: 20 },
+    templateCard: { padding: 15, borderRadius: 17, borderWidth: 1 },
+    templateCustom: { borderStyle: 'dashed' },
+    templateName: { fontSize: 14, fontWeight: '900' },
+    templateDescription: { marginTop: 5, fontSize: 11, lineHeight: 17 },
+    templatePreview: { marginTop: 8, fontSize: 11, fontWeight: '900' },
     limitPreview: {
       flexDirection: 'row',
       alignItems: 'center',

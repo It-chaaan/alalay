@@ -1,14 +1,21 @@
-import { client, requireUserId, throwIfError, type TableName } from "./db.js";
+import { client, requireUserId, throwIfError, todayIso, type TableName } from "./db.js";
 import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from "./crud.service.js";
 import { AppError } from "../utils/api.js";
 import { invalidateReportsForUser } from "./analytics.service.js";
+import { expandIncomeRows } from "./income-recurrence.service.js";
 
 export function makeResourceService(table: TableName) {
   return {
-    list: (userId: string, filters?: Record<string, unknown>) => listOwned(table, userId, filters),
+    list: async (userId: string, filters?: Record<string, unknown>) => {
+      const rows = await listOwned(table, userId, filters);
+      if (table !== "income") return rows;
+      const from = typeof filters?.from === "string" ? filters.from : "1900-01-01";
+      const to = typeof filters?.to === "string" ? filters.to : addDays(from, 400);
+      return expandIncomeRows(rows, from, to);
+    },
     get: (userId: string, id: string) => getOwned(table, userId, id),
     create: async (userId: string, payload: Record<string, unknown>) => {
-      const result = await createOwned(table, userId, payload);
+      const result = await createOwned(table, userId, table === "income" ? scheduleIncomePayload(payload) : payload);
       invalidateReportsForUser(userId);
       return result;
     },
@@ -30,6 +37,17 @@ export function makeResourceService(table: TableName) {
       return result;
     },
   };
+}
+
+function addDays(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function scheduleIncomePayload(payload: Record<string, unknown>) {
+  if (String(payload.date ?? "") <= todayIso()) return payload;
+  return { ...payload, is_posted: false, schedule_status: "active" };
 }
 
 export async function listByDateRange(table: TableName, userId: string, dateColumn: string, from?: string, to?: string) {

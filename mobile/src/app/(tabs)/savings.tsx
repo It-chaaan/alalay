@@ -27,6 +27,7 @@ import {
 
 import {
   DatePickerField,
+  CurrencyInput,
   parseAmount,
   FinanceFormSheet,
   FormTextInput,
@@ -87,6 +88,9 @@ const goalIcons = [
   'fitness',
   'general',
 ];
+// Keep legacy `motorcycle` values renderable, but do not expose a second
+// picker option for the same Car glyph.
+const goalIconOptions = goalIcons.filter((icon) => icon !== 'motorcycle');
 const goalIconMap = {
   emergency: Shield,
   savings: PiggyBank,
@@ -649,10 +653,11 @@ function GoalEmojiPicker({
     <View style={styles.picker}>
       <Text style={styles.pickerLabel}>Choose an icon</Text>
       <View style={styles.iconGrid}>
-        {goalIcons.map((icon) => (
+        {goalIconOptions.map((icon) => (
           <Pressable
             key={icon}
             accessibilityRole="button"
+            accessibilityLabel={`${icon} goal icon`}
             accessibilityState={{ selected: value === icon }}
             onPress={() => onChange(icon)}
             style={({ pressed }) => [
@@ -793,7 +798,7 @@ function GoalForm({
       {fundingMethod === 'monthly' && (
         <>
           <Text style={styles.suggested}>Suggested monthly amount: {peso(suggested)}/month</Text>
-          <FormTextInput
+          <CurrencyInput
             label="Monthly amount"
             value={monthlyAmount}
             onChangeText={setMonthlyAmount}

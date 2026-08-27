@@ -31,7 +31,10 @@ export default function AuthCallbackScreen() {
       try {
         const callback = await processMobileAuthCallback(supabase, url);
         setState('success');
-        router.replace(callback.mode === 'recovery' ? '/settings/change-password' : '/(tabs)');
+        // Let SessionGate make the authoritative profile/MFA/trusted-device
+        // decision. This avoids sending a newly authenticated user directly
+        // to the dashboard before the MFA assurance check completes.
+        router.replace(callback.mode === 'recovery' ? '/(tabs)/settings/change-password' : '/');
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : 'This confirmation link could not be verified.');
         setState('error');

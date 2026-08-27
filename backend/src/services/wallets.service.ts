@@ -125,6 +125,7 @@ export async function getWallet(userId: string, id: string) {
       .select('id, source, amount, date, wallet_id')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
+      .eq('is_posted', true)
       .is('deleted_at', null)
       .limit(200),
     client()

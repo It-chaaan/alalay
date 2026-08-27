@@ -76,12 +76,17 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
 }
 
 export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): IncomeRow[] {
-  const actualRows = rows.filter((row) => String(row.date) >= from && String(row.date) <= to);
-  const actualKeys = new Set(rows.map((row) => `${row.source}|${Number(row.amount)}|${row.date}`));
+  const actualRows = rows.filter((row) => row.is_posted !== false && String(row.date) >= from && String(row.date) <= to);
+  const actualKeys = new Set(actualRows.map((row) => `${row.source}|${Number(row.amount)}|${row.date}`));
   const scheduled: IncomeRow[] = [];
 
-  rows.filter(isRecurring).forEach((row) => {
+  rows.filter((row) => row.is_posted === false && row.schedule_status === "active" && !isRecurring(row))
+    .filter((row) => String(row.date) >= from && String(row.date) <= to)
+    .forEach((row) => scheduled.push({ ...row, id: `scheduled-${row.id}-${row.date}`, is_scheduled: true, recurrence_key: `${row.id}:${row.date}` }));
+
+  rows.filter((row) => isRecurring(row) && row.schedule_status !== "cancelled" && row.schedule_status !== "completed").forEach((row) => {
     occurrenceDates(row, from, to).forEach((date) => {
+      if (row.is_posted !== false && date === String(row.date)) return;
       const key = `${row.source}|${Number(row.amount)}|${date}`;
       if (actualKeys.has(key)) return;
       scheduled.push({ ...row, id: `scheduled-${row.id}-${date}`, date, is_scheduled: true, recurrence_key: `${row.id}:${date}` });

@@ -5,12 +5,14 @@ import { env } from "../config/env.js";
 
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
   const correlationId = randomUUID();
+  res.setHeader("X-Correlation-Id", correlationId);
   const details = error instanceof AppError && error.details
     ? error.details
     : error instanceof Error ? error.stack || error.message : String(error);
   const status = error instanceof AppError ? error.status : 500;
   const code = error instanceof AppError ? error.code : "internal_error";
-  console.error(`[API] ${req.method} ${req.originalUrl} -> ${status} ${code} [${correlationId}]`, details);
+  const clientRequestId = req.get("X-Request-Id");
+  console.error(`[API] ${req.method} ${req.originalUrl} -> ${status} ${code} [${correlationId}]${clientRequestId ? ` client=${clientRequestId}` : ""}`, details);
 
   if (error instanceof SyntaxError && "body" in error) {
     res.status(400).json({ success: false, error: { code: "invalid_json", message: "The request body is not valid JSON.", correlationId } });

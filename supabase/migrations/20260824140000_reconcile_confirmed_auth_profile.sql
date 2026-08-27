@@ -218,6 +218,13 @@ begin
   set split_with = array_prepend(auth_id, array_remove(array_replace(split_with, stale_id, auth_id), auth_id))
   where stale_id = any(split_with);
 
+  -- The stale profile currently owns the unique email value. Clear it only
+  -- after capturing the verified Auth email and immediately before assigning
+  -- that value to the authoritative profile; the whole operation is atomic.
+  update public.users
+  set email = null
+  where id = stale_id;
+
   -- Merge only missing profile fields. Auth email is authoritative; an active
   -- authoritative deletion state/plan/preferences are never downgraded.
   update public.users authoritative

@@ -51,6 +51,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { evaluateAmountExpression, formatCalculatorExpression } from '@/utils/amount-calculator';
+import { formatCurrencyInput } from '@/utils/currency-input';
 
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
@@ -609,16 +610,28 @@ export function DatePickerField({
   value,
   onChange,
   compact = false,
+  minimumDate,
+  maximumDate,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   compact?: boolean;
+  minimumDate?: string;
+  maximumDate?: string;
 }) {
   const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
+  const [view, setView] = useState<'calendar' | 'month' | 'year'>('calendar');
   const initial = toDate(value);
   const [month, setMonth] = useState(new Date(initial.getFullYear(), initial.getMonth(), 1));
+  const [draft, setDraft] = useState(initial);
+  const selectMonth = (year: number, monthIndex: number) => {
+    const day = Math.min(draft.getDate(), new Date(year, monthIndex + 1, 0).getDate());
+    const next = new Date(year, monthIndex, day);
+    setMonth(new Date(year, monthIndex, 1));
+    setDraft(next);
+  };
   const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
   const firstDay = new Date(month.getFullYear(), month.getMonth(), 1).getDay();
   const selected = toDate(value);
@@ -631,8 +644,24 @@ export function DatePickerField({
   );
 
   const choose = (day: number) => {
-    onChange(dateString(new Date(month.getFullYear(), month.getMonth(), day)));
-    setOpen(false);
+    const candidate = new Date(month.getFullYear(), month.getMonth(), day);
+    const minimum = minimumDate ? toDate(minimumDate) : null;
+    const maximum = maximumDate ? toDate(maximumDate) : null;
+    if ((minimum && candidate < minimum) || (maximum && candidate > maximum)) return;
+    setDraft(candidate);
+  };
+  const isDayDisabled = (day: number) => {
+    const candidate = new Date(month.getFullYear(), month.getMonth(), day);
+    const minimum = minimumDate ? toDate(minimumDate) : null;
+    const maximum = maximumDate ? toDate(maximumDate) : null;
+    return Boolean((minimum && candidate < minimum) || (maximum && candidate > maximum));
+  };
+  const canMove = (offset: number) => {
+    const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
+    const end = new Date(next.getFullYear(), next.getMonth() + 1, 0);
+    const minimum = minimumDate ? toDate(minimumDate) : null;
+    const maximum = maximumDate ? toDate(maximumDate) : null;
+    return !(minimum && end < minimum) && !(maximum && next > maximum);
   };
 
   const today = dateString(new Date());
@@ -651,7 +680,10 @@ export function DatePickerField({
         accessibilityRole="button"
         accessibilityLabel={`${label}, ${displayValue}`}
         onPress={() => {
-          setMonth(new Date(selected.getFullYear(), selected.getMonth(), 1));
+          const next = toDate(value);
+          setDraft(next);
+          setMonth(new Date(next.getFullYear(), next.getMonth(), 1));
+          setView('calendar');
           setOpen(true);
         }}
         style={({ pressed }) => [
@@ -688,25 +720,52 @@ export function DatePickerField({
                 <Text style={[dateStyles.close, { color: colors.textPrimary }]}>×</Text>
               </Pressable>
             </View>
-            <View style={dateStyles.monthHeader}>
+            {view === 'calendar' ? <View style={dateStyles.monthHeader}>
               <Pressable
                 accessibilityLabel="Previous month"
+                disabled={!canMove(-1)}
                 onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
                 style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
               >
                 <ArrowLeft size={17} color={colors.textPrimary} />
               </Pressable>
-              <Text style={[dateStyles.month, { color: colors.textPrimary }]}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Choose month and year" onPress={() => setView('year')}>
+                <Text style={[dateStyles.month, { color: colors.textPrimary }]}>
                 {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-              </Text>
+                </Text>
+              </Pressable>
               <Pressable
                 accessibilityLabel="Next month"
+                disabled={!canMove(1)}
                 onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
                 style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
               >
                 <ArrowRight size={17} color={colors.textPrimary} />
               </Pressable>
-            </View>
+            </View> : view === 'year' ? (
+              <View>
+                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>Choose year</Text>
+                <ScrollView style={dateStyles.selectorScroll} contentContainerStyle={dateStyles.selectorGrid}>
+                  {Array.from({ length: 21 }, (_, index) => month.getFullYear() - 10 + index).map((year) => (
+                    <Pressable key={year} accessibilityRole="button" accessibilityLabel={`Year ${year}`} onPress={() => { selectMonth(year, month.getMonth()); setView('month'); }} style={[dateStyles.selectorOption, year === month.getFullYear() && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+                      <Text style={{ color: year === month.getFullYear() ? colors.primary : colors.textPrimary, fontWeight: '800' }}>{year}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : (
+              <View>
+                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>Choose month</Text>
+                <View style={dateStyles.selectorGrid}>
+                  {Array.from({ length: 12 }, (_, index) => index).map((monthIndex) => (
+                    <Pressable key={monthIndex} accessibilityRole="button" accessibilityLabel={new Date(2020, monthIndex, 1).toLocaleDateString('en-US', { month: 'long' })} onPress={() => { selectMonth(month.getFullYear(), monthIndex); setView('calendar'); }} style={[dateStyles.selectorOption, monthIndex === month.getMonth() && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
+                      <Text style={{ color: monthIndex === month.getMonth() ? colors.primary : colors.textPrimary, fontWeight: '800' }}>{new Date(2020, monthIndex, 1).toLocaleDateString('en-US', { month: 'short' })}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            )}
+            {view === 'calendar' && <>
             <View style={dateStyles.weekRow}>
               {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
                 <Text
@@ -724,21 +783,26 @@ export function DatePickerField({
                 ) : (
                   <Pressable
                     key={day}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${month.toLocaleDateString('en-US', { month: 'long' })} ${day}, ${month.getFullYear()}`}
+                    accessibilityState={{ selected: draft.getFullYear() === month.getFullYear() && draft.getMonth() === month.getMonth() && draft.getDate() === day, disabled: isDayDisabled(day) }}
+                    disabled={isDayDisabled(day)}
                     onPress={() => choose(day)}
                     style={[
                       dateStyles.day,
-                      selected.getFullYear() === month.getFullYear() &&
-                        selected.getMonth() === month.getMonth() &&
-                        selected.getDate() === day && { backgroundColor: colors.primary },
+                        draft.getFullYear() === month.getFullYear() &&
+                        draft.getMonth() === month.getMonth() &&
+                        draft.getDate() === day && { backgroundColor: colors.primary },
+                        isDayDisabled(day) && dateStyles.disabled,
                     ]}
                   >
                     <Text
                       style={[
                         dateStyles.dayText,
                         { color: colors.textPrimary },
-                        selected.getFullYear() === month.getFullYear() &&
-                          selected.getMonth() === month.getMonth() &&
-                          selected.getDate() === day && {
+                        draft.getFullYear() === month.getFullYear() &&
+                          draft.getMonth() === month.getMonth() &&
+                          draft.getDate() === day && {
                             color: colors.textOnPrimary,
                             fontWeight: '900',
                           },
@@ -751,14 +815,16 @@ export function DatePickerField({
               )}
             </View>
             <Pressable
-              onPress={() => {
-                onChange(dateString(new Date()));
-                setOpen(false);
-              }}
+              onPress={() => { setDraft(new Date()); setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); }}
               style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}
             >
               <Text style={[dateStyles.todayText, { color: colors.primary }]}>Use today</Text>
             </Pressable>
+            </>}
+            <View style={dateStyles.actions}>
+              <Pressable accessibilityRole="button" onPress={() => setOpen(false)} style={[dateStyles.action, { backgroundColor: colors.surfaceInput }]}><Text style={{ color: colors.textSecondary, fontWeight: '800' }}>Cancel</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={() => { onChange(dateString(draft)); setOpen(false); }} style={[dateStyles.action, { backgroundColor: colors.primary }]}><Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Confirm</Text></Pressable>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1129,6 +1195,51 @@ export function FormTextInput({
   );
 }
 
+export function CurrencyInput({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChangeText: (value: string) => void;
+}) {
+  const { colors } = useAppTheme();
+  const interaction = useContext(FinanceFormInteractionContext);
+  return (
+    <View style={inputStyles.wrap}>
+      <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text>
+      <View style={[currencyInputStyles.field, { backgroundColor: colors.input }]}>
+        <Text style={[currencyInputStyles.prefix, { color: colors.primary }]}>₱</Text>
+        <TextInput
+          accessibilityLabel={label}
+          keyboardType="decimal-pad"
+          value={formatCurrencyInput(value)}
+          onFocus={() => interaction?.deactivateAmount()}
+          onChangeText={(next) => onChangeText(formatCurrencyInput(next))}
+          placeholder={placeholder}
+          placeholderTextColor={colors.subtle}
+          style={[currencyInputStyles.input, { color: colors.ink }]}
+        />
+      </View>
+    </View>
+  );
+}
+
+const currencyInputStyles = StyleSheet.create({
+  field: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    borderRadius: 17,
+  },
+  prefix: { marginRight: 7, fontSize: 16, fontWeight: '900' },
+  input: { flex: 1, minHeight: 54, padding: 0, fontSize: 15 },
+});
+
 const calculatorKeypadStyles = StyleSheet.create({
   wrap: { paddingHorizontal: 16, paddingTop: 6, paddingBottom: 14 },
   display: { minHeight: 54, alignItems: 'flex-end', justifyContent: 'flex-end', marginBottom: 8 },
@@ -1266,10 +1377,11 @@ const dateStyles = StyleSheet.create({
   backdrop: {
     flex: 1,
     justifyContent: 'center',
-    padding: 22,
+    alignItems: 'center',
+    padding: 16,
     backgroundColor: 'rgba(17,35,28,0.34)',
   },
-  modal: { padding: 19, borderRadius: 24, backgroundColor: formPalette.surface },
+  modal: { width: '100%', maxWidth: 430, maxHeight: '88%', padding: 18, borderRadius: 24, overflow: 'hidden', backgroundColor: formPalette.surface },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' },
   close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 },
@@ -1288,6 +1400,19 @@ const dateStyles = StyleSheet.create({
     backgroundColor: formPalette.background,
   },
   month: { color: formPalette.ink, fontSize: 15, fontWeight: '900' },
+  selectorTitle: { marginTop: 18, marginBottom: 10, fontSize: 12, fontWeight: '900' },
+  selectorScroll: { maxHeight: 260 },
+  selectorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectorOption: {
+    width: '31%',
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: formPalette.background,
+  },
   weekRow: { flexDirection: 'row', marginTop: 14 },
   weekDay: {
     width: '14.28%',
@@ -1305,16 +1430,20 @@ const dateStyles = StyleSheet.create({
     borderRadius: 21,
   },
   dayText: { color: formPalette.ink, fontSize: 13, fontWeight: '700' },
+  disabled: { opacity: 0.3 },
   selected: { backgroundColor: formPalette.accent },
   selectedText: { color: '#FFFFFF', fontWeight: '900' },
   today: {
-    alignItems: 'center',
+    alignSelf: 'flex-end',
     marginTop: 12,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 14,
     backgroundColor: formPalette.accentPale,
   },
   todayText: { color: formPalette.accentDark, fontWeight: '900' },
+  actions: { flexDirection: 'row', gap: 9, marginTop: 12 },
+  action: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
 });
 
 const sheetStyles = StyleSheet.create({

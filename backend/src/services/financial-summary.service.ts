@@ -17,14 +17,14 @@ async function allIncomeRows(userId: string, from?: string, to?: string) {
     .eq("user_id", requireUserId(userId))
     .is("deleted_at", null)
     .order("date", { ascending: false });
-  if (from && to) query = query.or(`date.gte.${from},is_recurring.eq.true`).lte("date", to);
+  if (from && to) query = query.or(`date.gte.${from},is_recurring.eq.true`);
   const { data, error } = await query;
   throwIfError(error);
   return data ?? [];
 }
 
 function summarize(rows: Array<Record<string, any>>): IncomeSummaryRange {
-  const actualRows = rows.filter((row) => !row.is_scheduled);
+  const actualRows = rows.filter((row) => !row.is_scheduled && row.is_posted !== false);
   const scheduledRows = rows.filter((row) => Boolean(row.is_scheduled));
   const actualTotal = actualRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
   const scheduledTotal = scheduledRows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
@@ -33,7 +33,7 @@ function summarize(rows: Array<Record<string, any>>): IncomeSummaryRange {
     rows,
     actualRows,
     scheduledRows,
-    total: actualTotal + scheduledTotal,
+    total: actualTotal,
     actualTotal,
     scheduledTotal,
   };

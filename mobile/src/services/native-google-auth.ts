@@ -6,6 +6,15 @@ import { processMobileAuthCallback } from '@/services/mobile-auth-callback';
 
 WebBrowser.maybeCompleteAuthSession();
 
+let activeGoogleSignIn: Promise<{ resultType: string; callback: Awaited<ReturnType<typeof processMobileAuthCallback>> }> | null = null;
+
+export class GoogleSignInCancelledError extends Error {
+  constructor(message = 'Google sign-in was cancelled.') {
+    super(message);
+    this.name = 'GoogleSignInCancelledError';
+  }
+}
+
 function redirectParts(value: string | null) {
   if (!value) return null;
   try {
@@ -17,12 +26,21 @@ function redirectParts(value: string | null) {
 }
 
 export async function signInWithGoogleNative(supabase: SupabaseClient) {
+  if (activeGoogleSignIn) return activeGoogleSignIn;
+  activeGoogleSignIn = signInWithGoogleNativeOnce(supabase).finally(() => { activeGoogleSignIn = null; });
+  return activeGoogleSignIn;
+}
+
+async function signInWithGoogleNativeOnce(supabase: SupabaseClient) {
+  // Expo Go resolves this to its generated exp:// callback; native builds use
+  // the configured alalay scheme. The same value is sent to Supabase and the
+  // auth browser so Supabase cannot fall back to its web Site URL.
   const redirectTo = Linking.createURL('/auth/callback');
   if (__DEV__) console.info('[Mobile OAuth] Generated redirect:', redirectTo);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
-    options: { redirectTo, skipBrowserRedirect: true },
+    options: { redirectTo, skipBrowserRedirect: true, queryParams: { prompt: 'select_account' } },
   });
   if (error) throw error;
   if (__DEV__) console.info('[Mobile OAuth] Supabase data.url exists:', Boolean(data.url));
@@ -45,8 +63,7 @@ export async function signInWithGoogleNative(supabase: SupabaseClient) {
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
   if (__DEV__) console.info('[Mobile OAuth] Browser result:', result.type);
   if (result.type !== 'success') {
-    if (result.type === 'cancel') throw new Error('Google sign-in was cancelled.');
-    if (result.type === 'dismiss') throw new Error('Google sign-in was dismissed.');
+    if (result.type === 'cancel' || result.type === 'dismiss') throw new GoogleSignInCancelledError(result.type === 'cancel' ? undefined : 'Google sign-in was dismissed.');
     throw new Error('Google sign-in did not complete.');
   }
 

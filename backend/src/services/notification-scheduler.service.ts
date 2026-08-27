@@ -56,7 +56,8 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
   throwIfError(existingError);
   if (existing?.length) return false;
 
-  await createInAppNotification({ userId: user.id, type, title: input.subject, body: input.subject, related_bill_id: typeof related.related_bill_id === "string" ? related.related_bill_id : null, related_subscription_id: typeof related.related_subscription_id === "string" ? related.related_subscription_id : null, related_wallet_id: typeof related.related_wallet_id === "string" ? related.related_wallet_id : null, period_key: periodKey ?? null });
+  const relatedId = typeof related.related_bill_id === "string" ? related.related_bill_id : typeof related.related_subscription_id === "string" ? related.related_subscription_id : typeof related.related_wallet_id === "string" ? related.related_wallet_id : "summary";
+  await createInAppNotification({ userId: user.id, type, title: input.subject, body: input.subject, related_bill_id: typeof related.related_bill_id === "string" ? related.related_bill_id : null, related_subscription_id: typeof related.related_subscription_id === "string" ? related.related_subscription_id : null, related_wallet_id: typeof related.related_wallet_id === "string" ? related.related_wallet_id : null, period_key: periodKey ?? null, source_type: related.related_bill_id ? "bill" : related.related_subscription_id ? "subscription" : related.related_wallet_id ? "wallet" : "summary", source_id: relatedId, deduplication_key: `${type}:${user.id}:${relatedId}:${periodKey ?? today}` });
 
   try {
     await sendEmail({ to: email, ...input });

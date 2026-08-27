@@ -266,6 +266,46 @@ a {
   .dashboard-recent-transactions { order: 6; }
 }
 
+/* Size Top Spending from its dashboard column rather than the viewport. */
+.dashboard-top-spending {
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.top-spending-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.5rem;
+}
+
+.top-spending-item {
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.top-spending-label {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.top-spending-value {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  font-variant-numeric: tabular-nums;
+}
+
+@container (min-width: 30rem) {
+  .top-spending-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@container (min-width: 34rem) {
+  .top-spending-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
 .assistant-message {
   color: inherit;
   overflow-wrap: anywhere;

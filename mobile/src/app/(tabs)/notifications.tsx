@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, AppState, FlatList, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import * as ExpoNotifications from 'expo-notifications';
 import { router, useFocusEffect } from 'expo-router';
 import { Bell } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,7 +8,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { GlassSurface } from '@/components/glass-surface';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { NotificationRow } from '@/components/notification-row';
-import { fetchNotifications, markNotificationsRead, type InAppNotification } from '@/services/notifications';
+import { fetchNotifications, markNotificationRead, type InAppNotification } from '@/services/notifications';
 import { useAppTheme } from '@/theme/theme';
 
 export default function Notifications() {
@@ -19,10 +20,6 @@ export default function Notifications() {
     try {
       const rows = await fetchNotifications();
       setItems(rows);
-      if (rows.some((row) => !row.read_at)) {
-        await markNotificationsRead();
-        setItems(rows.map((row) => ({ ...row, read_at: row.read_at ?? new Date().toISOString() })));
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Notifications could not load.');
     } finally {
@@ -31,6 +28,8 @@ export default function Notifications() {
   }, []);
 
   useFocusEffect(useCallback(() => { void load(); }, [load]));
+  useEffect(() => { const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') void load(); }); return () => subscription.remove(); }, [load]);
+  useEffect(() => { const subscription = ExpoNotifications.addNotificationReceivedListener(() => { void load(); }); return () => subscription.remove(); }, [load]);
 
   const renderEmpty = () => (
     <GlassSurface style={styles.card} padding={22}>
@@ -53,7 +52,7 @@ export default function Notifications() {
   );
 
   const renderItem = ({ item }: { item: InAppNotification }) => (
-    <NotificationRow item={item} onPress={() => router.push('/(tabs)/notifications')} />
+    <NotificationRow item={item} onPress={() => { if (!item.read_at) { void markNotificationRead(item.id).then(() => setItems((current) => current.map((row) => row.id === item.id ? { ...row, read_at: new Date().toISOString() } : row))).catch(() => undefined); } router.push(item.related_bill_id || item.type.startsWith('bill_') ? '/(tabs)/bills' : item.related_subscription_id || item.type.startsWith('subscription_') ? '/(tabs)/subscriptions' : item.related_wallet_id ? '/(tabs)/wallets' : '/(tabs)/notifications'); }} />
   );
 
   return (
@@ -67,7 +66,7 @@ export default function Notifications() {
       ) : error ? (
         renderError()
       ) : items.length ? (
-        <FlatList data={items} contentContainerStyle={styles.content} renderItem={renderItem} keyExtractor={(i) => i.id} />
+        <FlatList data={items} contentContainerStyle={styles.content} renderItem={renderItem} keyExtractor={(i) => i.id} refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} tintColor={colors.primary} />} />
       ) : (
         <ScrollView contentContainerStyle={styles.content}>{renderEmpty()}</ScrollView>
       )}

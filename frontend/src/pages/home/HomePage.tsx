@@ -3,7 +3,7 @@ import { Container } from "../../components/layout/Container";
 import { MarketingFooter } from "../../components/layout/MarketingFooter";
 import { Navbar } from "../../components/navigation/Navbar";
 import { mobileDownloadCopy, qrPreviewCells } from "../../constants/mobileDownload";
-import { ReceiptText, Bot, PiggyBank, ChartNoAxesCombined, CreditCard, Scan  } from "lucide-react";
+import { ReceiptText, Bot, PiggyBank, ChartNoAxesCombined, CreditCard, Scan, Smartphone } from "lucide-react";
 
 const features = [
   {
@@ -214,6 +214,13 @@ export function HomePage() {
                 Start for free <span className="ml-2">→</span>
               </a>
             </div>
+            <aside className="mt-6 flex max-w-xl items-start gap-3 rounded-2xl border border-[#b9dfd0] bg-[#e8f6f0] px-4 py-3 text-[#164e3b]">
+              <Smartphone aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[#0f8a6b]" />
+              <div className="min-w-0">
+                <p className="text-sm font-semibold">For the best Alalay experience, use our mobile app.</p>
+                <p className="mt-1 text-sm leading-6 text-[#356b59]">Access your finances, receive reminders, and manage your money conveniently on the go.</p>
+              </div>
+            </aside>
           </div>
 
           <div className="flex justify-center lg:justify-end">

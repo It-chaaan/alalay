@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { ArrowUpRight, BriefcaseBusiness, Building2, MoreHorizontal, Send, WalletCards } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -16,6 +16,7 @@ import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { useToast } from '@/components/toast-provider';
+import { useIncomeWorkflow, type IncomeWorkflowDraft } from '@/context/income-workflow';
 
 type Income = { id: string; source: string; type: string; custom_type?: string | null; amount: number | string; date: string; is_recurring: boolean; frequency?: string | null; wallet_id: string };
 type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
@@ -46,6 +47,7 @@ function monthName(month: string) {
 export default function IncomeScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
+  const workflow = useIncomeWorkflow();
   styles = makeStyles({ ...formPalette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, balance: colors.balance, line: colors.border });
   const bottomNavClearance = useBottomNavClearance();
   const [rows, setRows] = useState<Income[]>([]);
@@ -56,6 +58,7 @@ export default function IncomeScreen() {
   const [editing, setEditing] = useState<Income | null>(null);
   const [managing, setManaging] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const [walletSelection, setWalletSelection] = useState<{ id: string; version: number } | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -77,6 +80,10 @@ export default function IncomeScreen() {
   }, []);
 
   useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
+  useFocusEffect(useCallback(() => {
+    const createdId = workflow.takeCreatedWallet();
+    if (createdId) { setWalletSelection({ id: createdId, version: Date.now() }); setOpen(true); void refresh(); }
+  }, [refresh, workflow]));
 
   const currentMonth = currentMonthKey();
   const supportingText = summary.monthly_sources > 0
@@ -88,25 +95,29 @@ export default function IncomeScreen() {
   return <SafeAreaView style={[styles.safeArea, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
     <FinancialScreenHeader title="Income" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} />
     {loading ? <View style={styles.center}><ActivityIndicator color={formPalette.accent} /><Text style={styles.muted}>Loading income…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Income unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}><FinancialOverviewCard title="INCOME OVERVIEW" context={monthName(currentMonth)} value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`} supportingInfo={supportingText} accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`} /><View style={styles.listSection}><View style={styles.sectionHeader}><Text style={styles.sectionTitle}>Recent income</Text><SectionAddButton label="Add income" onPress={() => setOpen(true)} /></View>{rows.length ? rows.map((row) => <View key={row.id} style={styles.row}><View style={styles.icon}><ArrowUpRight size={18} color={colors.primary} /></View><View style={styles.main}><Text style={styles.rowTitle}>{row.source}</Text><Text style={styles.muted}>{row.type} · {row.is_recurring ? row.frequency ?? 'Recurring' : 'One-time'} · {row.date}</Text></View><Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${row.source}`} onPress={() => setManaging(row)} style={styles.more}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>) : <View style={styles.card}><Text style={styles.cardTitle}>No income yet</Text><Text style={styles.muted}>No income records yet.</Text></View>}</View></ScrollView>}
-    {open && <IncomeForm wallets={wallets} onClose={() => setOpen(false)} onSaved={async () => { setOpen(false); await refresh(); }} />}
+    {open && <IncomeForm wallets={wallets} selectedWalletId={walletSelection?.id} onAddWallet={(draft) => { workflow.saveDraft(draft); setOpen(false); router.push({ pathname: '/(tabs)/wallets', params: { openAddWallet: '1', returnTo: 'income' } }); }} onClose={() => { workflow.clear(); setOpen(false); }} onSaved={async () => { workflow.clear(); setOpen(false); await refresh(); }} />}
     {editing && <IncomeForm initial={editing} wallets={wallets} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {managing && <RecordActionSheet visible title="Income options" recordName={managing.source} onClose={() => setManaging(null)} actions={[{ label: 'Edit', onPress: () => { setManaging(null); setEditing(managing); } }, { label: 'Delete', tone: 'destructive', confirm: { title: `Delete ${managing.source}?`, message: 'This income will be removed and its wallet balance will be recomputed.' }, onPress: async () => { await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); toast.success('Income deleted successfully'); } }]} />}
   </SafeAreaView>;
 }
 
-function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void>; initial?: Income }) {
+function IncomeForm({ wallets, onClose, onSaved, onAddWallet, selectedWalletId, initial }: { wallets: Wallet[]; onClose: () => void; onSaved: () => Promise<void>; onAddWallet?: (draft: IncomeWorkflowDraft) => void; selectedWalletId?: string; initial?: Income }) {
   const toast = useToast();
-  const [source, setSource] = useState(initial?.source ?? '');
-  const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
+  const workflow = useIncomeWorkflow();
+  const preserved = initial ? null : workflow.draft;
+  useEffect(() => { if (!initial && workflow.draft) workflow.takeDraft(); }, [initial, workflow]);
+  const [source, setSource] = useState(preserved?.source ?? initial?.source ?? '');
+  const [amount, setAmount] = useState(preserved?.amount ?? (initial ? String(initial.amount) : ''));
   const initialType = incomeTypes.find((option) => incomeTypeValues[option.label] === initial?.type)?.label ?? (initial?.custom_type ? 'Other' : 'Salary');
-  const [date, setDate] = useState(initial?.date ?? dateKeyInManila());
-  const [typeLabel, setTypeLabel] = useState(initialType);
-  const [customType, setCustomType] = useState(initial?.custom_type ?? '');
-  const [frequency, setFrequency] = useState<IncomeFrequency>('monthly');
-  const [recurring, setRecurring] = useState(initial?.is_recurring ?? true);
-  const [walletId, setWalletId] = useState<string | null>(initial?.wallet_id ?? null);
+  const [date, setDate] = useState(preserved?.date ?? initial?.date ?? dateKeyInManila());
+  const [typeLabel, setTypeLabel] = useState(preserved?.typeLabel ?? initialType);
+  const [customType, setCustomType] = useState(preserved?.customType ?? initial?.custom_type ?? '');
+  const [frequency, setFrequency] = useState<IncomeFrequency>(preserved?.frequency ?? 'monthly');
+  const [recurring, setRecurring] = useState(preserved?.recurring ?? initial?.is_recurring ?? true);
+  const [walletId, setWalletId] = useState<string | null>(selectedWalletId ?? preserved?.walletId ?? initial?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  useEffect(() => { if (selectedWalletId) setWalletId(selectedWalletId); }, [selectedWalletId]);
 
   const save = async () => {
     const value = parseAmount(amount);
@@ -119,10 +130,10 @@ function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[];
     setError('');
     try {
       const path = initial ? `/api/income/${initial.id}` : '/api/income';
-      await authenticatedApiRequest(path, { method: initial ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel], custom_type: typeLabel === 'Other' ? customType.trim() : null, amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
+      const result = await authenticatedApiRequest<{ is_posted?: boolean }>(path, { method: initial ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: source.trim(), type: incomeTypeValues[typeLabel], custom_type: typeLabel === 'Other' ? customType.trim() : null, amount: value, date, is_recurring: recurring, frequency: recurring ? frequency : null, wallet_id: walletId }) });
       notifyFinancialMutation();
       await onSaved();
-      toast.success(initial ? 'Income updated successfully' : 'Income added successfully');
+      toast.success(initial ? 'Income updated successfully' : result.is_posted === false ? `Income scheduled for ${date}` : 'Income added successfully');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this income.');
     } finally {
@@ -134,10 +145,11 @@ function IncomeForm({ wallets, onClose, onSaved, initial }: { wallets: Wallet[];
     <FormTextInput label="Source" value={source} onChangeText={setSource} placeholder="e.g. Freelance client" />
     <CategoryChipRow label="Income type" value={typeLabel} onChange={setTypeLabel} options={incomeTypes} />
     {typeLabel === 'Other' && <FormTextInput label="Specify income type *" value={customType} onChangeText={setCustomType} placeholder="e.g. Scholarship" />}
-    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Deposit to" />
+    <WalletPicker wallets={wallets} value={walletId} onChange={setWalletId} required label="Deposit to" onAddWallet={() => onAddWallet?.({ source, amount, typeLabel, customType, date, frequency, recurring, walletId })} />
     <DatePickerField label="Date" value={date} onChange={setDate} />
     <View style={styles.recurring}><View style={styles.recurringCopy}><Text style={styles.recurringTitle}>Recurring income</Text><Text style={styles.muted}>{recurring ? 'Automatically grouped by frequency.' : 'Save this as a one-time entry.'}</Text></View><Switch accessibilityLabel="Recurring income" value={recurring} onValueChange={setRecurring} trackColor={{ false: '#D7E1DC', true: formPalette.accent }} thumbColor="#FFFFFF" /></View>
     {recurring && <IncomeFrequencyChips value={frequency} onChange={setFrequency} />}
+    {!initial && date > dateKeyInManila() && <Text style={styles.muted}>Your wallet will be credited when this income becomes due.</Text>}
   </FinanceFormSheet>;
 }
 

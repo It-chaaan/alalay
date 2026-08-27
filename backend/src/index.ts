@@ -2,6 +2,7 @@ import { createServer } from "./server.js";
 import { env } from "./config/env.js";
 import { startNotificationScheduler } from "./services/notification-scheduler.service.js";
 import { startBillingScheduler } from "./services/billing-scheduler.service.js";
+import { startIncomeScheduler } from "./services/income-scheduler.service.js";
 
 const app = createServer();
 const protocol = env.HTTPS_TERMINATE_LOCALLY ? "https" : "http";
@@ -10,6 +11,7 @@ const address = `${protocol}://localhost:${env.PORT}`;
 const server = app.listen(env.PORT, () => {
   console.log(`Server listening on ${address}`);
   startBillingScheduler();
+  startIncomeScheduler();
   startNotificationScheduler();
 });
 

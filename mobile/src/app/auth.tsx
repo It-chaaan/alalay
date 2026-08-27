@@ -12,7 +12,7 @@ import { OtpInput } from '@/components/otp-input';
 import { getSupabaseClient } from '@/services/supabase';
 import { useAppTheme } from '@/theme/theme';
 import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
-import { signInWithGoogleNative } from '@/services/native-google-auth';
+import { GoogleSignInCancelledError, signInWithGoogleNative } from '@/services/native-google-auth';
 
 type AuthMode = 'signin' | 'create' | 'mfa';
 type Palette = { background: string; surface: string; ink: string; muted: string; accent: string; accentSoft: string; line: string; danger: string };
@@ -82,7 +82,9 @@ export default function AuthScreen() {
     try {
       await signInWithGoogleNative(supabase);
     } catch (oauthError) {
-      setError(getAuthError(oauthError instanceof Error ? oauthError.message : 'Google sign-in failed.'));
+      if (!(oauthError instanceof GoogleSignInCancelledError)) {
+        setError(getAuthError(oauthError instanceof Error ? oauthError.message : 'Google sign-in failed.'));
+      }
     } finally {
       setLoading(false);
     }

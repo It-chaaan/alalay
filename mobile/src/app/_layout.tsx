@@ -16,6 +16,7 @@ import { getSupabaseClient } from '@/services/supabase';
 import { AppThemeProvider, useAppTheme } from '@/theme/theme';
 import { requiresMfa } from '@/services/mfa';
 import { reconcileOnAppResume } from '@/services/financial-reminders';
+import { IncomeWorkflowProvider } from '@/context/income-workflow';
 
 export default function RootLayout() {
   return <AppThemeProvider><ThemedRoot /></AppThemeProvider>;
@@ -89,7 +90,7 @@ function SessionGate() {
     };
     reconcileSafely();
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') reconcileSafely(); });
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { if (response.notification.request.content.data?.eventType === 'bill') router.push('/bills'); });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { const data = response.notification.request.content.data as { eventType?: string; notificationId?: string } | undefined; if (data?.notificationId) void import('@/services/notifications').then(({ markNotificationRead }) => markNotificationRead(data.notificationId!)).catch(() => undefined); if (data?.eventType === 'bill') router.push('/bills'); });
     return () => { subscription.remove(); responseSubscription.remove(); };
   }, [router, session]);
 
@@ -108,7 +109,7 @@ function SessionGate() {
 
   if (checkingSession) return <SessionLoadingScreen />;
 
-  return <View style={[styles.appShell, { backgroundColor: colors.background }, session && modalCount === 0 && !screenOwnsClearance && { paddingBottom: bottomNavClearance }]}><Stack screenOptions={{ headerShown: false }}>
+  return <IncomeWorkflowProvider><View style={[styles.appShell, { backgroundColor: colors.background }, session && modalCount === 0 && !screenOwnsClearance && { paddingBottom: bottomNavClearance }]}><Stack screenOptions={{ headerShown: false }}>
     <Stack.Screen name="index" />
     <Stack.Screen name="auth" />
     <Stack.Screen name="auth/callback" />
@@ -117,7 +118,7 @@ function SessionGate() {
     <Stack.Screen name="loans" options={{ headerShown: false }} />
     <Stack.Screen name="notifications" options={{ headerShown: false }} />
     <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-  </Stack>{session && !mfaPending ? <BottomNav /> : null}</View>;
+  </Stack>{session && !mfaPending ? <BottomNav /> : null}</View></IncomeWorkflowProvider>;
 }
 
 function SessionLoadingScreen() {

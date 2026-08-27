@@ -64,6 +64,7 @@ import { BalanceVisibilityToggle } from '@/components/balance-visibility-toggle'
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
+import { useIncomeWorkflow } from '@/context/income-workflow';
 
 type WalletTransaction = {
   id: string;
@@ -248,6 +249,7 @@ export default function WalletsScreen() {
   const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const toast = useToast();
+  const workflow = useIncomeWorkflow();
   styles = makeStyles({
     ...formPalette,
     background: colors.background,
@@ -260,7 +262,7 @@ export default function WalletsScreen() {
     balance: colors.balance,
     line: colors.border,
   });
-  const { walletId } = useLocalSearchParams<{ walletId?: string }>();
+  const { walletId, openAddWallet, returnTo } = useLocalSearchParams<{ walletId?: string; openAddWallet?: string; returnTo?: string }>();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selected, setSelected] = useState<WalletDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -272,6 +274,7 @@ export default function WalletsScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draftPreset, setDraftPreset] = useState<WalletPreset | null>(null);
+  useEffect(() => { if (openAddWallet === '1' && !adding && !draftPreset) setAdding(true); }, [adding, draftPreset, openAddWallet]);
   const [managedWallet, setManagedWallet] = useState<Wallet | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const { visible, toggle: toggleBalanceVisibility } = useBalanceVisibility();
@@ -484,7 +487,7 @@ export default function WalletsScreen() {
           wallets={wallets}
           showPresets
           allowUnset={false}
-          onClose={() => setAdding(false)}
+          onClose={() => { setAdding(false); if (returnTo === 'income') router.replace('/(tabs)/income'); }}
           onChange={(id) => {
             const wallet = wallets.find((row) => row.id === id);
             if (wallet) {
@@ -511,10 +514,14 @@ export default function WalletsScreen() {
       {draftPreset && (
         <AddWalletSheet
           preset={draftPreset}
-          onClose={() => setDraftPreset(null)}
-          onSaved={async () => {
+          onClose={() => { setDraftPreset(null); if (returnTo === 'income') router.replace('/(tabs)/income'); }}
+          onSaved={async (createdWallet: Wallet | undefined) => {
             setDraftPreset(null);
             await refresh();
+            if (returnTo === 'income' && createdWallet?.id) {
+              workflow.completeWallet(createdWallet.id);
+              router.replace('/(tabs)/income');
+            }
           }}
         />
       )}
@@ -954,7 +961,7 @@ export function TransferForm({
   wallets: Wallet[];
   initialFrom?: string;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
   const toast = useToast();
   const [amount, setAmount] = useState('');
@@ -1164,7 +1171,7 @@ function AddWalletSheet({
 }: {
   preset: WalletPreset;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
   const [name, setName] = useState(preset.key === 'custom' ? '' : preset.name);
   const [amount, setAmount] = useState('0');
@@ -1265,7 +1272,7 @@ function AddWalletSheet({
     setError('');
     setSubmitting(true);
     try {
-      await authenticatedApiRequest('/api/wallets/with-opening-balance', {
+      const createdWallet = await authenticatedApiRequest<Wallet>('/api/wallets/with-opening-balance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1284,7 +1291,7 @@ function AddWalletSheet({
           opening_balance: openingBalance,
         }),
       });
-      await onSaved();
+      await onSaved(createdWallet);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to create wallet. Please try again.');
     } finally {
