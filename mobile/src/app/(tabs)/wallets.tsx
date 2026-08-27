@@ -262,7 +262,11 @@ export default function WalletsScreen() {
     balance: colors.balance,
     line: colors.border,
   });
-  const { walletId, openAddWallet, returnTo } = useLocalSearchParams<{ walletId?: string; openAddWallet?: string; returnTo?: string }>();
+  const { walletId, openAddWallet, returnTo } = useLocalSearchParams<{
+    walletId?: string;
+    openAddWallet?: string;
+    returnTo?: string;
+  }>();
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [selected, setSelected] = useState<WalletDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -274,7 +278,9 @@ export default function WalletsScreen() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [draftPreset, setDraftPreset] = useState<WalletPreset | null>(null);
-  useEffect(() => { if (openAddWallet === '1' && !adding && !draftPreset) setAdding(true); }, [adding, draftPreset, openAddWallet]);
+  useEffect(() => {
+    if (openAddWallet === '1' && !adding && !draftPreset) setAdding(true);
+  }, [adding, draftPreset, openAddWallet]);
   const [managedWallet, setManagedWallet] = useState<Wallet | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const { visible, toggle: toggleBalanceVisibility } = useBalanceVisibility();
@@ -321,19 +327,15 @@ export default function WalletsScreen() {
     return subscribeFinancialMutations(() => {
       void refresh();
       void refreshLoanSummary();
-      if (selected) void loadWalletDetail(selected.wallet.id);
     });
-  }, [loadWalletDetail, refresh, refreshLoanSummary, selected]);
+  }, [refresh, refreshLoanSummary]);
 
   const openWallet = (wallet: Wallet) => {
     router.push({ pathname: '/wallet-details', params: { walletId: wallet.id } });
   };
   useEffect(() => {
-    if (!walletId || loading) return;
-    const wallet = wallets.find((row) => row.id === walletId);
-    if (wallet) void loadWalletDetail(wallet.id);
-    else setDetailError('This wallet could not be found.');
-  }, [walletId, loading, wallets, loadWalletDetail]);
+    if (walletId) void loadWalletDetail(walletId);
+  }, [walletId, loadWalletDetail]);
   const refreshWalletDetail = async (id: string) => {
     notifyFinancialMutation();
     await refresh();
@@ -487,7 +489,10 @@ export default function WalletsScreen() {
           wallets={wallets}
           showPresets
           allowUnset={false}
-          onClose={() => { setAdding(false); if (returnTo === 'income') router.replace('/(tabs)/income'); }}
+          onClose={() => {
+            setAdding(false);
+            if (returnTo === 'income') router.replace('/(tabs)/income');
+          }}
           onChange={(id) => {
             const wallet = wallets.find((row) => row.id === id);
             if (wallet) {
@@ -514,7 +519,10 @@ export default function WalletsScreen() {
       {draftPreset && (
         <AddWalletSheet
           preset={draftPreset}
-          onClose={() => { setDraftPreset(null); if (returnTo === 'income') router.replace('/(tabs)/income'); }}
+          onClose={() => {
+            setDraftPreset(null);
+            if (returnTo === 'income') router.replace('/(tabs)/income');
+          }}
           onSaved={async (createdWallet: Wallet | undefined) => {
             setDraftPreset(null);
             await refresh();
@@ -769,7 +777,9 @@ export function EditWalletSheet({
   const [annualInterestRate, setAnnualInterestRate] = useState(
     wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
-  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(wallet.account_purpose ?? 'everyday');
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(
+    wallet.account_purpose ?? 'everyday',
+  );
   const [earnsInterest, setEarnsInterest] = useState(wallet.earns_interest === true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -801,7 +811,9 @@ export function EditWalletSheet({
             accountPurpose,
             earnsInterest,
             annualInterestRate: rate,
-            interestCreditFrequency: (wallet.interest_credit_frequency as 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? null,
+            interestCreditFrequency:
+              (wallet.interest_credit_frequency as
+                'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? null,
           }),
         }),
       });
@@ -826,126 +838,166 @@ export function EditWalletSheet({
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
         >
-        <View
-          style={[editStyles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}
-        >
-          <View style={editStyles.header}>
-            <View>
-              <Text style={[editStyles.eyebrow, { color: colors.primary }]}>WALLET</Text>
-              <Text style={[editStyles.title, { color: colors.textPrimary }]}>Edit wallet</Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onClose}
-              style={[editStyles.close, { backgroundColor: colors.surfaceSecondary }]}
-            >
-              <Text style={[editStyles.closeText, { color: colors.textPrimary }]}>×</Text>
-            </Pressable>
-          </View>
-          <ScrollView
-            style={editStyles.formScroll}
-            contentContainerStyle={[editStyles.formContent, { paddingBottom: insets.bottom + 24 }]}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="none"
-            showsVerticalScrollIndicator={false}
-          >
-          <Text style={[editStyles.label, { color: colors.textSecondary }]}>Wallet name</Text>
-          <TextInput
-            accessibilityLabel="Wallet name"
-            value={name}
-            onChangeText={setName}
-            returnKeyType="next"
-            placeholder="e.g. Payroll account"
-            placeholderTextColor={colors.textMuted}
+          <View
             style={[
-              editStyles.input,
-              {
-                backgroundColor: colors.surfaceInput,
-                borderColor: colors.border,
-                color: colors.textPrimary,
-              },
+              editStyles.card,
+              { backgroundColor: colors.surface, borderColor: colors.border },
             ]}
-          />
-          {wallet.account_type === 'debit' ? (
-            <>
-              <Text style={[editStyles.label, { color: colors.textSecondary }]}>Account purpose</Text>
-              <View style={editStyles.choiceRow}>
-                {(['everyday', 'savings'] as const).map((purpose) => (
-                  <Pressable key={purpose} onPress={() => setAccountPurpose(purpose)} style={[editStyles.choice, accountPurpose === purpose && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-                    <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{purpose === 'everyday' ? 'Everyday' : 'Savings'}</Text>
-                  </Pressable>
-                ))}
+          >
+            <View style={editStyles.header}>
+              <View>
+                <Text style={[editStyles.eyebrow, { color: colors.primary }]}>WALLET</Text>
+                <Text style={[editStyles.title, { color: colors.textPrimary }]}>Edit wallet</Text>
               </View>
-              {accountPurpose === 'savings' ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onClose}
+                style={[editStyles.close, { backgroundColor: colors.surfaceSecondary }]}
+              >
+                <Text style={[editStyles.closeText, { color: colors.textPrimary }]}>×</Text>
+              </Pressable>
+            </View>
+            <ScrollView
+              style={editStyles.formScroll}
+              contentContainerStyle={[
+                editStyles.formContent,
+                { paddingBottom: insets.bottom + 24 },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              keyboardDismissMode="none"
+              showsVerticalScrollIndicator={false}
+            >
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>Wallet name</Text>
+              <TextInput
+                accessibilityLabel="Wallet name"
+                value={name}
+                onChangeText={setName}
+                returnKeyType="next"
+                placeholder="e.g. Payroll account"
+                placeholderTextColor={colors.textMuted}
+                style={[
+                  editStyles.input,
+                  {
+                    backgroundColor: colors.surfaceInput,
+                    borderColor: colors.border,
+                    color: colors.textPrimary,
+                  },
+                ]}
+              />
+              {wallet.account_type === 'debit' ? (
                 <>
-                  <Text style={[editStyles.label, { color: colors.textSecondary }]}>Earns interest?</Text>
+                  <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                    Account purpose
+                  </Text>
                   <View style={editStyles.choiceRow}>
-                    {[true, false].map((value) => <Pressable key={String(value)} onPress={() => setEarnsInterest(value)} style={[editStyles.choice, earnsInterest === value && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}><Text style={{ color: colors.textPrimary, fontWeight: '700' }}>{value ? 'Yes' : 'No'}</Text></Pressable>)}
+                    {(['everyday', 'savings'] as const).map((purpose) => (
+                      <Pressable
+                        key={purpose}
+                        onPress={() => setAccountPurpose(purpose)}
+                        style={[
+                          editStyles.choice,
+                          accountPurpose === purpose && {
+                            backgroundColor: colors.primarySoft,
+                            borderColor: colors.primary,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>
+                          {purpose === 'everyday' ? 'Everyday' : 'Savings'}
+                        </Text>
+                      </Pressable>
+                    ))}
                   </View>
+                  {accountPurpose === 'savings' ? (
+                    <>
+                      <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                        Earns interest?
+                      </Text>
+                      <View style={editStyles.choiceRow}>
+                        {[true, false].map((value) => (
+                          <Pressable
+                            key={String(value)}
+                            onPress={() => setEarnsInterest(value)}
+                            style={[
+                              editStyles.choice,
+                              earnsInterest === value && {
+                                backgroundColor: colors.primarySoft,
+                                borderColor: colors.primary,
+                              },
+                            ]}
+                          >
+                            <Text style={{ color: colors.textPrimary, fontWeight: '700' }}>
+                              {value ? 'Yes' : 'No'}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  ) : null}
                 </>
               ) : null}
-            </>
-          ) : null}
-          <Text style={[editStyles.label, { color: colors.textSecondary }]}>
-            Suggested outgoing transfer fee (optional)
-          </Text>
-          <TextInput
-            accessibilityLabel="Suggested outgoing transfer fee"
-            value={defaultFee}
-            onChangeText={setDefaultFee}
-            placeholder="0"
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-            placeholderTextColor={colors.textMuted}
-            style={[
-              editStyles.input,
-              {
-                backgroundColor: colors.surfaceInput,
-                borderColor: colors.border,
-                color: colors.textPrimary,
-              },
-            ]}
-          />
-          <Text style={[editStyles.label, { color: colors.textSecondary }]}>
-            Annual interest rate % (optional)
-          </Text>
-          <TextInput
-            accessibilityLabel="Annual interest rate"
-            value={annualInterestRate}
-            onChangeText={setAnnualInterestRate}
-            placeholder="e.g. 3.5"
-            keyboardType="decimal-pad"
-            returnKeyType="done"
-            onSubmitEditing={Keyboard.dismiss}
-            placeholderTextColor={colors.textMuted}
-            style={[
-              editStyles.input,
-              {
-                backgroundColor: colors.surfaceInput,
-                borderColor: colors.border,
-                color: colors.textPrimary,
-              },
-            ]}
-          />
-          {error ? <Text style={[editStyles.error, { color: colors.danger }]}>{error}</Text> : null}
-          <Pressable
-            accessibilityRole="button"
-            disabled={saving}
-            onPress={() => void save()}
-            style={({ pressed }) => [
-              editStyles.save,
-              { backgroundColor: colors.primary },
-              pressed && editStyles.pressed,
-              saving && editStyles.disabled,
-            ]}
-          >
-            <Text style={[editStyles.saveText, { color: colors.textOnPrimary }]}>
-              {saving ? 'Saving…' : 'Save changes'}
-            </Text>
-          </Pressable>
-          </ScrollView>
-        </View>
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                Suggested outgoing transfer fee (optional)
+              </Text>
+              <TextInput
+                accessibilityLabel="Suggested outgoing transfer fee"
+                value={defaultFee}
+                onChangeText={setDefaultFee}
+                placeholder="0"
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                placeholderTextColor={colors.textMuted}
+                style={[
+                  editStyles.input,
+                  {
+                    backgroundColor: colors.surfaceInput,
+                    borderColor: colors.border,
+                    color: colors.textPrimary,
+                  },
+                ]}
+              />
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                Annual interest rate % (optional)
+              </Text>
+              <TextInput
+                accessibilityLabel="Annual interest rate"
+                value={annualInterestRate}
+                onChangeText={setAnnualInterestRate}
+                placeholder="e.g. 3.5"
+                keyboardType="decimal-pad"
+                returnKeyType="done"
+                onSubmitEditing={Keyboard.dismiss}
+                placeholderTextColor={colors.textMuted}
+                style={[
+                  editStyles.input,
+                  {
+                    backgroundColor: colors.surfaceInput,
+                    borderColor: colors.border,
+                    color: colors.textPrimary,
+                  },
+                ]}
+              />
+              {error ? (
+                <Text style={[editStyles.error, { color: colors.danger }]}>{error}</Text>
+              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                disabled={saving}
+                onPress={() => void save()}
+                style={({ pressed }) => [
+                  editStyles.save,
+                  { backgroundColor: colors.primary },
+                  pressed && editStyles.pressed,
+                  saving && editStyles.disabled,
+                ]}
+              >
+                <Text style={[editStyles.saveText, { color: colors.textOnPrimary }]}>
+                  {saving ? 'Saving…' : 'Save changes'}
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -1272,25 +1324,28 @@ function AddWalletSheet({
     setError('');
     setSubmitting(true);
     try {
-      const createdWallet = await authenticatedApiRequest<Wallet>('/api/wallets/with-opening-balance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: name.trim(),
-          institution_type: preset.type,
-          institution_key: preset.key,
-          ...sanitizeWalletMetadata(preset.key, {
-            accountType: canChooseAccountType ? accountType : null,
-            accountPurpose,
-            earnsInterest,
-            annualInterestRate: parsedRate,
-            interestCreditFrequency: interestFrequency,
+      const createdWallet = await authenticatedApiRequest<Wallet>(
+        '/api/wallets/with-opening-balance',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: name.trim(),
+            institution_type: preset.type,
+            institution_key: preset.key,
+            ...sanitizeWalletMetadata(preset.key, {
+              accountType: canChooseAccountType ? accountType : null,
+              accountPurpose,
+              earnsInterest,
+              annualInterestRate: parsedRate,
+              interestCreditFrequency: interestFrequency,
+            }),
+            credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
+            color: preset.color,
+            opening_balance: openingBalance,
           }),
-          credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
-          color: preset.color,
-          opening_balance: openingBalance,
-        }),
-      });
+        },
+      );
       await onSaved(createdWallet);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unable to create wallet. Please try again.');
@@ -1620,8 +1675,24 @@ void CustomWalletSheet;
 
 const editStyles = StyleSheet.create({
   overlay: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
-  keyboard: { width: '100%', height: '88%', maxWidth: 420, maxHeight: '92%', flexShrink: 1, minHeight: 0 },
-  card: { width: '100%', height: '100%', maxHeight: '100%', flexShrink: 1, minHeight: 0, padding: 20, borderRadius: 24, borderWidth: 1 },
+  keyboard: {
+    width: '100%',
+    height: '88%',
+    maxWidth: 420,
+    maxHeight: '92%',
+    flexShrink: 1,
+    minHeight: 0,
+  },
+  card: {
+    width: '100%',
+    height: '100%',
+    maxHeight: '100%',
+    flexShrink: 1,
+    minHeight: 0,
+    padding: 20,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
   header: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
   eyebrow: { fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
   title: { marginTop: 4, fontSize: 22, fontWeight: '900' },
@@ -1638,7 +1709,15 @@ const editStyles = StyleSheet.create({
   label: { marginTop: 24, marginBottom: 7, fontSize: 11, fontWeight: '900' },
   input: { minHeight: 54, paddingHorizontal: 15, borderRadius: 16, borderWidth: 1, fontSize: 15 },
   choiceRow: { flexDirection: 'row', gap: 8 },
-  choice: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14, borderWidth: 1, borderColor: '#D7E2DE' },
+  choice: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D7E2DE',
+  },
   error: { marginTop: 10, fontSize: 12, fontWeight: '800' },
   save: {
     minHeight: 52,
