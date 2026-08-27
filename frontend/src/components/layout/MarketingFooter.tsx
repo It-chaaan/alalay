@@ -1,4 +1,5 @@
-import alalayLogo from "../../assets/alalay.png";
+import alalayLogo from "../../assets/logo-horizontal.svg";
+import alalayLogoWhite from "../../assets/logo-symbol-white.svg";
 import { Container } from "./Container";
 
 const productLinks = [
@@ -14,11 +15,12 @@ export function MarketingFooter() {
       <Container>
         <div className="grid gap-12 md:grid-cols-[minmax(0,1fr)_auto] lg:gap-24">
           <div className="max-w-sm">
-            <div className="flex items-center gap-3 font-semibold text-slate-950 dark:text-slate-100">
-              <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">
-                <img src={alalayLogo} alt="Alalay logo" className="h-full w-full object-cover" />
-              </span>
-              <span>Alalay</span>
+            <div className="flex items-center font-semibold text-slate-950 dark:text-slate-100">
+              <img src={alalayLogo} alt="Alalay" className="h-9 w-auto object-contain dark:hidden" />
+              <div className="hidden items-center gap-2 dark:flex">
+                <img src={alalayLogoWhite} alt="" className="h-8 w-8 object-contain" />
+                <span>Alalay</span>
+              </div>
             </div>
             <p className="mt-4 text-sm leading-6 text-slate-600 dark:text-slate-400">
               Take control of your bills, savings, and spending in the Philippines, with an AI assistant whenever you need guidance.

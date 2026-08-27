@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="1100" viewBox="0 0 1400 1100">
+
+<rect width="1400" height="1100" fill="#F8F7F2"/>
+<text x="80" y="92" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#0F6F57">Concept 2 Supported Progress</text>
+<text x="80" y="134" font-family="Arial, sans-serif" font-size="20" fill="#415C54">Balanced geometric supports stabilize an abstract A and measured upward movement.</text>
+<g transform="translate(80 190)"><rect width="590" height="390" rx="28" fill="#FFFFFF"/><g transform="translate(175 75) scale(.47)"><g fill="#0F8A6B">
+  <path d="M92 184c0-22 18-40 40-40h60v64h-36v152h60v64h-84c-22 0-40-18-40-40V184z"/>
+  <path d="M420 184c0-22-18-40-40-40h-60v64h36v152h-60v64h84c22 0 40-18 40-40V184z"/>
+  <path fill="#159A8A" d="M192 360l64-208 64 208h-58l-6-30-6 30h-58zm64-126l-18 58h36l-18-58z" fill-rule="evenodd"/>
+</g></g><text x="32" y="354" font-family="Arial" font-size="18" fill="#52665F">FULL COLOR · WHITE</text></g>
+<g transform="translate(730 190)"><rect width="590" height="390" rx="28" fill="#0F6F57"/><g transform="translate(175 75) scale(.47)"><g fill="#FFFFFF">
+  <path d="M92 184c0-22 18-40 40-40h60v64h-36v152h60v64h-84c-22 0-40-18-40-40V184z"/>
+  <path d="M420 184c0-22-18-40-40-40h-60v64h36v152h-60v64h84c22 0 40-18 40-40V184z"/>
+  <path fill="#FFFFFF" d="M192 360l64-208 64 208h-58l-6-30-6 30h-58zm64-126l-18 58h36l-18-58z" fill-rule="evenodd"/>
+</g></g><text x="32" y="354" font-family="Arial" font-size="18" fill="#FFFFFF">REVERSED · DARK EMERALD</text></g>
+<g transform="translate(80 630)"><rect width="590" height="390" rx="28" fill="#FFFFFF"/><g transform="translate(175 75) scale(.47)"><g fill="#0F6F57">
+  <path d="M92 184c0-22 18-40 40-40h60v64h-36v152h60v64h-84c-22 0-40-18-40-40V184z"/>
+  <path d="M420 184c0-22-18-40-40-40h-60v64h36v152h-60v64h84c22 0 40-18 40-40V184z"/>
+  <path fill="#0F6F57" d="M192 360l64-208 64 208h-58l-6-30-6 30h-58zm64-126l-18 58h36l-18-58z" fill-rule="evenodd"/>
+</g></g><text x="32" y="354" font-family="Arial" font-size="18" fill="#52665F">ONE COLOR</text></g>
+<g transform="translate(730 630)"><rect width="590" height="390" rx="28" fill="#FFFFFF"/><rect x="223" y="75" width="144" height="144" rx="30" fill="#D8EFE2"/><g transform="translate(247 99) scale(.1875)"><g fill="#0F8A6B">
+  <path d="M92 184c0-22 18-40 40-40h60v64h-36v152h60v64h-84c-22 0-40-18-40-40V184z"/>
+  <path d="M420 184c0-22-18-40-40-40h-60v64h36v152h-60v64h84c22 0 40-18 40-40V184z"/>
+  <path fill="#159A8A" d="M192 360l64-208 64 208h-58l-6-30-6 30h-58zm64-126l-18 58h36l-18-58z" fill-rule="evenodd"/>
+</g></g><text x="32" y="354" font-family="Arial" font-size="18" fill="#52665F">32PX APP-ICON TEST · 4.5× PREVIEW</text></g>
+</svg>

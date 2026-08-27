@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { dashboardSidebarSections } from '../../constants/dashboard';
-import alalayLogo from '../../assets/alalay.png';
+import alalayLogo from '../../assets/logo-symbol-white.svg';
 import {
   LayoutDashboard,
   ReceiptText,
@@ -77,7 +77,7 @@ export function DashboardSidebar({
     <aside className="hidden h-screen w-[228px] shrink-0 overflow-hidden border-r border-slate-200 bg-[#fbfbf8] lg:sticky lg:top-0 lg:flex lg:flex-col">
       <div className="flex h-[68px] items-center gap-3 border-b border-slate-200/80 px-5">
         <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-primary text-white shadow-sm">
-          <img src={alalayLogo} alt="Alalay logo" className="h-7 w-7 object-contain" />
+          <img src={alalayLogo} alt="Alalay" className="h-5 w-5 object-contain" />
         </span>
         <span className="text-sm font-semibold text-slate-950">Alalay</span>
       </div>

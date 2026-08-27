@@ -7,18 +7,29 @@
     "scheme": "alalay",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "icon": "./assets/alalay.png",
+    "icon": "./assets/alalay-app-icon.png",
+    "splash": {
+      "image": "./assets/alalay-splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#F8F7F2"
+    },
     "ios": {
-      "icon": "./assets/alalay.png",
       "supportsTablet": true
     },
     "android": {
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
       ],
-      "icon": "./assets/alalay.png",
+      "icon": "./assets/alalay-app-icon.png",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/alalay-adaptive-foreground.png",
+        "backgroundColor": "#D8EFE2"
+      },
       "package": "com.anonymous.mobile"
     },
     "web": {
@@ -27,7 +38,13 @@
     "plugins": [
       "expo-router",
       "expo-splash-screen",
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/alalay-notification-icon.png",
+          "color": "#0F6F57"
+        }
+      ],
       "expo-secure-store",
       "expo-dev-client",
       [
@@ -53,6 +70,12 @@
       "eas": {
         "projectId": "011fbb98-b405-4761-9aa7-e81a9b06d011"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/011fbb98-b405-4761-9aa7-e81a9b06d011"
     }
   }
 }

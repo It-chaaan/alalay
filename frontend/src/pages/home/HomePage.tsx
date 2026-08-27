@@ -1,4 +1,5 @@
-import alalayLogo from "../../assets/alalay.png";
+import alalayLogo from "../../assets/logo-symbol-full-color.svg";
+import alalayLogoWhite from "../../assets/logo-symbol-white.svg";
 import { Container } from "../../components/layout/Container";
 import { MarketingFooter } from "../../components/layout/MarketingFooter";
 import { Navbar } from "../../components/navigation/Navbar";
@@ -235,7 +236,7 @@ export function HomePage() {
                   <div className="flex items-center gap-2 rounded-xl bg-[#e3f6ef] px-3 py-2 font-medium text-[#0b7b62]">
                     <span className="grid h-5 w-5 place-items-center rounded-md bg-[#0f8a6b]">
                       <img
-                        src={alalayLogo}
+                        src={alalayLogoWhite}
                         alt="Alalay Logo"
                         className="h-3.5 w-3.5"
                       />
@@ -346,7 +347,7 @@ export function HomePage() {
       <section id="signup" className="bg-[#0f6f57] py-10 text-white">
         <Container className="flex flex-col items-center text-center">
           <div className="mb-6 grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-white/15 p-1 ring-1 ring-white/10">
-            <img src={alalayLogo} alt="Alalay logo" className="h-full w-full object-cover" />
+            <img src={alalayLogoWhite} alt="Alalay" className="h-full w-full object-contain" />
           </div>
           <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
             Simulan na natin.
@@ -372,7 +373,7 @@ export function HomePage() {
             <div className="max-w-sm">
               <div className="flex items-center gap-3 font-semibold text-slate-950">
                 <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">
-                  <img src={alalayLogo} alt="Alalay logo" className="h-full w-full object-cover" />
+                  <img src={alalayLogoWhite} alt="Alalay" className="h-full w-full object-contain" />
                 </span>
                 <span>Alalay</span>
               </div>

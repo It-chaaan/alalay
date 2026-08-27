@@ -1,4 +1,4 @@
-import alalayLogo from "../../assets/alalay.png";
+import alalayLogo from "../../assets/logo-horizontal.svg";
 
 const navItems = [
   { label: "Home", href: "#top" },
@@ -11,10 +11,7 @@ export function Navbar() {
     <header className="sticky top-0 z-50 border-b border-black/5 bg-white/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-5 sm:px-6 lg:px-8">
         <a href="#top" className="flex items-center gap-3 font-semibold">
-          <span className="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-[#0f8a6b] shadow-sm ring-1 ring-black/5">
-            <img src={alalayLogo} alt="Alalay logo" className="h-7 w-7 object-contain" />
-          </span>
-          <span className="text-[1.05rem] tracking-tight">Alalay</span>
+          <img src={alalayLogo} alt="Alalay" className="h-9 w-auto object-contain" />
         </a>
 
         <nav className="hidden items-center gap-8 text-sm text-slate-500 md:flex">

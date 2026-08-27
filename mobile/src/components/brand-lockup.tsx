@@ -10,7 +10,7 @@ type BrandLockupProps = {
 export function BrandLockup({ color, logoSize = 30, textSize = 22 }: BrandLockupProps) {
   return (
     <View accessibilityRole="image" accessibilityLabel="Alalay" style={styles.brand}>
-      <Image source={require('@/assets/images/alalay.png')} style={{ width: logoSize, height: logoSize }} contentFit="contain" />
+      <Image source={require('@/assets/images/alalay-logo-symbol.png')} style={{ width: logoSize, height: logoSize }} contentFit="contain" />
       <Text style={[styles.name, { color, fontSize: textSize }]}>{'Alalay'}</Text>
     </View>
   );

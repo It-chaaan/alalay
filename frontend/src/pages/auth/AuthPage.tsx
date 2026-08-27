@@ -6,7 +6,8 @@ import { z } from "zod";
 import { Button } from "../../components/ui/Button";
 import { TextInput } from "../../components/ui/TextInput";
 import { OtpInput } from "../../components/auth/OtpInput";
-import alalayLogo from "../../assets/alalay.png";
+import alalayLogo from "../../assets/logo-symbol-white.svg";
+import alalayLogoFullColor from "../../assets/logo-symbol-full-color.svg";
 import { authCopy, authStats } from "../../constants/auth";
 import { getSupabaseClient } from "../../lib/supabase";
 import { apiRequest } from "../../lib/apiClient";
@@ -60,10 +61,10 @@ function GoogleIcon() {
   );
 }
 
-function BrandMark({ className = "h-10 w-10" }: { className?: string }) {
+function BrandMark({ className = "h-10 w-10", dark = false }: { className?: string; dark?: boolean }) {
   return (
     <span className={`grid place-items-center overflow-hidden rounded-2xl bg-brand-soft/20 ring-1 ring-white/20 ${className}`}>
-      <img src={alalayLogo} alt="" className="h-7 w-7 object-contain" />
+      <img src={dark ? alalayLogo : alalayLogoFullColor} alt="" className="h-7 w-7 object-contain" />
     </span>
   );
 }
@@ -72,7 +73,7 @@ function AuthBrandPanel() {
   return (
     <aside className="hidden h-screen w-[40vw] min-w-[440px] flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-dark to-brand-primary p-10 text-white lg:flex">
       <div className="flex items-center gap-3">
-        <BrandMark />
+        <BrandMark dark />
         <span className="text-lg font-semibold">Alalay</span>
       </div>
 
@@ -84,7 +85,7 @@ function AuthBrandPanel() {
       <div className="space-y-7">
         <section className="w-4/5 rounded-[28px] border border-white/15 bg-white/12 p-6 shadow-glow backdrop-blur-md">
           <div className="flex items-center gap-3">
-            <BrandMark className="h-9 w-9 rounded-xl" />
+            <BrandMark className="h-9 w-9 rounded-xl" dark />
             <span className="text-sm font-semibold text-white/90">{authCopy.insightLabel}</span>
           </div>
           <p className="mt-5 leading-7 text-white/85">{authCopy.insightText}</p>
