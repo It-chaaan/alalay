@@ -106,9 +106,11 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   );
   const items: MyIncomeItem[] = [];
   const today = todayIso();
+  const matchedTransactionIds = new Set<string>();
 
   for (const source of sourceRows) {
     const posted = postedRows.find((row) => row.schedule_id === source.id);
+    if (posted) matchedTransactionIds.add(String(posted.id));
     const expected = expandIncomeRows([source], from, to).find((row) => row.is_scheduled);
     const failure = String(source.posting_status ?? source.status ?? '').toLowerCase() === 'failed';
     const status = posted
@@ -137,17 +139,17 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   }
 
   for (const row of postedRows.filter(
-    (candidate) => !isRecurring(candidate) && !candidate.schedule_id,
+    (candidate) => !matchedTransactionIds.has(String(candidate.id)),
   )) {
     items.push({
-      kind: 'one_time',
+      kind: isRecurring(row) ? 'recurring' : 'one_time',
       sourceId: String(row.id),
       occurrenceId: null,
       transactionId: String(row.id),
       name: String(row.source),
       category: String(row.type ?? 'other'),
       amount: Number(row.amount ?? 0),
-      frequency: null,
+      frequency: isRecurring(row) ? String(row.frequency ?? 'monthly') : null,
       status: 'received',
       dueDate: null,
       receivedDate: String(row.date),

@@ -174,60 +174,344 @@ export function NumericKeypad({
   const [expression, setExpression] = useState(value || '');
   const [message, setMessage] = useState('');
   const [evaluated, setEvaluated] = useState<number | null>(null);
-  const press = (key: string) => { setMessage(''); if (key === 'AC') { setExpression(''); setEvaluated(null); return; } if (key === BACKSPACE_KEY) { setExpression((current) => current.slice(0, -1)); setEvaluated(null); return; } if (key === '=') { const result = evaluateAmountExpression(expression); if (result.error) setMessage(result.error); else setEvaluated(result.value); return; } if (calculatorOperators.has(key)) { setExpression((current) => calculatorOperators.has(current.slice(-1)) ? current.slice(0, -1) + key : current + key); setEvaluated(null); return; } if (key === '.') { setExpression((current) => { const operand = current.split(/[+*/×÷-]/).pop() ?? ''; return operand.includes('.') ? current : current + (operand ? '.' : '0.'); }); setEvaluated(null); return; } setExpression((current) => current === '0' || evaluated !== null ? key : current + key); setEvaluated(null); };
-  const keys = [['⌫', 'AC', '', '÷'], ['7', '8', '9', '×'], ['4', '5', '6', '-'], ['1', '2', '3', '+'], ['0', '0', '.', '=']];
+  const press = (key: string) => {
+    setMessage('');
+    if (key === 'AC') {
+      setExpression('');
+      setEvaluated(null);
+      return;
+    }
+    if (key === BACKSPACE_KEY) {
+      setExpression((current) => current.slice(0, -1));
+      setEvaluated(null);
+      return;
+    }
+    if (key === '=') {
+      const result = evaluateAmountExpression(expression);
+      if (result.error) setMessage(result.error);
+      else setEvaluated(result.value);
+      return;
+    }
+    if (calculatorOperators.has(key)) {
+      setExpression((current) =>
+        calculatorOperators.has(current.slice(-1)) ? current.slice(0, -1) + key : current + key,
+      );
+      setEvaluated(null);
+      return;
+    }
+    if (key === '.') {
+      setExpression((current) => {
+        const operand = current.split(/[+*/×÷-]/).pop() ?? '';
+        return operand.includes('.') ? current : current + (operand ? '.' : '0.');
+      });
+      setEvaluated(null);
+      return;
+    }
+    setExpression((current) => (current === '0' || evaluated !== null ? key : current + key));
+    setEvaluated(null);
+  };
+  const keys = [
+    ['⌫', 'AC', '', '÷'],
+    ['7', '8', '9', '×'],
+    ['4', '5', '6', '-'],
+    ['1', '2', '3', '+'],
+    ['0', '0', '.', '='],
+  ];
   return (
     <View style={[keypadStyles.wrap, { backgroundColor: colors.surface }]}>
-      <View style={keypadStyles.display}><Text numberOfLines={1} style={[keypadStyles.expression, { color: colors.textSecondary }]}>{formatCalculatorExpression(expression) || '0'}</Text><Text style={[keypadStyles.result, { color: colors.textPrimary }]}>{formatAmountForDisplay(String(evaluated ?? evaluateAmountExpression(expression).value ?? 0))}</Text>{message ? <Text accessibilityRole="alert" style={[keypadStyles.message, { color: colors.danger }]}>{message}</Text> : null}</View>
+      <View style={keypadStyles.display}>
+        <Text numberOfLines={1} style={[keypadStyles.expression, { color: colors.textSecondary }]}>
+          {formatCalculatorExpression(expression) || '0'}
+        </Text>
+        <Text style={[keypadStyles.result, { color: colors.textPrimary }]}>
+          {formatAmountForDisplay(
+            String(evaluated ?? evaluateAmountExpression(expression).value ?? 0),
+          )}
+        </Text>
+        {message ? (
+          <Text accessibilityRole="alert" style={[keypadStyles.message, { color: colors.danger }]}>
+            {message}
+          </Text>
+        ) : null}
+      </View>
       <View style={keypadStyles.grid}>
-        {keys.flatMap((row) => row).map((key, index) => {
-          if (!key) return <View key={`empty-${index}`} style={keypadStyles.key} />;
-          const isOperator = calculatorOperators.has(key) || key === '=';
-          const isAction = key === 'AC' || key === '⌫';
-          return (
-            <Pressable
-              key={key}
-              accessibilityRole="button"
-              accessibilityLabel={key === 'AC' ? 'Clear all' : key === '⌫' ? 'Delete last character' : key === '.' ? 'Decimal point' : key === '=' ? 'Equals' : key === '+' ? 'Plus' : key === '-' ? 'Minus' : key === '×' ? 'Multiply' : key === '÷' ? 'Divide' : key}
-              onPress={() => press(key)}
-              style={({ pressed }) => [
-                keypadStyles.key,
-                { backgroundColor: isOperator ? colors.accent : isAction ? colors.surfaceSecondary : colors.surfaceSecondary },
-                pressed && keypadStyles.pressed,
-              ]}
-            >
-              <Text
-                style={[
-                  keypadStyles.keyText,
-                  { color: isOperator ? colors.inverse : isAction ? colors.accent : colors.textPrimary },
+        {keys
+          .flatMap((row) => row)
+          .map((key, index) => {
+            if (!key) return <View key={`empty-${index}`} style={keypadStyles.key} />;
+            const isOperator = calculatorOperators.has(key) || key === '=';
+            const isAction = key === 'AC' || key === '⌫';
+            return (
+              <Pressable
+                key={key}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  key === 'AC'
+                    ? 'Clear all'
+                    : key === '⌫'
+                      ? 'Delete last character'
+                      : key === '.'
+                        ? 'Decimal point'
+                        : key === '='
+                          ? 'Equals'
+                          : key === '+'
+                            ? 'Plus'
+                            : key === '-'
+                              ? 'Minus'
+                              : key === '×'
+                                ? 'Multiply'
+                                : key === '÷'
+                                  ? 'Divide'
+                                  : key
+                }
+                onPress={() => press(key)}
+                style={({ pressed }) => [
+                  keypadStyles.key,
+                  {
+                    backgroundColor: isOperator
+                      ? colors.accent
+                      : isAction
+                        ? colors.surfaceSecondary
+                        : colors.surfaceSecondary,
+                  },
+                  pressed && keypadStyles.pressed,
                 ]}
               >
-                {key}
-              </Text>
-            </Pressable>
-          );
-        })}
+                <Text
+                  style={[
+                    keypadStyles.keyText,
+                    {
+                      color: isOperator
+                        ? colors.inverse
+                        : isAction
+                          ? colors.accent
+                          : colors.textPrimary,
+                    },
+                  ]}
+                >
+                  {key}
+                </Text>
+              </Pressable>
+            );
+          })}
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Use calculated amount" disabled={evaluated === null && evaluateAmountExpression(expression).value === null} onPress={() => { const result = evaluated ?? evaluateAmountExpression(expression).value; if (result !== null && result > 0) { onChange(result.toFixed(2)); } else setMessage('Amount must be greater than ₱0.'); }} style={({ pressed }) => [keypadStyles.useAmount, { backgroundColor: colors.accent }, pressed && keypadStyles.pressed]}><Text style={{ color: colors.inverse, fontWeight: '900' }}>Use amount</Text></Pressable>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Use calculated amount"
+        disabled={evaluated === null && evaluateAmountExpression(expression).value === null}
+        onPress={() => {
+          const result = evaluated ?? evaluateAmountExpression(expression).value;
+          if (result !== null && result > 0) {
+            onChange(result.toFixed(2));
+          } else setMessage('Amount must be greater than ₱0.');
+        }}
+        style={({ pressed }) => [
+          keypadStyles.useAmount,
+          { backgroundColor: colors.accent },
+          pressed && keypadStyles.pressed,
+        ]}
+      >
+        <Text style={{ color: colors.inverse, fontWeight: '900' }}>Use amount</Text>
+      </Pressable>
     </View>
   );
 }
 
-function CalculatorKeypadFixed({ value, onChange, onConfirm }: { value: string; onChange: (value: string) => void; onConfirm?: () => void }) {
+function CalculatorKeypadFixed({
+  value,
+  onChange,
+  onConfirm,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onConfirm?: () => void;
+}) {
   const { colors } = useAppTheme();
   const [expression, setExpression] = useState(value || '');
   const [evaluated, setEvaluated] = useState<number | null>(null);
   const [message, setMessage] = useState('');
   const rows = [
-    { id: 'control-row', keys: [{ id: 'backspace', value: '⌫', span: 1 }, { id: 'clear-all', value: 'AC', span: 2 }, { id: 'divide', value: '÷', span: 1 }] },
-    { id: 'seven-nine-row', keys: [{ id: 'seven', value: '7', span: 1 }, { id: 'eight', value: '8', span: 1 }, { id: 'nine', value: '9', span: 1 }, { id: 'multiply', value: '×', span: 1 }] },
-    { id: 'four-six-row', keys: [{ id: 'four', value: '4', span: 1 }, { id: 'five', value: '5', span: 1 }, { id: 'six', value: '6', span: 1 }, { id: 'minus', value: '-', span: 1 }] },
-    { id: 'one-three-row', keys: [{ id: 'one', value: '1', span: 1 }, { id: 'two', value: '2', span: 1 }, { id: 'three', value: '3', span: 1 }, { id: 'plus', value: '+', span: 1 }] },
-    { id: 'zero-equals-row', keys: [{ id: 'zero', value: '0', span: 2 }, { id: 'decimal', value: '.', span: 1 }, { id: 'equals', value: '=', span: 1 }] },
+    {
+      id: 'control-row',
+      keys: [
+        { id: 'backspace', value: '⌫', span: 1 },
+        { id: 'clear-all', value: 'AC', span: 2 },
+        { id: 'divide', value: '÷', span: 1 },
+      ],
+    },
+    {
+      id: 'seven-nine-row',
+      keys: [
+        { id: 'seven', value: '7', span: 1 },
+        { id: 'eight', value: '8', span: 1 },
+        { id: 'nine', value: '9', span: 1 },
+        { id: 'multiply', value: '×', span: 1 },
+      ],
+    },
+    {
+      id: 'four-six-row',
+      keys: [
+        { id: 'four', value: '4', span: 1 },
+        { id: 'five', value: '5', span: 1 },
+        { id: 'six', value: '6', span: 1 },
+        { id: 'minus', value: '-', span: 1 },
+      ],
+    },
+    {
+      id: 'one-three-row',
+      keys: [
+        { id: 'one', value: '1', span: 1 },
+        { id: 'two', value: '2', span: 1 },
+        { id: 'three', value: '3', span: 1 },
+        { id: 'plus', value: '+', span: 1 },
+      ],
+    },
+    {
+      id: 'zero-equals-row',
+      keys: [
+        { id: 'zero', value: '0', span: 2 },
+        { id: 'decimal', value: '.', span: 1 },
+        { id: 'equals', value: '=', span: 1 },
+      ],
+    },
   ];
-  const press = (valueToPress: string) => { setMessage(''); if (valueToPress === 'AC') { setExpression(''); setEvaluated(null); return; } if (valueToPress === '⌫') { setExpression((current) => current.slice(0, -1)); setEvaluated(null); return; } if (valueToPress === '=') { const result = evaluateAmountExpression(expression); if (result.error) setMessage(result.error); else setEvaluated(result.value); return; } if (calculatorOperators.has(valueToPress)) { setExpression((current) => calculatorOperators.has(current.slice(-1)) ? current.slice(0, -1) + valueToPress : current + valueToPress); setEvaluated(null); return; } if (valueToPress === '.') { setExpression((current) => { const operand = current.split(/[+*/×÷-]/).pop() ?? ''; return operand.includes('.') ? current : current + (operand ? '.' : '0.'); }); setEvaluated(null); return; } setExpression((current) => evaluated !== null || current === '0' ? valueToPress : current + valueToPress); setEvaluated(null); };
+  const press = (valueToPress: string) => {
+    setMessage('');
+    if (valueToPress === 'AC') {
+      setExpression('');
+      setEvaluated(null);
+      return;
+    }
+    if (valueToPress === '⌫') {
+      setExpression((current) => current.slice(0, -1));
+      setEvaluated(null);
+      return;
+    }
+    if (valueToPress === '=') {
+      const result = evaluateAmountExpression(expression);
+      if (result.error) setMessage(result.error);
+      else setEvaluated(result.value);
+      return;
+    }
+    if (calculatorOperators.has(valueToPress)) {
+      setExpression((current) =>
+        calculatorOperators.has(current.slice(-1))
+          ? current.slice(0, -1) + valueToPress
+          : current + valueToPress,
+      );
+      setEvaluated(null);
+      return;
+    }
+    if (valueToPress === '.') {
+      setExpression((current) => {
+        const operand = current.split(/[+*/×÷-]/).pop() ?? '';
+        return operand.includes('.') ? current : current + (operand ? '.' : '0.');
+      });
+      setEvaluated(null);
+      return;
+    }
+    setExpression((current) =>
+      evaluated !== null || current === '0' ? valueToPress : current + valueToPress,
+    );
+    setEvaluated(null);
+  };
   const result = evaluated ?? evaluateAmountExpression(expression).value;
-  return <View style={[calculatorKeypadStyles.wrap, { backgroundColor: colors.surface }]}><View style={calculatorKeypadStyles.display}>{expression ? <Text numberOfLines={1} style={[calculatorKeypadStyles.expression, { color: colors.textSecondary }]}>{formatCalculatorExpression(expression)}</Text> : null}<Text style={[calculatorKeypadStyles.result, { color: colors.textPrimary }]}>₱{formatAmountForDisplay(String(result ?? 0))}</Text>{message ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 11 }}>{message}</Text> : null}</View><View style={calculatorKeypadStyles.grid}>{rows.map((row) => <View key={row.id} style={calculatorKeypadStyles.row}>{row.keys.map((key) => <Pressable key={key.id} accessibilityRole="button" accessibilityLabel={key.value === '⌫' ? 'Delete last character' : key.value === 'AC' ? 'Clear all' : key.value === '=' ? 'Equals' : key.value === '.' ? 'Decimal point' : key.value === '+' ? 'Plus' : key.value === '-' ? 'Minus' : key.value === '×' ? 'Multiply' : key.value === '÷' ? 'Divide' : key.value} onPress={() => press(key.value)} style={({ pressed }) => [calculatorKeypadStyles.key, key.span === 2 && calculatorKeypadStyles.wide, { backgroundColor: calculatorOperators.has(key.value) || key.value === '=' ? colors.primary : colors.surfaceSecondary }, pressed && calculatorKeypadStyles.pressed]}><Text style={{ color: calculatorOperators.has(key.value) || key.value === '=' ? colors.textOnPrimary : colors.textPrimary, fontSize: 20, fontWeight: '900' }}>{key.value}</Text></Pressable>)}</View>)}</View><Pressable accessibilityRole="button" accessibilityLabel="Use calculated amount" disabled={result === null || result <= 0} onPress={() => { if (result !== null && result > 0) { onChange(result.toFixed(2)); onConfirm?.(); } }} style={({ pressed }) => [calculatorKeypadStyles.use, { backgroundColor: colors.primary }, pressed && calculatorKeypadStyles.pressed]}><Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Use amount</Text></Pressable></View>;
+  return (
+    <View style={[calculatorKeypadStyles.wrap, { backgroundColor: colors.surface }]}>
+      <View style={calculatorKeypadStyles.display}>
+        {expression ? (
+          <Text
+            numberOfLines={1}
+            style={[calculatorKeypadStyles.expression, { color: colors.textSecondary }]}
+          >
+            {formatCalculatorExpression(expression)}
+          </Text>
+        ) : null}
+        <Text style={[calculatorKeypadStyles.result, { color: colors.textPrimary }]}>
+          ₱{formatAmountForDisplay(String(result ?? 0))}
+        </Text>
+        {message ? (
+          <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 11 }}>
+            {message}
+          </Text>
+        ) : null}
+      </View>
+      <View style={calculatorKeypadStyles.grid}>
+        {rows.map((row) => (
+          <View key={row.id} style={calculatorKeypadStyles.row}>
+            {row.keys.map((key) => (
+              <Pressable
+                key={key.id}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  key.value === '⌫'
+                    ? 'Delete last character'
+                    : key.value === 'AC'
+                      ? 'Clear all'
+                      : key.value === '='
+                        ? 'Equals'
+                        : key.value === '.'
+                          ? 'Decimal point'
+                          : key.value === '+'
+                            ? 'Plus'
+                            : key.value === '-'
+                              ? 'Minus'
+                              : key.value === '×'
+                                ? 'Multiply'
+                                : key.value === '÷'
+                                  ? 'Divide'
+                                  : key.value
+                }
+                onPress={() => press(key.value)}
+                style={({ pressed }) => [
+                  calculatorKeypadStyles.key,
+                  key.span === 2 && calculatorKeypadStyles.wide,
+                  {
+                    backgroundColor:
+                      calculatorOperators.has(key.value) || key.value === '='
+                        ? colors.primary
+                        : colors.surfaceSecondary,
+                  },
+                  pressed && calculatorKeypadStyles.pressed,
+                ]}
+              >
+                <Text
+                  style={{
+                    color:
+                      calculatorOperators.has(key.value) || key.value === '='
+                        ? colors.textOnPrimary
+                        : colors.textPrimary,
+                    fontSize: 20,
+                    fontWeight: '900',
+                  }}
+                >
+                  {key.value}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ))}
+      </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Use calculated amount"
+        disabled={result === null || result <= 0}
+        onPress={() => {
+          if (result !== null && result > 0) {
+            onChange(result.toFixed(2));
+            onConfirm?.();
+          }
+        }}
+        style={({ pressed }) => [
+          calculatorKeypadStyles.use,
+          { backgroundColor: colors.primary },
+          pressed && calculatorKeypadStyles.pressed,
+        ]}
+      >
+        <Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Use amount</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 export function CategoryChipRow({
@@ -256,7 +540,9 @@ export function CategoryChipRow({
   const { colors } = useAppTheme();
   const [open, setOpen] = useState(false);
   const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
-  const selectedExtended = options.find((option) => option.label === value && !visibleOptions.some((item) => item.label === value));
+  const selectedExtended = options.find(
+    (option) => option.label === value && !visibleOptions.some((item) => item.label === value),
+  );
   const chipOptions = selectedExtended ? [...visibleOptions, selectedExtended] : visibleOptions;
   return (
     <View style={chipStyles.section}>
@@ -354,14 +640,21 @@ export function CategoryChipRow({
           onRequestClose={() => setOpen(false)}
         >
           <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
-            <Pressable style={[pickerStyles.sheet, { backgroundColor: colors.surface }]} onPress={(event) => event.stopPropagation()}>
+            <Pressable
+              style={[pickerStyles.sheet, { backgroundColor: colors.surface }]}
+              onPress={(event) => event.stopPropagation()}
+            >
               <View style={pickerStyles.header}>
                 <Text style={pickerStyles.title}>{label.replace(' *', '')}</Text>
                 <Pressable accessibilityRole="button" onPress={() => setOpen(false)}>
                   <Text style={pickerStyles.close}>×</Text>
                 </Pressable>
               </View>
-              <ScrollView style={pickerStyles.scroll} contentContainerStyle={pickerStyles.list} showsVerticalScrollIndicator>
+              <ScrollView
+                style={pickerStyles.scroll}
+                contentContainerStyle={pickerStyles.list}
+                showsVerticalScrollIndicator
+              >
                 {options.map(({ label: optionLabel, icon: Icon }) => (
                   <CategoryButton
                     key={optionLabel}
@@ -656,6 +949,13 @@ export function DatePickerField({
     const maximum = maximumDate ? toDate(maximumDate) : null;
     return Boolean((minimum && candidate < minimum) || (maximum && candidate > maximum));
   };
+  const isYearDisabled = (year: number) => {
+    const firstDay = new Date(year, 0, 1);
+    const lastDay = new Date(year, 11, 31);
+    const minimum = minimumDate ? toDate(minimumDate) : null;
+    const maximum = maximumDate ? toDate(maximumDate) : null;
+    return Boolean((maximum && firstDay > maximum) || (minimum && lastDay < minimum));
+  };
   const canMove = (offset: number) => {
     const next = new Date(month.getFullYear(), month.getMonth() + offset, 1);
     const end = new Date(next.getFullYear(), next.getMonth() + 1, 0);
@@ -665,6 +965,7 @@ export function DatePickerField({
   };
 
   const today = dateString(new Date());
+  const currentYear = new Date().getFullYear();
   const displayValue =
     value === today
       ? 'Today'
@@ -713,117 +1014,234 @@ export function DatePickerField({
       </Pressable>
       <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
         <View style={dateStyles.backdrop}>
-          <View style={[dateStyles.modal, { backgroundColor: colors.surface }]}>
+          <View
+            accessibilityViewIsModal
+            style={[dateStyles.modal, { backgroundColor: colors.surface }]}
+          >
             <View style={dateStyles.modalHeader}>
               <Text style={[dateStyles.modalTitle, { color: colors.textPrimary }]}>{label}</Text>
-              <Pressable accessibilityLabel="Close date picker" onPress={() => setOpen(false)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Close date picker"
+                onPress={() => setOpen(false)}
+              >
                 <Text style={[dateStyles.close, { color: colors.textPrimary }]}>×</Text>
               </Pressable>
             </View>
-            {view === 'calendar' ? <View style={dateStyles.monthHeader}>
-              <Pressable
-                accessibilityLabel="Previous month"
-                disabled={!canMove(-1)}
-                onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
-                style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
-              >
-                <ArrowLeft size={17} color={colors.textPrimary} />
-              </Pressable>
-              <Pressable accessibilityRole="button" accessibilityLabel="Choose month and year" onPress={() => setView('year')}>
-                <Text style={[dateStyles.month, { color: colors.textPrimary }]}>
-                {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </Text>
-              </Pressable>
-              <Pressable
-                accessibilityLabel="Next month"
-                disabled={!canMove(1)}
-                onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
-                style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
-              >
-                <ArrowRight size={17} color={colors.textPrimary} />
-              </Pressable>
-            </View> : view === 'year' ? (
+            {view === 'calendar' ? (
+              <View style={dateStyles.monthHeader}>
+                <Pressable
+                  accessibilityLabel="Previous month"
+                  disabled={!canMove(-1)}
+                  onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}
+                  style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
+                >
+                  <ArrowLeft size={17} color={colors.textPrimary} />
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Choose month and year"
+                  onPress={() => setView('year')}
+                >
+                  <Text style={[dateStyles.month, { color: colors.textPrimary }]}>
+                    {month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                  </Text>
+                </Pressable>
+                <Pressable
+                  accessibilityLabel="Next month"
+                  disabled={!canMove(1)}
+                  onPress={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}
+                  style={[dateStyles.arrow, { backgroundColor: colors.surfaceInput }]}
+                >
+                  <ArrowRight size={17} color={colors.textPrimary} />
+                </Pressable>
+              </View>
+            ) : view === 'year' ? (
               <View>
-                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>Choose year</Text>
-                <ScrollView style={dateStyles.selectorScroll} contentContainerStyle={dateStyles.selectorGrid}>
-                  {Array.from({ length: 21 }, (_, index) => month.getFullYear() - 10 + index).map((year) => (
-                    <Pressable key={year} accessibilityRole="button" accessibilityLabel={`Year ${year}`} onPress={() => { selectMonth(year, month.getMonth()); setView('month'); }} style={[dateStyles.selectorOption, year === month.getFullYear() && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-                      <Text style={{ color: year === month.getFullYear() ? colors.primary : colors.textPrimary, fontWeight: '800' }}>{year}</Text>
-                    </Pressable>
-                  ))}
+                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>
+                  Choose year
+                </Text>
+                <ScrollView
+                  style={dateStyles.selectorScroll}
+                  contentContainerStyle={dateStyles.selectorGridScrollable}
+                  accessibilityLabel="Year selection"
+                >
+                  {Array.from({ length: 21 }, (_, index) => month.getFullYear() - 10 + index).map(
+                    (year) => {
+                      const selectedYear = year === month.getFullYear();
+                      const current = year === currentYear;
+                      const disabledYear = isYearDisabled(year);
+                      return (
+                        <Pressable
+                          key={year}
+                          accessibilityRole="button"
+                          accessibilityLabel={`${year}${selectedYear ? ', selected' : ''}${current && !selectedYear ? ', current year' : ''}${disabledYear ? ', unavailable' : ''}`}
+                          accessibilityState={{ selected: selectedYear, disabled: disabledYear }}
+                          disabled={disabledYear}
+                          onPress={() => {
+                            selectMonth(year, month.getMonth());
+                            setView('month');
+                          }}
+                          style={({ pressed }) => [
+                            dateStyles.selectorOption,
+                            {
+                              backgroundColor: selectedYear
+                                ? colors.primary
+                                : colors.surfaceElevated,
+                              borderColor: selectedYear || current ? colors.primary : colors.border,
+                            },
+                            disabledYear && {
+                              backgroundColor: colors.surfaceSecondary,
+                              borderColor: colors.border,
+                            },
+                            pressed && !disabledYear && dateStyles.selectorPressed,
+                          ]}
+                        >
+                          <Text
+                            style={{
+                              color: selectedYear
+                                ? colors.textOnPrimary
+                                : disabledYear
+                                  ? colors.textMuted
+                                  : colors.textPrimary,
+                              fontWeight: selectedYear || current ? '900' : '800',
+                            }}
+                          >
+                            {year}
+                          </Text>
+                        </Pressable>
+                      );
+                    },
+                  )}
                 </ScrollView>
               </View>
             ) : (
               <View>
-                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>Choose month</Text>
+                <Text style={[dateStyles.selectorTitle, { color: colors.textSecondary }]}>
+                  Choose month
+                </Text>
                 <View style={dateStyles.selectorGrid}>
                   {Array.from({ length: 12 }, (_, index) => index).map((monthIndex) => (
-                    <Pressable key={monthIndex} accessibilityRole="button" accessibilityLabel={new Date(2020, monthIndex, 1).toLocaleDateString('en-US', { month: 'long' })} onPress={() => { selectMonth(month.getFullYear(), monthIndex); setView('calendar'); }} style={[dateStyles.selectorOption, monthIndex === month.getMonth() && { backgroundColor: colors.primarySoft, borderColor: colors.primary }]}>
-                      <Text style={{ color: monthIndex === month.getMonth() ? colors.primary : colors.textPrimary, fontWeight: '800' }}>{new Date(2020, monthIndex, 1).toLocaleDateString('en-US', { month: 'short' })}</Text>
+                    <Pressable
+                      key={monthIndex}
+                      accessibilityRole="button"
+                      accessibilityLabel={new Date(2020, monthIndex, 1).toLocaleDateString(
+                        'en-US',
+                        { month: 'long' },
+                      )}
+                      onPress={() => {
+                        selectMonth(month.getFullYear(), monthIndex);
+                        setView('calendar');
+                      }}
+                      style={[
+                        dateStyles.selectorOption,
+                        monthIndex === month.getMonth() && {
+                          backgroundColor: colors.primarySoft,
+                          borderColor: colors.primary,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color:
+                            monthIndex === month.getMonth() ? colors.primary : colors.textPrimary,
+                          fontWeight: '800',
+                        }}
+                      >
+                        {new Date(2020, monthIndex, 1).toLocaleDateString('en-US', {
+                          month: 'short',
+                        })}
+                      </Text>
                     </Pressable>
                   ))}
                 </View>
               </View>
             )}
-            {view === 'calendar' && <>
-            <View style={dateStyles.weekRow}>
-              {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-                <Text
-                  key={`${day}-${index}`}
-                  style={[dateStyles.weekDay, { color: colors.textSecondary }]}
-                >
-                  {day}
-                </Text>
-              ))}
-            </View>
-            <View style={dateStyles.calendar}>
-              {cells.map((day, index) =>
-                day === null ? (
-                  <View key={`empty-${index}`} style={dateStyles.day} />
-                ) : (
-                  <Pressable
-                    key={day}
-                    accessibilityRole="button"
-                    accessibilityLabel={`${month.toLocaleDateString('en-US', { month: 'long' })} ${day}, ${month.getFullYear()}`}
-                    accessibilityState={{ selected: draft.getFullYear() === month.getFullYear() && draft.getMonth() === month.getMonth() && draft.getDate() === day, disabled: isDayDisabled(day) }}
-                    disabled={isDayDisabled(day)}
-                    onPress={() => choose(day)}
-                    style={[
-                      dateStyles.day,
-                        draft.getFullYear() === month.getFullYear() &&
-                        draft.getMonth() === month.getMonth() &&
-                        draft.getDate() === day && { backgroundColor: colors.primary },
-                        isDayDisabled(day) && dateStyles.disabled,
-                    ]}
-                  >
+            {view === 'calendar' && (
+              <>
+                <View style={dateStyles.weekRow}>
+                  {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
                     <Text
-                      style={[
-                        dateStyles.dayText,
-                        { color: colors.textPrimary },
-                        draft.getFullYear() === month.getFullYear() &&
-                          draft.getMonth() === month.getMonth() &&
-                          draft.getDate() === day && {
-                            color: colors.textOnPrimary,
-                            fontWeight: '900',
-                          },
-                      ]}
+                      key={`${day}-${index}`}
+                      style={[dateStyles.weekDay, { color: colors.textSecondary }]}
                     >
                       {day}
                     </Text>
-                  </Pressable>
-                ),
-              )}
-            </View>
-            <Pressable
-              onPress={() => { setDraft(new Date()); setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1)); }}
-              style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}
-            >
-              <Text style={[dateStyles.todayText, { color: colors.primary }]}>Use today</Text>
-            </Pressable>
-            </>}
+                  ))}
+                </View>
+                <View style={dateStyles.calendar}>
+                  {cells.map((day, index) =>
+                    day === null ? (
+                      <View key={`empty-${index}`} style={dateStyles.day} />
+                    ) : (
+                      <Pressable
+                        key={day}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${month.toLocaleDateString('en-US', { month: 'long' })} ${day}, ${month.getFullYear()}`}
+                        accessibilityState={{
+                          selected:
+                            draft.getFullYear() === month.getFullYear() &&
+                            draft.getMonth() === month.getMonth() &&
+                            draft.getDate() === day,
+                          disabled: isDayDisabled(day),
+                        }}
+                        disabled={isDayDisabled(day)}
+                        onPress={() => choose(day)}
+                        style={[
+                          dateStyles.day,
+                          draft.getFullYear() === month.getFullYear() &&
+                            draft.getMonth() === month.getMonth() &&
+                            draft.getDate() === day && { backgroundColor: colors.primary },
+                          isDayDisabled(day) && dateStyles.disabled,
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            dateStyles.dayText,
+                            { color: colors.textPrimary },
+                            draft.getFullYear() === month.getFullYear() &&
+                              draft.getMonth() === month.getMonth() &&
+                              draft.getDate() === day && {
+                                color: colors.textOnPrimary,
+                                fontWeight: '900',
+                              },
+                          ]}
+                        >
+                          {day}
+                        </Text>
+                      </Pressable>
+                    ),
+                  )}
+                </View>
+                <Pressable
+                  onPress={() => {
+                    setDraft(new Date());
+                    setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+                  }}
+                  style={[dateStyles.today, { backgroundColor: colors.primarySoft }]}
+                >
+                  <Text style={[dateStyles.todayText, { color: colors.primary }]}>Use today</Text>
+                </Pressable>
+              </>
+            )}
             <View style={dateStyles.actions}>
-              <Pressable accessibilityRole="button" onPress={() => setOpen(false)} style={[dateStyles.action, { backgroundColor: colors.surfaceInput }]}><Text style={{ color: colors.textSecondary, fontWeight: '800' }}>Cancel</Text></Pressable>
-              <Pressable accessibilityRole="button" onPress={() => { onChange(dateString(draft)); setOpen(false); }} style={[dateStyles.action, { backgroundColor: colors.primary }]}><Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Confirm</Text></Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setOpen(false)}
+                style={[dateStyles.action, { backgroundColor: colors.surfaceInput }]}
+              >
+                <Text style={{ color: colors.textSecondary, fontWeight: '800' }}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  onChange(dateString(draft));
+                  setOpen(false);
+                }}
+                style={[dateStyles.action, { backgroundColor: colors.primary }]}
+              >
+                <Text style={{ color: colors.textOnPrimary, fontWeight: '900' }}>Confirm</Text>
+              </Pressable>
             </View>
           </View>
         </View>
@@ -1108,40 +1526,48 @@ export function FinanceFormSheet({
               </ScrollView>
             </View>
           </FinanceFormInteractionContext.Provider>
-          {!amountActive && <View
-            style={[
-              financeEntryStyles.footer,
-              {
-                backgroundColor: colors.surface,
-                borderTopColor: colors.border,
-                paddingBottom: Math.max(10, insets.bottom + 8),
-              },
-            ]}
-          >
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={saveLabel}
-              disabled={saving}
-              onPress={onSave}
-              style={({ pressed }) => [
-                sheetStyles.save,
-                { backgroundColor: colors.accent },
-                saving && sheetStyles.saveDisabled,
-                pressed && sheetStyles.pressed,
+          {!amountActive && (
+            <View
+              style={[
+                financeEntryStyles.footer,
+                {
+                  backgroundColor: colors.surface,
+                  borderTopColor: colors.border,
+                  paddingBottom: Math.max(10, insets.bottom + 8),
+                },
               ]}
             >
-              {saving ? (
-                <ActivityIndicator color={colors.inverse} />
-              ) : (
-                <>
-                  <Plus size={19} color={colors.inverse} strokeWidth={2.4} />
-                  <Text style={[sheetStyles.saveText, { color: colors.inverse }]}>{saveLabel}</Text>
-                </>
-              )}
-            </Pressable>
-          </View>}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={saveLabel}
+                disabled={saving}
+                onPress={onSave}
+                style={({ pressed }) => [
+                  sheetStyles.save,
+                  { backgroundColor: colors.accent },
+                  saving && sheetStyles.saveDisabled,
+                  pressed && sheetStyles.pressed,
+                ]}
+              >
+                {saving ? (
+                  <ActivityIndicator color={colors.inverse} />
+                ) : (
+                  <>
+                    <Plus size={19} color={colors.inverse} strokeWidth={2.4} />
+                    <Text style={[sheetStyles.saveText, { color: colors.inverse }]}>
+                      {saveLabel}
+                    </Text>
+                  </>
+                )}
+              </Pressable>
+            </View>
+          )}
           {amountActive && !keyboardVisible ? (
-            <CalculatorKeypadFixed value={amount} onChange={onAmountChange} onConfirm={deactivateAmount} />
+            <CalculatorKeypadFixed
+              value={amount}
+              onChange={onAmountChange}
+              onConfirm={deactivateAmount}
+            />
           ) : null}
         </View>
       </KeyboardAvoidingView>
@@ -1249,7 +1675,13 @@ const calculatorKeypadStyles = StyleSheet.create({
   row: { flexDirection: 'row', gap: 8 },
   key: { flex: 1, minHeight: 46, alignItems: 'center', justifyContent: 'center', borderRadius: 15 },
   wide: { flex: 2 },
-  use: { minHeight: 44, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  use: {
+    minHeight: 44,
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+  },
   pressed: { opacity: 0.68 },
 });
 
@@ -1277,7 +1709,13 @@ const keypadStyles = StyleSheet.create({
   actionKey: { backgroundColor: formPalette.accentPale },
   keyText: { color: formPalette.ink, fontSize: 18, fontWeight: '800' },
   actionText: { color: formPalette.accentDark },
-  useAmount: { minHeight: 44, marginTop: 10, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  useAmount: {
+    minHeight: 44,
+    marginTop: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+  },
   pressed: { opacity: 0.68 },
 });
 
@@ -1338,7 +1776,13 @@ const chipStyles = StyleSheet.create({
 
 const pickerStyles = StyleSheet.create({
   backdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.34)' },
-  sheet: { maxHeight: '78%', padding: 20, borderTopLeftRadius: 26, borderTopRightRadius: 26, overflow: 'hidden' },
+  sheet: {
+    maxHeight: '78%',
+    padding: 20,
+    borderTopLeftRadius: 26,
+    borderTopRightRadius: 26,
+    overflow: 'hidden',
+  },
   scroll: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 20, fontWeight: '900' },
@@ -1381,7 +1825,15 @@ const dateStyles = StyleSheet.create({
     padding: 16,
     backgroundColor: 'rgba(17,35,28,0.34)',
   },
-  modal: { width: '100%', maxWidth: 430, maxHeight: '88%', padding: 18, borderRadius: 24, overflow: 'hidden', backgroundColor: formPalette.surface },
+  modal: {
+    width: '100%',
+    maxWidth: 430,
+    maxHeight: '88%',
+    padding: 18,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: formPalette.surface,
+  },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   modalTitle: { color: formPalette.ink, fontSize: 19, fontWeight: '900' },
   close: { color: formPalette.ink, fontSize: 28, lineHeight: 28 },
@@ -1403,6 +1855,8 @@ const dateStyles = StyleSheet.create({
   selectorTitle: { marginTop: 18, marginBottom: 10, fontSize: 12, fontWeight: '900' },
   selectorScroll: { maxHeight: 260 },
   selectorGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  selectorGridScrollable: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingBottom: 18 },
+  selectorPressed: { opacity: 0.82, transform: [{ scale: 0.98 }] },
   selectorOption: {
     width: '31%',
     minHeight: 42,
@@ -1443,7 +1897,13 @@ const dateStyles = StyleSheet.create({
   },
   todayText: { color: formPalette.accentDark, fontWeight: '900' },
   actions: { flexDirection: 'row', gap: 9, marginTop: 12 },
-  action: { flex: 1, minHeight: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 14 },
+  action: {
+    flex: 1,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
+  },
 });
 
 const sheetStyles = StyleSheet.create({

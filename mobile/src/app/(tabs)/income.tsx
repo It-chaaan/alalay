@@ -61,7 +61,12 @@ type Income = {
   wallet_id: string;
   status?: string;
 };
-type IncomeSummary = { this_month: number; monthly_sources: number; actual_transactions: number };
+type IncomeSummary = {
+  this_month: number;
+  monthly_sources: number;
+  actual_transactions: number;
+  upcoming_transactions: number;
+};
 type MyIncomeResponse = {
   month: string;
   overview: {
@@ -71,7 +76,7 @@ type MyIncomeResponse = {
     recurringSourceCount: number;
     oneTimeCount: number;
   };
-  items: Array<{
+  items: {
     kind: 'recurring' | 'one_time';
     sourceId: string;
     transactionId: string | null;
@@ -83,7 +88,7 @@ type MyIncomeResponse = {
     dueDate: string | null;
     receivedDate: string | null;
     walletId: string;
-  }>;
+  }[];
 };
 
 const incomeTypes = [
@@ -148,6 +153,7 @@ export default function IncomeScreen() {
     this_month: 0,
     monthly_sources: 0,
     actual_transactions: 0,
+    upcoming_transactions: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -199,6 +205,7 @@ export default function IncomeScreen() {
         this_month: incomeResult.value.overview.receivedAmount,
         monthly_sources: incomeResult.value.overview.recurringSourceCount,
         actual_transactions: incomeResult.value.overview.receivedCount,
+        upcoming_transactions: incomeResult.value.overview.upcomingCount,
       });
     }
     if (walletRows.status === 'fulfilled') setWallets(walletRows.value as Wallet[]);
@@ -224,11 +231,9 @@ export default function IncomeScreen() {
   );
 
   const supportingText =
-    summary.monthly_sources > 0
-      ? `${summary.monthly_sources} monthly income source${summary.monthly_sources === 1 ? '' : 's'}${summary.actual_transactions ? ` · ${summary.actual_transactions} recorded transaction${summary.actual_transactions === 1 ? '' : 's'}` : ''}`
-      : summary.actual_transactions > 0
-        ? `${summary.actual_transactions} recorded income transaction${summary.actual_transactions === 1 ? '' : 's'} this month`
-        : 'No income recorded this month';
+    summary.actual_transactions || summary.upcoming_transactions || summary.monthly_sources
+      ? `${summary.actual_transactions} received · ${summary.upcoming_transactions} upcoming · ${summary.monthly_sources} recurring source${summary.monthly_sources === 1 ? '' : 's'}`
+      : 'No income recorded this month';
 
   return (
     <SafeAreaView
@@ -282,25 +287,44 @@ export default function IncomeScreen() {
                   </View>
                   <View style={styles.main}>
                     <Text style={styles.rowTitle}>{row.source}</Text>
+                    <Text style={styles.rowDate} numberOfLines={1}>
+                      {row.status === 'received'
+                        ? `Received ${row.date}`
+                        : row.status === 'due'
+                          ? `Due ${row.date}`
+                          : row.status === 'failed'
+                            ? `Failed ${row.date}`
+                            : row.status === 'not_started'
+                              ? 'Not started'
+                              : `Due ${row.date}`}
+                    </Text>
                     <Text style={styles.muted}>
-                      {row.type} · {row.is_recurring ? (row.frequency ?? 'Recurring') : 'One-time'}{' '}
-                      · {row.date}
+                      {row.type} · {row.is_recurring ? (row.frequency ?? 'Recurring') : 'One-time'}
                     </Text>
                   </View>
-                  <Text style={styles.muted}>
-                    {row.status === 'received'
-                      ? 'Received'
-                      : row.status === 'due'
-                        ? 'Due today'
-                        : row.status === 'failed'
-                          ? 'Needs attention'
-                          : row.status === 'not_started'
-                            ? 'Not started'
-                            : 'Upcoming'}
-                  </Text>
-                  <Text style={styles.amount}>
-                    ₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}
-                  </Text>
+                  <View style={styles.rowRight}>
+                    <Text
+                      numberOfLines={1}
+                      style={[
+                        styles.rowStatus,
+                        row.status === 'received' && styles.statusReceived,
+                        row.status === 'failed' && styles.statusFailed,
+                      ]}
+                    >
+                      {row.status === 'received'
+                        ? 'Received'
+                        : row.status === 'due'
+                          ? 'Due today'
+                          : row.status === 'failed'
+                            ? 'Needs attention'
+                            : row.status === 'not_started'
+                              ? 'Not started'
+                              : 'Upcoming'}
+                    </Text>
+                    <Text style={styles.amount}>
+                      ₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}
+                    </Text>
+                  </View>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`More options for ${row.source}`}
@@ -645,9 +669,20 @@ function makeStyles(themePalette: typeof formPalette) {
       borderRadius: 13,
       backgroundColor: formPalette.accentPale,
     },
-    main: { flex: 1, marginLeft: 11 },
+    main: { flex: 1, minWidth: 0, marginLeft: 11 },
     rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 },
-    amount: { color: formPalette.ink, fontWeight: '900' },
+    rowDate: { marginTop: 2, color: formPalette.muted, fontSize: 11, lineHeight: 15 },
+    rowRight: { width: 106, alignItems: 'flex-end', marginLeft: 8 },
+    rowStatus: {
+      marginTop: 3,
+      color: formPalette.muted,
+      fontSize: 11,
+      fontWeight: '800',
+      textAlign: 'right',
+    },
+    statusReceived: { color: formPalette.accent },
+    statusFailed: { color: formPalette.danger },
+    amount: { color: formPalette.ink, fontWeight: '900', textAlign: 'right' },
     more: {
       width: 42,
       height: 42,
