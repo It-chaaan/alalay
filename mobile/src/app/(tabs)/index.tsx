@@ -1,8 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import Animated from 'react-native-reanimated';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   ArrowDown,
@@ -46,6 +54,7 @@ import { GlassSurface } from '@/components/glass-surface';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
+import { cycleIndex, visibleWallets, walletSlotOffset } from '@/utils/wallet-stack';
 
 const palette = {
   background: '#F4F7F1',
@@ -188,7 +197,12 @@ export default function HomeScreen() {
           */}
         </View>
 
-        <WalletHero wallets={wallets} walletLoading={walletLoading} walletError={walletError} />
+        <WalletHero
+          accountId={profile?.userId}
+          wallets={wallets}
+          walletLoading={walletLoading}
+          walletError={walletError}
+        />
         <QuickActionsCard />
 
         <View style={styles.sectionHeader}>
@@ -422,10 +436,12 @@ type QuickAction = {
 };
 
 function WalletHero({
+  accountId,
   wallets,
   walletLoading,
   walletError,
 }: {
+  accountId?: string;
   wallets: WalletRecord[];
   walletLoading: boolean;
   walletError: string;
@@ -435,6 +451,49 @@ function WalletHero({
   const amountsVisible = visible === true;
   const mask = '••••••';
   const navigationLocked = useRef(false);
+
+  const [frontIndex, setFrontIndex] = useState(0);
+  const frontWalletId = useRef<string | null>(null);
+  const cycleLocked = useRef(false);
+  const previousAccountId = useRef(accountId);
+  const currentFrontId = wallets[frontIndex]?.id ?? null;
+  useEffect(() => {
+    if (accountId && previousAccountId.current && accountId !== previousAccountId.current) {
+      setFrontIndex(0);
+      frontWalletId.current = null;
+    }
+    previousAccountId.current = accountId;
+  }, [accountId]);
+  useEffect(() => {
+    const preservedIndex = frontWalletId.current
+      ? wallets.findIndex((wallet) => wallet.id === frontWalletId.current)
+      : -1;
+    setFrontIndex((current) => {
+      if (wallets.length === 0) return 0;
+      if (preservedIndex >= 0) return preservedIndex;
+      return Math.min(current, wallets.length - 1);
+    });
+  }, [wallets]);
+  useEffect(() => {
+    frontWalletId.current = currentFrontId;
+  }, [currentFrontId]);
+  const visibleCards = useMemo(() => visibleWallets(wallets, frontIndex), [wallets, frontIndex]);
+  const selectedPosition = wallets.length ? frontIndex + 1 : 0;
+  const advance = useCallback(
+    (steps: number) => {
+      if (cycleLocked.current || wallets.length < 2) return;
+      cycleLocked.current = true;
+      setFrontIndex((current) => cycleIndex(current, wallets.length, steps));
+      setTimeout(() => {
+        cycleLocked.current = false;
+      }, 320);
+    },
+    [wallets.length],
+  );
+  useEffect(() => {
+    if (visibleCards[0])
+      AccessibilityInfo.announceForAccessibility(`${visibleCards[0].name} selected`);
+  }, [visibleCards]);
 
   const total = totalWalletBalance(wallets);
   const unavailable = Boolean(walletError) || walletLoading;
@@ -515,18 +574,21 @@ function WalletHero({
           style={styles.cardStack}
           accessibilityLabel={`Wallet cards, ${wallets.length} available`}
         >
-          {wallets.map((wallet, slotIndex) => (
+          {visibleCards.map((wallet, slotIndex) => (
             <WalletStackCard
               key={wallet.id}
               wallet={wallet}
               slotIndex={slotIndex}
-              count={wallets.length}
               visible={amountsVisible}
-              onPress={() => openWalletDetails(wallet.id)}
+              onPress={() => (slotIndex === 0 ? openWalletDetails(wallet.id) : advance(slotIndex))}
             />
           ))}
+          <Text style={styles.walletCount}>
+            {selectedPosition} of {wallets.length}
+          </Text>
         </View>
       )}
+      {wallets.length > 1 && !unavailable ? <View style={styles.walletPager}></View> : null}
     </View>
   );
 }
@@ -534,44 +596,53 @@ function WalletHero({
 const WalletStackCard = memo(function WalletStackCard({
   wallet,
   slotIndex,
-  count,
   visible,
   onPress,
 }: {
   wallet: WalletRecord;
   slotIndex: number;
-  count: number;
   visible: boolean;
   onPress: () => void;
 }) {
   const { colors } = useAppTheme();
-  const stackStep = count <= 6 ? 28 : Math.max(18, Math.floor(168 / count));
-  // Keep every API wallet in a distinct reachable visual slot; only the
-  // spacing compresses as the collection grows.
-  const cardTop = slotIndex * stackStep;
   const type =
     wallet.account_type === 'credit'
       ? 'Credit'
       : wallet.account_type === 'debit'
         ? 'Debit'
         : typeLabel(wallet.institution_type);
+  const translateY = useSharedValue(walletSlotOffset(slotIndex));
+  const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
+  useEffect(() => {
+    translateY.value = withTiming(walletSlotOffset(slotIndex), {
+      duration: 260,
+    });
+    scale.value = withTiming(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94, {
+      duration: 260,
+    });
+  }, [scale, slotIndex, translateY]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
   return (
     <Animated.View
       style={[
         styles.walletStackCard,
+        animatedStyle,
         {
           backgroundColor: slotIndex === 0 ? colors.primary : colors.balanceRear,
           borderColor: slotIndex === 0 ? colors.primarySoft : colors.balance,
           zIndex: 100 - slotIndex,
           elevation: 100 - slotIndex,
-          top: cardTop,
         },
       ]}
     >
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ selected: slotIndex === 0 }}
-        accessibilityLabel={`Open ${wallet.name} wallet details, ${type}, PHP${visible ? `, ${formatBalancePeso(Number(wallet.balance))}` : ''}`}
+        accessibilityLabel={
+          slotIndex === 0 ? `Open ${wallet.name} details` : `Bring ${wallet.name} to front`
+        }
         onPress={onPress}
         style={styles.walletCardPress}
       >
@@ -1061,7 +1132,7 @@ const styles = StyleSheet.create({
   walletAction: { marginTop: 14, color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
   cardStack: {
     position: 'absolute',
-    top: 0,
+    top: 16,
     left: 18,
     right: 18,
     height: 166,
@@ -1088,7 +1159,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     gap: 10,
   },
-  walletPager: { display: 'none' },
+  walletPager: {
+    position: 'absolute',
+    left: 42,
+    right: 42,
+    bottom: 2,
+    zIndex: 50,
+    elevation: 50,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  walletPagerText: { color: '#D8EFE2', fontSize: 12, fontWeight: '800' },
   walletCount: {
     position: 'absolute',
     right: 26,

@@ -1,8 +1,8 @@
-type IncomeFrequency = "monthly" | "weekly" | "biweekly" | "yearly";
+type IncomeFrequency = 'monthly' | 'weekly' | 'biweekly' | 'yearly';
 export type IncomeRow = Record<string, any>;
 
 function parseDate(value: string) {
-  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day));
 }
 
@@ -15,14 +15,21 @@ function daysInMonth(year: number, month: number) {
 }
 
 function frequencyOf(row: IncomeRow): IncomeFrequency | null {
-  const frequency = String(row.frequency ?? "").toLowerCase();
-  return frequency === "weekly" || frequency === "biweekly" || frequency === "yearly" || frequency === "monthly"
+  const frequency = String(row.frequency ?? '').toLowerCase();
+  return frequency === 'weekly' ||
+    frequency === 'biweekly' ||
+    frequency === 'yearly' ||
+    frequency === 'monthly'
     ? frequency
     : null;
 }
 
 export function isRecurring(row: IncomeRow) {
-  return row.is_recurring === true || row.is_recurring === 1 || String(row.is_recurring).toLowerCase() === "true";
+  return (
+    row.is_recurring === true ||
+    row.is_recurring === 1 ||
+    String(row.is_recurring).toLowerCase() === 'true'
+  );
 }
 
 export function nextOccurrenceDate(row: IncomeRow, from: string) {
@@ -31,7 +38,7 @@ export function nextOccurrenceDate(row: IncomeRow, from: string) {
 }
 
 function addDays(date: string, days: number) {
-  const [year, month, day] = date.slice(0, 10).split("-").map(Number);
+  const [year, month, day] = date.slice(0, 10).split('-').map(Number);
   const value = new Date(Date.UTC(year, month - 1, day));
   value.setUTCDate(value.getUTCDate() + days);
   return dateKey(value);
@@ -45,28 +52,42 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
   const frequency = frequencyOf(row);
   if (!frequency) return dates;
 
-  if (frequency === "monthly") {
+  if (frequency === 'monthly') {
     const cursor = new Date(Date.UTC(anchor.getUTCFullYear(), anchor.getUTCMonth(), 1));
     while (cursor <= end) {
-      const candidate = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth(), Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth()))));
-      if (candidate >= anchor && candidate >= start && candidate <= end) dates.push(dateKey(candidate));
+      const candidate = new Date(
+        Date.UTC(
+          cursor.getUTCFullYear(),
+          cursor.getUTCMonth(),
+          Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), cursor.getUTCMonth())),
+        ),
+      );
+      if (candidate >= anchor && candidate >= start && candidate <= end)
+        dates.push(dateKey(candidate));
       cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
     }
     return dates;
   }
 
-  if (frequency === "yearly") {
+  if (frequency === 'yearly') {
     const cursor = new Date(anchor);
     while (cursor <= end) {
-      const candidate = new Date(Date.UTC(cursor.getUTCFullYear(), anchor.getUTCMonth(), Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), anchor.getUTCMonth()))));
-      if (candidate > anchor && candidate >= start && candidate <= end) dates.push(dateKey(candidate));
+      const candidate = new Date(
+        Date.UTC(
+          cursor.getUTCFullYear(),
+          anchor.getUTCMonth(),
+          Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), anchor.getUTCMonth())),
+        ),
+      );
+      if (candidate > anchor && candidate >= start && candidate <= end)
+        dates.push(dateKey(candidate));
       cursor.setUTCFullYear(cursor.getUTCFullYear() + 1);
     }
     return dates;
   }
 
   const cursor = new Date(anchor);
-  const step = frequency === "biweekly" ? 14 : 7;
+  const step = frequency === 'biweekly' ? 14 : 7;
   cursor.setUTCDate(cursor.getUTCDate() + step);
   while (cursor <= end) {
     if (cursor >= start) dates.push(dateKey(cursor));
@@ -76,22 +97,48 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
 }
 
 export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): IncomeRow[] {
-  const actualRows = rows.filter((row) => row.is_posted !== false && String(row.date) >= from && String(row.date) <= to);
-  const actualKeys = new Set(actualRows.map((row) => `${row.source}|${Number(row.amount)}|${row.date}`));
+  const actualRows = rows.filter(
+    (row) => row.is_posted !== false && String(row.date) >= from && String(row.date) <= to,
+  );
+  const actualKeys = new Set(
+    actualRows.map((row) => `${row.source}|${Number(row.amount)}|${row.date}`),
+  );
   const scheduled: IncomeRow[] = [];
 
-  rows.filter((row) => row.is_posted === false && row.schedule_status === "active" && !isRecurring(row))
+  rows
+    .filter(
+      (row) => row.is_posted === false && row.schedule_status === 'active' && !isRecurring(row),
+    )
     .filter((row) => String(row.date) >= from && String(row.date) <= to)
-    .forEach((row) => scheduled.push({ ...row, id: `scheduled-${row.id}-${row.date}`, is_scheduled: true, recurrence_key: `${row.id}:${row.date}` }));
+    .forEach((row) =>
+      scheduled.push({
+        ...row,
+        id: `scheduled-${row.id}-${row.date}`,
+        is_scheduled: true,
+        recurrence_key: `${row.id}:${row.date}`,
+      }),
+    );
 
-  rows.filter((row) => isRecurring(row) && row.schedule_status !== "cancelled" && row.schedule_status !== "completed").forEach((row) => {
-    occurrenceDates(row, from, to).forEach((date) => {
-      if (row.is_posted !== false && date === String(row.date)) return;
-      const key = `${row.source}|${Number(row.amount)}|${date}`;
-      if (actualKeys.has(key)) return;
-      scheduled.push({ ...row, id: `scheduled-${row.id}-${date}`, date, is_scheduled: true, recurrence_key: `${row.id}:${date}` });
+  rows
+    .filter(
+      (row) => row.is_posted === false && isRecurring(row) && row.schedule_status === 'active',
+    )
+    .forEach((row) => {
+      occurrenceDates(row, from, to).forEach((date) => {
+        if (row.is_posted !== false && date === String(row.date)) return;
+        const key = `${row.source}|${Number(row.amount)}|${date}`;
+        if (actualKeys.has(key)) return;
+        scheduled.push({
+          ...row,
+          id: `scheduled-${row.id}-${date}`,
+          date,
+          is_scheduled: true,
+          recurrence_key: `${row.id}:${date}`,
+        });
+      });
     });
-  });
 
-  return [...actualRows, ...scheduled].sort((left, right) => String(right.date).localeCompare(String(left.date)));
+  return [...actualRows, ...scheduled].sort((left, right) =>
+    String(right.date).localeCompare(String(left.date)),
+  );
 }

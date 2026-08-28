@@ -1,5 +1,9 @@
 import { Router } from 'express';
-import { incomeForMonth, incomeForRange } from '../services/financial-summary.service.js';
+import {
+  incomeForMonth,
+  incomeForRange,
+  myIncomeForMonth,
+} from '../services/financial-summary.service.js';
 import { addDaysIso, todayIso } from '../services/db.js';
 import { sendSuccess } from '../utils/api.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -24,6 +28,41 @@ incomeRouter.get(
 );
 
 incomeRouter.get(
+  '/my-income',
+  asyncHandler(async (req, res) => {
+    const month = typeof req.query.month === 'string' ? req.query.month : undefined;
+    return sendSuccess(res, await myIncomeForMonth(req.user!.id, month));
+  }),
+);
+
+incomeRouter.get(
+  '/upcoming',
+  asyncHandler(async (req, res) => {
+    const from = typeof req.query.from === 'string' ? req.query.from : todayIso();
+    const to = typeof req.query.to === 'string' ? req.query.to : addDaysIso(400);
+    const summary = await incomeForRange(req.user!.id, from, to);
+    return sendSuccess(
+      res,
+      summary.scheduledRows.filter((row) => row.is_scheduled),
+    );
+  }),
+);
+
+incomeRouter.get(
+  '/sources',
+  asyncHandler(async (req, res) => {
+    const summary = await incomeForRange(req.user!.id, todayIso(), addDaysIso(400));
+    return sendSuccess(
+      res,
+      summary.sourceRows.filter(
+        (row) =>
+          row.is_posted === false && Boolean(row.is_recurring) && row.schedule_status === 'active',
+      ),
+    );
+  }),
+);
+
+incomeRouter.get(
   '/summary',
   asyncHandler(async (req, res) => {
     const month = typeof req.query.month === 'string' ? req.query.month : undefined;
@@ -33,14 +72,13 @@ incomeRouter.get(
       ytd: summary.ytd,
       average_month: summary.average_month,
       sources: summary.sources,
-      monthly_sources: new Set(
-        summary.rows
-          .filter(
-            (row) =>
-              Boolean(row.is_recurring) && String(row.frequency ?? '').toLowerCase() === 'monthly',
-          )
-          .map((row) => row.source),
-      ).size,
+      monthly_sources: summary.sourceRows.filter(
+        (row) =>
+          row.is_posted === false &&
+          Boolean(row.is_recurring) &&
+          row.schedule_status === 'active' &&
+          String(row.frequency ?? '').toLowerCase() === 'monthly',
+      ).length,
       actual_transactions: summary.actualRows.length,
     });
   }),
