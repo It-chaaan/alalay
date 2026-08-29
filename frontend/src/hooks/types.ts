@@ -343,6 +343,8 @@ export type Wallet = {
   balance: number | string;
   institution_type: 'e_wallet' | 'digital_bank' | 'bank' | 'cash' | 'other';
   institution_key: string;
+  currency?: string;
+  last_four?: string | null;
   account_type?: 'debit' | 'credit' | null;
   account_purpose?: 'everyday' | 'savings' | null;
   earns_interest?: boolean;
