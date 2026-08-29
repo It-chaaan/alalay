@@ -24,6 +24,13 @@ export type Wallet = {
   default_outgoing_transfer_fee?: number | string | null;
   interest_rate?: number | string | null;
   interest_crediting_frequency?: string | null;
+  payment_due_date?: string | null;
+  payment_due_day?: number | null;
+  payment_wallet_id?: string | null;
+  auto_record_payment?: boolean;
+  payment_rule?: 'full_outstanding' | 'fixed_amount' | 'minimum_due' | null;
+  fixed_payment_amount?: number | string | null;
+  is_active?: boolean;
 };
 
 export function WalletPicker({
@@ -34,6 +41,7 @@ export function WalletPicker({
   label = 'Wallet',
   onAddWallet,
   excludeCredit = false,
+  activeOnly = false,
 }: {
   wallets: Wallet[];
   value: string | null;
@@ -42,6 +50,7 @@ export function WalletPicker({
   label?: string;
   onAddWallet?: () => void;
   excludeCredit?: boolean;
+  activeOnly?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = wallets.find((wallet) => wallet.id === value);
@@ -80,6 +89,7 @@ export function WalletPicker({
         visible={open}
         wallets={wallets}
         excludeCredit={excludeCredit}
+        activeOnly={activeOnly}
         value={value}
         onClose={() => setOpen(false)}
         onChange={(id) => {
@@ -104,6 +114,7 @@ export function WalletPickerModal({
   onPreset,
   onAddWallet,
   excludeCredit = false,
+  activeOnly = false,
 }: {
   visible: boolean;
   wallets: Wallet[];
@@ -115,6 +126,7 @@ export function WalletPickerModal({
   onPreset?: (preset: WalletPreset) => void;
   onAddWallet?: () => void;
   excludeCredit?: boolean;
+  activeOnly?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(
@@ -129,6 +141,7 @@ export function WalletPickerModal({
   const matchingWallets = wallets.filter(
     (wallet) =>
       (!excludeCredit || wallet.account_type !== 'credit') &&
+      (!activeOnly || wallet.is_active !== false) &&
       `${wallet.name} ${wallet.institution_key} ${wallet.last_four ?? ''}`
         .toLowerCase()
         .includes(search.toLowerCase()),

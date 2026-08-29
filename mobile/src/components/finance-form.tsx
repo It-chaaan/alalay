@@ -51,7 +51,7 @@ import {
   type LucideIcon,
 } from 'lucide-react-native';
 import { evaluateAmountExpression, formatCalculatorExpression } from '@/utils/amount-calculator';
-import { formatCurrencyInput } from '@/utils/currency-input';
+import { formatCurrencyDisplay, formatCurrencyInput } from '@/utils/currency-input';
 
 import { useModalVisibility } from './modal-visibility';
 import { useAppTheme } from '@/theme/theme';
@@ -1345,6 +1345,8 @@ type FinanceFormSheetProps = {
   saveLabel: string;
   onSave: () => void;
   onClose: () => void;
+  amountDisplayTwoDecimals?: boolean;
+  amountEditable?: boolean;
 };
 
 export function FinanceFormSheetLegacy({
@@ -1447,6 +1449,8 @@ export function FinanceFormSheet({
   saveLabel,
   onSave,
   onClose,
+  amountDisplayTwoDecimals = false,
+  amountEditable = true,
 }: FinanceFormSheetProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -1464,6 +1468,9 @@ export function FinanceFormSheet({
     Keyboard.dismiss();
     setAmountActive(true);
   };
+  const displayedAmount = amountDisplayTwoDecimals && !amountActive
+    ? formatCurrencyDisplay(amount)
+    : formatAmountForDisplay(amount);
   return (
     <View style={sheetStyles.overlay}>
       <Pressable
@@ -1494,16 +1501,17 @@ export function FinanceFormSheet({
             </Pressable>
           </View>
           <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={`${title} amount, ${formatAmountForDisplay(amount)}`}
-            onPress={activateAmount}
+            accessibilityRole={amountEditable ? 'button' : 'text'}
+            accessibilityLabel={`${title} amount, ${displayedAmount}`}
+            disabled={!amountEditable}
+            onPress={amountEditable ? activateAmount : undefined}
             style={sheetStyles.amountBlock}
           >
             <Text style={[sheetStyles.amountPrefix, { color: colors.accent }]}>₱</Text>
             <Text
               style={[sheetStyles.amount, { color: amountActive ? colors.accent : colors.ink }]}
             >
-              {formatAmountForDisplay(amount)}
+              {displayedAmount}
             </Text>
           </Pressable>
           <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
@@ -1562,7 +1570,7 @@ export function FinanceFormSheet({
               </Pressable>
             </View>
           )}
-          {amountActive && !keyboardVisible ? (
+          {amountEditable && amountActive && !keyboardVisible ? (
             <CalculatorKeypadFixed
               value={amount}
               onChange={onAmountChange}
@@ -1637,6 +1645,7 @@ export function CurrencyInput({
 }) {
   const { colors } = useAppTheme();
   const interaction = useContext(FinanceFormInteractionContext);
+  const [focused, setFocused] = useState(false);
   return (
     <View style={inputStyles.wrap}>
       <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text>
@@ -1645,8 +1654,15 @@ export function CurrencyInput({
         <TextInput
           accessibilityLabel={label}
           keyboardType="decimal-pad"
-          value={formatCurrencyInput(value)}
-          onFocus={() => interaction?.deactivateAmount()}
+          value={focused ? formatCurrencyInput(value) : formatCurrencyDisplay(value)}
+          onFocus={() => {
+            setFocused(true);
+            interaction?.deactivateAmount();
+          }}
+          onBlur={() => {
+            setFocused(false);
+            onChangeText(formatCurrencyDisplay(value));
+          }}
           onChangeText={(next) => onChangeText(formatCurrencyInput(next))}
           placeholder={placeholder}
           placeholderTextColor={colors.subtle}

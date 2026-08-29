@@ -13,6 +13,14 @@ const walletMetadata = {
   earns_interest: z.boolean().optional(),
   annual_interest_rate: z.coerce.number().min(0).max(100).nullable().optional(),
   interest_credit_frequency: walletInterestFrequency.nullable().optional(),
+  statement_date: safeDate.nullable().optional(),
+  statement_day: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  payment_due_date: safeDate.nullable().optional(),
+  payment_due_day: z.coerce.number().int().min(1).max(31).nullable().optional(),
+  payment_wallet_id: z.string().uuid().nullable().optional(),
+  auto_record_payment: z.boolean().optional(),
+  payment_rule: z.enum(['full_outstanding', 'fixed_amount', 'minimum_due']).nullable().optional(),
+  fixed_payment_amount: currencyAmount.nullable().optional(),
 };
 
 function validateWalletMetadata(value: {
@@ -46,6 +54,41 @@ function validateWalletMetadata(value: {
   }
 }
 
+function validateCreditPaymentMetadata(
+  value: {
+    account_type?: 'debit' | 'credit' | null;
+    statement_date?: string | null;
+    payment_due_date?: string | null;
+    payment_wallet_id?: string | null;
+    auto_record_payment?: boolean;
+    payment_rule?: 'full_outstanding' | 'fixed_amount' | 'minimum_due' | null;
+    fixed_payment_amount?: number | null;
+  },
+  ctx: z.RefinementCtx,
+  requireSetup = false,
+) {
+  const hasSettings = value.statement_date != null || value.payment_due_date != null || value.payment_wallet_id != null ||
+    value.auto_record_payment === true || value.payment_rule != null || value.fixed_payment_amount != null;
+  if (value.account_type !== 'credit') {
+    if (hasSettings) ctx.addIssue({ code: 'custom', path: ['payment_due_date'], message: 'Credit payment settings are only available for Credit accounts.' });
+    return;
+  }
+  if (requireSetup && !value.payment_due_date)
+    ctx.addIssue({ code: 'custom', path: ['payment_due_date'], message: 'Payment due date is required for Credit accounts.' });
+  if (requireSetup && !value.payment_wallet_id)
+    ctx.addIssue({ code: 'custom', path: ['payment_wallet_id'], message: 'Payment wallet is required for Credit accounts.' });
+  if (requireSetup && !value.statement_date)
+    ctx.addIssue({ code: 'custom', path: ['statement_date'], message: 'Statement date is required for Credit accounts.' });
+  if (value.statement_date && value.payment_due_date && value.payment_due_date <= value.statement_date)
+    ctx.addIssue({ code: 'custom', path: ['payment_due_date'], message: 'Payment due date must be after the statement date.' });
+  if (value.payment_rule === 'fixed_amount' && !(value.fixed_payment_amount && value.fixed_payment_amount > 0))
+    ctx.addIssue({ code: 'custom', path: ['fixed_payment_amount'], message: 'Enter a fixed payment amount greater than zero.' });
+  if (value.fixed_payment_amount != null && value.payment_rule !== 'fixed_amount')
+    ctx.addIssue({ code: 'custom', path: ['payment_rule'], message: 'Fixed payment amount requires the fixed amount rule.' });
+  if (value.auto_record_payment && (!value.payment_due_date || !value.payment_wallet_id || !value.payment_rule))
+    ctx.addIssue({ code: 'custom', path: ['auto_record_payment'], message: 'Automatic payment tracking requires a due date, payment wallet, and payment rule.' });
+}
+
 export const createWalletSchema = z
   .object({
     name: z.string().trim().min(1).max(100),
@@ -71,6 +114,7 @@ export const createWalletWithOpeningBalanceSchema = createWalletSchema
   .strict()
   .superRefine((value, ctx) => {
     validateWalletMetadata(value, ctx);
+    validateCreditPaymentMetadata(value, ctx, true);
     if (
       value.account_type === 'credit' &&
       value.credit_limit != null &&
@@ -100,7 +144,10 @@ export const updateWalletSchema = z
     default_outgoing_transfer_fee: currencyAmount.nullable().optional(),
   })
   .strict()
-  .superRefine(validateWalletMetadata);
+  .superRefine((value, ctx) => {
+    validateWalletMetadata(value, ctx);
+    validateCreditPaymentMetadata(value, ctx);
+  });
 
 export const walletDepositSchema = z
   .object({

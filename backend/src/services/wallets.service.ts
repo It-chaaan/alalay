@@ -14,6 +14,12 @@ export type WalletPayload = {
   earns_interest?: boolean;
   annual_interest_rate?: number | null;
   interest_credit_frequency?: 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified' | null;
+  payment_due_date?: string | null;
+  payment_due_day?: number | null;
+  payment_wallet_id?: string | null;
+  auto_record_payment?: boolean;
+  payment_rule?: 'full_outstanding' | 'fixed_amount' | 'minimum_due' | null;
+  fixed_payment_amount?: number | null;
   color?: string;
   icon?: string | null;
 };
@@ -61,6 +67,33 @@ function validateAccountType(
     throw new AppError(422, 'invalid_interest_metadata', 'Interest settings require a savings account.');
   if (payload.earns_interest && payload.account_type !== 'debit')
     throw new AppError(422, 'invalid_interest_metadata', 'Interest can only be enabled for debit savings accounts.');
+}
+
+async function validateCreditPaymentWallet(
+  userId: string,
+  walletId: string | undefined,
+  payload: Pick<WalletPayload, 'account_type' | 'payment_due_date' | 'payment_due_day' | 'payment_wallet_id' | 'auto_record_payment' | 'payment_rule' | 'fixed_payment_amount'>,
+  requireSetup: boolean,
+) {
+  if (payload.account_type !== 'credit') return;
+  if (requireSetup && !payload.payment_due_date)
+    throw new AppError(422, 'payment_due_date_required', 'Payment due date is required for Credit accounts.');
+  if (requireSetup && !payload.payment_wallet_id)
+    throw new AppError(422, 'payment_wallet_required', 'Payment wallet is required for Credit accounts.');
+  if (payload.payment_wallet_id) {
+    if (walletId && payload.payment_wallet_id === walletId)
+      throw new AppError(422, 'invalid_payment_wallet', 'A credit card cannot pay itself.');
+    const { data, error } = await client()
+      .from('wallets')
+      .select('id')
+      .eq('id', payload.payment_wallet_id)
+      .eq('user_id', requireUserId(userId))
+      .neq('account_type', 'credit')
+      .eq('is_active', true)
+      .maybeSingle();
+    if (error || !data)
+      throw new AppError(422, 'invalid_payment_wallet', 'Choose an active non-credit payment wallet.');
+  }
 }
 
 async function ensureCash(userId: string) {
@@ -429,6 +462,7 @@ export async function createWalletInterest(
 
 export async function createWallet(userId: string, payload: WalletPayload) {
   validateAccountType(payload);
+  await validateCreditPaymentWallet(userId, undefined, payload, payload.account_type === 'credit');
   const { data, error } = await client()
     .from('wallets')
     .insert({
@@ -448,6 +482,7 @@ export async function createWalletWithOpeningBalance(
   payload: WalletPayload & { opening_balance: number },
 ) {
   validateAccountType(payload);
+  await validateCreditPaymentWallet(userId, undefined, payload, payload.account_type === 'credit');
   const ownerId = requireUserId(userId);
   const { data, error } = await client().rpc('create_wallet_with_opening_balance', {
     wallet_name: payload.name,
@@ -464,6 +499,11 @@ export async function createWalletWithOpeningBalance(
     earns_interest_value: payload.earns_interest ?? false,
     annual_interest_rate_value: payload.annual_interest_rate ?? null,
     interest_credit_frequency_value: payload.interest_credit_frequency ?? null,
+    payment_due_date_value: payload.payment_due_date ?? null,
+    payment_wallet_id_value: payload.payment_wallet_id ?? null,
+    auto_record_payment_value: payload.auto_record_payment ?? false,
+    payment_rule_value: payload.payment_rule ?? null,
+    fixed_payment_amount_value: payload.fixed_payment_amount ?? null,
   });
   if (error?.code === 'P0001' && error.message.includes('classification')) {
     throw new AppError(
@@ -495,7 +535,13 @@ export async function createWalletWithOpeningBalance(
         account_purpose: payload.account_purpose ?? null,
         earns_interest: payload.earns_interest ?? false,
         annual_interest_rate: payload.annual_interest_rate ?? null,
-      interest_credit_frequency: payload.interest_credit_frequency ?? null,
+        interest_credit_frequency: payload.interest_credit_frequency ?? null,
+        payment_due_date: payload.payment_due_date ?? null,
+        payment_due_day: payload.payment_due_day ?? null,
+        payment_wallet_id: payload.payment_wallet_id ?? null,
+        auto_record_payment: payload.auto_record_payment ?? false,
+        payment_rule: payload.payment_rule ?? null,
+        fixed_payment_amount: payload.fixed_payment_amount ?? null,
       })
       .select('*')
       .single();
@@ -571,7 +617,7 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
   const ownerId = requireUserId(userId);
   const { data: current, error: currentError } = await client()
     .from('wallets')
-    .select('id, institution_type, account_type, balance, account_purpose, earns_interest, annual_interest_rate, interest_credit_frequency')
+    .select('id, institution_type, account_type, balance, account_purpose, earns_interest, annual_interest_rate, interest_credit_frequency, payment_due_date, payment_due_day, payment_wallet_id, auto_record_payment, payment_rule, fixed_payment_amount')
     .eq('user_id', ownerId)
     .eq('id', id)
     .single();
@@ -605,6 +651,15 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
     annual_interest_rate: ('annual_interest_rate' in payload ? payload.annual_interest_rate : current.annual_interest_rate) as number | null | undefined,
     interest_credit_frequency: ('interest_credit_frequency' in payload ? payload.interest_credit_frequency : current.interest_credit_frequency) as WalletPayload['interest_credit_frequency'],
   });
+  await validateCreditPaymentWallet(userId, id, {
+    account_type: ('account_type' in payload ? payload.account_type : current.account_type) as WalletPayload['account_type'],
+    payment_due_date: ('payment_due_date' in payload ? payload.payment_due_date : current.payment_due_date) as string | null | undefined,
+    payment_due_day: ('payment_due_day' in payload ? payload.payment_due_day : current.payment_due_day) as number | null | undefined,
+    payment_wallet_id: ('payment_wallet_id' in payload ? payload.payment_wallet_id : current.payment_wallet_id) as string | null | undefined,
+    auto_record_payment: ('auto_record_payment' in payload ? payload.auto_record_payment : current.auto_record_payment) as boolean | undefined,
+    payment_rule: ('payment_rule' in payload ? payload.payment_rule : current.payment_rule) as WalletPayload['payment_rule'],
+    fixed_payment_amount: ('fixed_payment_amount' in payload ? payload.fixed_payment_amount : current.fixed_payment_amount) as number | null | undefined,
+  }, false);
 
   const { data, error } = await client()
     .from('wallets')

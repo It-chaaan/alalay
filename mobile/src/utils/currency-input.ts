@@ -6,3 +6,12 @@ export function formatCurrencyInput(value: string) {
   if (!whole && !decimal) return '';
   return `${grouped || '0'}${normalized.includes('.') ? `.${decimal}` : ''}`;
 }
+
+export function formatCurrencyDisplay(value: string) {
+  const normalized = formatCurrencyInput(value);
+  if (!normalized || normalized === '.') return '';
+  const numeric = Number(normalized.replace(/,/g, ''));
+  return Number.isFinite(numeric)
+    ? numeric.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : normalized;
+}

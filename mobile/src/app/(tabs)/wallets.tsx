@@ -31,6 +31,7 @@ import {
 
 import {
   DatePickerField,
+  CurrencyInput,
   parseAmount,
   FinanceFormSheet,
   FormTextInput,
@@ -89,6 +90,12 @@ function todayIso() {
     day: '2-digit',
   }).formatToParts(new Date());
   return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}-${parts.find((part) => part.type === 'day')?.value}`;
+}
+
+function addDaysIso(value: string, days: number) {
+  const date = new Date(`${value}T12:00:00`);
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function peso(value: number | string) {
@@ -518,6 +525,7 @@ export default function WalletsScreen() {
       {draftPreset && (
         <AddWalletSheet
           preset={draftPreset}
+          wallets={wallets}
           onClose={() => {
             setDraftPreset(null);
             if (returnTo === 'income') router.replace('/(tabs)/income');
@@ -1234,10 +1242,12 @@ export function DepositForm({
 
 function AddWalletSheet({
   preset,
+  wallets,
   onClose,
   onSaved,
 }: {
   preset: WalletPreset;
+  wallets: Wallet[];
   onClose: () => void;
   onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
@@ -1250,6 +1260,13 @@ function AddWalletSheet({
     institution.supportedAccountTypes.length === 1 ? institution.supportedAccountTypes[0] : null,
   );
   const [creditLimit, setCreditLimit] = useState('');
+  const [currentBalanceOwed, setCurrentBalanceOwed] = useState('0');
+  const [statementDate, setStatementDate] = useState(todayIso());
+  const [paymentDueDate, setPaymentDueDate] = useState(todayIso());
+  const [paymentWalletId, setPaymentWalletId] = useState<string | null>(null);
+  const [autoRecordPayment, setAutoRecordPayment] = useState(false);
+  const [paymentRule, setPaymentRule] = useState<'full_outstanding' | 'fixed_amount' | 'minimum_due'>('full_outstanding');
+  const [fixedPaymentAmount, setFixedPaymentAmount] = useState('');
   const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
   const [earnsInterest, setEarnsInterest] = useState(false);
   const [annualInterestRate, setAnnualInterestRate] = useState('');
@@ -1267,6 +1284,13 @@ function AddWalletSheet({
         : null,
     );
     setCreditLimit('');
+    setCurrentBalanceOwed('0');
+    setStatementDate(todayIso());
+    setPaymentDueDate(todayIso());
+    setPaymentWalletId(null);
+    setAutoRecordPayment(false);
+    setPaymentRule('full_outstanding');
+    setFixedPaymentAmount('');
     setLastFour('');
     setAccountPurpose('everyday');
     setEarnsInterest(false);
@@ -1287,6 +1311,10 @@ function AddWalletSheet({
             style: 'destructive',
             onPress: () => {
               setAccountType(value);
+              setAmount('0');
+              setCurrentBalanceOwed('0');
+              setStatementDate(todayIso());
+              setPaymentDueDate(addDaysIso(todayIso(), 1));
               setAccountPurpose('everyday');
               setEarnsInterest(false);
               setAnnualInterestRate('');
@@ -1296,16 +1324,22 @@ function AddWalletSheet({
       );
       return;
     }
+    if (value === 'credit') {
+      setAmount('0');
+      setCurrentBalanceOwed('0');
+      setStatementDate(todayIso());
+      setPaymentDueDate(addDaysIso(todayIso(), 1));
+    }
     setAccountType(value);
   };
   const save = async () => {
-    const openingBalance = parseAmount(amount);
+    const openingBalance = accountType === 'credit' ? parseAmount(currentBalanceOwed) : parseAmount(amount);
     if (!name.trim()) {
       setError('Enter a wallet name.');
       return;
     }
     if (openingBalance === null || openingBalance < 0) {
-      setError('Enter a valid opening balance.');
+      setError(accountType === 'credit' ? 'Enter a valid current balance owed.' : 'Enter a valid opening balance.');
       return;
     }
     if (canChooseAccountType && !accountType) {
@@ -1317,6 +1351,7 @@ function AddWalletSheet({
       return;
     }
     const parsedCreditLimit = creditLimit.trim() ? parseAmount(creditLimit) : null;
+    const parsedFixedPayment = fixedPaymentAmount.trim() ? parseAmount(fixedPaymentAmount) : null;
     const normalizedLastFour = lastFour.trim() || null;
     if (normalizedLastFour !== null && !/^\d{4}$/.test(normalizedLastFour)) {
       setError('Last four digits must contain exactly four numbers.');
@@ -1332,6 +1367,26 @@ function AddWalletSheet({
       openingBalance > parsedCreditLimit
     ) {
       setError("Outstanding balance can't be greater than the credit limit.");
+      return;
+    }
+    if (accountType === 'credit' && !statementDate) {
+      setError('Select a statement date.');
+      return;
+    }
+    if (accountType === 'credit' && !paymentDueDate) {
+      setError('Choose the next payment due date.');
+      return;
+    }
+    if (accountType === 'credit' && paymentDueDate <= statementDate) {
+      setError('Payment due date must be after the statement date.');
+      return;
+    }
+    if (accountType === 'credit' && !paymentWalletId) {
+      setError('Choose the wallet used to track card payments.');
+      return;
+    }
+    if (accountType === 'credit' && autoRecordPayment && paymentRule === 'fixed_amount' && (!parsedFixedPayment || parsedFixedPayment <= 0)) {
+      setError('Enter a fixed payment amount greater than zero.');
       return;
     }
     const parsedRate = annualInterestRate.trim() ? Number(annualInterestRate) : null;
@@ -1364,6 +1419,15 @@ function AddWalletSheet({
               interestCreditFrequency: interestFrequency,
             }),
             credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
+            statement_date: accountType === 'credit' ? statementDate : null,
+            payment_due_date: accountType === 'credit' ? paymentDueDate : null,
+            payment_wallet_id: accountType === 'credit' ? paymentWalletId : null,
+            auto_record_payment: accountType === 'credit' ? autoRecordPayment : false,
+            payment_rule: accountType === 'credit' && autoRecordPayment ? paymentRule : null,
+            fixed_payment_amount:
+              accountType === 'credit' && autoRecordPayment && paymentRule === 'fixed_amount'
+                ? parsedFixedPayment
+                : null,
             last_four: normalizedLastFour,
             color: preset.color,
             opening_balance: openingBalance,
@@ -1383,6 +1447,8 @@ function AddWalletSheet({
       eyebrow={preset.key === 'custom' ? 'CUSTOM WALLET' : preset.name.toUpperCase()}
       amount={amount}
       onAmountChange={setAmount}
+      amountDisplayTwoDecimals={accountType === 'credit'}
+      amountEditable={accountType !== 'credit'}
       error={error}
       saving={submitting}
       saveLabel="Save wallet"
@@ -1570,19 +1636,107 @@ function AddWalletSheet({
       </Text>
       {accountType === 'credit' ? (
         <>
-          <FormTextInput
+          <CurrencyInput
+            label="Current balance owed"
+            value={currentBalanceOwed}
+            onChangeText={setCurrentBalanceOwed}
+            placeholder="0.00"
+          />
+          <CurrencyInput
             label="Credit limit (optional)"
             value={creditLimit}
             onChangeText={setCreditLimit}
-            placeholder="e.g. 50000"
+            placeholder="50,000.00"
           />
           {parseAmount(creditLimit) !== null &&
-          parseAmount(creditLimit)! >= (parseAmount(amount) ?? 0) ? (
+          parseAmount(creditLimit)! >= (parseAmount(currentBalanceOwed) ?? 0) ? (
             <Text style={styles.muted}>
               Available credit: ₱
-              {(parseAmount(creditLimit)! - (parseAmount(amount) ?? 0)).toLocaleString('en-PH')}
+              {(parseAmount(creditLimit)! - (parseAmount(currentBalanceOwed) ?? 0)).toLocaleString('en-PH')}
             </Text>
           ) : null}
+          <DatePickerField
+            label="Statement date"
+            value={statementDate}
+            onChange={(value) => {
+              setStatementDate(value);
+              setError('');
+            }}
+          />
+          <Text style={styles.muted}>
+            The date your latest credit-card billing statement was generated.
+          </Text>
+          <DatePickerField
+            label="Payment due date"
+            value={paymentDueDate}
+            onChange={(value) => {
+              setPaymentDueDate(value);
+              setError('');
+            }}
+            minimumDate={addDaysIso(statementDate, 1)}
+          />
+          <Text style={styles.muted}>The deadline for paying the latest statement.</Text>
+          <WalletPicker
+            wallets={wallets}
+            value={paymentWalletId}
+            onChange={setPaymentWalletId}
+            required
+            label="Payment wallet"
+            excludeCredit
+            activeOnly
+          />
+          <Text style={styles.muted}>
+            Choose the wallet that will be used to track this credit-card payment when it becomes due.
+          </Text>
+          <View style={styles.accountTypeSection}>
+            <Text style={styles.destinationLabel}>Automatically record payment on due date</Text>
+            <Text style={styles.muted}>
+              Alalay will deduct the tracked payment from the selected wallet and apply it to the credit-card balance. This does not send a real payment to the bank.
+            </Text>
+            <View style={styles.accountTypeRow}>
+              {([true, false] as const).map((value) => (
+                <Pressable
+                  key={String(value)}
+                  accessibilityRole="radio"
+                  accessibilityState={{ checked: autoRecordPayment === value }}
+                  onPress={() => setAutoRecordPayment(value)}
+                  style={[styles.accountTypeChip, autoRecordPayment === value && styles.accountTypeChipSelected]}
+                >
+                  <Text style={[styles.accountTypeText, autoRecordPayment === value && styles.accountTypeTextSelected]}>
+                    {value ? 'Enabled' : 'Disabled'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {autoRecordPayment ? (
+              <>
+                <Text style={[styles.destinationLabel, { marginTop: 15 }]}>Payment rule</Text>
+                <View style={styles.accountTypeRow}>
+                  {(['full_outstanding', 'fixed_amount'] as const).map((rule) => (
+                    <Pressable
+                      key={rule}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: paymentRule === rule }}
+                      onPress={() => setPaymentRule(rule)}
+                      style={[styles.accountTypeChip, paymentRule === rule && styles.accountTypeChipSelected]}
+                    >
+                      <Text style={[styles.accountTypeText, paymentRule === rule && styles.accountTypeTextSelected]}>
+                        {rule === 'full_outstanding' ? 'Full outstanding balance' : 'Fixed amount'}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                {paymentRule === 'fixed_amount' ? (
+                  <CurrencyInput
+                    label="Fixed payment amount"
+                    value={fixedPaymentAmount}
+                    onChangeText={setFixedPaymentAmount}
+                    placeholder="50,000.00"
+                  />
+                ) : null}
+              </>
+            ) : null}
+          </View>
         </>
       ) : null}
     </FinanceFormSheet>

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import {
   ArrowDownToLine,
   ArrowDownUp,
   ArrowUpRight,
+  CreditCard,
   MoreHorizontal,
   WalletCards,
 } from 'lucide-react-native';
@@ -16,7 +17,9 @@ import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { BrandLogo } from '@/components/brand-logo';
 import { type Wallet } from '@/components/wallet-picker';
-import { fetchWallets, notifyFinancialMutation } from '@/services/finance';
+import { WalletPicker } from '@/components/wallet-picker';
+import { DatePickerField, FinanceFormSheet, FormTextInput, parseAmount } from '@/components/finance-form';
+import { fetchWallets, notifyFinancialMutation, repayCreditAccount } from '@/services/finance';
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
 import { DepositForm, EditWalletSheet, TransferForm } from './(tabs)/wallets';
@@ -54,6 +57,9 @@ const dateLabel = (value?: string | null) =>
         new Date(value),
       )
     : null;
+const todayIso = () => new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
+}).format(new Date());
 
 export default function WalletDetailsScreen() {
   const { colors } = useAppTheme();
@@ -65,6 +71,8 @@ export default function WalletDetailsScreen() {
   const [actionOpen, setActionOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
+  const [payCardOpen, setPayCardOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
@@ -191,28 +199,29 @@ export default function WalletDetailsScreen() {
               <Text style={styles.balance}>{peso(wallet.balance)}</Text>
             </View>
             <View style={styles.actions}>
-              <Pressable
-                onPress={() => setDepositOpen(true)}
-                style={({ pressed }) => [
-                  styles.action,
-                  { backgroundColor: colors.primary },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ArrowDownToLine size={21} color={colors.textOnPrimary} />
-                <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Deposit</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => setTransferOpen(true)}
-                style={({ pressed }) => [
-                  styles.action,
-                  { backgroundColor: colors.primary },
-                  pressed && styles.pressed,
-                ]}
-              >
-                <ArrowDownUp size={21} color={colors.textOnPrimary} />
-                <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Transfer</Text>
-              </Pressable>
+              {wallet.account_type === 'credit' ? (
+                <>
+                  <Pressable onPress={() => setPayCardOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <ArrowDownToLine size={21} color={colors.textOnPrimary} />
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Pay card</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setPurchaseOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <CreditCard size={21} color={colors.textOnPrimary} />
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Record purchase</Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Pressable onPress={() => setDepositOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <ArrowDownToLine size={21} color={colors.textOnPrimary} />
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Deposit</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setTransferOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <ArrowDownUp size={21} color={colors.textOnPrimary} />
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Transfer</Text>
+                  </Pressable>
+                </>
+              )}
             </View>
             <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>
               About this wallet
@@ -232,6 +241,17 @@ export default function WalletDetailsScreen() {
               {wallet.account_purpose ? <InfoRow label="Account purpose" value={wallet.account_purpose === 'savings' ? 'Savings' : 'Everyday'} colors={colors} /> : null}
               {wallet.earns_interest ? <InfoRow label="Interest" value={`${wallet.annual_interest_rate ?? 0}% yearly · ${wallet.interest_credit_frequency ?? 'Unspecified'}`} colors={colors} /> : null}
               <InfoRow label="Currency" value="PHP" colors={colors} />
+              {wallet.account_type === 'credit' ? (
+                <>
+                  <InfoRow label="Outstanding balance" value={peso(wallet.balance)} colors={colors} />
+                  <InfoRow label="Credit limit" value={wallet.credit_limit == null ? 'Not configured' : peso(wallet.credit_limit)} colors={colors} />
+                  <InfoRow label="Available credit" value={wallet.credit_limit == null ? 'Not configured' : peso(Math.max(0, Number(wallet.credit_limit) - Number(wallet.balance)))} colors={colors} />
+                  <InfoRow label="Payment due date" value={dateLabel(wallet.payment_due_date) ?? 'Not configured'} colors={colors} />
+                  <InfoRow label="Payment wallet" value={wallets.find((candidate) => candidate.id === wallet.payment_wallet_id)?.name ?? 'Not configured'} colors={colors} />
+                  <InfoRow label="Payment rule" value={wallet.payment_rule === 'fixed_amount' ? `Fixed amount${wallet.fixed_payment_amount != null ? ` · ${peso(wallet.fixed_payment_amount)}` : ''}` : wallet.payment_rule === 'full_outstanding' ? 'Full outstanding balance' : wallet.payment_rule === 'minimum_due' ? 'Minimum amount due' : 'Not configured'} colors={colors} />
+                  <InfoRow label="Auto-record payment" value={wallet.auto_record_payment ? 'Enabled' : 'Disabled'} colors={colors} />
+                </>
+              ) : null}
               {dateLabel(wallet.created_at) ? (
                 <InfoRow label="Created on" value={dateLabel(wallet.created_at)!} colors={colors} />
               ) : null}
@@ -335,6 +355,8 @@ export default function WalletDetailsScreen() {
               }}
             />
           ) : null}
+          {payCardOpen ? <CreditPaymentForm wallet={wallet} wallets={wallets} onClose={() => setPayCardOpen(false)} onSaved={async () => { setPayCardOpen(false); await finishMutation(); }} /> : null}
+          {purchaseOpen ? <CreditPurchaseForm wallet={wallet} onClose={() => setPurchaseOpen(false)} onSaved={async () => { setPurchaseOpen(false); await finishMutation(); }} /> : null}
           {editing ? (
             <EditWalletSheet
               wallet={wallet}
@@ -348,6 +370,98 @@ export default function WalletDetailsScreen() {
         </>
       )}
     </SafeAreaView>
+  );
+}
+
+function CreditPaymentForm({
+  wallet,
+  wallets,
+  onClose,
+  onSaved,
+}: {
+  wallet: WalletWithDates;
+  wallets: Wallet[];
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const eligibleWallets = wallets.filter((candidate) => candidate.account_type !== 'credit' && candidate.is_active !== false);
+  const [amount, setAmount] = useState(String(Math.max(0, Number(wallet.balance))));
+  const [paymentWalletId, setPaymentWalletId] = useState<string | null>(wallet.payment_wallet_id ?? eligibleWallets[0]?.id ?? null);
+  const [date, setDate] = useState(todayIso());
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const requestKey = useRef(`mobile-card-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const paymentWallet = eligibleWallets.find((candidate) => candidate.id === paymentWalletId);
+  const save = async () => {
+    const value = parseAmount(amount);
+    if (value === null || value <= 0) return setError('Enter a payment amount greater than zero.');
+    if (!paymentWallet) return setError('Choose a payment wallet.');
+    if (value > Number(wallet.balance)) return setError(`Payment cannot exceed the outstanding balance of ${peso(wallet.balance)}.`);
+    if (value > Number(paymentWallet.balance)) return setError(`Insufficient balance in ${paymentWallet.name} to pay ${peso(value)}.`);
+    setSaving(true);
+    setError('');
+    try {
+      await repayCreditAccount(wallet.id, {
+        payment_wallet_id: paymentWallet.id,
+        principal_amount: value,
+        payment_date: date,
+        idempotency_key: requestKey.current,
+      });
+      await onSaved();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not record the card payment.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <FinanceFormSheet title="Pay card" eyebrow={wallet.name.toUpperCase()} amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Record payment" onSave={() => void save()} onClose={onClose}>
+      <WalletPicker wallets={eligibleWallets} value={paymentWalletId} onChange={setPaymentWalletId} required label="Payment wallet" excludeCredit activeOnly />
+      {paymentWallet ? <Text style={styles.formHint}>{peso(paymentWallet.balance)} available in {paymentWallet.name}</Text> : null}
+      <Text style={styles.formHint}>This tracks a balance transfer in Alalay. It does not send a real payment to the bank and is not recorded as another expense.</Text>
+      <DatePickerField label="Payment date" value={date} onChange={setDate} />
+    </FinanceFormSheet>
+  );
+}
+
+function CreditPurchaseForm({
+  wallet,
+  onClose,
+  onSaved,
+}: {
+  wallet: WalletWithDates;
+  onClose: () => void;
+  onSaved: () => Promise<void>;
+}) {
+  const [merchant, setMerchant] = useState('');
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(todayIso());
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    const value = parseAmount(amount);
+    if (!merchant.trim() || value === null || value <= 0) return setError('Add a merchant and purchase amount.');
+    setSaving(true);
+    setError('');
+    try {
+      await authenticatedApiRequest('/api/expenses', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ merchant: merchant.trim(), amount: value, category: 'Other', categories: ['Other'], custom_category: 'Credit card purchase', date, payment_method: 'card', wallet_id: wallet.id }),
+      });
+      notifyFinancialMutation();
+      await onSaved();
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : 'Could not record the card purchase.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  return (
+    <FinanceFormSheet title="Record purchase" eyebrow={wallet.name.toUpperCase()} amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Record purchase" onSave={() => void save()} onClose={onClose}>
+      <FormTextInput label="Merchant" value={merchant} onChangeText={setMerchant} placeholder="e.g. Grocery store" />
+      <Text style={styles.formHint}>This records an expense and increases this card’s outstanding balance.</Text>
+      <DatePickerField label="Purchase date" value={date} onChange={setDate} />
+    </FinanceFormSheet>
   );
 }
 
@@ -488,5 +602,6 @@ const styles = StyleSheet.create({
   transactionAmount: { fontSize: 14, fontWeight: '900' },
   emptyCard: { padding: 18, borderRadius: 18, borderWidth: 1 },
   emptyTitle: { marginBottom: 3, fontSize: 14, fontWeight: '900' },
+  formHint: { color: '#5D6C65', fontSize: 12, lineHeight: 18 },
   retryLink: { marginTop: 8, fontSize: 13, fontWeight: '900' },
 });

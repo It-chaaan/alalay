@@ -1,15 +1,16 @@
 import { router, useFocusEffect } from 'expo-router';
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Path } from 'react-native-svg';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   View,
-  useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
@@ -54,6 +55,7 @@ import { GlassSurface } from '@/components/glass-surface';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
+import { cycleIndex, visibleWallets, walletSlotOffset } from '@/utils/wallet-stack';
 
 const palette = {
   background: '#F4F7F1',
@@ -447,37 +449,73 @@ function WalletHero({
 }) {
   const { colors } = useAppTheme();
   const { visible, toggle } = useBalanceVisibility();
-  const { width } = useWindowDimensions();
   const amountsVisible = visible === true;
   const mask = '••••••';
-  const [selectedIndex, setSelectedIndex] = useState(0);
-  const carouselRef = useRef<ScrollView>(null);
+  const [frontIndex, setFrontIndex] = useState(0);
+  const frontWalletId = useRef<string | null>(null);
+  const cycleLocked = useRef(false);
   const previousAccountId = useRef(accountId);
-  const cardWidth = Math.min(Math.max(width - 72, 248), 320);
-  const cardGap = 12;
-  const sideInset = Math.max((width - cardWidth) / 2, 24);
+  const currentFrontId = wallets[frontIndex]?.id ?? null;
   useEffect(() => {
     if (accountId && previousAccountId.current && accountId !== previousAccountId.current) {
-      setSelectedIndex(0);
-      carouselRef.current?.scrollTo({ x: 0, animated: false });
+      setFrontIndex(0);
+      frontWalletId.current = null;
     }
     previousAccountId.current = accountId;
   }, [accountId]);
   useEffect(() => {
-    setSelectedIndex((current) => (wallets.length ? Math.min(current, wallets.length - 1) : 0));
+    const preservedIndex = frontWalletId.current
+      ? wallets.findIndex((wallet) => wallet.id === frontWalletId.current)
+      : -1;
+    setFrontIndex((current) => {
+      if (wallets.length === 0) return 0;
+      if (preservedIndex >= 0) return preservedIndex;
+      return Math.min(current, wallets.length - 1);
+    });
   }, [wallets]);
   useEffect(() => {
-    const selected = wallets[selectedIndex];
-    if (selected) AccessibilityInfo.announceForAccessibility(`${selected.name} selected`);
-  }, [selectedIndex, wallets]);
+    frontWalletId.current = currentFrontId;
+  }, [currentFrontId]);
+  const visibleCards = useMemo(() => visibleWallets(wallets, frontIndex), [wallets, frontIndex]);
+  const selectedWallet = wallets[frontIndex];
+  const selectedBalanceLabel =
+    selectedWallet?.account_type === 'credit'
+      ? 'OUTSTANDING BALANCE'
+      : selectedWallet?.account_purpose === 'savings'
+        ? 'SAVINGS BALANCE'
+        : 'AVAILABLE BALANCE';
+  const selectedBalance = Number(selectedWallet?.balance ?? 0);
+  const selectedPosition = wallets.length ? frontIndex + 1 : 0;
+  const advance = useCallback(
+    (steps: number) => {
+      if (cycleLocked.current || wallets.length < 2) return;
+      cycleLocked.current = true;
+      setFrontIndex((current) => cycleIndex(current, wallets.length, steps));
+      setTimeout(() => {
+        cycleLocked.current = false;
+      }, 320);
+    },
+    [wallets.length],
+  );
+  useEffect(() => {
+    if (visibleCards[0])
+      AccessibilityInfo.announceForAccessibility(`${visibleCards[0].name} selected`);
+  }, [visibleCards]);
 
-  const selectedWallet = wallets[selectedIndex];
   const unavailable = Boolean(walletError) || walletLoading;
-  const selectedBalance = selectedWallet ? walletBalanceDetails(selectedWallet, amountsVisible) : null;
-  const selectWallet = useCallback((index: number) => {
-    setSelectedIndex(index);
-    carouselRef.current?.scrollTo({ x: index * (cardWidth + cardGap), animated: true });
-  }, [cardWidth]);
+  const walletSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          wallets.length > 1 &&
+          Math.abs(gestureState.dx) > 8 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderRelease: (_, gestureState) => {
+          if (Math.abs(gestureState.dx) > 32) advance(gestureState.dx < 0 ? 1 : -1);
+        },
+      }),
+    [advance, wallets.length],
+  );
   return (
     <View style={styles.walletHero}>
       <View
@@ -505,21 +543,32 @@ function WalletHero({
         ]}
       />
       <View pointerEvents="none" style={styles.pocketStitch} />
-      <View accessibilityLabel={selectedBalance?.accessibilityLabel ?? 'Wallet balance'} style={styles.selectedBalancePanel}>
-        <View style={styles.selectedBalanceHeader}>
-          <Text style={styles.selectedBalanceLabel}>{selectedBalance?.label ?? 'AVAILABLE BALANCE'}</Text>
-          <BalanceVisibilityToggle
-            visible={amountsVisible}
-            onToggle={toggle}
-            iconColor={colors.textOnPrimaryMuted}
-            accessibilityLabel={amountsVisible ? 'Hide balances' : 'Show balances'}
-          />
-        </View>
-        <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62} style={styles.selectedBalanceValue}>
-          {unavailable ? (walletLoading ? 'Loading…' : 'Unavailable') : selectedBalance?.primary ?? mask}
-        </Text>
-        {selectedBalance?.secondary ? <Text style={styles.selectedBalanceSecondary}>{selectedBalance.secondary}</Text> : null}
+      <View style={styles.walletHeroHeader}>
+        <Text style={styles.summaryEyebrow}>{selectedBalanceLabel}</Text>
+        <BalanceVisibilityToggle
+          visible={amountsVisible}
+          onToggle={toggle}
+          iconColor={colors.textOnPrimaryMuted}
+          positioned
+          accessibilityLabel={amountsVisible ? 'Hide balances' : 'Show balances'}
+        />
       </View>
+      <Text
+        accessibilityLabel={
+          amountsVisible
+            ? `${selectedBalanceLabel.toLowerCase()} ${formatBalancePeso(selectedBalance)}`
+            : `${selectedBalanceLabel.toLowerCase()} hidden`
+        }
+        style={styles.balanceValue}
+      >
+        {unavailable
+          ? walletLoading
+            ? 'Loading…'
+            : 'Unavailable'
+          : amountsVisible
+            ? formatBalancePeso(selectedBalance)
+            : mask}
+      </Text>
       {unavailable ? (
         <View style={styles.walletState}>
           <ActivityIndicator color={colors.textOnPrimary} />
@@ -534,75 +583,42 @@ function WalletHero({
           </Pressable>
         </View>
       ) : (
-        <View style={styles.carouselViewport} accessibilityLabel={`Wallet cards, ${wallets.length} available`}>
-          <ScrollView
-            ref={carouselRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            decelerationRate="fast"
-            snapToInterval={cardWidth + cardGap}
-            snapToAlignment="start"
-            disableIntervalMomentum
-            contentContainerStyle={{ paddingHorizontal: sideInset, gap: cardGap }}
-            onMomentumScrollEnd={(event) => {
-              const index = Math.round(event.nativeEvent.contentOffset.x / (cardWidth + cardGap));
-              setSelectedIndex(Math.max(0, Math.min(index, wallets.length - 1)));
-            }}
-          >
-          {wallets.map((wallet, index) => (
+        <View
+          style={styles.cardStack}
+          accessibilityLabel={`Wallet cards, ${wallets.length} available`}
+          {...walletSwipeResponder.panHandlers}
+        >
+          {visibleCards.map((wallet, slotIndex) => (
             <WalletStackCard
               key={wallet.id}
               wallet={wallet}
-              cardWidth={cardWidth}
-              selected={index === selectedIndex}
+              slotIndex={slotIndex}
               visible={amountsVisible}
-              onPress={() => {
-                if (index === selectedIndex) router.push({ pathname: '/wallet-details', params: { walletId: wallet.id } });
-                else selectWallet(index);
+              onSelect={() => {
+                if (slotIndex > 0) advance(slotIndex);
               }}
             />
           ))}
-          </ScrollView>
+          <Text style={styles.walletCount}>
+            {selectedPosition} of {wallets.length}
+          </Text>
         </View>
       )}
-      {wallets.length > 1 && !unavailable ? <Text style={styles.walletCount}>{selectedIndex + 1} of {wallets.length}</Text> : null}
+      {wallets.length > 1 && !unavailable ? <View style={styles.walletPager}></View> : null}
     </View>
   );
 }
 
-function walletBalanceDetails(wallet: WalletRecord, visible: boolean) {
-  const amount = Number(wallet.balance) || 0;
-  const money = (value: number) => (visible ? formatBalancePeso(value) : '••••••');
-  if (wallet.account_type === 'credit') {
-    const availableCredit = Math.max(0, Number(wallet.credit_limit ?? 0) - amount);
-    return {
-      label: 'OUTSTANDING BALANCE',
-      primary: money(amount),
-      secondary: `Available credit: ${money(availableCredit)}${wallet.credit_limit != null ? ` · Limit: ${money(Number(wallet.credit_limit))}` : ''}`,
-      accessibilityLabel: `Outstanding balance ${money(amount)}. Available credit ${money(availableCredit)}.`,
-    };
-  }
-  const savings = wallet.account_purpose === 'savings';
-  return {
-    label: savings ? 'SAVINGS BALANCE' : 'AVAILABLE BALANCE',
-    primary: money(amount),
-    secondary: `${wallet.currency ?? 'PHP'} · ${wallet.name}`,
-    accessibilityLabel: `${savings ? 'Savings balance' : 'Available balance'} ${money(amount)}.`,
-  };
-}
-
 const WalletStackCard = memo(function WalletStackCard({
   wallet,
-  cardWidth,
-  selected,
+  slotIndex,
   visible,
-  onPress,
+  onSelect,
 }: {
   wallet: WalletRecord;
-  cardWidth: number;
-  selected: boolean;
+  slotIndex: number;
   visible: boolean;
-  onPress: () => void;
+  onSelect: () => void;
 }) {
   const { colors } = useAppTheme();
   const type =
@@ -613,72 +629,82 @@ const WalletStackCard = memo(function WalletStackCard({
         : wallet.is_default_cash
           ? 'Cash'
           : wallet.account_type === 'debit'
-            ? 'Debit'
+            ? 'Debit Card'
             : typeLabel(wallet.institution_type);
-  const isCredit = wallet.account_type === 'credit';
-  const outstanding = Number(wallet.balance) || 0;
-  const availableCredit = Math.max(0, Number(wallet.credit_limit ?? 0) - outstanding);
-  const primaryAmount = !visible
+  const balanceLabel = !visible
     ? '••••••'
-    : formatBalancePeso(isCredit ? outstanding : Number(wallet.balance));
+    : formatBalancePeso(Number(wallet.balance));
+  const translateY = useSharedValue(walletSlotOffset(slotIndex));
+  const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
+  useEffect(() => {
+    translateY.value = withTiming(walletSlotOffset(slotIndex), {
+      duration: 260,
+    });
+    scale.value = withTiming(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94, {
+      duration: 260,
+    });
+  }, [scale, slotIndex, translateY]);
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected }}
-      accessibilityLabel={`${wallet.name}, ${type}${wallet.last_four ? ` ending in ${wallet.last_four}` : ''}`}
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.walletCarouselCard,
-        { width: cardWidth, backgroundColor: selected ? colors.primary : colors.balanceRear, borderColor: selected ? colors.primarySoft : colors.balance },
-        pressed && styles.walletCarouselCardPressed,
+    <Animated.View
+      style={[
+        styles.walletStackCard,
+        animatedStyle,
+        {
+          backgroundColor: slotIndex === 0 ? colors.primary : colors.balanceRear,
+          borderColor: slotIndex === 0 ? colors.primarySoft : colors.balance,
+          zIndex: 100 - slotIndex,
+          elevation: 100 - slotIndex,
+        },
       ]}
     >
-      <View
+      <Pressable
         accessible
-        accessibilityRole="text"
-        accessibilityLabel={`${wallet.name}, ${type}, ${visible ? primaryAmount : 'balance hidden'}`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: slotIndex === 0 }}
+        accessibilityLabel={`${slotIndex === 0 ? 'Selected' : 'Select'} ${wallet.name}, ${type}${wallet.last_four ? ` ending in ${wallet.last_four}` : ''}, ${wallet.account_type === 'credit' ? `Amount owed ${balanceLabel}` : visible ? balanceLabel : 'balance hidden'}`}
+        onPress={onSelect}
         style={styles.walletCardContent}
       >
-        <BrandLogo
-          name={wallet.name}
-          entity="wallet"
-          institutionKey={wallet.institution_key}
-          category={wallet.institution_type}
-          size={38}
-        />
+        <View style={styles.walletCardLogo}>
+          <BrandLogo
+            name={wallet.name}
+            entity="wallet"
+            institutionKey={wallet.institution_key}
+            category={wallet.institution_type}
+            size={38}
+          />
+        </View>
         <View style={styles.walletCardCopy}>
           <Text
             numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.75}
             style={[styles.walletCardName, { color: colors.textOnPrimary }]}
           >
             {wallet.name}
           </Text>
           <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.textOnPrimaryMuted }]}>
-            {type}{wallet.last_four ? ` ···· ${wallet.last_four}` : ''} · {wallet.currency ?? 'PHP'}
+            {type}{wallet.last_four ? ` • ${wallet.last_four}` : ''}
           </Text>
         </View>
-        <Text style={[styles.walletCardAmountLabel, { color: colors.textOnPrimaryMuted }]}>
-          {isCredit ? 'Outstanding balance' : wallet.account_purpose === 'savings' ? 'Savings balance' : 'Available balance'}
-        </Text>
-        <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.65}
-          style={[styles.walletCardBalance, { color: colors.textOnPrimary }]}
-        >
-          {primaryAmount}
-        </Text>
-        <Text style={[styles.walletCardSecondary, { color: colors.textOnPrimaryMuted }]}>
-          {isCredit
-            ? visible
-              ? `Available credit: ${formatBalancePeso(availableCredit)}${wallet.credit_limit != null ? ` · Limit: ${formatBalancePeso(Number(wallet.credit_limit))}` : ''}`
-              : 'Available credit hidden'
-            : `${wallet.account_purpose === 'savings' ? 'Savings balance' : 'Available balance'} · ${wallet.currency ?? 'PHP'}`}
-        </Text>
-      </View>
-    </Pressable>
+        <View style={styles.walletCardBalanceArea}>
+          {wallet.account_type === 'credit' ? (
+            <Text numberOfLines={1} style={[styles.walletCardAmountLabel, { color: colors.textOnPrimaryMuted }]}>
+              Amount owed
+            </Text>
+          ) : null}
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.55}
+            style={[styles.walletCardBalance, { color: colors.textOnPrimary }]}
+          >
+            {balanceLabel}
+          </Text>
+        </View>
+      </Pressable>
+    </Animated.View>
   );
 });
 
@@ -1145,18 +1171,20 @@ const styles = StyleSheet.create({
   walletStateText: { color: '#FFFFFF', fontSize: 13, fontWeight: '800', textAlign: 'center' },
   walletStateHint: { marginTop: 6, color: '#D8EFE2', fontSize: 12, textAlign: 'center' },
   walletAction: { marginTop: 14, color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
-  carouselViewport: {
+  cardStack: {
     position: 'absolute',
-    top: 8,
+    top: 16,
+    left: 18,
+    right: 18,
+    height: 166,
+    zIndex: 10,
+    elevation: 10,
+  },
+  walletStackCard: {
+    position: 'absolute',
     left: 0,
     right: 0,
-    height: 176,
-    zIndex: 50,
-    elevation: 50,
-  },
-  walletCarouselCard: {
-    height: 168,
-    flexShrink: 0,
+    height: 148,
     borderRadius: 22,
     borderWidth: 1,
     shadowColor: '#000000',
@@ -1164,50 +1192,38 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     elevation: 20,
   },
-  walletCarouselCardPressed: { opacity: 0.88 },
   walletCardContent: {
     flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18,
-    gap: 7,
+    gap: 12,
+    transform: [{ translateY: -6 }],
   },
-  walletCardCopy: { width: '100%', alignItems: 'center', minWidth: 0 },
+  walletCardLogo: { flexShrink: 0 },
+  walletCardCopy: { flex: 1, minWidth: 0, alignItems: 'flex-start' },
   walletCardName: {
     maxWidth: '100%',
     color: '#FFFFFF',
     fontSize: 17,
     fontWeight: '900',
-    textAlign: 'center',
+    textAlign: 'left',
+  },
+  walletCardBalanceArea: { flexShrink: 0, maxWidth: '47%', alignItems: 'flex-end' },
+  walletCardAmountLabel: {
+    marginBottom: 2,
+    fontSize: 10,
+    fontWeight: '800',
+    textAlign: 'right',
   },
   walletCardBalance: {
     maxWidth: '100%',
     color: '#FFFFFF',
     fontSize: 22,
     fontWeight: '900',
-    textAlign: 'center',
+    textAlign: 'right',
   },
-  walletCardSecondary: { marginTop: 1, fontSize: 11, fontWeight: '700', textAlign: 'center' },
-  walletCardAmountLabel: { marginTop: 2, fontSize: 10, fontWeight: '800', textAlign: 'center' },
-  selectedBalancePanel: {
-    position: 'absolute',
-    top: 190,
-    left: 22,
-    right: 22,
-    minHeight: 98,
-    paddingHorizontal: 18,
-    paddingVertical: 13,
-    borderRadius: 21,
-    backgroundColor: 'rgba(5,43,32,0.30)',
-    borderWidth: 1,
-    borderColor: 'rgba(216,239,226,0.22)',
-    zIndex: 60,
-    elevation: 60,
-  },
-  selectedBalanceHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  selectedBalanceLabel: { color: '#D8EFE2', fontSize: 10, fontWeight: '800', letterSpacing: 1.1 },
-  selectedBalanceValue: { marginTop: 4, color: '#FFFFFF', fontSize: 31, fontWeight: '900', letterSpacing: -0.7 },
-  selectedBalanceSecondary: { marginTop: 2, color: '#D8EFE2', fontSize: 11, fontWeight: '700' },
   walletPager: {
     position: 'absolute',
     left: 42,
