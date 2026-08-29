@@ -407,7 +407,6 @@ export default function WalletsScreen() {
                   key={wallet.id}
                   wallet={wallet}
                   formatBalance={peso}
-                  typeLabel={typeLabel}
                   onPress={() => void openWallet(wallet)}
                   onManage={() => setManagedWallet(wallet)}
                 />
@@ -769,6 +768,7 @@ export function EditWalletSheet({
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(wallet.name);
+  const [lastFour, setLastFour] = useState(wallet.last_four ?? '');
   const [defaultFee, setDefaultFee] = useState(
     wallet.default_outgoing_transfer_fee == null
       ? ''
@@ -786,6 +786,7 @@ export function EditWalletSheet({
   const save = async () => {
     const fee = defaultFee.trim() ? Number(defaultFee) : null;
     const rate = annualInterestRate.trim() ? Number(annualInterestRate) : null;
+    const normalizedLastFour = lastFour.trim() || null;
     if (!name.trim()) {
       setError('Enter a wallet name.');
       return;
@@ -797,6 +798,10 @@ export function EditWalletSheet({
       setError('Enter valid non-negative financial settings.');
       return;
     }
+    if (normalizedLastFour !== null && !/^\d{4}$/.test(normalizedLastFour)) {
+      setError('Last four digits must contain exactly four numbers.');
+      return;
+    }
     setSaving(true);
     setError('');
     try {
@@ -805,6 +810,7 @@ export function EditWalletSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          last_four: normalizedLastFour,
           default_outgoing_transfer_fee: fee,
           ...sanitizeWalletMetadata(wallet.institution_key, {
             accountType: wallet.account_type,
@@ -883,6 +889,16 @@ export function EditWalletSheet({
                     color: colors.textPrimary,
                   },
                 ]}
+              />
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>Last four digits (optional)</Text>
+              <TextInput
+                accessibilityLabel="Last four digits"
+                value={lastFour}
+                onChangeText={(value) => setLastFour(value.replace(/\D/g, '').slice(0, 4))}
+                keyboardType="number-pad"
+                placeholder="4821"
+                placeholderTextColor={colors.textMuted}
+                style={[editStyles.input, { backgroundColor: colors.surfaceInput, borderColor: colors.border, color: colors.textPrimary }]}
               />
               {wallet.account_type === 'debit' ? (
                 <>
@@ -1226,6 +1242,7 @@ function AddWalletSheet({
   onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
   const [name, setName] = useState(preset.key === 'custom' ? '' : preset.name);
+  const [lastFour, setLastFour] = useState('');
   const [amount, setAmount] = useState('0');
   const institution = institutionFor(preset.key);
   const canChooseAccountType = institution.supportedAccountTypes.length > 0;
@@ -1250,6 +1267,7 @@ function AddWalletSheet({
         : null,
     );
     setCreditLimit('');
+    setLastFour('');
     setAccountPurpose('everyday');
     setEarnsInterest(false);
     setAnnualInterestRate('');
@@ -1299,6 +1317,11 @@ function AddWalletSheet({
       return;
     }
     const parsedCreditLimit = creditLimit.trim() ? parseAmount(creditLimit) : null;
+    const normalizedLastFour = lastFour.trim() || null;
+    if (normalizedLastFour !== null && !/^\d{4}$/.test(normalizedLastFour)) {
+      setError('Last four digits must contain exactly four numbers.');
+      return;
+    }
     if (accountType === 'credit' && parsedCreditLimit === null && creditLimit.trim()) {
       setError('Enter a valid credit limit.');
       return;
@@ -1341,6 +1364,7 @@ function AddWalletSheet({
               interestCreditFrequency: interestFrequency,
             }),
             credit_limit: accountType === 'credit' ? parsedCreditLimit : null,
+            last_four: normalizedLastFour,
             color: preset.color,
             opening_balance: openingBalance,
           }),
@@ -1375,6 +1399,13 @@ function AddWalletSheet({
         value={name}
         onChangeText={setName}
         placeholder="e.g. Payroll account"
+      />
+      <FormTextInput
+        label="Last four digits (optional)"
+        value={lastFour}
+        onChangeText={(value) => setLastFour(value.replace(/\D/g, '').slice(0, 4))}
+        placeholder="e.g. 4821"
+        keyboardType="number-pad"
       />
       {canChooseAccountType ? (
         <View style={styles.accountTypeSection}>

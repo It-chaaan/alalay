@@ -5,6 +5,7 @@ import Svg, { Path } from 'react-native-svg';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  PanResponder,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -450,8 +451,6 @@ function WalletHero({
   const { visible, toggle } = useBalanceVisibility();
   const amountsVisible = visible === true;
   const mask = '••••••';
-  const navigationLocked = useRef(false);
-
   const [frontIndex, setFrontIndex] = useState(0);
   const frontWalletId = useRef<string | null>(null);
   const cycleLocked = useRef(false);
@@ -497,14 +496,19 @@ function WalletHero({
 
   const total = totalWalletBalance(wallets);
   const unavailable = Boolean(walletError) || walletLoading;
-  const openWalletDetails = useCallback((walletId: string) => {
-    if (!walletId || navigationLocked.current) return;
-    navigationLocked.current = true;
-    router.push({ pathname: '/wallet-details', params: { walletId } });
-    setTimeout(() => {
-      navigationLocked.current = false;
-    }, 500);
-  }, []);
+  const walletSwipeResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_, gestureState) =>
+          wallets.length > 1 &&
+          Math.abs(gestureState.dx) > 8 &&
+          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+        onPanResponderRelease: (_, gestureState) => {
+          if (Math.abs(gestureState.dx) > 32) advance(gestureState.dx < 0 ? 1 : -1);
+        },
+      }),
+    [advance, wallets.length],
+  );
   return (
     <View style={styles.walletHero}>
       <View
@@ -573,6 +577,7 @@ function WalletHero({
         <View
           style={styles.cardStack}
           accessibilityLabel={`Wallet cards, ${wallets.length} available`}
+          {...walletSwipeResponder.panHandlers}
         >
           {visibleCards.map((wallet, slotIndex) => (
             <WalletStackCard
@@ -580,7 +585,6 @@ function WalletHero({
               wallet={wallet}
               slotIndex={slotIndex}
               visible={amountsVisible}
-              onPress={() => (slotIndex === 0 ? openWalletDetails(wallet.id) : advance(slotIndex))}
             />
           ))}
           <Text style={styles.walletCount}>
@@ -597,20 +601,27 @@ const WalletStackCard = memo(function WalletStackCard({
   wallet,
   slotIndex,
   visible,
-  onPress,
 }: {
   wallet: WalletRecord;
   slotIndex: number;
   visible: boolean;
-  onPress: () => void;
 }) {
   const { colors } = useAppTheme();
   const type =
     wallet.account_type === 'credit'
       ? 'Credit'
-      : wallet.account_type === 'debit'
-        ? 'Debit'
-        : typeLabel(wallet.institution_type);
+      : wallet.account_purpose === 'savings'
+        ? 'Savings'
+        : wallet.is_default_cash
+          ? 'Cash'
+          : wallet.account_type === 'debit'
+            ? 'Debit'
+            : typeLabel(wallet.institution_type);
+  const balanceLabel = !visible
+    ? '••••••'
+    : wallet.account_type === 'credit'
+    ? `Available credit: ${formatBalancePeso(Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance)))}`
+    : formatBalancePeso(Number(wallet.balance));
   const translateY = useSharedValue(walletSlotOffset(slotIndex));
   const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
   useEffect(() => {
@@ -637,14 +648,11 @@ const WalletStackCard = memo(function WalletStackCard({
         },
       ]}
     >
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected: slotIndex === 0 }}
-        accessibilityLabel={
-          slotIndex === 0 ? `Open ${wallet.name} details` : `Bring ${wallet.name} to front`
-        }
-        onPress={onPress}
-        style={styles.walletCardPress}
+      <View
+        accessible
+        accessibilityRole="text"
+        accessibilityLabel={`${wallet.name}, ${type}${wallet.last_four ? ` ending in ${wallet.last_four}` : ''}, ${wallet.account_type === 'credit' ? balanceLabel : visible ? balanceLabel : 'balance hidden'}`}
+        style={styles.walletCardContent}
       >
         <BrandLogo
           name={wallet.name}
@@ -653,16 +661,28 @@ const WalletStackCard = memo(function WalletStackCard({
           category={wallet.institution_type}
           size={38}
         />
-        <View style={styles.rowMain}>
-          <Text numberOfLines={1} style={[styles.rowTitle, { color: colors.textOnPrimary }]}>
+        <View style={styles.walletCardCopy}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.75}
+            style={[styles.walletCardName, { color: colors.textOnPrimary }]}
+          >
             {wallet.name}
           </Text>
-          <Text style={[styles.rowMeta, { color: colors.textOnPrimaryMuted }]}>{type} · PHP</Text>
+          <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.textOnPrimaryMuted }]}>
+            {type}{wallet.last_four ? ` ···· ${wallet.last_four}` : ''} · {wallet.currency ?? 'PHP'}
+          </Text>
         </View>
-        <Text style={[styles.walletBalance, { color: colors.textOnPrimary }]}>
-          {visible ? formatBalancePeso(Number(wallet.balance)) : '••••••'}
+        <Text
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.65}
+          style={[styles.walletCardBalance, { color: colors.textOnPrimary }]}
+        >
+          {balanceLabel}
         </Text>
-      </Pressable>
+      </View>
     </Animated.View>
   );
 });
@@ -1151,13 +1171,27 @@ const styles = StyleSheet.create({
     shadowRadius: 7,
     elevation: 20,
   },
-  walletCardPress: {
+  walletCardContent: {
     flex: 1,
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingLeft: 14,
-    paddingHorizontal: 14,
-    gap: 10,
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    gap: 7,
+  },
+  walletCardCopy: { width: '100%', alignItems: 'center', minWidth: 0 },
+  walletCardName: {
+    maxWidth: '100%',
+    color: '#FFFFFF',
+    fontSize: 17,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  walletCardBalance: {
+    maxWidth: '100%',
+    color: '#FFFFFF',
+    fontSize: 22,
+    fontWeight: '900',
+    textAlign: 'center',
   },
   walletPager: {
     position: 'absolute',

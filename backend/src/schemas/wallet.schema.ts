@@ -5,6 +5,8 @@ export const walletInstitutionType = z.enum(['e_wallet', 'digital_bank', 'bank',
 export const walletAccountType = z.enum(['debit', 'credit']);
 export const walletAccountPurpose = z.enum(['everyday', 'savings']);
 export const walletInterestFrequency = z.enum(['monthly', 'quarterly', 'semi_annually', 'annually', 'unspecified']);
+const walletCurrency = z.string().trim().regex(/^[A-Z]{3}$/, 'Currency must be a three-letter ISO code.').default('PHP');
+const walletLastFour = z.string().regex(/^\d{4}$/, 'Last four digits must contain exactly four numbers.').nullable().optional();
 
 const walletMetadata = {
   account_purpose: walletAccountPurpose.nullable().optional(),
@@ -49,6 +51,8 @@ export const createWalletSchema = z
     name: z.string().trim().min(1).max(100),
     institution_type: walletInstitutionType,
     institution_key: z.string().trim().min(1).max(100),
+    currency: walletCurrency,
+    last_four: walletLastFour,
     account_type: walletAccountType.nullable().optional(),
     credit_limit: currencyAmount.nullable().optional(),
     ...walletMetadata,
@@ -83,6 +87,8 @@ export const createWalletWithOpeningBalanceSchema = createWalletSchema
 export const updateWalletSchema = z
   .object({
     name: z.string().trim().min(1).max(100).optional(),
+    currency: walletCurrency.optional(),
+    last_four: walletLastFour,
     color: z
       .string()
       .regex(/^#[0-9A-Fa-f]{6}$/)

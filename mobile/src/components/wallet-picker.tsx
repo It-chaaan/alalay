@@ -10,6 +10,8 @@ export type Wallet = {
   name: string;
   institution_type: string;
   institution_key: string;
+  currency?: string;
+  last_four?: string | null;
   account_type?: 'debit' | 'credit' | null;
   account_purpose?: 'everyday' | 'savings' | null;
   earns_interest?: boolean;
@@ -31,6 +33,7 @@ export function WalletPicker({
   required = false,
   label = 'Wallet',
   onAddWallet,
+  excludeCredit = false,
 }: {
   wallets: Wallet[];
   value: string | null;
@@ -38,6 +41,7 @@ export function WalletPicker({
   required?: boolean;
   label?: string;
   onAddWallet?: () => void;
+  excludeCredit?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const selected = wallets.find((wallet) => wallet.id === value);
@@ -68,13 +72,14 @@ export function WalletPicker({
           </View>
         )}
         <Text style={[styles.triggerText, !selected && styles.placeholder]}>
-          {selected?.name ?? `Select ${displayLabel.toLowerCase()}`}
+          {selected ? walletDisplayName(selected) : `Select ${displayLabel.toLowerCase()}`}
         </Text>
         <Text style={styles.chevron}>›</Text>
       </Pressable>
       <WalletPickerModal
         visible={open}
         wallets={wallets}
+        excludeCredit={excludeCredit}
         value={value}
         onClose={() => setOpen(false)}
         onChange={(id) => {
@@ -98,6 +103,7 @@ export function WalletPickerModal({
   showPresets = false,
   onPreset,
   onAddWallet,
+  excludeCredit = false,
 }: {
   visible: boolean;
   wallets: Wallet[];
@@ -108,6 +114,7 @@ export function WalletPickerModal({
   showPresets?: boolean;
   onPreset?: (preset: WalletPreset) => void;
   onAddWallet?: () => void;
+  excludeCredit?: boolean;
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(
@@ -119,8 +126,12 @@ export function WalletPickerModal({
     if (onPreset) onPreset(preset);
     else onChange(wallets.find((wallet) => wallet.institution_key === preset.key)?.id ?? null);
   };
-  const matchingWallets = wallets.filter((wallet) =>
-    wallet.name.toLowerCase().includes(search.toLowerCase()),
+  const matchingWallets = wallets.filter(
+    (wallet) =>
+      (!excludeCredit || wallet.account_type !== 'credit') &&
+      `${wallet.name} ${wallet.institution_key} ${wallet.last_four ?? ''}`
+        .toLowerCase()
+        .includes(search.toLowerCase()),
   );
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -156,7 +167,8 @@ export function WalletPickerModal({
                 matchingWallets.map((wallet, index) => (
                   <WalletChoice
                     key={wallet.id}
-                    label={wallet.name}
+                    label={walletDisplayName(wallet)}
+                    detail={walletBalanceLabel(wallet)}
                     selected={wallet.id === value}
                     showDivider={index < matchingWallets.length - 1}
                     onPress={() => onChange(wallet.id)}
@@ -226,12 +238,14 @@ export function WalletPickerModal({
 
 function WalletChoice({
   label,
+  detail,
   selected = false,
   status,
   showDivider = false,
   onPress,
 }: {
   label: string;
+  detail?: string;
   selected?: boolean;
   status?: string;
   showDivider?: boolean;
@@ -255,7 +269,10 @@ function WalletChoice({
         institutionKey={label === 'Other / Custom' ? 'custom' : undefined}
         size={34}
       />
-      <Text style={styles.choiceText}>{label}</Text>
+      <View style={styles.choiceCopy}>
+        <Text numberOfLines={1} style={styles.choiceText}>{label}</Text>
+        {detail ? <Text numberOfLines={1} style={styles.choiceDetail}>{detail}</Text> : null}
+      </View>
       {status ? (
         <Text style={styles.status}>{status}</Text>
       ) : selected ? (
@@ -265,6 +282,28 @@ function WalletChoice({
       )}
     </Pressable>
   );
+}
+
+export function walletTypeLabel(wallet: Pick<Wallet, 'account_type' | 'account_purpose' | 'is_default_cash'>) {
+  if (wallet.account_type === 'credit') return 'Credit';
+  if (wallet.account_purpose === 'savings') return 'Savings';
+  if (wallet.is_default_cash) return 'Cash';
+  return 'Debit';
+}
+
+function walletDisplayName(wallet: Wallet) {
+  const suffix = wallet.last_four ? ` •••• ${wallet.last_four}` : '';
+  return `${wallet.name} — ${walletTypeLabel(wallet)}${suffix}`;
+}
+
+function walletBalanceLabel(wallet: Wallet) {
+  const balance = Number(wallet.balance) || 0;
+  const value = `₱${balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (wallet.account_type === 'credit') {
+    const available = Math.max(0, Number(wallet.credit_limit ?? 0) - balance);
+    return `Available credit: ₱${available.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+  return `${wallet.account_purpose === 'savings' ? 'Savings balance' : 'Available balance'}: ${value}`;
 }
 
 const styles = StyleSheet.create({
@@ -356,7 +395,9 @@ const styles = StyleSheet.create({
     borderRadius: 11,
   },
   initials: { color: '#FFFFFF', fontSize: 9, fontWeight: '900' },
-  choiceText: { flex: 1, marginLeft: 10, color: formPalette.ink, fontSize: 13, fontWeight: '800' },
+  choiceText: { color: formPalette.ink, fontSize: 13, fontWeight: '800' },
+  choiceCopy: { flex: 1, minWidth: 0, marginLeft: 10 },
+  choiceDetail: { marginTop: 3, color: formPalette.muted, fontSize: 11, fontWeight: '700' },
   status: { marginRight: 8, color: formPalette.accent, fontSize: 11, fontWeight: '800' },
   unset: { alignItems: 'center', padding: 13 },
   unsetText: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },

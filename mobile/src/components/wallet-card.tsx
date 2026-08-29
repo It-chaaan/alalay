@@ -5,14 +5,13 @@ import { BrandLogo } from '@/components/brand-logo';
 import { institutionFor } from '@/constants/institution-registry';
 import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useAppTheme } from '@/theme/theme';
-import type { Wallet } from './wallet-picker';
+import { walletTypeLabel, type Wallet } from './wallet-picker';
 
 type WalletCardProps = {
   wallet: Wallet;
   onPress: () => void;
   onManage: () => void;
   formatBalance: (value: number | string) => string;
-  typeLabel: (type: string) => string;
 };
 
 /** Compact grid card: header identity and balance are deliberately separate regions. */
@@ -21,24 +20,21 @@ export function WalletCard({
   onPress,
   onManage,
   formatBalance,
-  typeLabel,
 }: WalletCardProps) {
   const { colors } = useAppTheme();
   const { visible } = useBalanceVisibility();
   const amountsVisible = visible === true;
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
-  const accountLabel = wallet.account_type
-    ? wallet.account_type === 'credit' ? 'Credit' : 'Debit'
-    : '';
   const institution = institutionFor(wallet.institution_key);
-  const purposeLabel =
-    wallet.account_purpose === 'savings'
-      ? 'Savings'
-      : wallet.account_purpose === 'everyday'
-        ? 'Everyday'
-        : typeLabel(institution.institutionType);
-  const metadata = `${purposeLabel} · ${accountLabel}`;
-  const amountLabel = wallet.account_type === 'credit' ? 'BALANCE OWED' : 'BALANCE';
+  const metadata = `${walletTypeLabel(wallet)}${wallet.last_four ? ` •••• ${wallet.last_four}` : ''} · ${wallet.currency ?? 'PHP'}`;
+  const amountLabel = wallet.account_type === 'credit'
+    ? 'AVAILABLE CREDIT'
+    : wallet.account_purpose === 'savings'
+      ? 'SAVINGS BALANCE'
+      : 'AVAILABLE BALANCE';
+  const displayBalance = wallet.account_type === 'credit'
+    ? Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance))
+    : Number(wallet.balance);
   const cardColor = wallet.institution_key && institution.id !== 'cash' ? institution.brandColor : wallet.color;
 
   return (
@@ -104,7 +100,7 @@ export function WalletCard({
             minimumFontScale={0.7}
             style={styles.balance}
           >
-            {balance}
+            {amountsVisible ? formatBalance(displayBalance) : balance}
           </Text>
         </View>
       </View>

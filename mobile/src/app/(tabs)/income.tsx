@@ -588,6 +588,7 @@ function IncomeForm({
         onChange={setWalletId}
         required
         label="Deposit to"
+        excludeCredit
         onAddWallet={() =>
           onAddWallet?.({
             source,

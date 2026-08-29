@@ -6,6 +6,8 @@ export type WalletPayload = {
   name: string;
   institution_type: string;
   institution_key: string;
+  currency?: string;
+  last_four?: string | null;
   account_type?: 'debit' | 'credit' | null;
   credit_limit?: number | null;
   account_purpose?: 'everyday' | 'savings' | null;
@@ -347,7 +349,28 @@ export async function repayCreditAccount(
 }
 
 export async function createWalletTransfer(userId: string, payload: WalletTransferPayload) {
-  requireUserId(userId);
+  const ownerId = requireUserId(userId);
+  const { data: destination, error: destinationError } = await client()
+    .from('wallets')
+    .select('id, account_type')
+    .eq('id', payload.to_wallet_id)
+    .eq('user_id', ownerId)
+    .maybeSingle();
+  if (destinationError || !destination) {
+    throw new AppError(404, 'wallet_not_found', 'One of these wallets is no longer available.');
+  }
+  if (destination.account_type === 'credit') {
+    // A payment into a credit account settles liability; it is not a normal
+    // deposit and must not create an asset-side transfer-in balance.
+    return repayCreditAccount(ownerId, payload.to_wallet_id, {
+      payment_wallet_id: payload.from_wallet_id,
+      principal_amount: payload.amount,
+      interest_amount: 0,
+      fee_amount: payload.fee,
+      payment_date: payload.date,
+      idempotency_key: payload.idempotency_key,
+    });
+  }
   const { data, error } = await client().rpc('create_wallet_transfer', {
     source_wallet_id: payload.from_wallet_id,
     destination_wallet_id: payload.to_wallet_id,
@@ -432,6 +455,8 @@ export async function createWalletWithOpeningBalance(
     wallet_key: payload.institution_key,
     wallet_color: payload.color ?? '#0F8A6B',
     wallet_icon: payload.icon ?? null,
+    wallet_currency: payload.currency ?? 'PHP',
+    wallet_last_four: payload.last_four ?? null,
     opening_amount: payload.opening_balance,
     account_type_value: payload.account_type ?? null,
     credit_limit_value: payload.credit_limit ?? null,
@@ -462,13 +487,15 @@ export async function createWalletWithOpeningBalance(
         institution_key: payload.institution_key,
         color: payload.color ?? '#0F8A6B',
         icon: payload.icon ?? null,
+        currency: payload.currency ?? 'PHP',
+        last_four: payload.last_four ?? null,
         is_default_cash: false,
         account_type: payload.account_type ?? null,
         credit_limit: payload.credit_limit ?? null,
         account_purpose: payload.account_purpose ?? null,
         earns_interest: payload.earns_interest ?? false,
         annual_interest_rate: payload.annual_interest_rate ?? null,
-        interest_credit_frequency: payload.interest_credit_frequency ?? null,
+      interest_credit_frequency: payload.interest_credit_frequency ?? null,
       })
       .select('*')
       .single();

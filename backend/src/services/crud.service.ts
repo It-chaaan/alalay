@@ -7,6 +7,20 @@ async function assertWalletBelongsToUser(userId: string, walletId: unknown) {
   if (error || !data) throw new AppError(400, "invalid_wallet", "Choose one of your wallets.");
 }
 
+async function assertIncomeWalletEligible(userId: string, walletId: unknown) {
+  if (walletId === undefined || walletId === null || walletId === '') return;
+  const { data, error } = await client()
+    .from('wallets')
+    .select('account_type')
+    .eq('id', walletId)
+    .eq('user_id', requireUserId(userId))
+    .maybeSingle();
+  if (error || !data) throw new AppError(400, 'invalid_wallet', 'Choose one of your wallets.');
+  if (data.account_type === 'credit') {
+    throw new AppError(422, 'income_wallet_invalid', 'Credit cards cannot receive income.');
+  }
+}
+
 export async function listOwned(table: TableName, userId: string, filters?: Record<string, unknown>) {
   let query = client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null);
   query = table === "expenses"
@@ -41,6 +55,7 @@ export async function getOwned(table: TableName, userId: string, id: string) {
 
 export async function createOwned(table: TableName, userId: string, payload: Record<string, unknown>) {
   await assertWalletBelongsToUser(userId, payload.wallet_id);
+  if (table === 'income') await assertIncomeWalletEligible(userId, payload.wallet_id);
   const { data, error } = await client().from(table).insert({ ...payload, user_id: requireUserId(userId) }).select("*").single();
   throwIfError(error);
   return data;
@@ -48,6 +63,7 @@ export async function createOwned(table: TableName, userId: string, payload: Rec
 
 export async function updateOwned(table: TableName, userId: string, id: string, payload: Record<string, unknown>) {
   await assertWalletBelongsToUser(userId, payload.wallet_id);
+  if (table === 'income') await assertIncomeWalletEligible(userId, payload.wallet_id);
   const { data, error } = await client().from(table).update(payload).eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).select("*").single();
   if (error) {
     throw new AppError(404, "not_found", "Record not found.");

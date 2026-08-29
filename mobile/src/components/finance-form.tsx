@@ -1590,12 +1590,14 @@ export function FormTextInput({
   value,
   onChangeText,
   multiline = false,
+  keyboardType = 'default',
 }: {
   label?: string;
   placeholder: string;
   value: string;
   onChangeText: (value: string) => void;
   multiline?: boolean;
+  keyboardType?: 'default' | 'number-pad' | 'decimal-pad';
 }) {
   const { colors } = useAppTheme();
   const interaction = useContext(FinanceFormInteractionContext);
@@ -1615,6 +1617,7 @@ export function FormTextInput({
           multiline && inputStyles.multiline,
         ]}
         multiline={multiline}
+        keyboardType={keyboardType}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
     </View>
