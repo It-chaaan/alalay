@@ -85,13 +85,11 @@ async function validateCreditPaymentWallet(
       throw new AppError(422, 'invalid_payment_wallet', 'A credit card cannot pay itself.');
     const { data, error } = await client()
       .from('wallets')
-      .select('id')
+      .select('id, account_type')
       .eq('id', payload.payment_wallet_id)
       .eq('user_id', requireUserId(userId))
-      .neq('account_type', 'credit')
-      .eq('is_active', true)
       .maybeSingle();
-    if (error || !data)
+    if (error || !data || data.account_type === 'credit')
       throw new AppError(422, 'invalid_payment_wallet', 'Choose an active non-credit payment wallet.');
   }
 }
