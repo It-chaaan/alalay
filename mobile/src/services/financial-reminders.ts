@@ -4,12 +4,14 @@ import * as SecureStore from 'expo-secure-store';
 import { SECURE_STORAGE_KEYS, reminderStorageKey } from '@/constants/secure-storage-keys';
 
 import { authenticatedApiRequest } from './api';
+import { syncBillReminders } from './notifications';
 import { dateKeyInManila, fetchFinanceItems, type FinanceItem } from './finance';
 import { getSupabaseClient } from './supabase';
 
 export type ReminderKind = 'three_days_before' | 'one_day_before' | 'due_day' | 'overdue';
 type ReminderPreferences = { bill_reminders: boolean; bill_reminder_days: number; bill_reminder_three_days: boolean; bill_reminder_one_day: boolean; bill_reminder_due_day: boolean; bill_overdue_reminders: boolean; bill_reminder_hour: number; bill_reminder_minute: number };
-type StoredReminder = { notificationId: string; eventType: 'bill'; eventId: string; occurrenceDate: string; kind: ReminderKind; name: string; amount: number };
+type StoredReminder = { notificationId: string; databaseNotificationId?: string; eventType: 'bill'; eventId: string; occurrenceDate: string; kind: ReminderKind; name: string; amount: number };
+type PersistedReminder = { id: string; related_bill_id?: string | null; due_date?: string | null; reminder_kind?: string | null };
 
 const defaults: ReminderPreferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, bill_reminder_hour: 9, bill_reminder_minute: 0 };
 const fallbackDelayMs = 5 * 60 * 1000;
@@ -115,15 +117,27 @@ async function reconcileFinancialRemindersInternal(items?: FinanceItem[]): Promi
   if (!prefs.bill_reminders) { for (const record of Object.values(stored)) await cancelStored(record); await writeStored({}); return { permissionGranted: true, scheduled: 0 }; }
   if (!(await ensureReminderPermission())) return { permissionGranted: false, scheduled: 0 };
   await ensureChannel();
+  // The database record is created before any OS notification is scheduled.
+  // This gives the inbox and the system tray notification one stable identity.
+  let persisted: PersistedReminder[] = [];
+  try {
+    persisted = await syncBillReminders();
+  } catch (error) {
+    logReminderFailure('persist bill reminders', error);
+    return { permissionGranted: true, scheduled: 0 };
+  }
+  const persistedByKey = new Map(persisted.map((record) => [logicalKey(String(record.related_bill_id), String(record.due_date).slice(0, 10), record.reminder_kind as ReminderKind), record]));
   const current = new Map<string, StoredReminder>(); const now = new Date();
   for (const item of (items ?? await fetchFinanceItems()).filter((value) => value.source === 'bill')) {
     const due = item.dueDate.slice(0, 10);
     for (const candidate of candidates(item, prefs, now)) {
       const key = logicalKey(item.id, due, candidate.kind); const existing = stored[key];
-      if (existing && existing.name === item.name && existing.amount === item.amount) { current.set(key, existing); continue; }
+      if (existing && existing.databaseNotificationId && existing.name === item.name && existing.amount === item.amount) { current.set(key, existing); continue; }
       if (existing) await cancelStored(existing);
-      const notificationId = await Notifications.scheduleNotificationAsync({ content: { ...copy(item, candidate.kind), data: { eventType: 'bill', eventId: item.id, occurrenceDate: due, reminderKind: candidate.kind } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: candidate.trigger, channelId: 'financial-reminders' } });
-      current.set(key, { notificationId, eventType: 'bill', eventId: item.id, occurrenceDate: due, kind: candidate.kind, name: item.name, amount: item.amount });
+      const databaseNotification = persistedByKey.get(key);
+      if (!databaseNotification) continue;
+      const notificationId = await Notifications.scheduleNotificationAsync({ content: { ...copy(item, candidate.kind), data: { eventType: 'bill', eventId: item.id, occurrenceDate: due, reminderKind: candidate.kind, notificationId: databaseNotification.id } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: candidate.trigger, channelId: 'financial-reminders' } });
+      current.set(key, { notificationId, databaseNotificationId: databaseNotification.id, eventType: 'bill', eventId: item.id, occurrenceDate: due, kind: candidate.kind, name: item.name, amount: item.amount });
     }
   }
   for (const [key, record] of Object.entries(stored)) if (!current.has(key)) await cancelStored(record);

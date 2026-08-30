@@ -100,7 +100,7 @@ function SessionGate() {
     };
     reconcileSafely();
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') reconcileSafely(); });
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { const data = response.notification.request.content.data as { eventType?: string; notificationId?: string } | undefined; if (data?.notificationId) void import('@/services/notifications').then(({ markNotificationRead }) => markNotificationRead(data.notificationId!)).catch(() => undefined); if (data?.eventType === 'bill') router.push('/bills'); });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { const data = response.notification.request.content.data as { eventType?: string; notificationId?: string } | undefined; if (data?.notificationId) void import('@/services/notifications').then(async ({ fetchNotifications, markNotificationRead }) => { await fetchNotifications(); await markNotificationRead(data.notificationId!); }).catch(() => undefined); if (data?.eventType === 'bill') router.push('/(tabs)/bills'); });
     return () => { subscription.remove(); responseSubscription.remove(); };
   }, [router, session]);
 
