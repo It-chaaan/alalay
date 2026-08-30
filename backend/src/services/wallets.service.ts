@@ -497,11 +497,6 @@ export async function createWalletWithOpeningBalance(
     earns_interest_value: payload.earns_interest ?? false,
     annual_interest_rate_value: payload.annual_interest_rate ?? null,
     interest_credit_frequency_value: payload.interest_credit_frequency ?? null,
-    payment_due_date_value: payload.payment_due_date ?? null,
-    payment_wallet_id_value: payload.payment_wallet_id ?? null,
-    auto_record_payment_value: payload.auto_record_payment ?? false,
-    payment_rule_value: payload.payment_rule ?? null,
-    fixed_payment_amount_value: payload.fixed_payment_amount ?? null,
   });
   if (error?.code === 'P0001' && error.message.includes('classification')) {
     throw new AppError(
@@ -519,6 +514,25 @@ export async function createWalletWithOpeningBalance(
       `${error.code}: ${error.message}`,
       true,
     );
+  }
+  if (error && error.code !== 'PGRST202') throwIfError(error);
+  if (payload.account_type === 'credit' && data) {
+    const { data: configuredWallet, error: configurationError } = await client()
+      .from('wallets')
+      .update({
+        payment_due_date: payload.payment_due_date ?? null,
+        payment_due_day: payload.payment_due_day ?? null,
+        payment_wallet_id: payload.payment_wallet_id ?? null,
+        auto_record_payment: payload.auto_record_payment ?? false,
+        payment_rule: payload.payment_rule ?? null,
+        fixed_payment_amount: payload.fixed_payment_amount ?? null,
+      })
+      .eq('id', (data as Record<string, unknown>).id as string)
+      .eq('user_id', ownerId)
+      .select('*')
+      .single();
+    throwIfError(configurationError);
+    return withBalance(configuredWallet as Record<string, unknown>);
   }
   // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
   // rolling deployments PostgREST can briefly have an older schema cache. Use
@@ -588,7 +602,6 @@ export async function createWalletWithOpeningBalance(
     throwIfError(refreshError);
     return withBalance(refreshed);
   }
-  throwIfError(error);
   return withBalance(data as Record<string, unknown>);
 }
 
