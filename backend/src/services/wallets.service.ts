@@ -511,6 +511,15 @@ export async function createWalletWithOpeningBalance(
       `${error.code}: ${error.message}`,
     );
   }
+  if (error?.code === 'PGRST202' && payload.account_type === 'credit') {
+    throw new AppError(
+      503,
+      'credit_card_schema_unavailable',
+      'Credit-card setup is temporarily unavailable. Apply the credit-card payment database migration and retry.',
+      `${error.code}: ${error.message}`,
+      true,
+    );
+  }
   // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
   // rolling deployments PostgREST can briefly have an older schema cache. Use
   // the same ledger tables as a compatibility path instead of creating a
