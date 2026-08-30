@@ -475,12 +475,75 @@ export async function createWallet(userId: string, payload: WalletPayload) {
   return withBalance(data);
 }
 
+async function createCreditWalletWithOpeningBalance(
+  userId: string,
+  payload: WalletPayload & { opening_balance: number },
+) {
+  const ownerId = requireUserId(userId);
+  const { data: wallet, error: walletError } = await client()
+    .from('wallets')
+    .insert({
+      user_id: ownerId,
+      name: payload.name,
+      institution_type: payload.institution_type,
+      institution_key: payload.institution_key,
+      currency: payload.currency ?? 'PHP',
+      last_four: payload.last_four ?? null,
+      color: payload.color ?? '#0F8A6B',
+      icon: payload.icon ?? null,
+      is_default_cash: false,
+      account_type: 'credit',
+      credit_limit: payload.credit_limit ?? null,
+    })
+    .select('*')
+    .single();
+  throwIfError(walletError);
+  if (!wallet) throw new AppError(500, 'wallet_creation_failed', 'The credit card could not be created.');
+
+  if (payload.opening_balance > 0) {
+    const { error: adjustmentError } = await client().from('wallet_adjustments').insert({
+      user_id: ownerId,
+      wallet_id: wallet.id,
+      amount: payload.opening_balance,
+      date: todayIso(),
+      note: 'Opening outstanding balance',
+    });
+    if (adjustmentError) {
+      await client().from('wallets').delete().eq('id', wallet.id).eq('user_id', ownerId);
+      throwIfError(adjustmentError);
+    }
+  }
+
+  const { data: configuredWallet, error: configurationError } = await client()
+    .from('wallets')
+    .update({
+      payment_due_date: payload.payment_due_date ?? null,
+      payment_due_day: payload.payment_due_day ?? null,
+      payment_wallet_id: payload.payment_wallet_id ?? null,
+      auto_record_payment: payload.auto_record_payment ?? false,
+      payment_rule: payload.payment_rule ?? null,
+      fixed_payment_amount: payload.fixed_payment_amount ?? null,
+    })
+    .eq('id', wallet.id)
+    .eq('user_id', ownerId)
+    .select('*')
+    .single();
+  if (configurationError) {
+    await client().from('wallets').delete().eq('id', wallet.id).eq('user_id', ownerId);
+    throwIfError(configurationError);
+  }
+  return withBalance(configuredWallet as Record<string, unknown>);
+}
+
 export async function createWalletWithOpeningBalance(
   userId: string,
   payload: WalletPayload & { opening_balance: number },
 ) {
   validateAccountType(payload);
   await validateCreditPaymentWallet(userId, undefined, payload, payload.account_type === 'credit');
+  if (payload.account_type === 'credit') {
+    return createCreditWalletWithOpeningBalance(userId, payload);
+  }
   const ownerId = requireUserId(userId);
   const { data, error } = await client().rpc('create_wallet_with_opening_balance', {
     wallet_name: payload.name,
@@ -506,34 +569,7 @@ export async function createWalletWithOpeningBalance(
       `${error.code}: ${error.message}`,
     );
   }
-  if (error?.code === 'PGRST202' && payload.account_type === 'credit') {
-    throw new AppError(
-      503,
-      'credit_card_schema_unavailable',
-      'Credit-card setup is temporarily unavailable. Apply the credit-card payment database migration and retry.',
-      `${error.code}: ${error.message}`,
-      true,
-    );
-  }
   if (error && error.code !== 'PGRST202') throwIfError(error);
-  if (payload.account_type === 'credit' && data) {
-    const { data: configuredWallet, error: configurationError } = await client()
-      .from('wallets')
-      .update({
-        payment_due_date: payload.payment_due_date ?? null,
-        payment_due_day: payload.payment_due_day ?? null,
-        payment_wallet_id: payload.payment_wallet_id ?? null,
-        auto_record_payment: payload.auto_record_payment ?? false,
-        payment_rule: payload.payment_rule ?? null,
-        fixed_payment_amount: payload.fixed_payment_amount ?? null,
-      })
-      .eq('id', (data as Record<string, unknown>).id as string)
-      .eq('user_id', ownerId)
-      .select('*')
-      .single();
-    throwIfError(configurationError);
-    return withBalance(configuredWallet as Record<string, unknown>);
-  }
   // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
   // rolling deployments PostgREST can briefly have an older schema cache. Use
   // the same ledger tables as a compatibility path instead of creating a
