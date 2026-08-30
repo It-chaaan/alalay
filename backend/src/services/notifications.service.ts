@@ -58,27 +58,42 @@ function reminderKind(dueDate: string, prefs: BillReminderPrefs, today: string) 
   return null;
 }
 
+const reminderSelect = "bill_reminders, bill_reminder_three_days, bill_reminder_one_day, bill_reminder_due_day, bill_overdue_reminders";
+const defaultBillReminderPrefs: BillReminderPrefs = { bill_reminders: true, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true };
+
+async function createBillReminder(userId: string, bill: { id: string; title: string; amount: unknown; due_date: string; status?: string | null; recurring?: boolean | null; paid_occurrence_date?: string | null }, prefs: BillReminderPrefs, today: string) {
+  if (!['unpaid', 'overdue'].includes(String(bill.status)) || (bill.recurring && bill.paid_occurrence_date === bill.due_date)) return null;
+  const reminder = reminderKind(String(bill.due_date), prefs, today);
+  if (!reminder) return null;
+  const dueDate = String(bill.due_date).slice(0, 10);
+  const title = `${String(bill.title)} ${reminder.label}`;
+  const body = `₱${asNumber(bill.amount).toLocaleString("en-PH")} · Due ${dueDate}`;
+  const record = await createInAppNotification({ userId, type: reminder.kind === "overdue" ? "bill_overdue" : "bill_due", title, body, related_bill_id: bill.id, source_type: "bill", source_id: bill.id, deduplication_key: `bill:${bill.id}:${dueDate}:${reminder.kind}`, action: { route: "/(tabs)/bills", params: { billId: bill.id } } });
+  return record ? { ...record, reminder_kind: reminder.kind, due_date: dueDate, amount: asNumber(bill.amount) } : null;
+}
+
+export async function reconcileBillReminder(userId: string, bill: { id: string; title: string; amount: unknown; due_date: string; status?: string | null; recurring?: boolean | null; paid_occurrence_date?: string | null }, now = new Date()) {
+  const ownerId = requireUserId(userId);
+  const prefsResult = await client().from("notification_preferences").select(reminderSelect).eq("user_id", ownerId).maybeSingle();
+  throwIfError(prefsResult.error);
+  return createBillReminder(ownerId, bill, { ...defaultBillReminderPrefs, ...(prefsResult.data ?? {}) } as BillReminderPrefs, todayIso(now));
+}
+
 /** Persist bill reminders before a device notification is scheduled. */
 export async function syncBillReminders(userId: string, now = new Date()) {
   const ownerId = requireUserId(userId);
   const today = todayIso(now);
   const [prefsResult, billsResult] = await Promise.all([
-    client().from("notification_preferences").select("bill_reminders, bill_reminder_three_days, bill_reminder_one_day, bill_reminder_due_day, bill_overdue_reminders").eq("user_id", ownerId).maybeSingle(),
+    client().from("notification_preferences").select(reminderSelect).eq("user_id", ownerId).maybeSingle(),
     client().from("bills").select("id, title, amount, due_date, status, recurring, paid_occurrence_date, deleted_at").eq("user_id", ownerId).is("deleted_at", null),
   ]);
   throwIfError(prefsResult.error);
   throwIfError(billsResult.error);
-  const prefs = { bill_reminders: true, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, ...(prefsResult.data ?? {}) } as BillReminderPrefs;
+  const prefs = { ...defaultBillReminderPrefs, ...(prefsResult.data ?? {}) } as BillReminderPrefs;
   const result: InAppNotification[] = [];
   for (const bill of billsResult.data ?? []) {
-    if (!['unpaid', 'overdue'].includes(String(bill.status)) || (bill.recurring && bill.paid_occurrence_date === bill.due_date)) continue;
-    const reminder = reminderKind(String(bill.due_date), prefs, today);
-    if (!reminder) continue;
-    const dueDate = String(bill.due_date).slice(0, 10);
-    const title = `${String(bill.title)} ${reminder.label}`;
-    const body = `₱${asNumber(bill.amount).toLocaleString("en-PH")} · Due ${dueDate}`;
-    const record = await createInAppNotification({ userId: ownerId, type: reminder.kind === "overdue" ? "bill_overdue" : "bill_due", title, body, related_bill_id: bill.id, source_type: "bill", source_id: bill.id, deduplication_key: `bill:${bill.id}:${dueDate}:${reminder.kind}`, action: { route: "/(tabs)/bills", params: { billId: bill.id } } });
-    if (record) result.push({ ...record, reminder_kind: reminder.kind, due_date: dueDate, amount: asNumber(bill.amount) });
+    const record = await createBillReminder(ownerId, bill, prefs, today);
+    if (record) result.push(record);
   }
   return result;
 }

@@ -3,6 +3,7 @@ import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.serv
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { selectCurrentBillOccurrence, selectCurrentBillOccurrences } from './bill-occurrence.service.js';
+import { reconcileBillReminder } from './notifications.service.js';
 
 export async function listBills(
   userId: string,
@@ -32,10 +33,18 @@ export async function getBill(userId: string, id: string) {
   const bill = await getOwned('bills', userId, id);
   return selectCurrentBillOccurrence(bill, todayIso());
 }
-export const createBill = (userId: string, payload: Record<string, unknown>) =>
-  createOwned('bills', userId, payload);
-export const updateBill = (userId: string, id: string, payload: Record<string, unknown>) =>
-  updateOwned('bills', userId, id, payload);
+export async function createBill(userId: string, payload: Record<string, unknown>) {
+  const bill = await createOwned('bills', userId, payload);
+  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch(() => undefined);
+  return bill;
+}
+export async function updateBill(userId: string, id: string, payload: Record<string, unknown>) {
+  const bill = await updateOwned('bills', userId, id, payload);
+  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch((error) => {
+    console.error('Bill reminder reconciliation failed after bill update:', error instanceof Error ? error.message : String(error));
+  });
+  return bill;
+}
 export async function deleteBill(userId: string, id: string) {
   requireUserId(userId);
   const { data, error } = await client().rpc('soft_delete_bill', { target_bill_id: id });
