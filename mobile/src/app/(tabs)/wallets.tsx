@@ -66,7 +66,14 @@ import { useIncomeWorkflow } from '@/context/income-workflow';
 type WalletTransaction = {
   id: string;
   kind:
-    'income' | 'expense' | 'bill' | 'deposit' | 'opening_balance' | 'transfer_out' | 'transfer_in';
+    | 'income'
+    | 'expense'
+    | 'bill'
+    | 'deposit'
+    | 'opening_balance'
+    | 'transfer_out'
+    | 'transfer_in'
+    | 'goal_allocation';
   label: string;
   date: string;
   amount: number;

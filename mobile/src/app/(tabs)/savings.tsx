@@ -182,6 +182,7 @@ export default function Goals() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
+  const [goalTab, setGoalTab] = useState<'active' | 'completed'>('active');
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
@@ -199,7 +200,12 @@ export default function Goals() {
       void refresh();
     });
   }, [refresh]);
-  const goals = useMemo(() => data?.goals.filter((goal) => !goal.completed_at) ?? [], [data]);
+  const activeGoals = useMemo(() => data?.goals.filter((goal) => !goal.completed_at) ?? [], [data]);
+  const completedGoals = useMemo(
+    () => data?.goals.filter((goal) => Boolean(goal.completed_at)) ?? [],
+    [data],
+  );
+  const goals = goalTab === 'active' ? activeGoals : completedGoals;
   const totalSaved = goals.reduce((sum, goal) => sum + (Number(goal.current_amount) || 0), 0);
   const totalTarget = goals.reduce((sum, goal) => sum + (Number(goal.target_amount) || 0), 0);
   const overallProgress =
@@ -241,17 +247,36 @@ export default function Goals() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           <GoalsSummaryCard
             totalSaved={totalSaved}
-            activeGoals={goals.length}
+            activeGoals={activeGoals.length}
             overallProgress={overallProgress}
           />
           <View style={styles.sectionHeader}>
             <View style={styles.sectionHeaderCopy}>
-              <Text style={styles.sectionTitle}>Your goals</Text>
+              <Text style={styles.sectionTitle}>
+                {goalTab === 'active' ? 'Your goals' : 'Completed goals'}
+              </Text>
               <Text style={styles.sectionHint}>
-                {goals.length} active goal{goals.length === 1 ? '' : 's'}
+                {goals.length} {goalTab} goal{goals.length === 1 ? '' : 's'}
               </Text>
             </View>
             <SectionAddButton label="Create goal" onPress={() => setOpen(true)} />
+          </View>
+          <View style={styles.goalTabs}>
+            {(['active', 'completed'] as const).map((tab) => (
+              <Pressable
+                key={tab}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: goalTab === tab }}
+                onPress={() => setGoalTab(tab)}
+                style={[styles.goalTab, goalTab === tab && styles.goalTabSelected]}
+              >
+                <Text style={[styles.goalTabText, goalTab === tab && styles.goalTabTextSelected]}>
+                  {tab === 'active'
+                    ? `Active (${activeGoals.length})`
+                    : `Completed (${completedGoals.length})`}
+                </Text>
+              </Pressable>
+            ))}
           </View>
           {goals.length ? (
             <View style={styles.goalsGrid}>
@@ -259,7 +284,7 @@ export default function Goals() {
                 <GoalCard
                   key={goal.id}
                   goal={goal}
-                  onAdd={() => setContributionGoal(goal)}
+                  onAdd={goalTab === 'active' ? () => setContributionGoal(goal) : undefined}
                   onManage={() => {
                     setDeleteError('');
                     setManaging(goal);
@@ -270,7 +295,11 @@ export default function Goals() {
           ) : (
             <View style={styles.emptyCard}>
               <Text style={styles.cardTitle}>
-                {data?.goals.length ? 'No active goals' : 'No goals yet'}
+                {goalTab === 'completed'
+                  ? 'No completed goals'
+                  : data?.goals.length
+                    ? 'No active goals'
+                    : 'No goals yet'}
               </Text>
               <Text style={styles.muted}>
                 Create a goal, set a target, and track your progress over time.
@@ -563,7 +592,7 @@ function GoalCard({
   onManage,
 }: {
   goal: Goal;
-  onAdd: () => void;
+  onAdd?: () => void;
   onManage: () => void;
 }) {
   const saved = Number(goal.current_amount);
@@ -618,8 +647,8 @@ function GoalCard({
       ) : (
         <Text style={styles.fundingHint}>Manual funding</Text>
       )}
-      {saved >= target ? (
-        <Text style={styles.reached}>Goal reached</Text>
+      {saved >= target || !onAdd ? (
+        <Text style={styles.reached}>{saved >= target ? 'Goal reached' : 'Completed'}</Text>
       ) : (
         <Pressable
           accessibilityRole="button"
@@ -1123,6 +1152,20 @@ function makeStyles(themePalette: typeof formPalette) {
     sectionTitle: { color: formPalette.ink, fontSize: 18, fontWeight: '900' },
     sectionHint: { marginTop: 3, color: formPalette.muted, fontSize: 11, fontWeight: '700' },
     goalsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    goalTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
+    goalTab: {
+      flex: 1,
+      minHeight: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 13,
+      backgroundColor: formPalette.background,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+    },
+    goalTabSelected: { backgroundColor: formPalette.accentPale, borderColor: formPalette.accent },
+    goalTabText: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },
+    goalTabTextSelected: { color: formPalette.accent },
     goalCard: {
       width: '48.5%',
       minHeight: 286,

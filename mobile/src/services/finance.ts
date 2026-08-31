@@ -113,13 +113,8 @@ export type CreditRepaymentPayload = {
   idempotency_key: string;
 };
 
-export async function repayCreditAccount(
-  creditWalletId: string,
-  payload: CreditRepaymentPayload,
-) {
-  const result = await authenticatedApiRequest(
-    `/api/wallets/${creditWalletId}/repayments`,
-    {
+export async function repayCreditAccount(creditWalletId: string, payload: CreditRepaymentPayload) {
+  const result = await authenticatedApiRequest(`/api/wallets/${creditWalletId}/repayments`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -127,8 +122,7 @@ export async function repayCreditAccount(
       interest_amount: payload.interest_amount ?? 0,
       fee_amount: payload.fee_amount ?? 0,
     }),
-    },
-  );
+  });
   notifyFinancialMutation();
   return result;
 }
@@ -228,6 +222,43 @@ export function fetchIncome() {
   return authenticatedApiRequest<IncomeRecord[]>('/api/income');
 }
 
+export type IncomeMonthItem = {
+  kind: 'recurring' | 'one_time';
+  sourceId: string;
+  occurrenceId: string | null;
+  transactionId: string | null;
+  name: string;
+  category: string;
+  amount: number;
+  frequency: string | null;
+  status: string;
+  dueDate: string | null;
+  receivedDate: string | null;
+  receivedAt: string | null;
+  createdAt: string | null;
+  updatedAt: string | null;
+  walletId: string;
+};
+
+export type IncomeMonth = {
+  month: string;
+  overview: {
+    receivedAmount: number;
+    receivedCount: number;
+    upcomingCount: number;
+    recurringSourceCount: number;
+    oneTimeCount: number;
+  };
+  items: IncomeMonthItem[];
+};
+
+/** Authoritative, month-scoped Income-screen read. The API client logs it in dev. */
+export function fetchIncomeMonth(month: string) {
+  return authenticatedApiRequest<IncomeMonth>(
+    `/api/income/my-income?month=${encodeURIComponent(month)}`,
+  );
+}
+
 export async function fetchNextPayday() {
   try {
     return await authenticatedApiRequest<Payday | null>('/api/income/next-payday');
@@ -282,18 +313,23 @@ export function combineRecentTransactions(expenses: ExpenseRecord[], income: Inc
   // projections. Recent transactions are ledger-backed only: a schedule is
   // not money received until its posted income row exists.
   const incomeTransactions: RecentTransaction[] = income
-    .filter((entry) => entry.is_scheduled !== true && entry.is_posted !== false && entry.schedule_status !== 'active')
+    .filter(
+      (entry) =>
+        entry.is_scheduled !== true &&
+        entry.is_posted !== false &&
+        entry.schedule_status !== 'active',
+    )
     .map((entry) => ({
-    id: `income-${entry.id}`,
-    sourceType: 'income',
-    title: entry.source,
-    category: entry.type,
-    amount: Math.abs(Number(entry.amount) || 0),
-    occurredAt: entry.date,
-    walletId: entry.wallet_id,
-    frequency: entry.frequency,
-    isRecurringOccurrence: false,
-  }));
+      id: `income-${entry.id}`,
+      sourceType: 'income',
+      title: entry.source,
+      category: entry.type,
+      amount: Math.abs(Number(entry.amount) || 0),
+      occurredAt: entry.date,
+      walletId: entry.wallet_id,
+      frequency: entry.frequency,
+      isRecurringOccurrence: false,
+    }));
   return [...expenseTransactions, ...incomeTransactions].sort((left, right) =>
     right.occurredAt.localeCompare(left.occurredAt),
   );

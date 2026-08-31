@@ -209,76 +209,90 @@ export async function getWallet(userId: string, id: string) {
     .eq('id', id)
     .single();
   if (error || !wallet) throw new AppError(404, 'not_found', 'Wallet not found.');
-  const [income, expenses, bills, adjustments, transfers, loans, loanPayments, creditRepayments] =
-    await Promise.all([
-      client()
-        .from('income')
-        .select('id, source, amount, date, wallet_id')
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .eq('is_posted', true)
-        .is('deleted_at', null)
-        .limit(200),
-      client()
-        .from('expenses')
-        .select(
-          'id, merchant, category, amount, date, wallet_id, source_bill_id, credit_repayment_id',
-        )
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .is('deleted_at', null)
-        .limit(200),
-      client()
-        .from('bills')
-        .select(
-          'id, title, category, amount, due_date, paid_at, status, wallet_id, credit_wallet_id',
-        )
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .eq('status', 'paid')
-        .is('deleted_at', null)
-        .limit(200),
-      client()
-        .from('wallet_adjustments')
-        .select('id, amount, date, note, wallet_id')
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .order('date', { ascending: false })
-        .limit(200),
-      client()
-        .from('wallet_transfers')
-        .select(
-          'id, from_wallet_id, to_wallet_id, amount, fee, transfer_method, note, transferred_at, created_at',
-        )
-        .eq('user_id', ownerId)
-        .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
-        .order('transferred_at', { ascending: false })
-        .limit(200),
-      client()
-        .from('loans')
-        .select('id, counterparty, direction, original_principal, start_date, wallet_id')
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .limit(200),
-      client()
-        .from('loan_payments')
-        .select(
-          'id, loan_id, principal_amount, interest_amount, paid_on, note, interest_income_id, interest_expense_id, loans(counterparty, direction)',
-        )
-        .eq('user_id', ownerId)
-        .eq('wallet_id', id)
-        .order('paid_on', { ascending: false })
-        .limit(200),
-      client()
-        .from('credit_repayments')
-        .select(
-          'id, credit_wallet_id, payment_wallet_id, principal_amount, interest_amount, fee_amount, payment_date, source_bill_id, interest_expense_id, fee_expense_id',
-        )
-        .eq('user_id', ownerId)
-        .or(`credit_wallet_id.eq.${id},payment_wallet_id.eq.${id}`)
-        .order('payment_date', { ascending: false })
-        .limit(200),
-    ]);
+  const [
+    income,
+    expenses,
+    bills,
+    adjustments,
+    transfers,
+    loans,
+    loanPayments,
+    creditRepayments,
+    goalContributions,
+  ] = await Promise.all([
+    client()
+      .from('income')
+      .select('id, source, amount, date, wallet_id')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .eq('is_posted', true)
+      .is('deleted_at', null)
+      .limit(200),
+    client()
+      .from('expenses')
+      .select(
+        'id, merchant, category, amount, date, wallet_id, source_bill_id, credit_repayment_id',
+      )
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .is('deleted_at', null)
+      .limit(200),
+    client()
+      .from('bills')
+      .select('id, title, category, amount, due_date, paid_at, status, wallet_id, credit_wallet_id')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .eq('status', 'paid')
+      .is('deleted_at', null)
+      .limit(200),
+    client()
+      .from('wallet_adjustments')
+      .select('id, amount, date, note, wallet_id')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .order('date', { ascending: false })
+      .limit(200),
+    client()
+      .from('wallet_transfers')
+      .select(
+        'id, from_wallet_id, to_wallet_id, amount, fee, transfer_method, note, transferred_at, created_at',
+      )
+      .eq('user_id', ownerId)
+      .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
+      .order('transferred_at', { ascending: false })
+      .limit(200),
+    client()
+      .from('loans')
+      .select('id, counterparty, direction, original_principal, start_date, wallet_id')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .limit(200),
+    client()
+      .from('loan_payments')
+      .select(
+        'id, loan_id, principal_amount, interest_amount, paid_on, note, interest_income_id, interest_expense_id, loans(counterparty, direction)',
+      )
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .order('paid_on', { ascending: false })
+      .limit(200),
+    client()
+      .from('credit_repayments')
+      .select(
+        'id, credit_wallet_id, payment_wallet_id, principal_amount, interest_amount, fee_amount, payment_date, source_bill_id, interest_expense_id, fee_expense_id',
+      )
+      .eq('user_id', ownerId)
+      .or(`credit_wallet_id.eq.${id},payment_wallet_id.eq.${id}`)
+      .order('payment_date', { ascending: false })
+      .limit(200),
+    client()
+      .from('goal_contributions')
+      .select('id, amount, created_at, savings_goals(title)')
+      .eq('user_id', ownerId)
+      .eq('wallet_id', id)
+      .order('created_at', { ascending: false })
+      .limit(200),
+  ]);
   const counterpartIds = [
     ...(transfers.data ?? []).map((row) =>
       row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id,
@@ -304,6 +318,7 @@ export async function getWallet(userId: string, id: string) {
     loans.error,
     loanPayments.error,
     creditRepayments.error,
+    goalContributions.error,
     counterpartResult.error,
   ].some(Boolean)
     ? 'Unable to load linked transactions.'
@@ -356,6 +371,16 @@ export async function getWallet(userId: string, id: string) {
       date: row.date,
       amount: asNumber(row.amount),
     })),
+    ...(goalContributions.data ?? []).map((row) => {
+      const goal = Array.isArray(row.savings_goals) ? row.savings_goals[0] : row.savings_goals;
+      return {
+        ...row,
+        kind: 'goal_allocation',
+        label: `Allocated to goal: ${goal?.title ?? 'Savings goal'}`,
+        date: row.created_at,
+        amount: 0,
+      };
+    }),
     ...(transfers.data ?? []).map((row) => {
       const counterpartId = row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id;
       const counterpartName = counterpartNames.get(counterpartId) ?? 'wallet';

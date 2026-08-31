@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createIncomeSchema, incomeRecordedQuerySchema } from './income.schema.js';
+import {
+  createIncomeSchema,
+  incomeMonthQuerySchema,
+  incomeRecordedQuerySchema,
+} from './income.schema.js';
 
 const baseIncome = {
   source: 'Salary',
@@ -70,4 +74,10 @@ test('recorded income query rejects reversed date ranges', () => {
   });
 
   assert.equal(result.success, false);
+});
+
+test('my-income accepts a calendar month and never treats it as a resource ID', () => {
+  assert.equal(incomeMonthQuerySchema.safeParse({ month: '2026-08' }).success, true);
+  assert.equal(incomeMonthQuerySchema.safeParse({ month: '2026-13' }).success, false);
+  assert.equal(incomeMonthQuerySchema.safeParse({ month: '2026-08-01' }).success, false);
 });

@@ -9,7 +9,7 @@ import { sendSuccess } from '../utils/api.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { resourceRouter } from './resource.routes.js';
 import { nextPayday } from '../services/payday.service.js';
-import { incomeRecordedQuerySchema } from '../schemas/income.schema.js';
+import { incomeMonthQuerySchema, incomeRecordedQuerySchema } from '../schemas/income.schema.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 
 export const incomeRouter = Router();
@@ -29,8 +29,9 @@ incomeRouter.get(
 
 incomeRouter.get(
   '/my-income',
+  validateRequest({ query: incomeMonthQuerySchema }),
   asyncHandler(async (req, res) => {
-    const month = typeof req.query.month === 'string' ? req.query.month : undefined;
+    const month = (req.validated?.query as { month?: string } | undefined)?.month;
     return sendSuccess(res, await myIncomeForMonth(req.user!.id, month));
   }),
 );

@@ -36,6 +36,7 @@ import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
 import {
   dateKeyInManila,
+  fetchIncomeMonth,
   fetchWallets,
   notifyFinancialMutation,
   subscribeFinancialMutations,
@@ -73,34 +74,6 @@ type IncomeSummary = {
   actual_transactions: number;
   upcoming_transactions: number;
 };
-type MyIncomeResponse = {
-  month: string;
-  overview: {
-    receivedAmount: number;
-    receivedCount: number;
-    upcomingCount: number;
-    recurringSourceCount: number;
-    oneTimeCount: number;
-  };
-  items: {
-    kind: 'recurring' | 'one_time';
-    sourceId: string;
-    occurrenceId: string | null;
-    transactionId: string | null;
-    name: string;
-    category: string;
-    amount: number;
-    frequency: string | null;
-    status: string;
-    dueDate: string | null;
-    receivedDate: string | null;
-    receivedAt: string | null;
-    createdAt: string | null;
-    updatedAt: string | null;
-    walletId: string;
-  }[];
-};
-
 const incomeTypes = [
   { label: 'Salary', icon: Building2 },
   { label: 'Freelance', icon: BriefcaseBusiness },
@@ -181,10 +154,7 @@ export default function IncomeScreen() {
   const refresh = useCallback(async () => {
     setLoading(true);
     setError('');
-    const results = await Promise.allSettled([
-      authenticatedApiRequest<MyIncomeResponse>(`/api/income/my-income?month=${currentMonth}`),
-      fetchWallets(),
-    ]);
+    const results = await Promise.allSettled([fetchIncomeMonth(currentMonth), fetchWallets()]);
     const [incomeResult, walletRows] = results;
     const failure = (result: PromiseSettledResult<unknown>) =>
       result.status === 'rejected'
@@ -229,20 +199,23 @@ export default function IncomeScreen() {
     setLoading(false);
   }, [currentMonth]);
 
-  useEffect(() => {
-    void refresh();
-    return subscribeFinancialMutations(() => {
-      void refresh();
-    });
-  }, [refresh]);
+  useEffect(
+    () =>
+      subscribeFinancialMutations(() => {
+        void refresh();
+      }),
+    [refresh],
+  );
   useFocusEffect(
     useCallback(() => {
       const createdId = workflow.takeCreatedWallet();
       if (createdId) {
         setWalletSelection({ id: createdId, version: Date.now() });
         setOpen(true);
-        void refresh();
       }
+      // Expo Router retains tab screens. Focus is the reliable lifecycle for
+      // both the initial request and returning to an already-mounted Income tab.
+      void refresh();
     }, [refresh, workflow]),
   );
 

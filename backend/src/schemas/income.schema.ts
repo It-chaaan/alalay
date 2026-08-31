@@ -27,6 +27,15 @@ export const incomeRecordedQuerySchema = z
     }
   });
 
+export const incomeMonthQuerySchema = z
+  .object({
+    month: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/, 'month must be YYYY-MM.')
+      .optional(),
+  })
+  .strict();
+
 const incomeShape = z
   .object({
     source: z.string().trim().min(1).max(200),
