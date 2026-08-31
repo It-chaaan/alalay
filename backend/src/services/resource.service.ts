@@ -47,6 +47,24 @@ export function makeResourceService(table: TableName) {
       return result;
     },
     remove: async (userId: string, id: string) => {
+      if (table === 'income') {
+        const { data, error } = await client().rpc('delete_income', { target_income_id: id });
+        if (error) {
+          console.error('[income.delete] database failure', {
+            operation: 'delete_income',
+            incomeId: id,
+            userId,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+          if (error.code === 'P0002') throw new AppError(404, 'not_found', 'Record not found.');
+          throwIfError(error);
+        }
+        invalidateReportsForUser(userId);
+        return data;
+      }
       const result = await softDeleteOwned(table, userId, id);
       invalidateReportsForUser(userId);
       return result;

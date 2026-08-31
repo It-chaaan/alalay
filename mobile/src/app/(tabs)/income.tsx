@@ -395,12 +395,13 @@ export default function IncomeScreen() {
               tone: 'destructive',
               confirm: {
                 title: `Delete ${managing.source}?`,
-                message: 'This income will be removed and its wallet balance will be recomputed.',
+                message: 'Future occurrences will be cancelled. Any received history is preserved.',
               },
               onPress: async () => {
                 await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' });
                 notifyFinancialMutation();
-                toast.success('Income deleted successfully');
+                await refresh();
+                toast.success('Income deleted; received history preserved.');
               },
             },
           ]}
