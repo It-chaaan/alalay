@@ -15,27 +15,39 @@ type WalletCardProps = {
 };
 
 /** Compact grid card: header identity and balance are deliberately separate regions. */
-export function WalletCard({
-  wallet,
-  onPress,
-  onManage,
-  formatBalance,
-}: WalletCardProps) {
+export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletCardProps) {
   const { colors } = useAppTheme();
   const { visible } = useBalanceVisibility();
   const amountsVisible = visible === true;
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
   const institution = institutionFor(wallet.institution_key);
-  const metadata = `${walletTypeLabel(wallet)}${wallet.last_four ? ` •••• ${wallet.last_four}` : ''} · ${wallet.currency ?? 'PHP'}`;
-  const amountLabel = wallet.account_type === 'credit'
-    ? 'AVAILABLE CREDIT'
-    : wallet.account_purpose === 'savings'
-      ? 'SAVINGS BALANCE'
-      : 'AVAILABLE BALANCE';
-  const displayBalance = wallet.account_type === 'credit'
-    ? Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance))
-    : Number(wallet.balance);
-  const cardColor = wallet.institution_key && institution.id !== 'cash' ? institution.brandColor : wallet.color;
+  const category =
+    wallet.institution_type === 'e_wallet'
+      ? 'E-Wallet'
+      : wallet.institution_type === 'digital_bank'
+        ? 'Digital Bank'
+        : wallet.institution_type === 'bank'
+          ? 'Bank'
+          : wallet.institution_type === 'cash'
+            ? 'Cash'
+            : 'Other';
+  const subtype =
+    wallet.institution_type === 'e_wallet' || wallet.institution_type === 'cash'
+      ? ''
+      : walletTypeLabel(wallet);
+  const metadata = [category, subtype, wallet.currency ?? 'PHP'].filter(Boolean).join(' · ');
+  const amountLabel =
+    wallet.account_type === 'credit'
+      ? 'AVAILABLE CREDIT'
+      : wallet.account_purpose === 'savings'
+        ? 'SAVINGS BALANCE'
+        : 'AVAILABLE BALANCE';
+  const displayBalance =
+    wallet.account_type === 'credit'
+      ? Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance))
+      : Number(wallet.balance);
+  const cardColor =
+    wallet.institution_key && institution.id !== 'cash' ? institution.brandColor : wallet.color;
 
   return (
     <Pressable

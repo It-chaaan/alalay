@@ -13,7 +13,8 @@ export type WalletPayload = {
   account_purpose?: 'everyday' | 'savings' | null;
   earns_interest?: boolean;
   annual_interest_rate?: number | null;
-  interest_credit_frequency?: 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified' | null;
+  interest_credit_frequency?:
+    'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified' | null;
   payment_due_date?: string | null;
   payment_due_day?: number | null;
   payment_wallet_id?: string | null;
@@ -43,7 +44,16 @@ export type CreditRepaymentPayload = {
 };
 
 function validateAccountType(
-  payload: Pick<WalletPayload, 'institution_type' | 'account_type' | 'credit_limit' | 'account_purpose' | 'earns_interest' | 'annual_interest_rate' | 'interest_credit_frequency'>,
+  payload: Pick<
+    WalletPayload,
+    | 'institution_type'
+    | 'account_type'
+    | 'credit_limit'
+    | 'account_purpose'
+    | 'earns_interest'
+    | 'annual_interest_rate'
+    | 'interest_credit_frequency'
+  >,
 ) {
   const supportsCardType =
     payload.institution_type === 'bank' || payload.institution_type === 'digital_bank';
@@ -60,26 +70,69 @@ function validateAccountType(
       'Credit limit is only available for Credit accounts.',
     );
   if (payload.account_type === 'credit' && payload.account_purpose != null)
-    throw new AppError(422, 'invalid_account_purpose', 'Credit accounts cannot have an account purpose.');
-  if (payload.account_type === 'credit' && (payload.earns_interest || payload.annual_interest_rate != null || payload.interest_credit_frequency != null))
-    throw new AppError(422, 'invalid_interest_metadata', 'Savings interest settings are only available for debit savings accounts.');
-  if (payload.account_purpose !== 'savings' && (payload.annual_interest_rate != null || payload.interest_credit_frequency != null || payload.earns_interest))
-    throw new AppError(422, 'invalid_interest_metadata', 'Interest settings require a savings account.');
+    throw new AppError(
+      422,
+      'invalid_account_purpose',
+      'Credit accounts cannot have an account purpose.',
+    );
+  if (
+    payload.account_type === 'credit' &&
+    (payload.earns_interest ||
+      payload.annual_interest_rate != null ||
+      payload.interest_credit_frequency != null)
+  )
+    throw new AppError(
+      422,
+      'invalid_interest_metadata',
+      'Savings interest settings are only available for debit savings accounts.',
+    );
+  if (
+    payload.account_purpose !== 'savings' &&
+    (payload.annual_interest_rate != null ||
+      payload.interest_credit_frequency != null ||
+      payload.earns_interest)
+  )
+    throw new AppError(
+      422,
+      'invalid_interest_metadata',
+      'Interest settings require a savings account.',
+    );
   if (payload.earns_interest && payload.account_type !== 'debit')
-    throw new AppError(422, 'invalid_interest_metadata', 'Interest can only be enabled for debit savings accounts.');
+    throw new AppError(
+      422,
+      'invalid_interest_metadata',
+      'Interest can only be enabled for debit savings accounts.',
+    );
 }
 
 async function validateCreditPaymentWallet(
   userId: string,
   walletId: string | undefined,
-  payload: Pick<WalletPayload, 'account_type' | 'payment_due_date' | 'payment_due_day' | 'payment_wallet_id' | 'auto_record_payment' | 'payment_rule' | 'fixed_payment_amount'>,
+  payload: Pick<
+    WalletPayload,
+    | 'account_type'
+    | 'payment_due_date'
+    | 'payment_due_day'
+    | 'payment_wallet_id'
+    | 'auto_record_payment'
+    | 'payment_rule'
+    | 'fixed_payment_amount'
+  >,
   requireSetup: boolean,
 ) {
   if (payload.account_type !== 'credit') return;
   if (requireSetup && !payload.payment_due_date)
-    throw new AppError(422, 'payment_due_date_required', 'Payment due date is required for Credit accounts.');
+    throw new AppError(
+      422,
+      'payment_due_date_required',
+      'Payment due date is required for Credit accounts.',
+    );
   if (requireSetup && !payload.payment_wallet_id)
-    throw new AppError(422, 'payment_wallet_required', 'Payment wallet is required for Credit accounts.');
+    throw new AppError(
+      422,
+      'payment_wallet_required',
+      'Payment wallet is required for Credit accounts.',
+    );
   if (payload.payment_wallet_id) {
     if (walletId && payload.payment_wallet_id === walletId)
       throw new AppError(422, 'invalid_payment_wallet', 'A credit card cannot pay itself.');
@@ -90,7 +143,11 @@ async function validateCreditPaymentWallet(
       .eq('user_id', requireUserId(userId))
       .maybeSingle();
     if (error || !data || data.account_type === 'credit')
-      throw new AppError(422, 'invalid_payment_wallet', 'Choose an active non-credit payment wallet.');
+      throw new AppError(
+        422,
+        'invalid_payment_wallet',
+        'Choose an active non-credit payment wallet.',
+      );
   }
 }
 
@@ -152,70 +209,79 @@ export async function getWallet(userId: string, id: string) {
     .eq('id', id)
     .single();
   if (error || !wallet) throw new AppError(404, 'not_found', 'Wallet not found.');
-  const [income, expenses, bills, adjustments, transfers, loans, loanPayments, creditRepayments] = await Promise.all([
-    client()
-      .from('income')
-      .select('id, source, amount, date, wallet_id')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .eq('is_posted', true)
-      .is('deleted_at', null)
-      .limit(200),
-    client()
-      .from('expenses')
-      .select('id, merchant, category, amount, date, wallet_id, source_bill_id, credit_repayment_id')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .is('deleted_at', null)
-      .limit(200),
-    client()
-      .from('bills')
-      .select('id, title, category, amount, due_date, paid_at, status, wallet_id, credit_wallet_id')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .eq('status', 'paid')
-      .is('deleted_at', null)
-      .limit(200),
-    client()
-      .from('wallet_adjustments')
-      .select('id, amount, date, note, wallet_id')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .order('date', { ascending: false })
-      .limit(200),
-    client()
-      .from('wallet_transfers')
-      .select(
-        'id, from_wallet_id, to_wallet_id, amount, fee, transfer_method, note, transferred_at, created_at',
-      )
-      .eq('user_id', ownerId)
-      .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
-      .order('transferred_at', { ascending: false })
-      .limit(200),
-    client()
-      .from('loans')
-      .select('id, counterparty, direction, original_principal, start_date, wallet_id')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .limit(200),
-    client()
-      .from('loan_payments')
-      .select('id, loan_id, principal_amount, interest_amount, paid_on, note, interest_income_id, interest_expense_id, loans(counterparty, direction)')
-      .eq('user_id', ownerId)
-      .eq('wallet_id', id)
-      .order('paid_on', { ascending: false })
-      .limit(200),
-    client()
-      .from('credit_repayments')
-      .select('id, credit_wallet_id, payment_wallet_id, principal_amount, interest_amount, fee_amount, payment_date, source_bill_id, interest_expense_id, fee_expense_id')
-      .eq('user_id', ownerId)
-      .or(`credit_wallet_id.eq.${id},payment_wallet_id.eq.${id}`)
-      .order('payment_date', { ascending: false })
-      .limit(200),
-  ]);
+  const [income, expenses, bills, adjustments, transfers, loans, loanPayments, creditRepayments] =
+    await Promise.all([
+      client()
+        .from('income')
+        .select('id, source, amount, date, wallet_id')
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .eq('is_posted', true)
+        .is('deleted_at', null)
+        .limit(200),
+      client()
+        .from('expenses')
+        .select(
+          'id, merchant, category, amount, date, wallet_id, source_bill_id, credit_repayment_id',
+        )
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .is('deleted_at', null)
+        .limit(200),
+      client()
+        .from('bills')
+        .select(
+          'id, title, category, amount, due_date, paid_at, status, wallet_id, credit_wallet_id',
+        )
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .eq('status', 'paid')
+        .is('deleted_at', null)
+        .limit(200),
+      client()
+        .from('wallet_adjustments')
+        .select('id, amount, date, note, wallet_id')
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .order('date', { ascending: false })
+        .limit(200),
+      client()
+        .from('wallet_transfers')
+        .select(
+          'id, from_wallet_id, to_wallet_id, amount, fee, transfer_method, note, transferred_at, created_at',
+        )
+        .eq('user_id', ownerId)
+        .or(`from_wallet_id.eq.${id},to_wallet_id.eq.${id}`)
+        .order('transferred_at', { ascending: false })
+        .limit(200),
+      client()
+        .from('loans')
+        .select('id, counterparty, direction, original_principal, start_date, wallet_id')
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .limit(200),
+      client()
+        .from('loan_payments')
+        .select(
+          'id, loan_id, principal_amount, interest_amount, paid_on, note, interest_income_id, interest_expense_id, loans(counterparty, direction)',
+        )
+        .eq('user_id', ownerId)
+        .eq('wallet_id', id)
+        .order('paid_on', { ascending: false })
+        .limit(200),
+      client()
+        .from('credit_repayments')
+        .select(
+          'id, credit_wallet_id, payment_wallet_id, principal_amount, interest_amount, fee_amount, payment_date, source_bill_id, interest_expense_id, fee_expense_id',
+        )
+        .eq('user_id', ownerId)
+        .or(`credit_wallet_id.eq.${id},payment_wallet_id.eq.${id}`)
+        .order('payment_date', { ascending: false })
+        .limit(200),
+    ]);
   const counterpartIds = [
     ...(transfers.data ?? []).map((row) =>
-    row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id,
+      row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id,
     ),
     ...(creditRepayments.data ?? []).map((row) =>
       row.credit_wallet_id === id ? row.payment_wallet_id : row.credit_wallet_id,
@@ -257,21 +323,21 @@ export async function getWallet(userId: string, id: string) {
     ...(income.data ?? [])
       .filter((row) => !linkedInterestIncomeIds.has(row.id))
       .map((row) => ({
-      ...row,
-      kind: 'income',
-      label: row.source,
-      date: row.date,
-      amount: asNumber(row.amount),
-    })),
+        ...row,
+        kind: 'income',
+        label: row.source,
+        date: row.date,
+        amount: asNumber(row.amount),
+      })),
     ...(expenses.data ?? [])
       .filter((row) => !linkedInterestExpenseIds.has(row.id) && !linkedCreditExpenseIds.has(row.id))
       .map((row) => ({
-      ...row,
-      kind: 'expense',
-      label: row.merchant,
-      date: row.date,
-      amount: -asNumber(row.amount),
-    })),
+        ...row,
+        kind: 'expense',
+        label: row.merchant,
+        date: row.date,
+        amount: -asNumber(row.amount),
+      })),
     ...(bills.data ?? [])
       .filter(
         (bill) => !(expenses.data ?? []).some((expense) => expense.source_bill_id === bill.id),
@@ -325,9 +391,10 @@ export async function getWallet(userId: string, id: string) {
     }),
     ...(creditRepayments.data ?? []).map((repayment) => {
       const isCreditWallet = repayment.credit_wallet_id === id;
-      const counterpartName = counterpartNames.get(
-        isCreditWallet ? repayment.payment_wallet_id : repayment.credit_wallet_id,
-      ) ?? 'credit account';
+      const counterpartName =
+        counterpartNames.get(
+          isCreditWallet ? repayment.payment_wallet_id : repayment.credit_wallet_id,
+        ) ?? 'credit account';
       const total =
         asNumber(repayment.principal_amount) +
         asNumber(repayment.interest_amount) +
@@ -335,7 +402,9 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...repayment,
         kind: isCreditWallet ? 'credit_repayment' : 'credit_repayment_funded',
-        label: isCreditWallet ? `Repayment from ${counterpartName}` : `Credit repayment to ${counterpartName}`,
+        label: isCreditWallet
+          ? `Repayment from ${counterpartName}`
+          : `Credit repayment to ${counterpartName}`,
         date: repayment.payment_date,
         amount: isCreditWallet ? -asNumber(repayment.principal_amount) : -total,
         detail: `${asNumber(repayment.principal_amount).toLocaleString('en-PH')} principal`,
@@ -371,7 +440,10 @@ export async function repayCreditAccount(
     if (message.includes('not enough available') || message.includes('exceeds outstanding')) {
       throw new AppError(422, 'repayment_invalid', error.message, undefined, true);
     }
-    if (message.includes('credit wallet not found') || message.includes('payment wallet is not available')) {
+    if (
+      message.includes('credit wallet not found') ||
+      message.includes('payment wallet is not available')
+    ) {
       throw new AppError(404, 'wallet_not_found', error.message, undefined, true);
     }
     throwIfError(error);
@@ -498,7 +570,8 @@ async function createCreditWalletWithOpeningBalance(
     .select('*')
     .single();
   throwIfError(walletError);
-  if (!wallet) throw new AppError(500, 'wallet_creation_failed', 'The credit card could not be created.');
+  if (!wallet)
+    throw new AppError(500, 'wallet_creation_failed', 'The credit card could not be created.');
 
   if (payload.opening_balance > 0) {
     const { error: adjustmentError } = await client().from('wallet_adjustments').insert({
@@ -673,7 +746,9 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
   const ownerId = requireUserId(userId);
   const { data: current, error: currentError } = await client()
     .from('wallets')
-    .select('id, institution_type, account_type, balance, account_purpose, earns_interest, annual_interest_rate, interest_credit_frequency, payment_due_date, payment_due_day, payment_wallet_id, auto_record_payment, payment_rule, fixed_payment_amount')
+    .select(
+      'id, institution_type, account_type, balance, account_purpose, earns_interest, annual_interest_rate, interest_credit_frequency, payment_due_date, payment_due_day, payment_wallet_id, auto_record_payment, payment_rule, fixed_payment_amount',
+    )
     .eq('user_id', ownerId)
     .eq('id', id)
     .single();
@@ -699,23 +774,54 @@ export async function updateWallet(userId: string, id: string, payload: Record<s
   }
 
   validateAccountType({
-    institution_type: current.institution_type,
-    account_type: ('account_type' in payload ? payload.account_type : current.account_type) as WalletPayload['account_type'],
+    institution_type: ('institution_type' in payload
+      ? payload.institution_type
+      : current.institution_type) as string,
+    account_type: ('account_type' in payload
+      ? payload.account_type
+      : current.account_type) as WalletPayload['account_type'],
     credit_limit: payload.credit_limit as number | null | undefined,
-    account_purpose: ('account_purpose' in payload ? payload.account_purpose : current.account_purpose) as WalletPayload['account_purpose'],
-    earns_interest: ('earns_interest' in payload ? payload.earns_interest : current.earns_interest) as boolean | undefined,
-    annual_interest_rate: ('annual_interest_rate' in payload ? payload.annual_interest_rate : current.annual_interest_rate) as number | null | undefined,
-    interest_credit_frequency: ('interest_credit_frequency' in payload ? payload.interest_credit_frequency : current.interest_credit_frequency) as WalletPayload['interest_credit_frequency'],
+    account_purpose: ('account_purpose' in payload
+      ? payload.account_purpose
+      : current.account_purpose) as WalletPayload['account_purpose'],
+    earns_interest: ('earns_interest' in payload
+      ? payload.earns_interest
+      : current.earns_interest) as boolean | undefined,
+    annual_interest_rate: ('annual_interest_rate' in payload
+      ? payload.annual_interest_rate
+      : current.annual_interest_rate) as number | null | undefined,
+    interest_credit_frequency: ('interest_credit_frequency' in payload
+      ? payload.interest_credit_frequency
+      : current.interest_credit_frequency) as WalletPayload['interest_credit_frequency'],
   });
-  await validateCreditPaymentWallet(userId, id, {
-    account_type: ('account_type' in payload ? payload.account_type : current.account_type) as WalletPayload['account_type'],
-    payment_due_date: ('payment_due_date' in payload ? payload.payment_due_date : current.payment_due_date) as string | null | undefined,
-    payment_due_day: ('payment_due_day' in payload ? payload.payment_due_day : current.payment_due_day) as number | null | undefined,
-    payment_wallet_id: ('payment_wallet_id' in payload ? payload.payment_wallet_id : current.payment_wallet_id) as string | null | undefined,
-    auto_record_payment: ('auto_record_payment' in payload ? payload.auto_record_payment : current.auto_record_payment) as boolean | undefined,
-    payment_rule: ('payment_rule' in payload ? payload.payment_rule : current.payment_rule) as WalletPayload['payment_rule'],
-    fixed_payment_amount: ('fixed_payment_amount' in payload ? payload.fixed_payment_amount : current.fixed_payment_amount) as number | null | undefined,
-  }, false);
+  await validateCreditPaymentWallet(
+    userId,
+    id,
+    {
+      account_type: ('account_type' in payload
+        ? payload.account_type
+        : current.account_type) as WalletPayload['account_type'],
+      payment_due_date: ('payment_due_date' in payload
+        ? payload.payment_due_date
+        : current.payment_due_date) as string | null | undefined,
+      payment_due_day: ('payment_due_day' in payload
+        ? payload.payment_due_day
+        : current.payment_due_day) as number | null | undefined,
+      payment_wallet_id: ('payment_wallet_id' in payload
+        ? payload.payment_wallet_id
+        : current.payment_wallet_id) as string | null | undefined,
+      auto_record_payment: ('auto_record_payment' in payload
+        ? payload.auto_record_payment
+        : current.auto_record_payment) as boolean | undefined,
+      payment_rule: ('payment_rule' in payload
+        ? payload.payment_rule
+        : current.payment_rule) as WalletPayload['payment_rule'],
+      fixed_payment_amount: ('fixed_payment_amount' in payload
+        ? payload.fixed_payment_amount
+        : current.fixed_payment_amount) as number | null | undefined,
+    },
+    false,
+  );
 
   const { data, error } = await client()
     .from('wallets')

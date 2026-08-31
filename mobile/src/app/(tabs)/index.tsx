@@ -6,6 +6,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   PanResponder,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -23,6 +24,7 @@ import {
   Droplets,
   FileText,
   Home,
+  MoreHorizontal,
   ReceiptText,
   Repeat,
   Target,
@@ -624,16 +626,16 @@ const WalletStackCard = memo(function WalletStackCard({
   const type =
     wallet.account_type === 'credit'
       ? 'Credit Card'
-      : wallet.account_purpose === 'savings'
-        ? 'Savings'
-        : wallet.is_default_cash
-          ? 'Cash'
-          : wallet.account_type === 'debit'
-            ? 'Debit Card'
-            : typeLabel(wallet.institution_type);
-  const balanceLabel = !visible
-    ? '••••••'
-    : formatBalancePeso(Number(wallet.balance));
+      : wallet.institution_type === 'e_wallet'
+        ? 'E-Wallet'
+        : wallet.account_purpose === 'savings'
+          ? 'Savings'
+          : wallet.is_default_cash
+            ? 'Cash'
+            : wallet.account_type === 'debit'
+              ? 'Debit Card'
+              : typeLabel(wallet.institution_type);
+  const balanceLabel = !visible ? '••••••' : formatBalancePeso(Number(wallet.balance));
   const translateY = useSharedValue(walletSlotOffset(slotIndex));
   const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
   useEffect(() => {
@@ -678,19 +680,20 @@ const WalletStackCard = memo(function WalletStackCard({
           />
         </View>
         <View style={styles.walletCardCopy}>
-          <Text
-            numberOfLines={1}
-            style={[styles.walletCardName, { color: colors.textOnPrimary }]}
-          >
+          <Text numberOfLines={1} style={[styles.walletCardName, { color: colors.textOnPrimary }]}>
             {wallet.name}
           </Text>
           <Text numberOfLines={1} style={[styles.rowMeta, { color: colors.textOnPrimaryMuted }]}>
-            {type}{wallet.last_four ? ` • ${wallet.last_four}` : ''}
+            {type}
+            {wallet.last_four ? ` • ${wallet.last_four}` : ''}
           </Text>
         </View>
         <View style={styles.walletCardBalanceArea}>
           {wallet.account_type === 'credit' ? (
-            <Text numberOfLines={1} style={[styles.walletCardAmountLabel, { color: colors.textOnPrimaryMuted }]}>
+            <Text
+              numberOfLines={1}
+              style={[styles.walletCardAmountLabel, { color: colors.textOnPrimaryMuted }]}
+            >
               Amount owed
             </Text>
           ) : null}
@@ -710,6 +713,7 @@ const WalletStackCard = memo(function WalletStackCard({
 
 function QuickActionsCard() {
   const { colors } = useAppTheme();
+  const [moreOpen, setMoreOpen] = useState(false);
   const actions: QuickAction[] = [
     {
       id: 'expense',
@@ -748,13 +752,13 @@ function QuickActionsCard() {
       onPress: () => router.push('/(tabs)/subscriptions'),
     },
     {
-      id: 'goals',
-      label: 'Goals',
-      accessibilityLabel: 'Open savings goals',
-      icon: Target,
+      id: 'more',
+      label: 'More',
+      accessibilityLabel: 'Open more quick actions',
+      icon: MoreHorizontal,
       iconBackground: colors.surfaceSecondary,
       iconColor: colors.textPrimary,
-      onPress: () => router.push('/(tabs)/savings'),
+      onPress: () => setMoreOpen(true),
     },
   ];
   return (
@@ -773,6 +777,49 @@ function QuickActionsCard() {
           <Shortcut key={action.id} action={action} />
         ))}
       </View>
+      <Modal
+        visible={moreOpen}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMoreOpen(false)}
+      >
+        <Pressable style={styles.moreBackdrop} onPress={() => setMoreOpen(false)}>
+          <Pressable
+            style={[
+              styles.moreMenu,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
+            onPress={(event) => event.stopPropagation()}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Goals"
+              onPress={() => {
+                setMoreOpen(false);
+                router.push('/(tabs)/savings');
+              }}
+              style={styles.moreMenuItem}
+            >
+              <Target size={20} color={colors.primary} />
+              <Text style={[styles.moreMenuLabel, { color: colors.textPrimary }]}>Goals</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Open Loans and Debt"
+              onPress={() => {
+                setMoreOpen(false);
+                router.push('/loans');
+              }}
+              style={styles.moreMenuItem}
+            >
+              <WalletCards size={20} color={colors.primary} />
+              <Text style={[styles.moreMenuLabel, { color: colors.textPrimary }]}>
+                Loans &amp; Debt
+              </Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -838,9 +885,11 @@ function WalletQuickView({
             <Text style={[styles.rowMeta, { color: colors.textSecondary }]}>
               {wallet.account_type === 'credit'
                 ? 'Credit'
-                : wallet.account_type === 'debit'
-                  ? 'Debit'
-                  : typeLabel(wallet.institution_type)}{' '}
+                : wallet.institution_type === 'e_wallet'
+                  ? 'E-Wallet'
+                  : wallet.account_type === 'debit'
+                    ? 'Debit'
+                    : typeLabel(wallet.institution_type)}{' '}
               · PHP
             </Text>
           </View>
@@ -1425,6 +1474,23 @@ const styles = StyleSheet.create({
     letterSpacing: -0.15,
     textAlign: 'center',
   },
+  moreBackdrop: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 24,
+    paddingBottom: 132,
+    backgroundColor: 'rgba(0,0,0,0.28)',
+  },
+  moreMenu: { alignSelf: 'flex-end', minWidth: 196, padding: 8, borderWidth: 1, borderRadius: 18 },
+  moreMenuItem: {
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 12,
+    borderRadius: 13,
+  },
+  moreMenuLabel: { fontSize: 14, fontWeight: '800' },
   insightPreview: {
     flexDirection: 'row',
     alignItems: 'center',

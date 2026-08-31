@@ -16,8 +16,6 @@ import {
 import {
   ArrowDownToLine,
   ArrowDownUp,
-  ChevronRight,
-  HandCoins,
   MoreHorizontal as MoreHorizontalIcon,
   X as CloseIcon,
 } from 'lucide-react-native';
@@ -47,12 +45,10 @@ import {
 } from '@/constants/institution-registry';
 import { authenticatedApiRequest } from '@/services/api';
 import {
-  fetchLoanSummary,
   fetchWallets,
   notifyFinancialMutation,
   subscribeFinancialMutations,
   totalWalletBalance,
-  type LoanSummaryResponse,
 } from '@/services/finance';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { SectionAddButton } from '@/components/header-add-button';
@@ -131,36 +127,14 @@ function WalletBalanceHero({
   visible,
   maskedBalance,
   onToggle,
-  owedToMe,
-  iOwe,
-  loanLoading,
-  loanError,
-  onLoansPress,
 }: {
   totalBalance: number;
   walletCount: number;
   visible: boolean;
   maskedBalance: string;
   onToggle: () => void;
-  owedToMe?: number;
-  iOwe?: number;
-  loanLoading: boolean;
-  loanError: boolean;
-  onLoansPress: () => void;
 }) {
   const { colors } = useAppTheme();
-  const loanSummary =
-    owedToMe != null && iOwe != null
-      ? owedToMe > 0 && iOwe > 0
-        ? `${peso(owedToMe)} owed to you · ${peso(iOwe)} you owe`
-        : owedToMe > 0
-          ? `${peso(owedToMe)} owed to you`
-          : iOwe > 0
-            ? `${peso(iOwe)} you owe`
-            : 'No active loans or debt'
-      : loanError
-        ? 'View loans and debt'
-        : 'Loading summary…';
   return (
     <View
       accessible
@@ -182,27 +156,6 @@ function WalletBalanceHero({
       <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.heroValue}>
         {visible ? peso(totalBalance) : maskedBalance}
       </Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Open Loans and Debt. ${
-          visible && owedToMe != null && iOwe != null
-            ? loanSummary
-            : 'Loan and debt balances are hidden'
-        }`}
-        onPress={onLoansPress}
-        style={({ pressed }) => [styles.loanGateway, pressed && styles.pressed]}
-      >
-        <View style={styles.loanGatewayIcon}>
-          <HandCoins size={18} color="#D8EFE2" strokeWidth={2} />
-        </View>
-        <View style={styles.loanGatewayCopy}>
-          <Text style={styles.loanGatewayTitle}>Loans &amp; debt</Text>
-          <Text numberOfLines={2} style={styles.loanGatewaySummary}>
-            {visible || loanLoading ? loanSummary : 'Balances hidden · View loans and debt'}
-          </Text>
-        </View>
-        <ChevronRight size={20} color="#D8EFE2" />
-      </Pressable>
     </View>
   );
 }
@@ -278,9 +231,9 @@ export default function WalletsScreen() {
   const [selected, setSelected] = useState<WalletDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [listError, setListError] = useState('');
-  const [loanSummary, setLoanSummary] = useState<LoanSummaryResponse | null>(null);
-  const [loanSummaryLoading, setLoanSummaryLoading] = useState(true);
-  const [loanSummaryError, setLoanSummaryError] = useState(false);
+  const [walletFilter, setWalletFilter] = useState<
+    'all' | 'bank' | 'e_wallet' | 'cash' | 'digital_bank' | 'other'
+  >('all');
   const [detailError, setDetailError] = useState('');
   const [detailLoading, setDetailLoading] = useState(false);
   const [adding, setAdding] = useState(false);
@@ -305,18 +258,6 @@ export default function WalletsScreen() {
       setLoading(false);
     }
   }, []);
-  const refreshLoanSummary = useCallback(async () => {
-    setLoanSummaryLoading(true);
-    setLoanSummaryError(false);
-    try {
-      setLoanSummary(await fetchLoanSummary());
-    } catch {
-      setLoanSummary(null);
-      setLoanSummaryError(true);
-    } finally {
-      setLoanSummaryLoading(false);
-    }
-  }, []);
   const loadWalletDetail = useCallback(async (id: string) => {
     setDetailLoading(true);
     setDetailError('');
@@ -330,12 +271,10 @@ export default function WalletsScreen() {
   }, []);
   useEffect(() => {
     void refresh();
-    void refreshLoanSummary();
     return subscribeFinancialMutations(() => {
       void refresh();
-      void refreshLoanSummary();
     });
-  }, [refresh, refreshLoanSummary]);
+  }, [refresh]);
 
   const openWallet = (wallet: Wallet) => {
     router.push({ pathname: '/wallet-details', params: { walletId: wallet.id } });
@@ -359,6 +298,10 @@ export default function WalletsScreen() {
     }
   };
   const totalBalance = totalWalletBalance(wallets);
+  const filteredWallets =
+    walletFilter === 'all'
+      ? wallets
+      : wallets.filter((wallet) => wallet.institution_type === walletFilter);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -389,11 +332,6 @@ export default function WalletsScreen() {
             visible={amountsVisible}
             maskedBalance={maskedBalance}
             onToggle={toggleBalanceVisibility}
-            owedToMe={loanSummary?.summary.owed_to_me}
-            iOwe={loanSummary?.summary.i_owe}
-            loanLoading={loanSummaryLoading}
-            loanError={loanSummaryError}
-            onLoansPress={() => router.push('/loans')}
           />
           <View style={styles.listSection}>
             <View
@@ -408,8 +346,49 @@ export default function WalletsScreen() {
               <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Your wallets</Text>
               <SectionAddButton label="Add wallet" onPress={() => setAdding(true)} />
             </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.filterRow}
+            >
+              {(
+                [
+                  ['all', 'All'],
+                  ['bank', 'Banks'],
+                  ['e_wallet', 'E-Wallets'],
+                  ['cash', 'Cash'],
+                  ['digital_bank', 'Digital Banks'],
+                  ['other', 'Other'],
+                ] as const
+              )
+                .filter(
+                  ([value]) =>
+                    value === 'all' ||
+                    value !== 'other' ||
+                    wallets.some((wallet) => wallet.institution_type === 'other'),
+                )
+                .map(([value, label]) => (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="radio"
+                    accessibilityLabel={`Filter wallets: ${label}`}
+                    accessibilityState={{ selected: walletFilter === value }}
+                    onPress={() => setWalletFilter(value)}
+                    style={[styles.filterChip, walletFilter === value && styles.filterChipSelected]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        walletFilter === value && styles.filterChipTextSelected,
+                      ]}
+                    >
+                      {label}
+                    </Text>
+                  </Pressable>
+                ))}
+            </ScrollView>
             <View style={styles.grid}>
-              {wallets.map((wallet) => (
+              {filteredWallets.map((wallet) => (
                 <WalletCard
                   key={wallet.id}
                   wallet={wallet}
@@ -419,6 +398,9 @@ export default function WalletsScreen() {
                 />
               ))}
             </View>
+            {!filteredWallets.length ? (
+              <Text style={styles.helper}>No wallets in this category.</Text>
+            ) : null}
           </View>
           <Text style={styles.helper}>
             Balances update automatically from income deposited and linked spending.
@@ -776,6 +758,7 @@ export function EditWalletSheet({
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [name, setName] = useState(wallet.name);
+  const [institutionType, setInstitutionType] = useState(wallet.institution_type);
   const [lastFour, setLastFour] = useState(wallet.last_four ?? '');
   const [defaultFee, setDefaultFee] = useState(
     wallet.default_outgoing_transfer_fee == null
@@ -818,6 +801,7 @@ export function EditWalletSheet({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: name.trim(),
+          institution_type: institutionType,
           last_four: normalizedLastFour,
           default_outgoing_transfer_fee: fee,
           ...sanitizeWalletMetadata(wallet.institution_key, {
@@ -898,7 +882,42 @@ export function EditWalletSheet({
                   },
                 ]}
               />
-              <Text style={[editStyles.label, { color: colors.textSecondary }]}>Last four digits (optional)</Text>
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                Wallet category
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={editStyles.categoryRow}
+              >
+                {(['bank', 'e_wallet', 'cash', 'digital_bank', 'other'] as const).map((value) => (
+                  <Pressable
+                    key={value}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: institutionType === value }}
+                    onPress={() => setInstitutionType(value)}
+                    style={[
+                      editStyles.categoryChoice,
+                      institutionType === value && {
+                        backgroundColor: colors.primarySoft,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{
+                        color: institutionType === value ? colors.primary : colors.textPrimary,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {typeLabel(value)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+              <Text style={[editStyles.label, { color: colors.textSecondary }]}>
+                Last four digits (optional)
+              </Text>
               <TextInput
                 accessibilityLabel="Last four digits"
                 value={lastFour}
@@ -906,7 +925,14 @@ export function EditWalletSheet({
                 keyboardType="number-pad"
                 placeholder="4821"
                 placeholderTextColor={colors.textMuted}
-                style={[editStyles.input, { backgroundColor: colors.surfaceInput, borderColor: colors.border, color: colors.textPrimary }]}
+                style={[
+                  editStyles.input,
+                  {
+                    backgroundColor: colors.surfaceInput,
+                    borderColor: colors.border,
+                    color: colors.textPrimary,
+                  },
+                ]}
               />
               {wallet.account_type === 'debit' ? (
                 <>
@@ -1252,6 +1278,7 @@ function AddWalletSheet({
   onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
   const [name, setName] = useState(preset.key === 'custom' ? '' : preset.name);
+  const [walletCategory, setWalletCategory] = useState(preset.type);
   const [lastFour, setLastFour] = useState('');
   const [amount, setAmount] = useState('0');
   const institution = institutionFor(preset.key);
@@ -1265,7 +1292,9 @@ function AddWalletSheet({
   const [paymentDueDate, setPaymentDueDate] = useState(todayIso());
   const [paymentWalletId, setPaymentWalletId] = useState<string | null>(null);
   const [autoRecordPayment, setAutoRecordPayment] = useState(false);
-  const [paymentRule, setPaymentRule] = useState<'full_outstanding' | 'fixed_amount' | 'minimum_due'>('full_outstanding');
+  const [paymentRule, setPaymentRule] = useState<
+    'full_outstanding' | 'fixed_amount' | 'minimum_due'
+  >('full_outstanding');
   const [fixedPaymentAmount, setFixedPaymentAmount] = useState('');
   const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
   const [earnsInterest, setEarnsInterest] = useState(false);
@@ -1278,6 +1307,7 @@ function AddWalletSheet({
   useEffect(() => {
     const nextInstitution = institutionFor(preset.key);
     setName(preset.key === 'custom' ? '' : preset.name);
+    setWalletCategory(preset.type);
     setAccountType(
       nextInstitution.supportedAccountTypes.length === 1
         ? nextInstitution.supportedAccountTypes[0]
@@ -1295,7 +1325,7 @@ function AddWalletSheet({
     setAccountPurpose('everyday');
     setEarnsInterest(false);
     setAnnualInterestRate('');
-  }, [preset.key, preset.name]);
+  }, [preset.key, preset.name, preset.type]);
   const chooseAccountType = (value: WalletAccountType) => {
     if (
       value === 'credit' &&
@@ -1333,13 +1363,18 @@ function AddWalletSheet({
     setAccountType(value);
   };
   const save = async () => {
-    const openingBalance = accountType === 'credit' ? parseAmount(currentBalanceOwed) : parseAmount(amount);
+    const openingBalance =
+      accountType === 'credit' ? parseAmount(currentBalanceOwed) : parseAmount(amount);
     if (!name.trim()) {
       setError('Enter a wallet name.');
       return;
     }
     if (openingBalance === null || openingBalance < 0) {
-      setError(accountType === 'credit' ? 'Enter a valid current balance owed.' : 'Enter a valid opening balance.');
+      setError(
+        accountType === 'credit'
+          ? 'Enter a valid current balance owed.'
+          : 'Enter a valid opening balance.',
+      );
       return;
     }
     if (canChooseAccountType && !accountType) {
@@ -1385,7 +1420,12 @@ function AddWalletSheet({
       setError('Choose the wallet used to track card payments.');
       return;
     }
-    if (accountType === 'credit' && autoRecordPayment && paymentRule === 'fixed_amount' && (!parsedFixedPayment || parsedFixedPayment <= 0)) {
+    if (
+      accountType === 'credit' &&
+      autoRecordPayment &&
+      paymentRule === 'fixed_amount' &&
+      (!parsedFixedPayment || parsedFixedPayment <= 0)
+    ) {
       setError('Enter a fixed payment amount greater than zero.');
       return;
     }
@@ -1409,7 +1449,7 @@ function AddWalletSheet({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             name: name.trim(),
-            institution_type: preset.type,
+            institution_type: walletCategory,
             institution_key: preset.key,
             ...sanitizeWalletMetadata(preset.key, {
               accountType: canChooseAccountType ? accountType : null,
@@ -1459,6 +1499,33 @@ function AddWalletSheet({
         <Text style={styles.destinationLabel}>Institution</Text>
         <Text style={styles.destinationValue}>{preset.name}</Text>
         <Text style={styles.muted}>{typeLabel(preset.type)} · PHP</Text>
+      </View>
+      <View style={styles.accountTypeSection}>
+        <Text style={styles.destinationLabel}>Wallet category</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {(['bank', 'e_wallet', 'cash', 'digital_bank', 'other'] as const).map((value) => (
+            <Pressable
+              key={value}
+              accessibilityRole="radio"
+              accessibilityState={{ selected: walletCategory === value }}
+              onPress={() => setWalletCategory(value)}
+              style={[styles.filterChip, walletCategory === value && styles.filterChipSelected]}
+            >
+              <Text
+                style={[
+                  styles.filterChipText,
+                  walletCategory === value && styles.filterChipTextSelected,
+                ]}
+              >
+                {typeLabel(value)}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
       </View>
       <FormTextInput
         label="Wallet name"
@@ -1652,7 +1719,9 @@ function AddWalletSheet({
           parseAmount(creditLimit)! >= (parseAmount(currentBalanceOwed) ?? 0) ? (
             <Text style={styles.muted}>
               Available credit: ₱
-              {(parseAmount(creditLimit)! - (parseAmount(currentBalanceOwed) ?? 0)).toLocaleString('en-PH')}
+              {(parseAmount(creditLimit)! - (parseAmount(currentBalanceOwed) ?? 0)).toLocaleString(
+                'en-PH',
+              )}
             </Text>
           ) : null}
           <DatePickerField
@@ -1686,12 +1755,14 @@ function AddWalletSheet({
             activeOnly
           />
           <Text style={styles.muted}>
-            Choose the wallet that will be used to track this credit-card payment when it becomes due.
+            Choose the wallet that will be used to track this credit-card payment when it becomes
+            due.
           </Text>
           <View style={styles.accountTypeSection}>
             <Text style={styles.destinationLabel}>Automatically record payment on due date</Text>
             <Text style={styles.muted}>
-              Alalay will deduct the tracked payment from the selected wallet and apply it to the credit-card balance. This does not send a real payment to the bank.
+              Alalay will deduct the tracked payment from the selected wallet and apply it to the
+              credit-card balance. This does not send a real payment to the bank.
             </Text>
             <View style={styles.accountTypeRow}>
               {([true, false] as const).map((value) => (
@@ -1700,9 +1771,17 @@ function AddWalletSheet({
                   accessibilityRole="radio"
                   accessibilityState={{ checked: autoRecordPayment === value }}
                   onPress={() => setAutoRecordPayment(value)}
-                  style={[styles.accountTypeChip, autoRecordPayment === value && styles.accountTypeChipSelected]}
+                  style={[
+                    styles.accountTypeChip,
+                    autoRecordPayment === value && styles.accountTypeChipSelected,
+                  ]}
                 >
-                  <Text style={[styles.accountTypeText, autoRecordPayment === value && styles.accountTypeTextSelected]}>
+                  <Text
+                    style={[
+                      styles.accountTypeText,
+                      autoRecordPayment === value && styles.accountTypeTextSelected,
+                    ]}
+                  >
                     {value ? 'Enabled' : 'Disabled'}
                   </Text>
                 </Pressable>
@@ -1718,9 +1797,17 @@ function AddWalletSheet({
                       accessibilityRole="radio"
                       accessibilityState={{ checked: paymentRule === rule }}
                       onPress={() => setPaymentRule(rule)}
-                      style={[styles.accountTypeChip, paymentRule === rule && styles.accountTypeChipSelected]}
+                      style={[
+                        styles.accountTypeChip,
+                        paymentRule === rule && styles.accountTypeChipSelected,
+                      ]}
                     >
-                      <Text style={[styles.accountTypeText, paymentRule === rule && styles.accountTypeTextSelected]}>
+                      <Text
+                        style={[
+                          styles.accountTypeText,
+                          paymentRule === rule && styles.accountTypeTextSelected,
+                        ]}
+                      >
                         {rule === 'full_outstanding' ? 'Full outstanding balance' : 'Fixed amount'}
                       </Text>
                     </Pressable>
@@ -1894,6 +1981,15 @@ const editStyles = StyleSheet.create({
   label: { marginTop: 24, marginBottom: 7, fontSize: 11, fontWeight: '900' },
   input: { minHeight: 54, paddingHorizontal: 15, borderRadius: 16, borderWidth: 1, fontSize: 15 },
   choiceRow: { flexDirection: 'row', gap: 8 },
+  categoryRow: { gap: 8 },
+  categoryChoice: {
+    minHeight: 40,
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#D7E2DE',
+  },
   choice: {
     flex: 1,
     minHeight: 44,
@@ -2104,6 +2200,22 @@ function makeStyles(themePalette: typeof formPalette) {
       lineHeight: 17,
       textAlign: 'center',
     },
+    filterRow: { gap: 8, paddingBottom: 12 },
+    filterChip: {
+      minHeight: 38,
+      justifyContent: 'center',
+      paddingHorizontal: 13,
+      borderRadius: 19,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+      backgroundColor: formPalette.background,
+    },
+    filterChipSelected: {
+      borderColor: formPalette.accent,
+      backgroundColor: formPalette.accentPale,
+    },
+    filterChipText: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },
+    filterChipTextSelected: { color: formPalette.accent },
     center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
     muted: { marginTop: 4, color: formPalette.muted, fontSize: 12, lineHeight: 18 },
     card: {
