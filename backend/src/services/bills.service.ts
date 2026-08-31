@@ -35,7 +35,9 @@ export async function getBill(userId: string, id: string) {
 }
 export async function createBill(userId: string, payload: Record<string, unknown>) {
   const bill = await createOwned('bills', userId, payload);
-  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch(() => undefined);
+  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch((error) => {
+    console.error('Bill reminder reconciliation failed after bill creation:', error instanceof Error ? error.message : String(error));
+  });
   return bill;
 }
 export async function updateBill(userId: string, id: string, payload: Record<string, unknown>) {

@@ -67,6 +67,8 @@ export type IncomeRecord = {
   frequency?: string | null;
   wallet_id?: string | null;
   is_scheduled?: boolean;
+  is_posted?: boolean;
+  schedule_status?: string | null;
 };
 
 export type Payday = { date: string; amount: number; source: string };
@@ -270,13 +272,18 @@ export async function fetchNextPayday() {
 
 export function fetchRecentIncome(range = recentRange()) {
   return authenticatedApiRequest<IncomeRecord[]>(
-    `/api/income/occurrences?from=${range.from}&to=${range.to}`,
+    `/api/income/recorded?from=${range.from}&to=${range.to}`,
   );
 }
 
 export function combineRecentTransactions(expenses: ExpenseRecord[], income: IncomeRecord[]) {
   const expenseTransactions = expenses.map(normalizeExpense);
-  const incomeTransactions: RecentTransaction[] = income.map((entry) => ({
+  // `/income/occurrences` is intentionally used elsewhere for upcoming
+  // projections. Recent transactions are ledger-backed only: a schedule is
+  // not money received until its posted income row exists.
+  const incomeTransactions: RecentTransaction[] = income
+    .filter((entry) => entry.is_scheduled !== true && entry.is_posted !== false && entry.schedule_status !== 'active')
+    .map((entry) => ({
     id: `income-${entry.id}`,
     sourceType: 'income',
     title: entry.source,
@@ -285,7 +292,7 @@ export function combineRecentTransactions(expenses: ExpenseRecord[], income: Inc
     occurredAt: entry.date,
     walletId: entry.wallet_id,
     frequency: entry.frequency,
-    isRecurringOccurrence: entry.is_scheduled === true,
+    isRecurringOccurrence: false,
   }));
   return [...expenseTransactions, ...incomeTransactions].sort((left, right) =>
     right.occurredAt.localeCompare(left.occurredAt),

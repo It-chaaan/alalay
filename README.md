@@ -177,25 +177,25 @@ On a physical device, do not use `localhost` for the backend URL; use a reachabl
 
 ### Backend: `backend/.env`
 
-| Variable                         | Required                             | Description                               | Example format                      |
-| -------------------------------- | ------------------------------------ | ----------------------------------------- | ----------------------------------- |
-| `PORT`                           | No                                   | Listen port; defaults to 3000             | `3000`                              |
-| `SUPABASE_URL`                   | Yes for Supabase-backed routes       | Supabase project URL                      | `https://your-project.supabase.co`  |
-| `SUPABASE_ANON_KEY`              | Yes for caller-authenticated access  | Supabase anon key                         | `your-anon-key`                     |
-| `SUPABASE_SERVICE_ROLE_KEY`      | Required for service-role operations | Server-only Supabase key                  | `your-service-role-key`             |
-| `GEMINI_API_KEY`                 | Required for Gemini features         | Server-only provider key                  | `your-gemini-key`                   |
-| `GEMINI_MODEL`                   | No                                   | Gemini model name                         | `gemini-2.5-flash`                  |
-| `GEMINI_THINKING_BUDGET`         | No                                   | Gemini thinking budget; defaults to 0     | `0`                                 |
-| `CORS_ORIGIN`                    | No                                   | Comma-separated allowed browser origins   | `http://localhost:5173`             |
-| `APP_URL`                        | No                                   | Application URL                           | `http://localhost:5173`             |
-| `HTTPS_ENABLED`                  | No                                   | Enables HTTPS; required in production     | `false`                             |
-| `HTTPS_TERMINATE_LOCALLY`        | No                                   | Whether this process owns TLS termination | `false`                             |
-| `HTTPS_CERT_PATH`                | Only for local TLS                   | Certificate path                          | `./certs/server.crt`                |
-| `HTTPS_KEY_PATH`                 | Only for local TLS                   | Private-key path                          | `./certs/server.key`                |
-| `RESEND_API_KEY`                 | Optional                             | Email notification provider key           | `your-resend-key`                   |
+| Variable                         | Required                             | Description                               | Example format                            |
+| -------------------------------- | ------------------------------------ | ----------------------------------------- | ----------------------------------------- |
+| `PORT`                           | No                                   | Listen port; defaults to 3000             | `3000`                                    |
+| `SUPABASE_URL`                   | Yes for Supabase-backed routes       | Supabase project URL                      | `https://your-project.supabase.co`        |
+| `SUPABASE_ANON_KEY`              | Yes for caller-authenticated access  | Supabase anon key                         | `your-anon-key`                           |
+| `SUPABASE_SERVICE_ROLE_KEY`      | Required for service-role operations | Server-only Supabase key                  | `your-service-role-key`                   |
+| `GEMINI_API_KEY`                 | Required for Gemini features         | Server-only provider key                  | `your-gemini-key`                         |
+| `GEMINI_MODEL`                   | No                                   | Gemini model name                         | `gemini-2.5-flash`                        |
+| `GEMINI_THINKING_BUDGET`         | No                                   | Gemini thinking budget; defaults to 0     | `0`                                       |
+| `CORS_ORIGIN`                    | No                                   | Comma-separated allowed browser origins   | `http://localhost:5173`                   |
+| `APP_URL`                        | No                                   | Application URL                           | `http://localhost:5173`                   |
+| `HTTPS_ENABLED`                  | No                                   | Enables HTTPS; required in production     | `false`                                   |
+| `HTTPS_TERMINATE_LOCALLY`        | No                                   | Whether this process owns TLS termination | `false`                                   |
+| `HTTPS_CERT_PATH`                | Only for local TLS                   | Certificate path                          | `./certs/server.crt`                      |
+| `HTTPS_KEY_PATH`                 | Only for local TLS                   | Private-key path                          | `./certs/server.key`                      |
+| `RESEND_API_KEY`                 | Optional                             | Email notification provider key           | `your-resend-key`                         |
 | `EMAIL_FROM`                     | No                                   | Notification sender                       | `Alalay <guillermochristian19@gmail.com>` |
-| `NOTIFICATION_SCHEDULER_ENABLED` | No                                   | Enables scheduled notifications           | `true`                              |
-| `BILLING_DEBUG`                  | No                                   | Enables billing diagnostics               | `false`                             |
+| `NOTIFICATION_SCHEDULER_ENABLED` | No                                   | Enables scheduled notifications           | `true`                                    |
+| `BILLING_DEBUG`                  | No                                   | Enables billing diagnostics               | `false`                                   |
 
 Keep `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `RESEND_API_KEY`, TLS keys, and production credentials server-side.
 
@@ -343,6 +343,17 @@ Database tests require the local Supabase container. The repository does not def
 Build the web client with `npm run build` from `frontend` and type-check/build the backend with `npm run build` from `backend`. The mobile package provides `expo run:android` and `expo run:ios` for native development builds; no hosted mobile deployment workflow is documented beyond the EAS project identifier in `mobile/app.json`.
 
 Production backend configuration requires HTTPS according to `backend/src/config/env.ts`. Configure `APP_URL`, `CORS_ORIGIN`, Supabase credentials, and server-only provider keys in the deployment environment.
+
+### Durable income scheduler
+
+Income schedules are posted by the database RPC `process_due_income_schedules`, which uses Manila calendar dates and an occurrence-key uniqueness constraint. In production, configure an external platform cron job (every 15 minutes is suitable) to call:
+
+```text
+POST https://<api-host>/internal/income-scheduler
+x-scheduler-secret: <INCOME_SCHEDULER_SECRET>
+```
+
+Set a distinct, 24+ character `INCOME_SCHEDULER_SECRET` on the backend. The in-process hourly timer remains only as a development/recovery fallback; it is not the production scheduling mechanism. Apply the database migrations before enabling this job.
 
 ## Troubleshooting
 

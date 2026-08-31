@@ -1,31 +1,46 @@
-import { client, requireUserId, throwIfError, todayIso, type TableName } from "./db.js";
-import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from "./crud.service.js";
-import { AppError } from "../utils/api.js";
-import { invalidateReportsForUser } from "./analytics.service.js";
-import { expandIncomeRows } from "./income-recurrence.service.js";
+import { client, requireUserId, throwIfError, todayIso, type TableName } from './db.js';
+import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from './crud.service.js';
+import { AppError } from '../utils/api.js';
+import { invalidateReportsForUser } from './analytics.service.js';
+import { expandIncomeRows } from './income-recurrence.service.js';
 
 export function makeResourceService(table: TableName) {
   return {
     list: async (userId: string, filters?: Record<string, unknown>) => {
       const rows = await listOwned(table, userId, filters);
-      if (table !== "income") return rows;
-      const from = typeof filters?.from === "string" ? filters.from : "1900-01-01";
-      const to = typeof filters?.to === "string" ? filters.to : addDays(from, 400);
+      if (table !== 'income') return rows;
+      const from = typeof filters?.from === 'string' ? filters.from : '1900-01-01';
+      const to = typeof filters?.to === 'string' ? filters.to : addDays(from, 400);
       return expandIncomeRows(rows, from, to);
     },
     get: (userId: string, id: string) => getOwned(table, userId, id),
     create: async (userId: string, payload: Record<string, unknown>) => {
-      const result = await createOwned(table, userId, table === "income" ? scheduleIncomePayload(payload) : payload);
+      const result = await createOwned(
+        table,
+        userId,
+        table === 'income' ? scheduleIncomePayload(payload) : payload,
+      );
       invalidateReportsForUser(userId);
       return result;
     },
     update: async (userId: string, id: string, payload: Record<string, unknown>) => {
-      if (table === "subscriptions") {
-        const { data: current, error } = await client().from("subscriptions").select("auto_renew, wallet_id").eq("id", id).eq("user_id", requireUserId(userId)).is("deleted_at", null).maybeSingle();
+      if (table === 'subscriptions') {
+        const { data: current, error } = await client()
+          .from('subscriptions')
+          .select('auto_renew, wallet_id')
+          .eq('id', id)
+          .eq('user_id', requireUserId(userId))
+          .is('deleted_at', null)
+          .maybeSingle();
         throwIfError(error);
         const active = payload.auto_renew !== false && current?.auto_renew !== false;
         const walletId = payload.wallet_id === undefined ? current?.wallet_id : payload.wallet_id;
-        if (active && !walletId) throw new AppError(400, "validation_error", "Choose a payment wallet for this active subscription.");
+        if (active && !walletId)
+          throw new AppError(
+            400,
+            'validation_error',
+            'Choose a payment wallet for this active subscription.',
+          );
       }
       const result = await updateOwned(table, userId, id, payload);
       invalidateReportsForUser(userId);
@@ -46,12 +61,39 @@ function addDays(value: string, days: number) {
 }
 
 function scheduleIncomePayload(payload: Record<string, unknown>) {
-  if (String(payload.date ?? "") <= todayIso()) return payload;
-  return { ...payload, is_posted: false, schedule_status: "active" };
+  // A date-only income is due in Manila.  Past/today entries are immediately
+  // recorded manual income; future entries are schedules and cannot credit a
+  // wallet until the database scheduler posts their occurrence.
+  if (String(payload.date ?? '') <= todayIso())
+    return {
+      ...payload,
+      is_posted: true,
+      schedule_status: 'posted',
+      source_type: 'manual',
+      received_at: new Date().toISOString(),
+    };
+  return {
+    ...payload,
+    is_posted: false,
+    schedule_status: 'active',
+    source_type: null,
+    received_at: null,
+  };
 }
 
-export async function listByDateRange(table: TableName, userId: string, dateColumn: string, from?: string, to?: string) {
-  let query = client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null).order(dateColumn, { ascending: false });
+export async function listByDateRange(
+  table: TableName,
+  userId: string,
+  dateColumn: string,
+  from?: string,
+  to?: string,
+) {
+  let query = client()
+    .from(table)
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .is('deleted_at', null)
+    .order(dateColumn, { ascending: false });
   if (from) query = query.gte(dateColumn, from);
   if (to) query = query.lte(dateColumn, to);
   const { data, error } = await query;

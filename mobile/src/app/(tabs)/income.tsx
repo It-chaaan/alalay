@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -60,6 +61,11 @@ type Income = {
   frequency?: string | null;
   wallet_id: string;
   status?: string;
+  due_date?: string | null;
+  received_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  transaction_id?: string | null;
 };
 type IncomeSummary = {
   this_month: number;
@@ -79,6 +85,7 @@ type MyIncomeResponse = {
   items: {
     kind: 'recurring' | 'one_time';
     sourceId: string;
+    occurrenceId: string | null;
     transactionId: string | null;
     name: string;
     category: string;
@@ -87,6 +94,9 @@ type MyIncomeResponse = {
     status: string;
     dueDate: string | null;
     receivedDate: string | null;
+    receivedAt: string | null;
+    createdAt: string | null;
+    updatedAt: string | null;
     walletId: string;
   }[];
 };
@@ -161,6 +171,7 @@ export default function IncomeScreen() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Income | null>(null);
   const [managing, setManaging] = useState<Income | null>(null);
+  const [details, setDetails] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [walletSelection, setWalletSelection] = useState<{ id: string; version: number } | null>(
     null,
@@ -199,6 +210,11 @@ export default function IncomeScreen() {
           frequency: item.frequency,
           wallet_id: item.walletId,
           status: item.status,
+          due_date: item.dueDate,
+          received_at: item.receivedAt,
+          created_at: item.createdAt,
+          updated_at: item.updatedAt,
+          transaction_id: item.transactionId,
         })),
       );
       setSummary({
@@ -281,7 +297,13 @@ export default function IncomeScreen() {
             ) : null}
             {rows.length ? (
               rows.map((row) => (
-                <View key={row.id} style={styles.row}>
+                <Pressable
+                  key={row.id}
+                  style={styles.row}
+                  onPress={() => setDetails(row)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`View details for ${row.source}`}
+                >
                   <View style={styles.icon}>
                     <ArrowUpRight size={18} color={colors.primary} />
                   </View>
@@ -328,12 +350,15 @@ export default function IncomeScreen() {
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel={`More options for ${row.source}`}
-                    onPress={() => setManaging(row)}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      setManaging(row);
+                    }}
                     style={styles.more}
                   >
                     <MoreHorizontal size={20} color={colors.textSecondary} />
                   </Pressable>
-                </View>
+                </Pressable>
               ))
             ) : (
               <View style={styles.card}>
@@ -408,7 +433,89 @@ export default function IncomeScreen() {
           ]}
         />
       )}
+      {details && (
+        <IncomeDetails income={details} wallets={wallets} onClose={() => setDetails(null)} />
+      )}
     </SafeAreaView>
+  );
+}
+
+function incomeDateTime(value: string | null | undefined) {
+  if (!value) return 'Not received yet';
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila',
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(parsed);
+}
+
+function IncomeDetails({
+  income,
+  wallets,
+  onClose,
+}: {
+  income: Income;
+  wallets: Wallet[];
+  onClose: () => void;
+}) {
+  const walletName =
+    wallets.find((wallet) => wallet.id === income.wallet_id)?.name ?? 'Unavailable wallet';
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable style={styles.detailsSheet} onPress={(event) => event.stopPropagation()}>
+          <Text style={styles.sectionTitle}>Income details</Text>
+          <Text style={styles.detailsName}>{income.source}</Text>
+          <Text style={styles.detailsAmount}>
+            ₱{Math.round(Number(income.amount)).toLocaleString('en-PH')}
+          </Text>
+          <Detail label="Category" value={income.type} />
+          <Detail
+            label="Frequency"
+            value={income.is_recurring ? (income.frequency ?? 'Recurring') : 'One-time'}
+          />
+          <Detail
+            label="Status"
+            value={
+              income.status === 'received'
+                ? 'Received'
+                : income.status === 'due'
+                  ? 'Due'
+                  : 'Upcoming'
+            }
+          />
+          <Detail label="Destination wallet" value={walletName} />
+          <Detail
+            label="Due on"
+            value={
+              income.due_date ?? (income.status === 'received' ? income.date : 'Not scheduled')
+            }
+          />
+          <Detail label="Received on" value={incomeDateTime(income.received_at)} />
+          <Detail
+            label="Added on"
+            value={income.created_at ? incomeDateTime(income.created_at) : 'Unknown'}
+          />
+          {income.transaction_id ? (
+            <Detail label="Wallet transaction" value={income.transaction_id} />
+          ) : null}
+          <Pressable style={styles.retry} onPress={onClose}>
+            <Text style={styles.retryText}>Close</Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.detailRow}>
+      <Text style={styles.detailLabel}>{label}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+    </View>
   );
 }
 
@@ -724,6 +831,37 @@ function makeStyles(themePalette: typeof formPalette) {
     recurringCopy: { flex: 1, paddingRight: 10 },
     recurringTitle: { color: formPalette.ink, fontSize: 14, fontWeight: '900' },
     pressed: { opacity: 0.72 },
+    modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.48)' },
+    detailsSheet: {
+      padding: 22,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      backgroundColor: formPalette.surface,
+    },
+    detailsName: { color: formPalette.ink, fontWeight: '900', fontSize: 20 },
+    detailsAmount: {
+      marginTop: 6,
+      marginBottom: 14,
+      color: formPalette.accent,
+      fontWeight: '900',
+      fontSize: 25,
+    },
+    detailRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: 12,
+      paddingVertical: 8,
+      borderTopWidth: 1,
+      borderTopColor: formPalette.line,
+    },
+    detailLabel: { flex: 1, color: formPalette.muted, fontSize: 12 },
+    detailValue: {
+      flex: 1.4,
+      color: formPalette.ink,
+      textAlign: 'right',
+      fontSize: 12,
+      fontWeight: '700',
+    },
   });
 }
 let styles = makeStyles(formPalette);
