@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Switch,
@@ -114,6 +115,16 @@ function monthName(month: string) {
     .toUpperCase();
 }
 
+function moveMonth(month: string, delta: number) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
+}
+
+function logIncomeFetch(event: string, details: Record<string, unknown>) {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[Income] ${event}`, details);
+}
+
 export default function IncomeScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -149,60 +160,73 @@ export default function IncomeScreen() {
   const [walletSelection, setWalletSelection] = useState<{ id: string; version: number } | null>(
     null,
   );
-  const currentMonth = currentMonthKey();
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    const results = await Promise.allSettled([fetchIncomeMonth(currentMonth), fetchWallets()]);
-    const [incomeResult, walletRows] = results;
-    const failure = (result: PromiseSettledResult<unknown>) =>
-      result.status === 'rejected'
-        ? result.reason instanceof Error
-          ? result.reason.message
-          : 'Could not load this section.'
-        : '';
-    setSectionErrors({
-      recorded: failure(incomeResult),
-      summary: failure(incomeResult),
-    });
-    if (incomeResult.status === 'fulfilled') {
-      setRows(
-        incomeResult.value.items.map((item) => ({
-          id: item.kind === 'recurring' ? item.sourceId : (item.transactionId ?? item.sourceId),
-          source: item.name,
-          type: item.category,
-          amount: item.amount,
-          date: item.receivedDate ?? item.dueDate ?? currentMonth,
-          is_recurring: item.kind === 'recurring',
-          is_posted: item.status === 'received',
-          is_scheduled: item.status !== 'received',
-          frequency: item.frequency,
-          wallet_id: item.walletId,
-          status: item.status,
-          due_date: item.dueDate,
-          received_at: item.receivedAt,
-          created_at: item.createdAt,
-          updated_at: item.updatedAt,
-          transaction_id: item.transactionId,
-        })),
-      );
-      setSummary({
-        this_month: incomeResult.value.overview.receivedAmount,
-        monthly_sources: incomeResult.value.overview.recurringSourceCount,
-        actual_transactions: incomeResult.value.overview.receivedCount,
-        upcoming_transactions: incomeResult.value.overview.upcomingCount,
+  const refresh = useCallback(
+    async (trigger = 'manual') => {
+      logIncomeFetch('fetch trigger', { trigger, month: selectedMonth });
+      setLoading(true);
+      setError('');
+      logIncomeFetch('request start', { month: selectedMonth });
+      const results = await Promise.allSettled([fetchIncomeMonth(selectedMonth), fetchWallets()]);
+      const [incomeResult, walletRows] = results;
+      const failure = (result: PromiseSettledResult<unknown>) =>
+        result.status === 'rejected'
+          ? result.reason instanceof Error
+            ? result.reason.message
+            : 'Could not load this section.'
+          : '';
+      setSectionErrors({
+        recorded: failure(incomeResult),
+        summary: failure(incomeResult),
       });
-    }
-    if (walletRows.status === 'fulfilled') setWallets(walletRows.value as Wallet[]);
-    if (results.every((result) => result.status === 'rejected')) setError('Income could not load.');
-    setLoading(false);
-  }, [currentMonth]);
+      if (incomeResult.status === 'fulfilled') {
+        logIncomeFetch('request success', {
+          month: selectedMonth,
+          items: incomeResult.value.items.length,
+        });
+        setRows(
+          incomeResult.value.items.map((item) => ({
+            id: item.kind === 'recurring' ? item.sourceId : (item.transactionId ?? item.sourceId),
+            source: item.name,
+            type: item.category,
+            amount: item.amount,
+            date: item.receivedDate ?? item.dueDate ?? selectedMonth,
+            is_recurring: item.kind === 'recurring',
+            is_posted: item.status === 'received',
+            is_scheduled: item.status !== 'received',
+            frequency: item.frequency,
+            wallet_id: item.walletId,
+            status: item.status,
+            due_date: item.dueDate,
+            received_at: item.receivedAt,
+            created_at: item.createdAt,
+            updated_at: item.updatedAt,
+            transaction_id: item.transactionId,
+          })),
+        );
+        setSummary({
+          this_month: incomeResult.value.overview.receivedAmount,
+          monthly_sources: incomeResult.value.overview.recurringSourceCount,
+          actual_transactions: incomeResult.value.overview.receivedCount,
+          upcoming_transactions: incomeResult.value.overview.upcomingCount,
+        });
+      } else {
+        const message = failure(incomeResult) || 'Income could not load.';
+        logIncomeFetch('request failure', { month: selectedMonth, message });
+        // A failed Income request must not look like a successful empty month.
+        setError(message);
+      }
+      if (walletRows.status === 'fulfilled') setWallets(walletRows.value as Wallet[]);
+      setLoading(false);
+    },
+    [selectedMonth],
+  );
 
   useEffect(
     () =>
       subscribeFinancialMutations(() => {
-        void refresh();
+        void refresh('financial mutation');
       }),
     [refresh],
   );
@@ -215,7 +239,7 @@ export default function IncomeScreen() {
       }
       // Expo Router retains tab screens. Focus is the reliable lifecycle for
       // both the initial request and returning to an already-mounted Income tab.
-      void refresh();
+      void refresh('screen focus');
     }, [refresh, workflow]),
   );
 
@@ -251,14 +275,43 @@ export default function IncomeScreen() {
         <ScrollView
           contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={loading}
+              onRefresh={() => void refresh('pull to refresh')}
+            />
+          }
         >
           <FinancialOverviewCard
             title="INCOME OVERVIEW"
-            context={monthName(currentMonth)}
+            context={monthName(selectedMonth)}
             value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`}
             supportingInfo={supportingText}
-            accessibilityLabel={`Income overview. Total income for ${monthName(currentMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`}
+            accessibilityLabel={`Income overview. Total income for ${monthName(selectedMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`}
           />
+          <View style={styles.monthPicker}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show previous income month"
+              onPress={() => setSelectedMonth((month) => moveMonth(month, -1))}
+              style={styles.monthButton}
+            >
+              <Text style={styles.monthButtonText}>‹</Text>
+            </Pressable>
+            <Text style={styles.monthLabel}>{monthName(selectedMonth)}</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Show next income month"
+              disabled={selectedMonth >= currentMonthKey()}
+              onPress={() => setSelectedMonth((month) => moveMonth(month, 1))}
+              style={[
+                styles.monthButton,
+                selectedMonth >= currentMonthKey() && styles.monthButtonDisabled,
+              ]}
+            >
+              <Text style={styles.monthButtonText}>›</Text>
+            </Pressable>
+          </View>
           {sectionErrors.summary ? <Text style={styles.muted}>{sectionErrors.summary}</Text> : null}
           <View style={styles.listSection}>
             <View style={styles.sectionHeader}>
@@ -733,6 +786,30 @@ function makeStyles(themePalette: typeof formPalette) {
     content: { padding: 20, paddingTop: 20, paddingBottom: 40 },
     listSection: { marginTop: 24 },
     sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' },
+    monthPicker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 12,
+      marginTop: 14,
+    },
+    monthButton: {
+      width: 34,
+      height: 34,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 17,
+      backgroundColor: formPalette.accentPale,
+    },
+    monthButtonDisabled: { opacity: 0.42 },
+    monthButtonText: { color: formPalette.accent, fontSize: 24, fontWeight: '700', lineHeight: 27 },
+    monthLabel: {
+      minWidth: 118,
+      color: formPalette.ink,
+      fontSize: 12,
+      fontWeight: '900',
+      textAlign: 'center',
+    },
     row: {
       flexDirection: 'row',
       alignItems: 'center',

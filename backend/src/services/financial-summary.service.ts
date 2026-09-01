@@ -91,11 +91,19 @@ function nextMonthStart(month: string) {
   return `${nextYear}-${String(nextMonth).padStart(2, '0')}-01`;
 }
 
+function lastDayOfMonth(month: string) {
+  const [year, monthNumber] = month.split('-').map(Number);
+  return new Date(Date.UTC(year, monthNumber, 0)).toISOString().slice(0, 10);
+}
+
 /** One owner-scoped response for the mobile Income screen. */
 export async function myIncomeForMonth(userId: string, month?: string) {
   const selectedMonth = month && /^\d{4}-\d{2}$/.test(month) ? month : todayIso().slice(0, 7);
   const from = `${selectedMonth}-01`;
-  const to = nextMonthStart(selectedMonth);
+  const nextMonth = nextMonthStart(selectedMonth);
+  // The recurrence expander uses inclusive date ranges. Keep its endpoint in
+  // the selected month, while posted-row filtering below remains [start, next).
+  const to = lastDayOfMonth(selectedMonth);
   const summary = await incomeForRange(userId, from, to);
   const sourceRows = summary.sourceRows.filter(
     (row) => row.is_posted === false && isRecurring(row) && row.schedule_status === 'active',
@@ -105,7 +113,7 @@ export async function myIncomeForMonth(userId: string, month?: string) {
       !row.is_scheduled &&
       row.is_posted !== false &&
       String(row.date) >= from &&
-      String(row.date) < to,
+      String(row.date) < nextMonth,
   );
   const items: MyIncomeItem[] = [];
   const today = todayIso();

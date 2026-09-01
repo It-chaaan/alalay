@@ -37,6 +37,17 @@ export function createServer() {
     next();
   });
   app.use(express.json({ limit: '1mb' }));
+  if (env.NODE_ENV !== 'production') {
+    app.use((req, res, next) => {
+      const clientRequestId = req.header('x-request-id');
+      res.on('finish', () => {
+        console.info(
+          `[API] ${req.method} ${req.originalUrl} -> ${res.statusCode}${clientRequestId ? ` client=${clientRequestId}` : ''}`,
+        );
+      });
+      next();
+    });
+  }
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
@@ -50,12 +61,10 @@ export function createServer() {
       !env.INCOME_SCHEDULER_SECRET ||
       req.header('x-scheduler-secret') !== env.INCOME_SCHEDULER_SECRET
     ) {
-      res
-        .status(401)
-        .json({
-          success: false,
-          error: { code: 'unauthorized', message: 'Scheduler authentication failed.' },
-        });
+      res.status(401).json({
+        success: false,
+        error: { code: 'unauthorized', message: 'Scheduler authentication failed.' },
+      });
       return;
     }
     try {
