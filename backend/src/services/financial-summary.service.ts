@@ -1,5 +1,9 @@
 import { client, monthRange, requireUserId, throwIfError, todayIso } from './db.js';
-import { expandIncomeRows, isRecurring } from './income-recurrence.service.js';
+import {
+  expandIncomeRows,
+  isRecurring,
+  isRecurringApplicableInRange,
+} from './income-recurrence.service.js';
 
 export type MyIncomeItem = {
   kind: 'recurring' | 'one_time';
@@ -10,7 +14,7 @@ export type MyIncomeItem = {
   category: string;
   amount: number;
   frequency: string | null;
-  status: 'received' | 'upcoming' | 'due' | 'failed' | 'not_started';
+  status: 'received' | 'upcoming' | 'overdue' | 'failed' | 'not_started';
   dueDate: string | null;
   receivedDate: string | null;
   receivedAt: string | null;
@@ -106,7 +110,11 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   const to = lastDayOfMonth(selectedMonth);
   const summary = await incomeForRange(userId, from, to);
   const sourceRows = summary.sourceRows.filter(
-    (row) => row.is_posted === false && isRecurring(row) && row.schedule_status === 'active',
+    (row) =>
+      row.is_posted === false &&
+      isRecurring(row) &&
+      row.schedule_status === 'active' &&
+      isRecurringApplicableInRange(row, from, to),
   );
   const postedRows = summary.rows.filter(
     (row) =>
@@ -118,13 +126,15 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   const items: MyIncomeItem[] = [];
   const today = todayIso();
   for (const row of postedRows) {
-    const schedule = row.schedule_id
-      ? summary.sourceRows.find((source) => String(source.id) === String(row.schedule_id))
-      : undefined;
+    const schedule = summary.sourceRows.find(
+      (source) =>
+        String(source.id) === String(row.schedule_id ?? '') ||
+        String(source.schedule_id ?? '') === String(row.id),
+    );
     items.push({
       kind: schedule || isRecurring(row) ? 'recurring' : 'one_time',
-      sourceId: String(row.schedule_id ?? row.id),
-      occurrenceId: row.schedule_id ? String(row.id) : null,
+      sourceId: String(schedule?.id ?? row.schedule_id ?? row.id),
+      occurrenceId: schedule ? String(row.id) : null,
       transactionId: String(row.id),
       name: String(row.source),
       category: String(row.type ?? 'other'),
@@ -158,7 +168,7 @@ export async function myIncomeForMonth(userId: string, month?: string) {
       category: String(source.type ?? 'other'),
       amount: Number(source.amount ?? 0),
       frequency: source.frequency ? String(source.frequency) : null,
-      status: failure ? 'failed' : String(expected.date) <= today ? 'due' : 'upcoming',
+      status: failure ? 'failed' : String(expected.date) < today ? 'overdue' : 'upcoming',
       dueDate: String(expected.date),
       receivedDate: null,
       receivedAt: null,
@@ -174,7 +184,7 @@ export async function myIncomeForMonth(userId: string, month?: string) {
     const rightDate =
       right.status === 'received' ? (right.receivedDate ?? '') : (right.dueDate ?? '9999-12-31');
     const statusOrder = (status: MyIncomeItem['status']) =>
-      status === 'upcoming' || status === 'due' ? 0 : 1;
+      status === 'upcoming' || status === 'overdue' ? 0 : 1;
     return (
       statusOrder(left.status) - statusOrder(right.status) ||
       rightDate.localeCompare(leftDate) ||
@@ -183,13 +193,18 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   });
 
   const received = items.filter((item) => item.status === 'received');
+  const upcoming = items.filter((item) => item.status === 'upcoming');
+  const overdue = items.filter((item) => item.status === 'overdue');
   return {
     month: selectedMonth,
     overview: {
       receivedAmount: received.reduce((sum, item) => sum + item.amount, 0),
+      upcomingAmount: upcoming.reduce((sum, item) => sum + item.amount, 0),
+      overdueAmount: overdue.reduce((sum, item) => sum + item.amount, 0),
+      projectedAmount: items.reduce((sum, item) => sum + item.amount, 0),
       receivedCount: received.length,
-      upcomingCount: items.filter((item) => item.status === 'upcoming' || item.status === 'due')
-        .length,
+      upcomingCount: upcoming.length,
+      overdueCount: overdue.length,
       recurringSourceCount: sourceRows.length,
       oneTimeCount: items.filter((item) => item.kind === 'one_time').length,
     },
