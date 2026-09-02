@@ -244,8 +244,12 @@ export type IncomeMonth = {
   month: string;
   overview: {
     receivedAmount: number;
+    upcomingAmount: number;
+    overdueAmount: number;
+    projectedAmount: number;
     receivedCount: number;
     upcomingCount: number;
+    overdueCount: number;
     recurringSourceCount: number;
     oneTimeCount: number;
   };

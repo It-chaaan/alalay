@@ -31,13 +31,17 @@ import { ItemManagementSheet } from '@/components/item-management-sheet';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
 import {
+  dateKeyInManila,
+  derivedStatus,
   fetchWallets,
   notifyFinancialMutation,
   subscribeFinancialMutations,
 } from '@/services/finance';
+import { StatusBadge } from '@/components/status-badge';
+import { FinancialItemDetailsSheet } from '@/components/financial-item-details-sheet';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
-import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
+import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { useToast } from '@/components/toast-provider';
 import { filterSubscriptions } from '@/utils/subscription-search';
@@ -55,7 +59,7 @@ type Sub = {
   logo_url?: string | null;
   wallet_id?: string | null;
   current_occurrence_date?: string;
-  current_status?: 'paid' | 'upcoming' | 'due_today' | 'overdue';
+  current_status?: 'paid' | 'upcoming' | 'due_today' | 'overdue' | 'failed';
   next_renewal_date?: string | null;
 };
 type Income = { amount: number | string; is_recurring: boolean; frequency?: string };
@@ -100,8 +104,36 @@ function monthly(sub: Sub) {
         : amount;
 }
 
+function friendlyRenewalDate(value: string) {
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
+  const currentYear = Number(dateKeyInManila().slice(0, 4));
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'long',
+    day: 'numeric',
+    ...(year === currentYear ? {} : { year: 'numeric' }),
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+function subscriptionStatus(row: Sub) {
+  if (!row.auto_renew) return 'Paused';
+  if (row.current_status === 'failed') return 'Failed';
+  if (row.current_status === 'paid') return 'Paid';
+  return derivedStatus({
+    id: row.id,
+    source: 'subscription',
+    name: row.name,
+    amount: Number(row.amount),
+    category: row.category ?? 'Subscriptions',
+    recurring: true,
+    frequency: row.billing_cycle,
+    paid: false,
+    dueDate: row.current_occurrence_date ?? row.next_renewal_date ?? row.renewal_date,
+  });
+}
+
 export default function Subscriptions() {
   const { colors } = useAppTheme();
+  const bottomNavClearance = useBottomNavClearance();
   const toast = useToast();
   styles = makeStyles({
     ...formPalette,
@@ -122,6 +154,7 @@ export default function Subscriptions() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Sub | null>(null);
   const [managing, setManaging] = useState<Sub | null>(null);
+  const [details, setDetails] = useState<Sub | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -243,7 +276,7 @@ export default function Subscriptions() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]}
           keyboardDismissMode="on-drag"
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
@@ -269,52 +302,64 @@ export default function Subscriptions() {
               <SectionAddButton label="Add subscription" onPress={() => setOpen(true)} />
             </View>
             <View style={styles.controls}>
-            <View
-              style={[
-                styles.search,
-                {
-                  backgroundColor: colors.surfaceInput,
-                  borderColor: searchFocused || query ? colors.primary : colors.border,
-                },
-              ]}
-            >
-              <Search size={18} color={colors.textSecondary} />
-              <TextInput
-                accessibilityLabel="Search subscriptions"
-                value={query}
-                onChangeText={setQuery}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setSearchFocused(false)}
-                placeholder="Search subscriptions"
-                placeholderTextColor={colors.textMuted}
-                style={[styles.searchInput, { color: colors.textPrimary }]}
-                returnKeyType="search"
-                autoCorrect={false}
-              />
-              <>
-                {query ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Clear subscription search"
-                    hitSlop={8}
-                    onPress={() => setQuery('')}
-                    style={styles.clearSearch}
-                  >
-                    <X size={18} color={colors.textSecondary} />
-                  </Pressable>
-                ) : null}
-              </>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={hasActiveFilters ? 'Filter subscriptions, filters active' : 'Filter subscriptions'}
-              accessibilityState={{ expanded: filterSheetOpen, selected: hasActiveFilters }}
-              onPress={() => { setDraftFilters(filters); setFilterSheetOpen(true); }}
-              style={({ pressed }) => [styles.filterButton, hasActiveFilters && styles.filterButtonActive, pressed && styles.filterPressed]}
-            >
-              <SlidersHorizontal size={18} color={hasActiveFilters ? colors.primary : colors.textSecondary} />
-              {hasActiveFilters ? <View style={styles.filterDot} /> : null}
-            </Pressable>
+              <View
+                style={[
+                  styles.search,
+                  {
+                    backgroundColor: colors.surfaceInput,
+                    borderColor: searchFocused || query ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Search size={18} color={colors.textSecondary} />
+                <TextInput
+                  accessibilityLabel="Search subscriptions"
+                  value={query}
+                  onChangeText={setQuery}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setSearchFocused(false)}
+                  placeholder="Search subscriptions"
+                  placeholderTextColor={colors.textMuted}
+                  style={[styles.searchInput, { color: colors.textPrimary }]}
+                  returnKeyType="search"
+                  autoCorrect={false}
+                />
+                <>
+                  {query ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Clear subscription search"
+                      hitSlop={8}
+                      onPress={() => setQuery('')}
+                      style={styles.clearSearch}
+                    >
+                      <X size={18} color={colors.textSecondary} />
+                    </Pressable>
+                  ) : null}
+                </>
+              </View>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  hasActiveFilters ? 'Filter subscriptions, filters active' : 'Filter subscriptions'
+                }
+                accessibilityState={{ expanded: filterSheetOpen, selected: hasActiveFilters }}
+                onPress={() => {
+                  setDraftFilters(filters);
+                  setFilterSheetOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.filterButton,
+                  hasActiveFilters && styles.filterButtonActive,
+                  pressed && styles.filterPressed,
+                ]}
+              >
+                <SlidersHorizontal
+                  size={18}
+                  color={hasActiveFilters ? colors.primary : colors.textSecondary}
+                />
+                {hasActiveFilters ? <View style={styles.filterDot} /> : null}
+              </Pressable>
             </View>
             {rows.length && !visibleRows.length ? (
               <View
@@ -328,21 +373,48 @@ export default function Subscriptions() {
                   No subscriptions found
                 </Text>
                 <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                  {hasActiveFilters ? 'Try adjusting or clearing your filters.' : 'Try a different search term.'}
+                  {hasActiveFilters
+                    ? 'Try adjusting or clearing your filters.'
+                    : 'Try a different search term.'}
                 </Text>
-                {hasActiveFilters ? <Pressable accessibilityRole="button" onPress={() => setFilters(emptyFilters)} style={styles.clearFilters}><Text style={[styles.clearFiltersText, { color: colors.primary }]}>Clear filters</Text></Pressable> : null}
+                {hasActiveFilters ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setFilters(emptyFilters)}
+                    style={styles.clearFilters}
+                  >
+                    <Text style={[styles.clearFiltersText, { color: colors.primary }]}>
+                      Clear filters
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
             ) : visibleRows.length ? (
               visibleRows.map((row) => (
-                <View
+                <Pressable
                   key={row.id}
+                  accessible
+                  accessibilityRole="button"
+                  accessibilityLabel={`${row.name}, ${subscriptionStatus(row).toLowerCase()}, renews ${friendlyRenewalDate(row.current_occurrence_date ?? row.next_renewal_date ?? row.renewal_date)}`}
                   style={[
                     styles.subCard,
                     { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border },
                   ]}
+                  onPress={() => setDetails(row)}
                 >
                   <View style={styles.subTop}>
-                    {(() => { const meta = getCategoryMeta(row.category ?? row.custom_category); const CategoryIcon = meta.icon; return <View accessible={false} style={[styles.categoryIcon, { backgroundColor: meta.tint }]}><CategoryIcon size={22} color={meta.color} strokeWidth={2} /></View>; })()}
+                    {(() => {
+                      const meta = getCategoryMeta(row.category ?? row.custom_category);
+                      const CategoryIcon = meta.icon;
+                      return (
+                        <View
+                          accessible={false}
+                          style={[styles.categoryIcon, { backgroundColor: meta.tint }]}
+                        >
+                          <CategoryIcon size={22} color={meta.color} strokeWidth={2} />
+                        </View>
+                      );
+                    })()}
                     <View style={styles.main}>
                       <Text style={[styles.name, { color: colors.textPrimary }]}>{row.name}</Text>
                       <Text style={[styles.muted, { color: colors.textSecondary }]}>
@@ -356,7 +428,10 @@ export default function Subscriptions() {
                               : 'mo'}
                       </Text>
                       <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                        Renews {row.renewal_date}
+                        Subscription · Renews{' '}
+                        {friendlyRenewalDate(
+                          row.current_occurrence_date ?? row.next_renewal_date ?? row.renewal_date,
+                        )}
                       </Text>
                       <Text
                         style={[
@@ -366,14 +441,16 @@ export default function Subscriptions() {
                       >
                         {row.wallet_id
                           ? (wallets.find((wallet) => wallet.id === row.wallet_id)?.name ??
-                            'Payment wallet')
-                          : 'Payment wallet needed'}
+                            'Payment method unavailable')
+                          : 'No payment method'}
                       </Text>
                     </View>
                     <View style={styles.cardActions}>
                       <Pressable
-                        accessibilityLabel={`Options for ${row.name}`}
-                        onPress={() => {
+                        accessibilityRole="button"
+                        accessibilityLabel={`More options for ${row.name}`}
+                        onPress={(event) => {
+                          event.stopPropagation();
                           setDeleteError('');
                           setManaging(row);
                         }}
@@ -381,30 +458,10 @@ export default function Subscriptions() {
                       >
                         <MoreHorizontal size={19} color={colors.textSecondary} />
                       </Pressable>
-                      <Pressable
-                        accessibilityRole="switch"
-                        accessibilityState={{ checked: row.auto_renew }}
-                        onPress={() => void toggle(row)}
-                        style={[
-                          styles.toggle,
-                          {
-                            backgroundColor: row.auto_renew
-                              ? colors.primary
-                              : colors.surfaceSecondary,
-                          },
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.knob,
-                            { backgroundColor: colors.textOnPrimary },
-                            row.auto_renew && styles.knobOn,
-                          ]}
-                        />
-                      </Pressable>
+                      <StatusBadge status={subscriptionStatus(row)} variant="plain" />
                     </View>
                   </View>
-                </View>
+                </Pressable>
               ))
             ) : (
               <View
@@ -453,39 +510,221 @@ export default function Subscriptions() {
           deleteDescription="This subscription will be removed. Past generated expenses will remain in your financial history."
           onClose={() => setManaging(null)}
           onEdit={() => setEditing(managing)}
+          onToggleStatus={() => toggle(managing)}
+          toggleStatusLabel={managing.auto_renew ? 'Pause subscription' : 'Resume subscription'}
           onDelete={() => remove(managing)}
           deleting={deleting}
           error={deleteError}
         />
       )}
+      {details && <FinancialItemDetailsSheet
+        visible title="Subscription details" name={details.name}
+        amount={`₱${Math.round(Number(details.amount)).toLocaleString('en-PH')}/${details.billing_cycle === 'yearly' ? 'yr' : details.billing_cycle === 'quarterly' ? 'qtr' : details.billing_cycle === 'weekly' ? 'wk' : 'mo'}`}
+        status={subscriptionStatus(details)} onClose={() => setDetails(null)}
+        details={[
+          { label: 'Category', value: details.custom_category ?? details.category ?? 'Subscription' },
+          { label: 'Renewal date', value: friendlyRenewalDate(details.renewal_date) },
+          { label: 'Payment wallet', value: details.wallet_id ? wallets.find((wallet) => wallet.id === details.wallet_id)?.name ?? 'Payment method unavailable' : 'No payment method' },
+          { label: 'State', value: details.auto_renew ? 'Active' : 'Paused' },
+          ...(details.next_renewal_date ? [{ label: 'Next renewal', value: friendlyRenewalDate(details.next_renewal_date) }] : []),
+        ]}
+      />}
       <SubscriptionFilterSheet
         visible={filterSheetOpen}
         draft={draftFilters}
         wallets={wallets}
-        categories={Array.from(new Set(rows.map((row) => row.category ?? row.custom_category).filter(Boolean) as string[]))}
+        categories={Array.from(
+          new Set(
+            rows.map((row) => row.category ?? row.custom_category).filter(Boolean) as string[],
+          ),
+        )}
         onChange={setDraftFilters}
         onReset={() => setDraftFilters(emptyFilters)}
         onClose={() => setFilterSheetOpen(false)}
-        onApply={() => { setFilters(draftFilters); setFilterSheetOpen(false); }}
+        onApply={() => {
+          setFilters(draftFilters);
+          setFilterSheetOpen(false);
+        }}
       />
     </SafeAreaView>
   );
 }
 
-function SubscriptionFilterSheet({ visible, draft, wallets, categories, onChange, onReset, onClose, onApply }: { visible: boolean; draft: SubscriptionFilters; wallets: Wallet[]; categories: string[]; onChange: (next: SubscriptionFilters) => void; onReset: () => void; onClose: () => void; onApply: () => void }) {
-  const options = <>
-    <Text style={styles.sheetLabel}>STATUS</Text>
-    <View style={styles.optionWrap}>{(['all', 'active', 'inactive'] as StatusFilter[]).map((value) => <FilterChoice key={value} label={value === 'all' ? 'All' : value === 'active' ? 'Active' : 'Inactive'} selected={draft.status === value} onPress={() => onChange({ ...draft, status: value })} />)}</View>
-    <Text style={styles.sheetLabel}>RENEWAL TIMING</Text>
-    <View style={styles.optionWrap}>{([['any', 'Any renewal date'], ['7', 'Next 7 days'], ['30', 'Next 30 days'], ['none', 'No upcoming date']] as [RenewalFilter, string][]).map(([value, label]) => <FilterChoice key={value} label={label} selected={draft.renewal === value} onPress={() => onChange({ ...draft, renewal: value })} />)}</View>
-    <Text style={styles.sheetLabel}>PAYMENT SOURCE</Text>
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalOptions}><FilterChoice label="All wallets" selected={!draft.walletId} onPress={() => onChange({ ...draft, walletId: '' })} />{wallets.map((wallet) => <FilterChoice key={wallet.id} label={wallet.name} selected={draft.walletId === wallet.id} onPress={() => onChange({ ...draft, walletId: wallet.id })} />)}</ScrollView>
-    {categories.length ? <><Text style={styles.sheetLabel}>CATEGORY</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalOptions}><FilterChoice label="All categories" selected={!draft.category} onPress={() => onChange({ ...draft, category: '' })} />{categories.map((category) => <FilterChoice key={category} label={category} selected={draft.category === category} onPress={() => onChange({ ...draft, category })} />)}</ScrollView></> : null}
-  </>;
-  return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}><View style={styles.overlay}><Pressable accessibilityRole="button" accessibilityLabel="Close subscription filters" onPress={onClose} style={styles.dismiss} /><View style={styles.filterSheet}><View style={styles.sheetHeader}><View><Text style={styles.sheetEyebrow}>SUBSCRIPTIONS</Text><Text style={styles.sheetTitle}>Filter subscriptions</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close subscription filters" onPress={onClose} style={styles.sheetClose}><X size={22} color={formPalette.ink} /></Pressable></View><ScrollView showsVerticalScrollIndicator={false}>{options}</ScrollView><View style={styles.sheetActions}><Pressable accessibilityRole="button" accessibilityLabel="Reset subscription filters" onPress={onReset} style={styles.resetButton}><Text style={styles.resetText}>Reset</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Apply subscription filters" onPress={onApply} style={styles.applyButton}><Text style={styles.applyText}>Apply filters</Text></Pressable></View></View></View></Modal>;
+function SubscriptionFilterSheet({
+  visible,
+  draft,
+  wallets,
+  categories,
+  onChange,
+  onReset,
+  onClose,
+  onApply,
+}: {
+  visible: boolean;
+  draft: SubscriptionFilters;
+  wallets: Wallet[];
+  categories: string[];
+  onChange: (next: SubscriptionFilters) => void;
+  onReset: () => void;
+  onClose: () => void;
+  onApply: () => void;
+}) {
+  const options = (
+    <>
+      <Text style={styles.sheetLabel}>STATUS</Text>
+      <View style={styles.optionWrap}>
+        {(['all', 'active', 'inactive'] as StatusFilter[]).map((value) => (
+          <FilterChoice
+            key={value}
+            label={value === 'all' ? 'All' : value === 'active' ? 'Active' : 'Inactive'}
+            selected={draft.status === value}
+            onPress={() => onChange({ ...draft, status: value })}
+          />
+        ))}
+      </View>
+      <Text style={styles.sheetLabel}>RENEWAL TIMING</Text>
+      <View style={styles.optionWrap}>
+        {(
+          [
+            ['any', 'Any renewal date'],
+            ['7', 'Next 7 days'],
+            ['30', 'Next 30 days'],
+            ['none', 'No upcoming date'],
+          ] as [RenewalFilter, string][]
+        ).map(([value, label]) => (
+          <FilterChoice
+            key={value}
+            label={label}
+            selected={draft.renewal === value}
+            onPress={() => onChange({ ...draft, renewal: value })}
+          />
+        ))}
+      </View>
+      <Text style={styles.sheetLabel}>PAYMENT SOURCE</Text>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.horizontalOptions}
+      >
+        <FilterChoice
+          label="All wallets"
+          selected={!draft.walletId}
+          onPress={() => onChange({ ...draft, walletId: '' })}
+        />
+        {wallets.map((wallet) => (
+          <FilterChoice
+            key={wallet.id}
+            label={wallet.name}
+            selected={draft.walletId === wallet.id}
+            onPress={() => onChange({ ...draft, walletId: wallet.id })}
+          />
+        ))}
+      </ScrollView>
+      {categories.length ? (
+        <>
+          <Text style={styles.sheetLabel}>CATEGORY</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.horizontalOptions}
+          >
+            <FilterChoice
+              label="All categories"
+              selected={!draft.category}
+              onPress={() => onChange({ ...draft, category: '' })}
+            />
+            {categories.map((category) => (
+              <FilterChoice
+                key={category}
+                label={category}
+                selected={draft.category === category}
+                onPress={() => onChange({ ...draft, category })}
+              />
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+    </>
+  );
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close subscription filters"
+          onPress={onClose}
+          style={styles.dismiss}
+        />
+        <View style={styles.filterSheet}>
+          <View style={styles.sheetHeader}>
+            <View>
+              <Text style={styles.sheetEyebrow}>SUBSCRIPTIONS</Text>
+              <Text style={styles.sheetTitle}>Filter subscriptions</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close subscription filters"
+              onPress={onClose}
+              style={styles.sheetClose}
+            >
+              <X size={22} color={formPalette.ink} />
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false}>{options}</ScrollView>
+          <View style={styles.sheetActions}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Reset subscription filters"
+              onPress={onReset}
+              style={styles.resetButton}
+            >
+              <Text style={styles.resetText}>Reset</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Apply subscription filters"
+              onPress={onApply}
+              style={styles.applyButton}
+            >
+              <Text style={styles.applyText}>Apply filters</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
 }
 
-function FilterChoice({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) { return <Pressable accessibilityRole="radio" accessibilityState={{ selected }} accessibilityLabel={`${label}${selected ? ', selected' : ''}`} onPress={onPress} style={({ pressed }) => [styles.filterChoice, selected && styles.filterChoiceSelected, pressed && styles.filterPressed]}><View style={[styles.checkCircle, !selected && styles.checkCircleEmpty]}>{selected ? <Text style={styles.checkMark}>✓</Text> : null}</View><Text style={[styles.filterChoiceText, selected && styles.filterChoiceTextSelected]}>{label}</Text></Pressable>; }
+function FilterChoice({
+  label,
+  selected,
+  onPress,
+}: {
+  label: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${label}${selected ? ', selected' : ''}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.filterChoice,
+        selected && styles.filterChoiceSelected,
+        pressed && styles.filterPressed,
+      ]}
+    >
+      <View style={[styles.checkCircle, !selected && styles.checkCircleEmpty]}>
+        {selected ? <Text style={styles.checkMark}>✓</Text> : null}
+      </View>
+      <Text style={[styles.filterChoiceText, selected && styles.filterChoiceTextSelected]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
 
 function SubscriptionForm({
   wallets,
@@ -621,7 +860,13 @@ function makeStyles(themePalette: typeof formPalette) {
       gap: 10,
       marginBottom: 11,
     },
-    controls: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8, marginBottom: 10 },
+    controls: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginTop: 8,
+      marginBottom: 10,
+    },
     search: {
       minHeight: 46,
       flex: 1,
@@ -636,33 +881,124 @@ function makeStyles(themePalette: typeof formPalette) {
     searchInput: { flex: 1, minHeight: 46, paddingVertical: 0, fontSize: 14 },
     clearSearch: { width: 28, height: 40, alignItems: 'center', justifyContent: 'center' },
     emptySearch: { marginBottom: 11 },
-    filterButton: { width: 48, height: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 24, backgroundColor: formPalette.surface, borderWidth: 1, borderColor: formPalette.line },
-    filterButtonActive: { borderColor: formPalette.accent, backgroundColor: formPalette.accentPale },
-    filterDot: { position: 'absolute', top: 11, right: 11, width: 6, height: 6, borderRadius: 3, backgroundColor: formPalette.accent },
+    filterButton: {
+      width: 48,
+      height: 48,
+      minHeight: 48,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 24,
+      backgroundColor: formPalette.surface,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+    },
+    filterButtonActive: {
+      borderColor: formPalette.accent,
+      backgroundColor: formPalette.accentPale,
+    },
+    filterDot: {
+      position: 'absolute',
+      top: 11,
+      right: 11,
+      width: 6,
+      height: 6,
+      borderRadius: 3,
+      backgroundColor: formPalette.accent,
+    },
     filterPressed: { opacity: 0.8 },
     clearFilters: { alignSelf: 'flex-start', marginTop: 12 },
     clearFiltersText: { fontSize: 12, fontWeight: '900' },
     overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.28)' },
     dismiss: { ...StyleSheet.absoluteFillObject },
-    filterSheet: { maxHeight: '86%', padding: 20, paddingBottom: 28, borderTopLeftRadius: 26, borderTopRightRadius: 26, backgroundColor: formPalette.surface },
-    sheetHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
-    sheetEyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+    filterSheet: {
+      maxHeight: '86%',
+      padding: 20,
+      paddingBottom: 28,
+      borderTopLeftRadius: 26,
+      borderTopRightRadius: 26,
+      backgroundColor: formPalette.surface,
+    },
+    sheetHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: 10,
+    },
+    sheetEyebrow: {
+      color: formPalette.accent,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1.1,
+    },
     sheetTitle: { marginTop: 4, color: formPalette.ink, fontSize: 20, fontWeight: '900' },
-    sheetClose: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center', borderRadius: 20, backgroundColor: formPalette.background },
-    sheetLabel: { marginTop: 15, marginBottom: 8, color: formPalette.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
+    sheetClose: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 20,
+      backgroundColor: formPalette.background,
+    },
+    sheetLabel: {
+      marginTop: 15,
+      marginBottom: 8,
+      color: formPalette.muted,
+      fontSize: 10,
+      fontWeight: '900',
+      letterSpacing: 1.1,
+    },
     optionWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
     horizontalOptions: { gap: 8, paddingBottom: 3 },
-    filterChoice: { minHeight: 44, flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 11, borderRadius: 14, borderWidth: 1, borderColor: formPalette.line, backgroundColor: formPalette.background },
-    filterChoiceSelected: { borderColor: formPalette.accent, backgroundColor: formPalette.accentPale },
+    filterChoice: {
+      minHeight: 44,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 11,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+      backgroundColor: formPalette.background,
+    },
+    filterChoiceSelected: {
+      borderColor: formPalette.accent,
+      backgroundColor: formPalette.accentPale,
+    },
     filterChoiceText: { color: formPalette.muted, fontSize: 12, fontWeight: '700' },
     filterChoiceTextSelected: { color: formPalette.ink, fontWeight: '900' },
-    checkCircle: { width: 22, height: 22, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: formPalette.accent },
-    checkCircleEmpty: { backgroundColor: 'transparent', borderWidth: 1, borderColor: formPalette.line },
+    checkCircle: {
+      width: 22,
+      height: 22,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 11,
+      backgroundColor: formPalette.accent,
+    },
+    checkCircleEmpty: {
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: formPalette.line,
+    },
     checkMark: { color: '#FFFFFF', fontSize: 14, fontWeight: '900' },
     sheetActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
-    resetButton: { minHeight: 50, flex: 1, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: formPalette.line },
+    resetButton: {
+      minHeight: 50,
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 25,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+    },
     resetText: { color: formPalette.muted, fontWeight: '900' },
-    applyButton: { minHeight: 50, flex: 1.5, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: formPalette.accent },
+    applyButton: {
+      minHeight: 50,
+      flex: 1.5,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 25,
+      backgroundColor: formPalette.accent,
+    },
     applyText: { color: '#FFFFFF', fontWeight: '900' },
     safe: { flex: 1, backgroundColor: formPalette.background },
     header: {
@@ -677,18 +1013,19 @@ function makeStyles(themePalette: typeof formPalette) {
     titleWrap: { flex: 1, marginLeft: 8 },
     eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.1 },
     title: { marginTop: 3, color: formPalette.ink, fontSize: 22, fontWeight: '900' },
-    content: { padding: 20, paddingBottom: BOTTOM_NAV_CLEARANCE },
+    content: { padding: 20 },
     listSection: { marginTop: 0 },
     sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' },
     subCard: {
-      marginBottom: 11,
+      marginBottom: 12,
       padding: 15,
-      borderRadius: 18,
+      borderRadius: 17,
       backgroundColor: formPalette.surface,
       borderWidth: 1,
       borderColor: formPalette.line,
     },
     subTop: { flexDirection: 'row', alignItems: 'center' },
+    subBottom: { flexDirection: 'row', alignItems: 'center', marginTop: 13 },
     icon: {
       width: 42,
       height: 42,
@@ -709,11 +1046,11 @@ function makeStyles(themePalette: typeof formPalette) {
     muted: { marginTop: 4, color: formPalette.muted, fontSize: 12, lineHeight: 18 },
     cardActions: { alignItems: 'flex-end', gap: 8 },
     more: {
-      width: 36,
-      height: 32,
+      width: 42,
+      height: 42,
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: 16,
+      borderRadius: 21,
       backgroundColor: formPalette.background,
     },
     toggle: {

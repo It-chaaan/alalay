@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import {
   ActivityIndicator,
   Modal,
+  PanResponder,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -13,11 +14,14 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import {
   ArrowUpRight,
+  CalendarDays,
   BriefcaseBusiness,
   Building2,
   MoreHorizontal,
+  Repeat2,
   Send,
   WalletCards,
+  X,
 } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -47,6 +51,8 @@ import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { RecordActionSheet } from '@/components/record-action-sheet';
+import { StatusBadge } from '@/components/status-badge';
+import { sortCategoriesByLabel } from '@/utils/category-sorting';
 import { useToast } from '@/components/toast-provider';
 import { useIncomeWorkflow, type IncomeWorkflowDraft } from '@/context/income-workflow';
 
@@ -71,11 +77,15 @@ type Income = {
 };
 type IncomeSummary = {
   this_month: number;
+  projected_amount: number;
+  upcoming_amount: number;
+  overdue_amount: number;
   monthly_sources: number;
   actual_transactions: number;
   upcoming_transactions: number;
+  overdue_transactions: number;
 };
-const incomeTypes = [
+const incomeTypes = sortCategoriesByLabel([
   { label: 'Salary', icon: Building2 },
   { label: 'Freelance', icon: BriefcaseBusiness },
   { label: 'Business', icon: WalletCards },
@@ -94,7 +104,7 @@ const incomeTypes = [
   { label: 'Refund', icon: WalletCards },
   { label: 'Side Hustle', icon: BriefcaseBusiness },
   { label: 'Other', icon: MoreHorizontal },
-];
+]);
 
 const incomeTypeValues = Object.fromEntries(
   incomeTypes.map(({ label }) => [label, label.toLowerCase().replace(/[^a-z0-9]+/g, '_')]),
@@ -145,9 +155,13 @@ export default function IncomeScreen() {
   const [rows, setRows] = useState<Income[]>([]);
   const [summary, setSummary] = useState<IncomeSummary>({
     this_month: 0,
+    projected_amount: 0,
+    upcoming_amount: 0,
+    overdue_amount: 0,
     monthly_sources: 0,
     actual_transactions: 0,
     upcoming_transactions: 0,
+    overdue_transactions: 0,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -206,10 +220,14 @@ export default function IncomeScreen() {
           })),
         );
         setSummary({
-          this_month: incomeResult.value.overview.receivedAmount,
+          this_month: incomeResult.value.overview.projectedAmount,
+          projected_amount: incomeResult.value.overview.projectedAmount,
+          upcoming_amount: incomeResult.value.overview.upcomingAmount,
+          overdue_amount: incomeResult.value.overview.overdueAmount,
           monthly_sources: incomeResult.value.overview.recurringSourceCount,
           actual_transactions: incomeResult.value.overview.receivedCount,
           upcoming_transactions: incomeResult.value.overview.upcomingCount,
+          overdue_transactions: incomeResult.value.overview.overdueCount,
         });
       } else {
         const message = failure(incomeResult) || 'Income could not load.';
@@ -244,9 +262,16 @@ export default function IncomeScreen() {
   );
 
   const supportingText =
-    summary.actual_transactions || summary.upcoming_transactions || summary.monthly_sources
+    summary.actual_transactions ||
+    summary.upcoming_transactions ||
+    summary.overdue_transactions ||
+    summary.monthly_sources
       ? `${summary.actual_transactions} received · ${summary.upcoming_transactions} upcoming · ${summary.monthly_sources} recurring source${summary.monthly_sources === 1 ? '' : 's'}`
       : 'No income recorded this month';
+  const financialBreakdown =
+    summary.actual_transactions || summary.upcoming_transactions || summary.overdue_transactions
+      ? `₱${Math.round(summary.projected_amount - summary.upcoming_amount - summary.overdue_amount).toLocaleString('en-PH')} received · ₱${Math.round(summary.upcoming_amount).toLocaleString('en-PH')} upcoming${summary.overdue_amount ? ` · ₱${Math.round(summary.overdue_amount).toLocaleString('en-PH')} overdue` : ''}`
+      : supportingText;
 
   return (
     <SafeAreaView
@@ -286,7 +311,7 @@ export default function IncomeScreen() {
             title="INCOME OVERVIEW"
             context={monthName(selectedMonth)}
             value={`₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}`}
-            supportingInfo={supportingText}
+            supportingInfo={financialBreakdown}
             accessibilityLabel={`Income overview. Total income for ${monthName(selectedMonth)}: ₱${Math.round(Number(summary.this_month)).toLocaleString('en-PH')}. ${supportingText}.`}
           />
           <View style={styles.monthPicker}>
@@ -338,7 +363,7 @@ export default function IncomeScreen() {
                     <Text style={styles.rowDate} numberOfLines={1}>
                       {row.status === 'received'
                         ? `Received ${row.date}`
-                        : row.status === 'due'
+                        : row.status === 'overdue'
                           ? `Due ${row.date}`
                           : row.status === 'failed'
                             ? `Failed ${row.date}`
@@ -356,12 +381,13 @@ export default function IncomeScreen() {
                       style={[
                         styles.rowStatus,
                         row.status === 'received' && styles.statusReceived,
+                        row.status === 'overdue' && styles.statusOverdue,
                         row.status === 'failed' && styles.statusFailed,
                       ]}
                     >
                       {row.status === 'received'
                         ? 'Received'
-                        : row.status === 'due'
+                        : row.status === 'overdue'
                           ? 'Due today'
                           : row.status === 'failed'
                             ? 'Needs attention'
@@ -461,7 +487,11 @@ export default function IncomeScreen() {
         />
       )}
       {details && (
-        <IncomeDetails income={details} wallets={wallets} onClose={() => setDetails(null)} />
+        <IncomeDetailsRedesigned
+          income={details}
+          wallets={wallets}
+          onClose={() => setDetails(null)}
+        />
       )}
     </SafeAreaView>
   );
@@ -478,6 +508,7 @@ function incomeDateTime(value: string | null | undefined) {
   }).format(parsed);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function IncomeDetails({
   income,
   wallets,
@@ -508,8 +539,8 @@ function IncomeDetails({
             value={
               income.status === 'received'
                 ? 'Received'
-                : income.status === 'due'
-                  ? 'Due'
+                : income.status === 'overdue'
+                  ? 'Overdue'
                   : 'Upcoming'
             }
           />
@@ -531,6 +562,144 @@ function IncomeDetails({
           <Pressable style={styles.retry} onPress={onClose}>
             <Text style={styles.retryText}>Close</Text>
           </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+function friendlyIncomeDate(value: string | null | undefined) {
+  if (!value) return 'Not scheduled';
+  const parsed = new Date(`${value.slice(0, 10)}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return new Intl.DateTimeFormat('en-PH', { timeZone: 'Asia/Manila', dateStyle: 'long' }).format(
+    parsed,
+  );
+}
+
+function friendlyFrequency(value: string | null | undefined) {
+  return (
+    (
+      {
+        monthly: 'Every month',
+        weekly: 'Every week',
+        biweekly: 'Every two weeks',
+        yearly: 'Every year',
+      } as Record<string, string>
+    )[String(value ?? '').toLowerCase()] ?? 'One-time income'
+  );
+}
+
+function titleCase(value: string | null | undefined) {
+  return String(value ?? 'other')
+    .replaceAll('_', ' ')
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function IncomeDetailsRedesigned({
+  income,
+  wallets,
+  onClose,
+}: {
+  income: Income;
+  wallets: Wallet[];
+  onClose: () => void;
+}) {
+  const walletName =
+    wallets.find((wallet) => wallet.id === income.wallet_id)?.name ?? 'your wallet';
+  const received = income.status === 'received';
+  const overdue = income.status === 'overdue';
+  const expectedDate = income.due_date ?? (received ? income.date : null);
+  const status = received ? 'Received' : overdue ? 'Overdue' : 'Upcoming';
+  const panResponder = useMemo(
+    () =>
+      PanResponder.create({
+        onMoveShouldSetPanResponder: (_event, gesture) => gesture.dy > 8,
+        onPanResponderRelease: (_event, gesture) => {
+          if (gesture.dy > 70) onClose();
+        },
+      }),
+    [onClose],
+  );
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.modalBackdrop} onPress={onClose}>
+        <Pressable
+          {...panResponder.panHandlers}
+          style={styles.detailsSheet}
+          onPress={(event) => event.stopPropagation()}
+        >
+          <View style={styles.detailsHandle} />
+          <View style={styles.detailsHeader}>
+            <Text style={styles.detailsTitle}>Income details</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close income details"
+              onPress={onClose}
+              style={styles.detailsClose}
+            >
+              <X size={20} color={formPalette.muted} />
+            </Pressable>
+          </View>
+          <ScrollView
+            contentContainerStyle={styles.detailsContent}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.detailsIdentity}>
+              <View style={styles.detailsIcon}>
+                <ArrowUpRight size={22} color={formPalette.accent} />
+              </View>
+              <View style={styles.detailsIdentityCopy}>
+                <Text style={styles.detailsName}>{income.source}</Text>
+                <Text style={styles.detailsAmount}>
+                  ₱{Math.round(Number(income.amount)).toLocaleString('en-PH')}
+                </Text>
+              </View>
+              <StatusBadge status={status} />
+            </View>
+            <View style={styles.detailsSummary}>
+              <View style={styles.detailsSummaryRow}>
+                <CalendarDays size={18} color={formPalette.accent} />
+                <View>
+                  <Text style={styles.detailsSummaryLabel}>
+                    {received ? 'Received on' : overdue ? 'Was expected on' : 'Expected on'}
+                  </Text>
+                  <Text style={styles.detailsSummaryValue}>{friendlyIncomeDate(expectedDate)}</Text>
+                </View>
+              </View>
+              <View style={styles.detailsSummaryRow}>
+                <WalletCards size={18} color={formPalette.accent} />
+                <View>
+                  <Text style={styles.detailsSummaryLabel}>
+                    {received ? 'Added to' : 'Will be added to'}
+                  </Text>
+                  <Text style={styles.detailsSummaryValue}>{walletName}</Text>
+                </View>
+              </View>
+              {income.is_recurring ? (
+                <View style={styles.detailsSummaryRow}>
+                  <Repeat2 size={18} color={formPalette.accent} />
+                  <View>
+                    <Text style={styles.detailsSummaryLabel}>Repeats</Text>
+                    <Text style={styles.detailsSummaryValue}>
+                      {friendlyFrequency(income.frequency)}
+                    </Text>
+                  </View>
+                </View>
+              ) : null}
+            </View>
+            {overdue ? (
+              <Text style={styles.detailsNotice}>
+                This income was expected on {friendlyIncomeDate(expectedDate)} but has not been
+                marked as received.
+              </Text>
+            ) : null}
+            <Text style={styles.detailsSectionLabel}>Additional details</Text>
+            <Detail label="Category" value={titleCase(income.type)} />
+            {income.created_at ? (
+              <Detail label="Created" value={friendlyIncomeDate(income.created_at)} />
+            ) : null}
+          </ScrollView>
         </Pressable>
       </Pressable>
     </Modal>
@@ -783,7 +952,7 @@ function makeStyles(themePalette: typeof formPalette) {
     titleWrap: { flex: 1, marginLeft: 8 },
     eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
     title: { marginTop: 3, color: formPalette.ink, fontSize: 24, fontWeight: '900' },
-    content: { padding: 20, paddingTop: 20, paddingBottom: 40 },
+    content: { padding: 20, paddingTop: 28, paddingBottom: 40 },
     listSection: { marginTop: 24 },
     sectionTitle: { marginBottom: 11, color: formPalette.ink, fontSize: 16, fontWeight: '900' },
     monthPicker: {
@@ -840,6 +1009,7 @@ function makeStyles(themePalette: typeof formPalette) {
       textAlign: 'right',
     },
     statusReceived: { color: formPalette.accent },
+    statusOverdue: { color: formPalette.danger },
     statusFailed: { color: formPalette.danger },
     amount: { color: formPalette.ink, fontWeight: '900', textAlign: 'right' },
     more: {
@@ -884,10 +1054,64 @@ function makeStyles(themePalette: typeof formPalette) {
     pressed: { opacity: 0.72 },
     modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.48)' },
     detailsSheet: {
+      maxHeight: '82%',
       padding: 22,
+      paddingBottom: 28,
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       backgroundColor: formPalette.surface,
+    },
+    detailsHandle: {
+      alignSelf: 'center',
+      width: 42,
+      height: 4,
+      marginBottom: 14,
+      borderRadius: 3,
+      backgroundColor: formPalette.line,
+    },
+    detailsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    detailsTitle: { color: formPalette.ink, fontSize: 18, fontWeight: '900' },
+    detailsClose: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+    detailsContent: { paddingBottom: 12 },
+    detailsIdentity: { flexDirection: 'row', alignItems: 'center', marginTop: 18, gap: 11 },
+    detailsIcon: {
+      width: 44,
+      height: 44,
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: 14,
+      backgroundColor: formPalette.accentPale,
+    },
+    detailsIdentityCopy: { flex: 1, minWidth: 0 },
+    detailsSummary: {
+      marginTop: 18,
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: formPalette.background,
+      borderWidth: 1,
+      borderColor: formPalette.line,
+      gap: 14,
+    },
+    detailsSummaryRow: { flexDirection: 'row', alignItems: 'center', gap: 11 },
+    detailsSummaryLabel: { color: formPalette.muted, fontSize: 11, fontWeight: '700' },
+    detailsSummaryValue: { marginTop: 2, color: formPalette.ink, fontSize: 14, fontWeight: '900' },
+    detailsNotice: {
+      marginTop: 14,
+      padding: 12,
+      borderRadius: 12,
+      color: formPalette.danger,
+      backgroundColor: '#FBE7DE',
+      fontSize: 12,
+      lineHeight: 18,
+    },
+    detailsSectionLabel: {
+      marginTop: 20,
+      marginBottom: 4,
+      color: formPalette.muted,
+      fontSize: 11,
+      fontWeight: '900',
+      letterSpacing: 1,
+      textTransform: 'uppercase',
     },
     detailsName: { color: formPalette.ink, fontWeight: '900', fontSize: 20 },
     detailsAmount: {

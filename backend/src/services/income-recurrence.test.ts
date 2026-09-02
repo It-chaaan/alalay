@@ -77,6 +77,7 @@ const recorded = expandIncomeRows(
       date: '2026-08-03',
       is_recurring: false,
       is_posted: true,
+      schedule_id: 'salary',
     },
   ],
   '2026-08-01',
@@ -86,6 +87,30 @@ const recorded = expandIncomeRows(
 assert.equal(recorded.length, 1, 'an actual occurrence must suppress its scheduled duplicate');
 assert.equal(recorded[0].date, '2026-08-03');
 assert.equal(recorded[0].is_scheduled, undefined);
+
+const historicalSchedule = expandIncomeRows(
+  [
+    {
+      id: 'september-schedule',
+      schedule_id: 'july-source',
+      source: 'Virtual Assistant',
+      amount: 15000,
+      date: '2026-09-03',
+      schedule_anchor_date: '2026-07-03',
+      is_recurring: true,
+      frequency: 'monthly',
+      is_posted: false,
+      schedule_status: 'active',
+    },
+  ],
+  '2026-08-01',
+  '2026-08-31',
+);
+assert.deepEqual(
+  historicalSchedule.map((row) => row.date),
+  ['2026-08-03'],
+  'a schedule advanced to September still projects its August occurrence from its immutable anchor',
+);
 
 const malformed = expandIncomeRows(
   [

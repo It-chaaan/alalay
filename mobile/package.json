@@ -8,7 +8,10 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "test:insight": "sucrase-node src/utils/dashboard-insight.test.ts",
+    "test:wallet-balance-privacy": "sucrase-node src/utils/wallet-balance-privacy.test.ts",
+    "test:category-sorting": "sucrase-node src/utils/category-sorting.test.ts"
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.4.0",

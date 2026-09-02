@@ -42,6 +42,7 @@ import {
   sanitizeWalletMetadata,
   supportsAccountType,
   type WalletAccountType,
+  type InstitutionType,
 } from '@/constants/institution-registry';
 import { authenticatedApiRequest } from '@/services/api';
 import {
@@ -55,12 +56,13 @@ import { SectionAddButton } from '@/components/header-add-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE, useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { sortCategoriesByLabel } from '@/utils/category-sorting';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { WalletCard } from '@/components/wallet-card';
 import { BalanceVisibilityToggle } from '@/components/balance-visibility-toggle';
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
+import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useIncomeWorkflow } from '@/context/income-workflow';
 
 type WalletTransaction = {
@@ -115,6 +117,13 @@ function typeLabel(type: string) {
           ? 'Cash'
           : 'Other';
 }
+
+const walletCategoryOptions = sortCategoriesByLabel(
+  (['bank', 'e_wallet', 'cash', 'digital_bank', 'other'] as InstitutionType[]).map((value) => ({
+    value,
+    label: typeLabel(value),
+  })),
+);
 
 function SafeAreaView(props: SafeAreaViewProps) {
   const { colors } = useAppTheme();
@@ -250,7 +259,7 @@ export default function WalletsScreen() {
   }, [adding, draftPreset, openAddWallet]);
   const [managedWallet, setManagedWallet] = useState<Wallet | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
-  const { visible, toggle: toggleBalanceVisibility } = useBalanceVisibility();
+  const { visible, toggle: toggleBalanceVisibility } = useWalletBalanceVisibility();
   const amountsVisible = visible === true;
   const maskedBalance = '••••••';
 
@@ -1514,7 +1523,7 @@ function AddWalletSheet({
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterRow}
         >
-          {(['bank', 'e_wallet', 'cash', 'digital_bank', 'other'] as const).map((value) => (
+          {walletCategoryOptions.map(({ value }) => (
             <Pressable
               key={value}
               accessibilityRole="radio"

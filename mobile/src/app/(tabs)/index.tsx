@@ -5,12 +5,14 @@ import Svg, { Path } from 'react-native-svg';
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  BackHandler,
   PanResponder,
   Modal,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -54,7 +56,7 @@ import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
 import { GlassSurface } from '@/components/glass-surface';
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
+import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
 import { cycleIndex, visibleWallets, walletSlotOffset } from '@/utils/wallet-stack';
@@ -298,7 +300,7 @@ function SummaryCard({
   walletError: string;
 }) {
   const { colors } = useAppTheme();
-  const { visible, toggle } = useBalanceVisibility();
+  const { visible, toggle } = useWalletBalanceVisibility();
   const balanceUnavailable = walletError || walletLoading;
   const amountsVisible = visible === true;
   const mask = '••••••';
@@ -434,8 +436,8 @@ type QuickAction = {
   accessibilityLabel: string;
   icon: Icon;
   iconBackground: string;
-  iconColor: string;
   onPress: () => void;
+  active?: boolean;
 };
 
 function WalletHero({
@@ -450,7 +452,7 @@ function WalletHero({
   walletError: string;
 }) {
   const { colors } = useAppTheme();
-  const { visible, toggle } = useBalanceVisibility();
+  const { visible, toggle } = useWalletBalanceVisibility();
   const amountsVisible = visible === true;
   const mask = '••••••';
   const [frontIndex, setFrontIndex] = useState(0);
@@ -713,7 +715,56 @@ const WalletStackCard = memo(function WalletStackCard({
 
 function QuickActionsCard() {
   const { colors } = useAppTheme();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const [anchor, setAnchor] = useState<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const cardRef = useRef<View>(null);
+  const progress = useSharedValue(0);
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then(setReduceMotion)
+      .catch(() => undefined);
+  }, []);
+  const closeMore = useCallback(() => {
+    if (!moreOpen || closing) return;
+    setClosing(true);
+    progress.value = withTiming(0, { duration: reduceMotion ? 0 : 150 });
+    setTimeout(
+      () => {
+        setMoreOpen(false);
+        setClosing(false);
+      },
+      reduceMotion ? 0 : 160,
+    );
+  }, [closing, moreOpen, progress, reduceMotion]);
+  const openMore = useCallback(() => {
+    if (moreOpen) return closeMore();
+    cardRef.current?.measureInWindow((x, y, width, height) => {
+      setAnchor({ x, y, width, height });
+      setMoreOpen(true);
+      progress.value = 0;
+      progress.value = withTiming(1, { duration: reduceMotion ? 0 : 210 });
+    });
+  }, [closeMore, moreOpen, progress, reduceMotion]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      closeMore();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [closeMore, moreOpen]);
+  const menuAnimation = useAnimatedStyle(() => ({
+    opacity: progress.value,
+    transform: [{ translateY: 10 - progress.value * 10 }, { scale: 0.96 + progress.value * 0.04 }],
+  }));
   const actions: QuickAction[] = [
     {
       id: 'expense',
@@ -721,7 +772,6 @@ function QuickActionsCard() {
       accessibilityLabel: 'Add expense',
       icon: BanknoteArrowDown,
       iconBackground: colors.surfaceSecondary,
-      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/expenses'),
     },
     {
@@ -730,7 +780,6 @@ function QuickActionsCard() {
       accessibilityLabel: 'Add income',
       icon: BanknoteArrowUp,
       iconBackground: colors.surfaceSecondary,
-      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/income'),
     },
     {
@@ -739,7 +788,6 @@ function QuickActionsCard() {
       accessibilityLabel: 'Open bills',
       icon: ReceiptText,
       iconBackground: colors.surfaceSecondary,
-      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/bills'),
     },
     {
@@ -748,7 +796,6 @@ function QuickActionsCard() {
       accessibilityLabel: 'Open subscriptions',
       icon: Repeat,
       iconBackground: colors.surfaceSecondary,
-      iconColor: colors.textPrimary,
       onPress: () => router.push('/(tabs)/subscriptions'),
     },
     {
@@ -757,12 +804,13 @@ function QuickActionsCard() {
       accessibilityLabel: 'Open more quick actions',
       icon: MoreHorizontal,
       iconBackground: colors.surfaceSecondary,
-      iconColor: colors.textPrimary,
-      onPress: () => setMoreOpen(true),
+      active: moreOpen,
+      onPress: openMore,
     },
   ];
   return (
     <View
+      ref={cardRef}
       style={[
         styles.quickActionsCard,
         {
@@ -778,16 +826,22 @@ function QuickActionsCard() {
         ))}
       </View>
       <Modal
-        visible={moreOpen}
+        visible={moreOpen || closing}
         transparent
-        animationType="fade"
-        onRequestClose={() => setMoreOpen(false)}
+        animationType="none"
+        statusBarTranslucent
+        onRequestClose={closeMore}
       >
-        <Pressable style={styles.moreBackdrop} onPress={() => setMoreOpen(false)}>
+        <Pressable style={styles.moreBackdrop} onPress={closeMore}>
           <Pressable
             style={[
               styles.moreMenu,
               { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+              anchor && {
+                left: Math.max(12, Math.min(anchor.x + anchor.width - 250, screenWidth - 262)),
+                top: Math.max(12, Math.min(anchor.y - 136, screenHeight - 190)),
+              },
+              menuAnimation,
             ]}
             onPress={(event) => event.stopPropagation()}
           >
@@ -795,7 +849,8 @@ function QuickActionsCard() {
               accessibilityRole="button"
               accessibilityLabel="Open Goals"
               onPress={() => {
-                setMoreOpen(false);
+                if (closing) return;
+                closeMore();
                 router.push('/(tabs)/savings');
               }}
               style={styles.moreMenuItem}
@@ -807,7 +862,8 @@ function QuickActionsCard() {
               accessibilityRole="button"
               accessibilityLabel="Open Loans and Debt"
               onPress={() => {
-                setMoreOpen(false);
+                if (closing) return;
+                closeMore();
                 router.push('/loans');
               }}
               style={styles.moreMenuItem}
@@ -1049,6 +1105,7 @@ function Shortcut({ action }: { action: QuickAction }) {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={action.accessibilityLabel}
+      accessibilityState={action.id === 'more' ? { expanded: Boolean(action.active) } : undefined}
       onPress={action.onPress}
       style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}
     >
@@ -1057,10 +1114,17 @@ function Shortcut({ action }: { action: QuickAction }) {
         importantForAccessibility="no"
         style={[
           styles.shortcutIcon,
-          { backgroundColor: action.iconBackground, borderColor: colors.border },
+          {
+            backgroundColor: action.active ? colors.primarySoft : action.iconBackground,
+            borderColor: action.active ? colors.primary : colors.border,
+          },
         ]}
       >
-        <IconComponent size={22} color={action.iconColor} strokeWidth={2} />
+        <IconComponent
+          size={22}
+          color={colors.primary}
+          strokeWidth={2}
+        />
       </View>
       <Text
         numberOfLines={1}
@@ -1476,12 +1540,19 @@ const styles = StyleSheet.create({
   },
   moreBackdrop: {
     flex: 1,
-    justifyContent: 'flex-end',
-    paddingHorizontal: 24,
-    paddingBottom: 132,
     backgroundColor: 'rgba(0,0,0,0.28)',
   },
-  moreMenu: { alignSelf: 'flex-end', minWidth: 196, padding: 8, borderWidth: 1, borderRadius: 18 },
+  moreMenu: {
+    position: 'absolute',
+    width: 250,
+    padding: 8,
+    borderWidth: 1,
+    borderRadius: 18,
+    shadowOpacity: 0.24,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 14,
+  },
   moreMenuItem: {
     minHeight: 48,
     flexDirection: 'row',

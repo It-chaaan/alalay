@@ -7,6 +7,7 @@ import {
   Undo2, Utensils, UtensilsCrossed, Users, Wifi, Wrench, Zap, Music2, Percent, Building2, type LucideIcon,
 } from 'lucide-react-native';
 import { CATEGORY_DEFINITIONS, categoryDefinitions, getCustomCategoryMeta, getSharedCategoryMeta, type SharedCategoryMeta } from './category-registry';
+import { sortCategoriesByLabel } from '@/utils/category-sorting';
 
 export type CategoryMeta = Omit<SharedCategoryMeta, 'iconKey'> & { icon: LucideIcon };
 export type CategoryOption = { label: string; icon: LucideIcon };
@@ -35,5 +36,7 @@ export function getCategoryMeta(value: string | null | undefined): CategoryMeta 
 }
 
 export function getCategoryKey(value: string) { return getCategoryMeta(value).key; }
-export const spendingCategoryOptions: CategoryOption[] = categoryDefinitions.map(({ label, iconKey }) => ({ label, icon: icons[iconKey] ?? Shapes }));
+export const spendingCategoryOptions: CategoryOption[] = sortCategoriesByLabel(
+  categoryDefinitions.map(({ label, iconKey }) => ({ label, icon: icons[iconKey] ?? Shapes })),
+);
 export { CATEGORY_DEFINITIONS };

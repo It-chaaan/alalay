@@ -48,6 +48,7 @@ import {
   Smartphone,
   Utensils,
   Wifi,
+  X,
   type LucideIcon,
 } from 'lucide-react-native';
 import { evaluateAmountExpression, formatCalculatorExpression } from '@/utils/amount-calculator';
@@ -58,6 +59,7 @@ import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta, spendingCategoryOptions } from '@/constants/categories';
 import { categoryDefinitions, type CategoryGroup } from '@/constants/category-registry';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { sortCategoriesByLabel } from '@/utils/category-sorting';
 
 export const formPalette = {
   background: '#F4F7F1',
@@ -80,7 +82,7 @@ export type Frequency = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 export type CategoryOption = { label: string; icon: LucideIcon };
 
-export const billCategories: CategoryOption[] = [
+export const billCategories: CategoryOption[] = sortCategoriesByLabel([
   { label: 'Electricity', icon: Bolt },
   { label: 'Water', icon: Droplets },
   { label: 'Internet', icon: Wifi },
@@ -97,9 +99,9 @@ export const billCategories: CategoryOption[] = [
   { label: 'Tuition / School', icon: GraduationCap },
   { label: 'Maintenance', icon: Bolt },
   { label: 'Other', icon: MoreHorizontal },
-];
+]);
 
-export const subscriptionCategories: CategoryOption[] = [
+export const subscriptionCategories: CategoryOption[] = sortCategoriesByLabel([
   { label: 'Streaming', icon: Film },
   { label: 'Music', icon: Smartphone },
   { label: 'Gaming', icon: Grid2X2 },
@@ -114,13 +116,13 @@ export const subscriptionCategories: CategoryOption[] = [
   { label: 'Education', icon: GraduationCap },
   { label: 'Delivery / Shopping', icon: ShoppingBag },
   { label: 'Other', icon: MoreHorizontal },
-];
+]);
 
 // Expense creation/editing use the shared catalog. It serializes the established
 // display labels accepted by the backend, rather than a picker-specific value.
 export const expenseCategories: CategoryOption[] = spendingCategoryOptions;
 
-export const budgetCategories: CategoryOption[] = [
+export const budgetCategories: CategoryOption[] = sortCategoriesByLabel([
   { label: 'Food', icon: Utensils },
   { label: 'Transport', icon: CarFront },
   { label: 'Subscriptions', icon: Repeat },
@@ -141,7 +143,7 @@ export const budgetCategories: CategoryOption[] = [
   { label: 'Gifts / Donations', icon: Gift },
   { label: 'Family', icon: Users },
   { label: 'Pets', icon: PawPrint },
-];
+]);
 
 export const savingsBudgetOption: CategoryOption = { label: 'Savings budget', icon: PiggyBank };
 
@@ -538,9 +540,11 @@ export function CategoryChipRow({
   warningByLabel?: Record<string, string>;
 }) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
-  const visibleOptions = showAllOptions || options.length <= 6 ? options : options.slice(0, 4);
-  const selectedExtended = options.find(
+  const sortedOptions = sortCategoriesByLabel(options);
+  const visibleOptions = showAllOptions || sortedOptions.length <= 6 ? sortedOptions : sortedOptions.slice(0, 4);
+  const selectedExtended = sortedOptions.find(
     (option) => option.label === value && !visibleOptions.some((item) => item.label === value),
   );
   const chipOptions = selectedExtended ? [...visibleOptions, selectedExtended] : visibleOptions;
@@ -579,13 +583,13 @@ export function CategoryChipRow({
             >
               <Icon
                 size={17}
-                color={value === optionLabel ? meta.color : colors.textSecondary}
+                color={value === optionLabel ? colors.primary : colors.textSecondary}
                 strokeWidth={1.9}
               />
               <Text
                 style={[
                   chipStyles.text,
-                  { color: value === optionLabel ? meta.color : colors.textSecondary },
+                  { color: value === optionLabel ? colors.primary : colors.textSecondary },
                   value === optionLabel && chipStyles.activeText,
                 ]}
               >
@@ -613,7 +617,7 @@ export function CategoryChipRow({
             <Plus size={17} color={colors.primary} />
             <Text style={[chipStyles.text, { color: colors.primary }]}>Add</Text>
           </Pressable>
-        ) : options.length > 6 && !selectedExtended ? (
+  ) : sortedOptions.length > 6 && !selectedExtended ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setOpen(true)}
@@ -632,7 +636,7 @@ export function CategoryChipRow({
           onChangeText={onCustomValueChange}
         />
       ) : null}
-      {options.length > 6 && !showAllOptions && !onAdd ? (
+      {sortedOptions.length > 6 && !showAllOptions && !onAdd ? (
         <Modal
           visible={open}
           transparent
@@ -641,21 +645,21 @@ export function CategoryChipRow({
         >
           <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
             <Pressable
-              style={[pickerStyles.sheet, { backgroundColor: colors.surface }]}
+              style={[pickerStyles.sheet, { backgroundColor: colors.surfaceElevated, paddingBottom: Math.max(20, insets.bottom + 12) }]}
               onPress={(event) => event.stopPropagation()}
             >
               <View style={pickerStyles.header}>
-                <Text style={pickerStyles.title}>{label.replace(' *', '')}</Text>
-                <Pressable accessibilityRole="button" onPress={() => setOpen(false)}>
-                  <Text style={pickerStyles.close}>×</Text>
+                <Text style={[pickerStyles.title, { color: colors.textPrimary }]}>{label.replace(' *', '')}</Text>
+                <Pressable accessibilityRole="button" accessibilityLabel="Close income type selector" onPress={() => setOpen(false)} style={pickerStyles.close}>
+                  <X size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
               <ScrollView
                 style={pickerStyles.scroll}
-                contentContainerStyle={pickerStyles.list}
+                contentContainerStyle={[pickerStyles.list, { paddingBottom: Math.max(28, insets.bottom + 20) }]}
                 showsVerticalScrollIndicator
               >
-                {options.map(({ label: optionLabel, icon: Icon }) => (
+                {sortedOptions.map(({ label: optionLabel, icon: Icon }) => (
                   <CategoryButton
                     key={optionLabel}
                     label={optionLabel}
@@ -755,7 +759,9 @@ export function ExpenseCategoryPicker({
             </View>
             <ScrollView contentContainerStyle={pickerStyles.list}>
               {groups.map(([group, title]) => {
-                const options = categoryDefinitions.filter((item) => item.group === group);
+                const options = sortCategoriesByLabel(
+                  categoryDefinitions.filter((item) => item.group === group),
+                );
                 return (
                   <View key={group} style={pickerStyles.group}>
                     <Text style={[pickerStyles.groupTitle, { color: colors.textSecondary }]}>
@@ -809,19 +815,19 @@ function CategoryButton({
       style={({ pressed }) => [
         chipStyles.chip,
         { backgroundColor: colors.surfaceInput, borderColor: colors.border, borderWidth: 1 },
-        selected && { backgroundColor: colors.primarySoft, borderColor: meta.color },
+        selected && { backgroundColor: colors.primarySoft, borderColor: colors.primary },
         pressed && chipStyles.pressed,
       ]}
     >
       <CategoryIcon
         size={17}
-        color={selected ? meta.color : colors.textSecondary}
+        color={selected ? colors.primary : colors.textSecondary}
         strokeWidth={1.9}
       />
       <Text
         style={[
           chipStyles.text,
-          { color: selected ? meta.color : colors.textSecondary },
+          { color: selected ? colors.primary : colors.textSecondary },
           selected && { fontWeight: '900' },
         ]}
       >
@@ -1805,7 +1811,7 @@ const pickerStyles = StyleSheet.create({
   scroll: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 20, fontWeight: '900' },
-  close: { fontSize: 28 },
+  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
   list: { paddingTop: 18, paddingBottom: 20, gap: 16 },
   group: { gap: 8 },
   groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },

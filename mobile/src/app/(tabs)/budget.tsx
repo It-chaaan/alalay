@@ -46,7 +46,6 @@ import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta } from '@/constants/categories';
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { budgetProgressPercent, budgetUsagePercent } from '@/utils/budget-summary';
 
 type Category = {
@@ -140,17 +139,17 @@ const customCategoryIcons: { key: string; label: string; icon: LucideIcon }[] = 
 const budgetTemplates: BudgetTemplate[] = [
   {
     id: 'balanced',
-    name: 'Common categories',
-    description: 'A flexible starting point for needs, wants, and savings.',
+    name: 'Recommended budget setup',
+    description: 'Build an editable plan based on your income and spending.',
     preview: '50% Needs · 30% Wants · 20% Savings',
     allocations: [
       { label: 'Rent', weight: 0.2 },
       { label: 'Food', weight: 0.15 },
       { label: 'Electricity', weight: 0.1 },
       { label: 'Transport', weight: 0.05 },
-      { label: 'Entertainment', weight: 0.1 },
+      { label: 'Entertainment', weight: 0.15 },
       { label: 'Shopping', weight: 0.1 },
-      { label: 'Savings budget', weight: 0.2 },
+      { label: 'Savings', weight: 0.2 },
     ],
   },
   {
@@ -276,14 +275,16 @@ export default function Budget() {
     line: colors.border,
   });
   const bottomNavClearance = useBottomNavClearance();
-  const { visible } = useBalanceVisibility();
-  const amountsVisible = visible === true;
   const [month] = useState(currentManilaMonth);
   const [data, setData] = useState<Summary | null>(null);
   const [previousData, setPreviousData] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const [startEmpty, setStartEmpty] = useState(false);
+  const [copyLastMonthSetup, setCopyLastMonthSetup] = useState(false);
+  const [pendingTemplate, setPendingTemplate] = useState<BudgetTemplate | null>(null);
   const [contextCategoryId, setContextCategoryId] = useState<string | undefined>();
 
   const refresh = useCallback(async () => {
@@ -370,7 +371,6 @@ export default function Budget() {
             budgeted={budgeted}
             spent={spent}
             remaining={data.remaining_budget}
-            amountsVisible={amountsVisible}
           />
           {data.unallocated_income !== 0 ? (
             <View style={[styles.tip, data.unallocated_income < 0 && styles.tipWarning]}>
@@ -380,23 +380,37 @@ export default function Budget() {
               />
               <Text style={[styles.tipText, data.unallocated_income < 0 && styles.tipWarningText]}>
                 {data.unallocated_income > 0
-                  ? `${amountsVisible ? peso(data.unallocated_income) : '••••••'} of income is unallocated this month.`
-                  : `Budget is ${amountsVisible ? peso(Math.abs(data.unallocated_income)) : '••••••'} above income.`}
+                  ? `${peso(data.unallocated_income)} of income is unallocated this month.`
+                  : `Budget is ${peso(Math.abs(data.unallocated_income))} above income.`}
               </Text>
             </View>
           ) : null}
           <Section
             title="Category budgets"
             action={
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Edit budget"
-                onPress={() => setOpen(true)}
-                style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
-              >
-                <Pencil size={14} color={formPalette.accent} />
-                <Text style={styles.sectionActionText}>Edit Budget</Text>
-              </Pressable>
+              <View style={styles.sectionActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit budget"
+                  onPress={() => {
+                    setStartEmpty(false);
+                    setPendingTemplate(null);
+                    setOpen(true);
+                  }}
+                  style={({ pressed }) => [styles.sectionAction, pressed && styles.pressed]}
+                >
+                  <Pencil size={14} color={formPalette.accent} />
+                  <Text style={styles.sectionActionText}>Edit Budget</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Change budget setup"
+                  onPress={() => setSetupOpen(true)}
+                  style={({ pressed }) => [styles.setupAction, pressed && styles.pressed]}
+                >
+                  <Text style={styles.setupActionText}>Change setup</Text>
+                </Pressable>
+              </View>
             }
           >
             {shortfalls.length ? (
@@ -418,17 +432,44 @@ export default function Budget() {
                 </Text>
               </Pressable>
             ) : null}
-            <View style={styles.categoryList}>
-              {data.categories
-                ?.filter((category) => !category.goal)
-                .map((category) => (
-                  <BudgetCategoryRow
-                    key={category.id}
-                    category={category}
-                    amountsVisible={amountsVisible}
-                  />
-                ))}
-            </View>
+            {data.categories?.some((category) => !category.goal) ? (
+              <View style={styles.categoryList}>
+                {data.categories
+                  ?.filter((category) => !category.goal)
+                  .map((category) => (
+                    <BudgetCategoryRow
+                      key={category.id}
+                      category={category}
+                    />
+                  ))}
+              </View>
+            ) : (
+              <View style={styles.noLimitsCard} accessibilityRole="summary">
+                <Text style={styles.noLimitsTitle}>No category limits yet</Text>
+                <Text style={styles.noLimitsCopy}>
+                  Your monthly budget is saved, but no spending categories have limits. Choose a
+                  setup to get a plan, or add categories one at a time.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setSetupOpen(true)}
+                  style={({ pressed }) => [styles.emptyAction, pressed && styles.pressed]}
+                >
+                  <Text style={styles.emptyActionText}>Choose a budget setup</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setStartEmpty(true);
+                    setPendingTemplate(null);
+                    setOpen(true);
+                  }}
+                  style={({ pressed }) => [styles.manualAction, pressed && styles.pressed]}
+                >
+                  <Text style={styles.manualActionText}>Add category manually</Text>
+                </Pressable>
+              </View>
+            )}
           </Section>
           <GoalAllocationRows summary={data} />
         </ScrollView>
@@ -438,16 +479,53 @@ export default function Budget() {
           month={month}
           summary={data}
           previousSummary={previousData}
+          startEmpty={startEmpty}
+          copyLastMonthSetup={copyLastMonthSetup}
+          pendingTemplate={pendingTemplate}
           shortfalls={shortfalls}
           initialCategoryId={contextCategoryId}
-          onClose={() => setOpen(false)}
+          onClose={() => {
+            setOpen(false);
+            setPendingTemplate(null);
+            setCopyLastMonthSetup(false);
+          }}
           onSaved={async () => {
             setOpen(false);
             setContextCategoryId(undefined);
+            setPendingTemplate(null);
+            setCopyLastMonthSetup(false);
             await refresh();
           }}
         />
       )}
+      <TemplatePicker
+        month={month}
+        visible={setupOpen}
+        previousSummary={previousData}
+        onClose={() => setSetupOpen(false)}
+        onSelect={(template) => {
+          setSetupOpen(false);
+          setStartEmpty(false);
+          setCopyLastMonthSetup(false);
+          setOpen(true);
+          // The form receives the selected setup through a one-shot event below.
+          setPendingTemplate(template);
+        }}
+        onCopyLastMonth={() => {
+          setSetupOpen(false);
+          setStartEmpty(false);
+          setCopyLastMonthSetup(true);
+          setPendingTemplate(null);
+          setOpen(true);
+        }}
+        onCustom={() => {
+          setSetupOpen(false);
+          setStartEmpty(true);
+          setCopyLastMonthSetup(false);
+          setPendingTemplate(null);
+          setOpen(true);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -457,22 +535,19 @@ function BudgetSummary({
   budgeted,
   spent,
   remaining,
-  amountsVisible,
 }: {
   month: string;
   budgeted: number;
   spent: number;
   remaining: number;
-  amountsVisible: boolean;
 }) {
   const percent = budgetUsagePercent(spent, budgeted);
   const progress = budgetProgressPercent(spent, budgeted);
   const over = remaining < 0;
-  const mask = '••••••';
   return (
     <View
       accessibilityRole="summary"
-      accessibilityLabel={`${percent} percent of budget used. Total budget ${amountsVisible ? peso(budgeted) : 'hidden'}. Used ${amountsVisible ? peso(spent) : 'hidden'}. Remaining ${amountsVisible ? peso(remaining) : 'hidden'}.`}
+      accessibilityLabel={`${percent} percent of budget used. Total budget ${peso(budgeted)}. Used ${peso(spent)}. Remaining ${peso(remaining)}.`}
       style={[styles.summaryCard, { backgroundColor: formPalette.balance }]}
     >
       <FinancialSummaryBackground motif="budget" />
@@ -488,12 +563,12 @@ function BudgetSummary({
           <Text style={styles.percentLabel}>USED</Text>
         </View>
         <View style={styles.summaryMetrics}>
-          <Metric label="Total" value={amountsVisible ? peso(budgeted) : mask} />
-          <Metric label="Used" value={amountsVisible ? peso(spent) : mask} />
+          <Metric label="Total" value={peso(budgeted)} />
+          <Metric label="Used" value={peso(spent)} />
           <Metric
             label="Remaining"
             value={
-              amountsVisible ? (over ? `-${peso(Math.abs(remaining))}` : peso(remaining)) : mask
+              over ? `-${peso(Math.abs(remaining))}` : peso(remaining)
             }
             tone={over ? 'danger' : 'positive'}
           />
@@ -544,10 +619,8 @@ function Metric({
 
 function BudgetCategoryRow({
   category,
-  amountsVisible,
 }: {
   category: Category;
-  amountsVisible: boolean;
 }) {
   const over = category.spent > category.budget;
   const color = getCategoryMeta(category.name).color;
@@ -559,18 +632,10 @@ function BudgetCategoryRow({
       icon={<CategoryIcon size={19} color={tone} />}
       backgroundIcon={<CategoryIcon size={76} color={color} opacity={0.045} />}
       title={category.name}
-      detail={
-        amountsVisible ? `${peso(category.spent)} / ${peso(category.budget)}` : '•••••• / ••••••'
-      }
+      detail={`${peso(category.spent)} / ${peso(category.budget)}`}
       percent={category.percent}
       color={tone}
-      remaining={
-        amountsVisible
-          ? over
-            ? `${peso(Math.abs(remaining))} over budget`
-            : `${peso(remaining)} remaining`
-          : 'Balance hidden'
-      }
+      remaining={over ? `${peso(Math.abs(remaining))} over budget` : `${peso(remaining)} remaining`}
     />
   );
 }
@@ -656,6 +721,9 @@ function BudgetForm({
   previousSummary,
   shortfalls,
   initialCategoryId,
+  startEmpty = false,
+  copyLastMonthSetup = false,
+  pendingTemplate,
   onClose,
   onSaved,
 }: {
@@ -664,10 +732,25 @@ function BudgetForm({
   previousSummary: Summary | null;
   shortfalls: Shortfall[];
   initialCategoryId?: string;
+  startEmpty?: boolean;
+  copyLastMonthSetup?: boolean;
+  pendingTemplate?: BudgetTemplate | null;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const initialEntries = useMemo(() => {
+    if (copyLastMonthSetup && previousSummary?.categories.length) {
+      return previousSummary.categories
+        .filter((category) => !category.goal)
+        .map(({ name, budget, icon }) => ({
+          id: `budget-copy-${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          name,
+          budget,
+          icon,
+          persisted: false,
+        }));
+    }
+    if (startEmpty) return [];
     const current = summary?.categories.filter((category) => !category.goal) ?? [];
     if (current.length)
       return [...current]
@@ -684,9 +767,9 @@ function BudgetForm({
           persisted: true,
         }));
     return commonCategoryEntries();
-  }, [summary, shortfalls]);
+  }, [copyLastMonthSetup, previousSummary, startEmpty, summary, shortfalls]);
   const [entries, setEntries] = useState<BudgetEntry[]>(initialEntries);
-  const [monthlyBudget, setMonthlyBudget] = useState(() => String(summary?.budget_amount ?? ''));
+  const [monthlyBudget, setMonthlyBudget] = useState(() => String(summary?.budget_amount ?? (copyLastMonthSetup ? previousSummary?.budget_amount ?? '' : '')));
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialEntries.map((entry) => [entry.id, entry.budget ? String(entry.budget) : '']),
@@ -698,6 +781,41 @@ function BudgetForm({
   const [customCategoryError, setCustomCategoryError] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  useEffect(() => {
+    if (!pendingTemplate) return;
+    const base: BudgetEntry[] = (
+      summary?.categories.filter((category) => !category.goal) ?? []
+    ).map((category) => ({
+      id: category.id,
+      name: category.name,
+      budget: category.budget,
+      icon: category.icon,
+      persisted: true,
+    }));
+    const monthly = parseAmount(monthlyBudget) ?? summary?.budget_amount ?? 0;
+    const templateEntries = pendingTemplate.allocations
+      .map((allocation) => {
+        const existing = base.find(
+          (category) => category.name.toLowerCase() === allocation.label.toLowerCase(),
+        );
+        return {
+          id:
+            existing?.id ?? `budget-${allocation.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+          name: existing?.name ?? allocation.label,
+          budget: existing?.budget ?? Math.round(monthly * allocation.weight),
+          icon: existing?.icon,
+          persisted: Boolean(existing),
+        };
+      });
+    const merged = [
+      ...base.filter((entry) => !templateEntries.some((item) => item.id === entry.id)),
+      ...templateEntries,
+    ];
+    replaceDraftEntries(merged);
+    if (monthly > 0) setMonthlyBudget(String(Math.round(monthly)));
+    // Apply a selected setup once; including draft values here would overwrite edits while typing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingTemplate]);
   const selectedEntry = entries.find((entry) => entry.id === selectedId);
   const amount = drafts[selectedId] ?? '';
   const options = useMemo(
@@ -1047,17 +1165,25 @@ function BudgetForm({
 function TemplatePicker({
   month,
   visible,
+  previousSummary,
   onClose,
   onSelect,
+  onCopyLastMonth,
   onCustom,
 }: {
   month: string;
   visible: boolean;
+  previousSummary: Summary | null;
   onClose: () => void;
   onSelect: (template: BudgetTemplate) => void;
+  onCopyLastMonth: () => void;
   onCustom: () => void;
 }) {
   const { colors } = useAppTheme();
+  const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
+  useEffect(() => {
+    if (!visible) setSelectedTemplate(null);
+  }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.addCategoryBackdrop} onPress={onClose}>
@@ -1087,15 +1213,39 @@ function TemplatePicker({
             contentContainerStyle={styles.templateList}
             showsVerticalScrollIndicator={false}
           >
-            {budgetTemplates.map((template) => (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copy last month's budget"
+              disabled={!previousSummary?.categories.some((category) => !category.goal)}
+              onPress={onCopyLastMonth}
+              style={({ pressed }) => [
+                styles.templateCard,
+                { backgroundColor: colors.surfaceInput, borderColor: colors.border },
+                !previousSummary?.categories.some((category) => !category.goal) && { opacity: 0.55 },
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text style={[styles.templateName, { color: colors.textPrimary }]}>Copy last month</Text>
+              <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>Reuse your most recent budget categories and limits.</Text>
+              <Text style={[styles.templatePreview, { color: colors.primary }]}>
+                {previousSummary?.categories.some((category) => !category.goal)
+                  ? `${monthLabel(previousSummary.month)} · ${previousSummary.categories.filter((category) => !category.goal).length} categories · ${peso(previousSummary.budget_amount)}`
+                  : 'No previous budget is available to copy.'}
+              </Text>
+            </Pressable>
+            {budgetTemplates.slice(0, 1).map((template) => (
               <Pressable
                 key={template.id}
                 accessibilityRole="button"
                 accessibilityLabel={`Use ${template.name} template`}
-                onPress={() => onSelect(template)}
+                onPress={() => setSelectedTemplate(template)}
                 style={({ pressed }) => [
                   styles.templateCard,
                   { backgroundColor: colors.surfaceInput, borderColor: colors.border },
+                  selectedTemplate?.id === template.id && {
+                    borderColor: colors.primary,
+                    backgroundColor: colors.primarySoft,
+                  },
                   pressed && styles.pressed,
                 ]}
               >
@@ -1110,6 +1260,25 @@ function TemplatePicker({
                 </Text>
               </Pressable>
             ))}
+            {selectedTemplate ? (
+              <View style={[styles.templateConfirm, { backgroundColor: colors.surfaceInput }]}>
+                <Text style={[styles.templateConfirmTitle, { color: colors.textPrimary }]}>
+                  Preview: {selectedTemplate.name}
+                </Text>
+                <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>
+                  Saving replaces only this month&apos;s category limits. Expenses and transactions
+                  remain unchanged.
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={`Apply ${selectedTemplate.name} setup`}
+                  onPress={() => onSelect(selectedTemplate)}
+                  style={({ pressed }) => [styles.templatePrimary, pressed && styles.pressed]}
+                >
+                  <Text style={styles.templatePrimaryText}>Apply setup</Text>
+                </Pressable>
+              </View>
+            ) : null}
             <Pressable
               accessibilityRole="button"
               onPress={onCustom}
@@ -1540,6 +1709,7 @@ function createStyles(palette: typeof formPalette) {
       gap: 10,
     },
     sectionTitle: { flex: 1, color: palette.ink, fontSize: 16, fontWeight: '900' },
+    sectionActions: { alignItems: 'flex-end', gap: 5 },
     sectionAction: {
       minHeight: 42,
       flexDirection: 'row',
@@ -1550,6 +1720,8 @@ function createStyles(palette: typeof formPalette) {
       backgroundColor: palette.accentPale,
     },
     sectionActionText: { color: palette.accentDark, fontSize: 11, fontWeight: '900' },
+    setupAction: { minHeight: 28, justifyContent: 'center', paddingHorizontal: 8 },
+    setupActionText: { color: palette.accent, fontSize: 10, fontWeight: '900' },
     shortfallNotice: {
       marginBottom: 12,
       padding: 13,
@@ -1715,6 +1887,26 @@ function createStyles(palette: typeof formPalette) {
       backgroundColor: palette.accent,
     },
     emptyActionText: { color: '#fff', fontWeight: '900' },
+    noLimitsCard: {
+      padding: 14,
+      borderRadius: 16,
+      backgroundColor: palette.background,
+      borderWidth: 1,
+      borderColor: palette.line,
+    },
+    noLimitsTitle: { color: palette.ink, fontSize: 15, fontWeight: '900' },
+    noLimitsCopy: { marginTop: 6, color: palette.muted, fontSize: 12, lineHeight: 18 },
+    manualAction: {
+      minHeight: 42,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: 8,
+      borderRadius: 15,
+      borderWidth: 1,
+      borderColor: palette.line,
+      backgroundColor: palette.surface,
+    },
+    manualActionText: { color: palette.accent, fontSize: 12, fontWeight: '900' },
     pressed: { opacity: 0.72 },
     formHint: { color: palette.muted, fontSize: 12, lineHeight: 18 },
     templateSummary: {
@@ -1749,6 +1941,8 @@ function createStyles(palette: typeof formPalette) {
     templateName: { fontSize: 14, fontWeight: '900' },
     templateDescription: { marginTop: 5, fontSize: 11, lineHeight: 17 },
     templatePreview: { marginTop: 8, fontSize: 11, fontWeight: '900' },
+    templateConfirm: { marginTop: 2, padding: 14, borderRadius: 17 },
+    templateConfirmTitle: { fontSize: 14, fontWeight: '900' },
     limitPreview: {
       flexDirection: 'row',
       alignItems: 'center',

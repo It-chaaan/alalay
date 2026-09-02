@@ -9,7 +9,6 @@ import {
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useAppTheme } from '@/theme/theme';
 
 type Props = {
@@ -33,8 +32,6 @@ export function LoansDebtEntryCard({
   onPress,
 }: Props) {
   const { colors } = useAppTheme();
-  const { visible } = useBalanceVisibility();
-  const amountsVisible = visible === true;
   const hasSummary = owedToMe != null && iOwe != null;
   return (
     <Pressable
@@ -76,7 +73,7 @@ export function LoansDebtEntryCard({
           <View style={styles.summaryRow}>
             <Summary
               label="Owed to me"
-              value={amountsVisible ? peso(owedToMe!) : '••••••'}
+              value={peso(owedToMe!)}
               color={colors.primary}
               icon={<ArrowDownLeft size={18} color={colors.primary} />}
               support={
@@ -87,7 +84,7 @@ export function LoansDebtEntryCard({
             />
             <Summary
               label="I owe"
-              value={amountsVisible ? peso(iOwe!) : '••••••'}
+              value={peso(iOwe!)}
               color={colors.danger}
               icon={<ArrowUpRight size={18} color={colors.danger} />}
               support={iOwe! > 0 ? 'Outstanding debt' : 'No outstanding debt'}

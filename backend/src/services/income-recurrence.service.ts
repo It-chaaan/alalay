@@ -45,7 +45,9 @@ function addDays(date: string, days: number) {
 }
 
 function occurrenceDates(row: IncomeRow, from: string, to: string) {
-  const anchor = parseDate(String(row.date));
+  // `date` is the mutable next-due date of an active schedule. Historical
+  // month views must instead use the immutable schedule anchor when present.
+  const anchor = parseDate(String(row.schedule_anchor_date ?? row.date));
   const start = parseDate(from);
   const end = parseDate(to);
   const dates: string[] = [];
@@ -79,7 +81,7 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
           Math.min(anchor.getUTCDate(), daysInMonth(cursor.getUTCFullYear(), anchor.getUTCMonth())),
         ),
       );
-      if (candidate > anchor && candidate >= start && candidate <= end)
+      if (candidate >= anchor && candidate >= start && candidate <= end)
         dates.push(dateKey(candidate));
       cursor.setUTCFullYear(cursor.getUTCFullYear() + 1);
     }
@@ -88,7 +90,6 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
 
   const cursor = new Date(anchor);
   const step = frequency === 'biweekly' ? 14 : 7;
-  cursor.setUTCDate(cursor.getUTCDate() + step);
   while (cursor <= end) {
     if (cursor >= start) dates.push(dateKey(cursor));
     cursor.setUTCDate(cursor.getUTCDate() + step);
@@ -96,12 +97,13 @@ function occurrenceDates(row: IncomeRow, from: string, to: string) {
   return dates;
 }
 
+export function isRecurringApplicableInRange(row: IncomeRow, from: string, to: string) {
+  return occurrenceDates(row, from, to).length > 0;
+}
+
 export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): IncomeRow[] {
   const actualRows = rows.filter(
     (row) => row.is_posted !== false && String(row.date) >= from && String(row.date) <= to,
-  );
-  const actualKeys = new Set(
-    actualRows.map((row) => `${row.source}|${Number(row.amount)}|${row.date}`),
   );
   const scheduled: IncomeRow[] = [];
 
@@ -125,9 +127,16 @@ export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): I
     )
     .forEach((row) => {
       occurrenceDates(row, from, to).forEach((date) => {
-        if (row.is_posted !== false && date === String(row.date)) return;
-        const key = `${row.source}|${Number(row.amount)}|${date}`;
-        if (actualKeys.has(key)) return;
+        // A posted occurrence belongs to this schedule through schedule_id.
+        // Legacy source rows are linked by the schedule's parent ID. Never
+        // deduplicate by labels or amounts: unrelated income can match those.
+        const received = actualRows.some(
+          (actual) =>
+            String(actual.date) === date &&
+            (String(actual.schedule_id ?? '') === String(row.id) ||
+              String(actual.id) === String(row.schedule_id ?? '')),
+        );
+        if (received) return;
         scheduled.push({
           ...row,
           id: `scheduled-${row.id}-${date}`,

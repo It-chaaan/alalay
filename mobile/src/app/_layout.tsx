@@ -17,17 +17,56 @@ import { AppThemeProvider, useAppTheme } from '@/theme/theme';
 import { requiresMfa } from '@/services/mfa';
 import { cancelAllFinancialReminders, reconcileOnAppResume } from '@/services/financial-reminders';
 import { IncomeWorkflowProvider } from '@/context/income-workflow';
+import { DashboardInsightProvider } from '@/context/dashboard-insight';
 
 export default function RootLayout() {
-  return <AppThemeProvider><ThemedRoot /></AppThemeProvider>;
+  return (
+    <AppThemeProvider>
+      <ThemedRoot />
+    </AppThemeProvider>
+  );
 }
 
 function ThemedRoot() {
   const { colors, resolvedTheme, ready } = useAppTheme();
-  if (!ready) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.background }}><ActivityIndicator color={colors.accent} /></View>;
+  if (!ready)
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator color={colors.accent} />
+      </View>
+    );
   const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
-  const navigationTheme = { ...base, colors: { ...base.colors, background: colors.background, card: colors.surface, text: colors.ink, border: colors.line, primary: colors.accent } };
-  return <ThemeProvider value={navigationTheme}><ModalVisibilityProvider><ToastProvider><SessionGate /></ToastProvider></ModalVisibilityProvider><StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} backgroundColor={colors.background} /></ThemeProvider>;
+  const navigationTheme = {
+    ...base,
+    colors: {
+      ...base.colors,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.ink,
+      border: colors.line,
+      primary: colors.accent,
+    },
+  };
+  return (
+    <ThemeProvider value={navigationTheme}>
+      <ModalVisibilityProvider>
+        <ToastProvider>
+          <SessionGate />
+        </ToastProvider>
+      </ModalVisibilityProvider>
+      <StatusBar
+        style={resolvedTheme === 'dark' ? 'light' : 'dark'}
+        backgroundColor={colors.background}
+      />
+    </ThemeProvider>
+  );
 }
 
 function SessionGate() {
@@ -35,7 +74,17 @@ function SessionGate() {
   const { modalCount } = useModalVisibility();
   const bottomNavClearance = useBottomNavClearance();
   const pathname = usePathname();
-  const screenOwnsClearance = ['/', '/bills', '/budget', '/expenses', '/income', '/reports', '/wallets', '/subscriptions', '/savings'].some((route) => pathname === route || pathname.endsWith(route));
+  const screenOwnsClearance = [
+    '/',
+    '/bills',
+    '/budget',
+    '/expenses',
+    '/income',
+    '/reports',
+    '/wallets',
+    '/subscriptions',
+    '/savings',
+  ].some((route) => pathname === route || pathname.endsWith(route));
   const router = useRouter();
   const segments = useSegments();
   const [session, setSession] = useState<Session | null>(null);
@@ -62,28 +111,42 @@ function SessionGate() {
         }
         setCheckingSession(true);
         setSession(nextSession);
-        void (nextSession ? requiresMfa() : Promise.resolve({ required: false })).then((state) => {
-          if (!mounted) return;
-          setMfaPending(state.required);
-          setCheckingSession(false);
-        }).catch(() => { if (mounted) { setMfaPending(Boolean(nextSession)); setCheckingSession(false); } });
+        void (nextSession ? requiresMfa() : Promise.resolve({ required: false }))
+          .then((state) => {
+            if (!mounted) return;
+            setMfaPending(state.required);
+            setCheckingSession(false);
+          })
+          .catch(() => {
+            if (mounted) {
+              setMfaPending(Boolean(nextSession));
+              setCheckingSession(false);
+            }
+          });
       }
     });
 
-    void supabase.auth.getSession().then(async ({ data, error }) => {
-      if (!mounted) return;
-      if (error && __DEV__) console.warn('[Auth] Could not restore the saved session.', error);
-      await cancelAllFinancialReminders();
-      if (!mounted) return;
-      setSession(data.session);
-      const mfaState = data.session ? await requiresMfa() : { required: false };
-      setMfaPending(mfaState.required);
-    }).catch((error) => {
-      if (__DEV__) console.warn('[Auth] Session restore failed.', error);
-      if (mounted) { setSession(null); setMfaPending(false); }
-    }).finally(() => {
-      if (mounted) setCheckingSession(false);
-    });
+    void supabase.auth
+      .getSession()
+      .then(async ({ data, error }) => {
+        if (!mounted) return;
+        if (error && __DEV__) console.warn('[Auth] Could not restore the saved session.', error);
+        await cancelAllFinancialReminders();
+        if (!mounted) return;
+        setSession(data.session);
+        const mfaState = data.session ? await requiresMfa() : { required: false };
+        setMfaPending(mfaState.required);
+      })
+      .catch((error) => {
+        if (__DEV__) console.warn('[Auth] Session restore failed.', error);
+        if (mounted) {
+          setSession(null);
+          setMfaPending(false);
+        }
+      })
+      .finally(() => {
+        if (mounted) setCheckingSession(false);
+      });
 
     return () => {
       mounted = false;
@@ -95,19 +158,45 @@ function SessionGate() {
     if (!session) return;
     const reconcileSafely = () => {
       void reconcileOnAppResume().catch((error) => {
-        if (__DEV__) console.warn('[Financial reminders] startup reconciliation failed.', error instanceof Error ? error.name : 'UnknownError');
+        if (__DEV__)
+          console.warn(
+            '[Financial reminders] startup reconciliation failed.',
+            error instanceof Error ? error.name : 'UnknownError',
+          );
       });
     };
     reconcileSafely();
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') reconcileSafely(); });
-    const responseSubscription = Notifications.addNotificationResponseReceivedListener((response) => { const data = response.notification.request.content.data as { eventType?: string; notificationId?: string } | undefined; if (data?.notificationId) void import('@/services/notifications').then(async ({ fetchNotifications, markNotificationRead }) => { await fetchNotifications(); await markNotificationRead(data.notificationId!); }).catch(() => undefined); if (data?.eventType === 'bill') router.push('/(tabs)/bills'); });
-    return () => { subscription.remove(); responseSubscription.remove(); };
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') reconcileSafely();
+    });
+    const responseSubscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        const data = response.notification.request.content.data as
+          { eventType?: string; notificationId?: string } | undefined;
+        if (data?.notificationId)
+          void import('@/services/notifications')
+            .then(async ({ fetchNotifications, markNotificationRead }) => {
+              await fetchNotifications();
+              await markNotificationRead(data.notificationId!);
+            })
+            .catch(() => undefined);
+        if (data?.eventType === 'bill') router.push('/(tabs)/bills');
+      },
+    );
+    return () => {
+      subscription.remove();
+      responseSubscription.remove();
+    };
   }, [router, session]);
 
   useEffect(() => {
     if (checkingSession) return;
     const inTabs = segments[0] === '(tabs)';
-    const standaloneAppRoute = pathname === '/wallet-details' || pathname === '/notifications' || pathname === '/loans' || pathname === '/auth/callback';
+    const standaloneAppRoute =
+      pathname === '/wallet-details' ||
+      pathname === '/notifications' ||
+      pathname === '/loans' ||
+      pathname === '/auth/callback';
     if (session && mfaPending && pathname !== '/auth') {
       router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
     } else if (session && !mfaPending && !inTabs && !standaloneAppRoute) {
@@ -119,21 +208,44 @@ function SessionGate() {
 
   if (checkingSession) return <SessionLoadingScreen />;
 
-  return <IncomeWorkflowProvider><View style={[styles.appShell, { backgroundColor: colors.background }, session && modalCount === 0 && !screenOwnsClearance && { paddingBottom: bottomNavClearance }]}><Stack screenOptions={{ headerShown: false }}>
-    <Stack.Screen name="index" />
-    <Stack.Screen name="auth" />
-    <Stack.Screen name="auth/callback" />
-    <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
-    <Stack.Screen name="loans" options={{ headerShown: false }} />
-    <Stack.Screen name="notifications" options={{ headerShown: false }} />
-    <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-  </Stack>{session && !mfaPending ? <BottomNav /> : null}</View></IncomeWorkflowProvider>;
+  return (
+    <IncomeWorkflowProvider>
+      <DashboardInsightProvider enabled={Boolean(session && !mfaPending)}>
+        <View
+          style={[
+            styles.appShell,
+            { backgroundColor: colors.background },
+            session &&
+              modalCount === 0 &&
+              !screenOwnsClearance && { paddingBottom: bottomNavClearance },
+          ]}
+        >
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen name="auth/callback" />
+            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+            <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
+            <Stack.Screen name="loans" options={{ headerShown: false }} />
+            <Stack.Screen name="notifications" options={{ headerShown: false }} />
+            <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
+          </Stack>
+          {session && !mfaPending ? <BottomNav /> : null}
+        </View>
+      </DashboardInsightProvider>
+    </IncomeWorkflowProvider>
+  );
 }
 
 function SessionLoadingScreen() {
   const { colors } = useAppTheme();
-  return <View style={[styles.loading, { backgroundColor: colors.background }]}><BrandLockup color={colors.ink} logoSize={36} textSize={26} /><ActivityIndicator color={colors.accent} style={styles.spinner} /><Text style={[styles.loadingText, { color: colors.muted }]}>Restoring your session…</Text></View>;
+  return (
+    <View style={[styles.loading, { backgroundColor: colors.background }]}>
+      <BrandLockup color={colors.ink} logoSize={36} textSize={26} />
+      <ActivityIndicator color={colors.accent} style={styles.spinner} />
+      <Text style={[styles.loadingText, { color: colors.muted }]}>Restoring your session…</Text>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

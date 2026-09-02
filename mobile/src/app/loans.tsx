@@ -11,7 +11,6 @@ import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { fetchWallets, notifyFinancialMutation, type WalletRecord } from '@/services/finance';
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
 
 type Direction = 'lent' | 'borrowed';
 type Tab = 'active' | 'history';
@@ -26,7 +25,6 @@ const key = (prefix: string) => `mobile-${prefix}-${Date.now()}-${Math.random().
 
 export default function LoansScreen() {
   const { colors } = useAppTheme();
-  const { visible } = useBalanceVisibility();
   const [data, setData] = useState<LoansResponse | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [error, setError] = useState('');
@@ -44,7 +42,7 @@ export default function LoansScreen() {
     } catch (cause) { setError(cause instanceof Error ? cause.message : 'Loans could not load.'); }
   }, []);
   useEffect(() => { void load(); }, [load]);
-  const amount = (value: number) => visible !== false ? peso(value) : '₱•••••';
+  const amount = (value: number) => peso(value);
   const active = data?.loans.filter((loan) => loan.status === 'active') ?? [];
   const history = data?.loans.filter((loan) => loan.status !== 'active') ?? [];
   const shown = tab === 'active' ? active : history;

@@ -79,9 +79,18 @@ function addDays(value: string, days: number) {
 }
 
 function scheduleIncomePayload(payload: Record<string, unknown>) {
-  // A date-only income is due in Manila.  Past/today entries are immediately
-  // recorded manual income; future entries are schedules and cannot credit a
-  // wallet until the database scheduler posts their occurrence.
+  // A recurrence is always a Manila-date schedule definition, including one
+  // that starts today. The scheduler posts each due occurrence exactly once;
+  // storing it as manual income would leave no schedule to project next month.
+  if (payload.is_recurring === true)
+    return {
+      ...payload,
+      schedule_anchor_date: payload.date,
+      is_posted: false,
+      schedule_status: 'active',
+      source_type: null,
+      received_at: null,
+    };
   if (String(payload.date ?? '') <= todayIso())
     return {
       ...payload,

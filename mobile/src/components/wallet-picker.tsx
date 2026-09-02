@@ -4,6 +4,7 @@ import { Check, Search, WalletCards, X } from 'lucide-react-native';
 import { formPalette } from './finance-form';
 import { walletPresets, type WalletPreset } from '@/constants/wallets';
 import { BrandLogo } from '@/components/brand-logo';
+import { sortCategoriesByLabel } from '@/utils/category-sorting';
 
 export type Wallet = {
   id: string;
@@ -191,11 +192,10 @@ export function WalletPickerModal({
                 <Text style={styles.empty}>No wallets found.</Text>
               ))}
             {showPresets &&
-              ['E-wallets', 'Digital banks', 'Traditional banks'].map((group) => (
+              ['E-wallets', 'Digital banks', 'Traditional banks', 'Cash'].map((group) => (
                 <View key={group}>
                   <Text style={styles.group}>{group}</Text>
-                  {filtered
-                    .filter((preset) => preset.group === group)
+                  {sortCategoriesByLabel(filtered.filter((preset) => preset.group === group), { getLabel: (preset) => preset.name })
                     .map((preset) => (
                       <WalletChoice
                         key={preset.key}

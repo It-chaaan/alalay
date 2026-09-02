@@ -32,7 +32,22 @@ incomeRouter.get(
   validateRequest({ query: incomeMonthQuerySchema }),
   asyncHandler(async (req, res) => {
     const month = (req.validated?.query as { month?: string } | undefined)?.month;
-    return sendSuccess(res, await myIncomeForMonth(req.user!.id, month));
+    const result = await myIncomeForMonth(req.user!.id, month);
+    if (process.env.NODE_ENV !== 'production') {
+      console.info('[income.my-income] response', {
+        month: result.month,
+        overview: result.overview,
+        items: result.items.map((item) => ({
+          sourceId: item.sourceId.slice(0, 8),
+          occurrenceId: item.occurrenceId?.slice(0, 8) ?? null,
+          status: item.status,
+          dueDate: item.dueDate,
+          receivedDate: item.receivedDate,
+          kind: item.kind,
+        })),
+      });
+    }
+    return sendSuccess(res, result);
   }),
 );
 

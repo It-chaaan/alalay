@@ -2,6 +2,10 @@ import { useEffect, useState } from 'react';
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { SECURE_STORAGE_KEYS } from '@/constants/secure-storage-keys';
+import {
+  nextWalletBalanceVisibility,
+  walletBalanceVisibilityFromStoredValue,
+} from '@/utils/wallet-balance-privacy';
 
 const STORAGE_KEY = SECURE_STORAGE_KEYS.balanceVisibility;
 let sharedVisible: boolean | null = null;
@@ -11,7 +15,7 @@ const listeners = new Set<(visible: boolean | null) => void>();
 async function readVisibility() {
   try {
     const value = Platform.OS === 'web' ? localStorage.getItem(STORAGE_KEY) : await SecureStore.getItemAsync(STORAGE_KEY);
-    return value === 'hidden' ? false : true;
+    return walletBalanceVisibilityFromStoredValue(value);
   } catch {
     return true;
   }
@@ -26,7 +30,8 @@ async function writeVisibility(visible: boolean) {
   }
 }
 
-export function useBalanceVisibility() {
+/** Shared, persisted privacy preference for wallet balances on Home and Wallet only. */
+export function useWalletBalanceVisibility() {
   const [visible, setVisible] = useState<boolean | null>(sharedVisible);
   useEffect(() => {
     listeners.add(setVisible);
@@ -41,7 +46,7 @@ export function useBalanceVisibility() {
   }, []);
 
   const toggle = () => {
-    const next = sharedVisible === false;
+    const next = nextWalletBalanceVisibility(sharedVisible);
     sharedVisible = next;
     listeners.forEach((listener) => listener(next));
     void writeVisibility(next);
@@ -49,3 +54,6 @@ export function useBalanceVisibility() {
 
   return { visible, toggle };
 }
+
+/** @deprecated Use useWalletBalanceVisibility to make the preference's scope explicit. */
+export const useBalanceVisibility = useWalletBalanceVisibility;

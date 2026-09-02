@@ -3,7 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BrandLogo } from '@/components/brand-logo';
 import { institutionFor } from '@/constants/institution-registry';
-import { useBalanceVisibility } from '@/hooks/use-balance-visibility';
+import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useAppTheme } from '@/theme/theme';
 import { walletTypeLabel, type Wallet } from './wallet-picker';
 
@@ -17,7 +17,7 @@ type WalletCardProps = {
 /** Compact grid card: header identity and balance are deliberately separate regions. */
 export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletCardProps) {
   const { colors } = useAppTheme();
-  const { visible } = useBalanceVisibility();
+  const { visible } = useWalletBalanceVisibility();
   const amountsVisible = visible === true;
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
   const institution = institutionFor(wallet.institution_key);

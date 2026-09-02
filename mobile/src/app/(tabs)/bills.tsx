@@ -54,6 +54,7 @@ import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { StatusBadge } from '@/components/status-badge';
+import { FinancialItemDetailsSheet } from '@/components/financial-item-details-sheet';
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { reconcileFinancialReminders } from '@/services/financial-reminders';
@@ -158,6 +159,7 @@ export default function BillsScreen() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [paymentBill, setPaymentBill] = useState<FinanceItem | null>(null);
   const [managing, setManaging] = useState<FinanceItem | null>(null);
+  const [details, setDetails] = useState<FinanceItem | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -189,6 +191,7 @@ export default function BillsScreen() {
       filter === 'All' || (filter === 'Upcoming' ? isUpcomingStatus(status) : status === filter);
     return matchesFilter && item.name.toLowerCase().includes(query.toLowerCase());
   });
+  const walletNames = new Map(wallets.map((wallet) => [wallet.id, wallet.name]));
   const month = currentMonthKey();
   const monthlyBills = bills.filter((item) => item.dueDate.slice(0, 7) === month);
   const totalBillsThisMonth = monthlyBills.reduce((sum, item) => sum + item.amount, 0);
@@ -278,7 +281,9 @@ export default function BillsScreen() {
                 <BillCard
                   key={`${item.source}-${item.id}`}
                   item={item}
+                  walletName={item.wallet_id ? walletNames.get(item.wallet_id) : undefined}
                   onManage={() => setManaging(item)}
+                  onOpenDetails={() => setDetails(item)}
                 />
               ))
             ) : (
@@ -399,6 +404,18 @@ export default function BillsScreen() {
           ]}
         />
       )}
+      {details && <FinancialItemDetailsSheet
+        visible title="Bill details" name={details.name}
+        amount={`₱${Math.round(details.amount).toLocaleString('en-PH')}`}
+        status={derivedStatus(details)} onClose={() => setDetails(null)}
+        details={[
+          { label: 'Category', value: details.custom_category || details.category },
+          { label: 'Due date', value: formatBillDate(details.dueDate) },
+          { label: 'Type', value: details.recurring ? `Recurring${details.frequency ? ` · ${details.frequency}` : ''}` : 'One-time' },
+          { label: 'Payment wallet', value: details.wallet_id ? wallets.find((wallet) => wallet.id === details.wallet_id)?.name ?? 'Payment method unavailable' : 'No payment method' },
+          ...(details.paid ? [{ label: 'Payment status', value: 'Paid' }] : []),
+        ]}
+      />}
     </SafeAreaView>
   );
 }
@@ -470,14 +487,16 @@ function BillFilterSheet({
   );
 }
 
-function BillCard({ item, onManage }: { item: FinanceItem; onManage: () => void }) {
+function BillCard({ item, walletName, onManage, onOpenDetails }: { item: FinanceItem; walletName?: string; onManage: () => void; onOpenDetails: () => void }) {
   const { colors } = useAppTheme();
   const status = derivedStatus(item);
   const metadata = `${item.source === 'subscription' ? 'Subscription' : item.custom_category || item.category} · Due ${formatBillDate(item.dueDate)}`;
   return (
-    <View
+    <Pressable
+      accessibilityRole="button"
       accessibilityLabel={`${item.name}, ₱${Math.round(item.amount).toLocaleString('en-PH')}, ${metadata}, ${status}.`}
       style={styles.billCard}
+      onPress={onOpenDetails}
     >
       <View style={styles.billTop}>
         <BrandLogo name={item.name} entity="bill" category={item.category} size={40} />
@@ -485,31 +504,29 @@ function BillCard({ item, onManage }: { item: FinanceItem; onManage: () => void 
           <Text numberOfLines={1} style={styles.billName}>
             {item.name}
           </Text>
+          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.billAmount}>
+            ₱{Math.round(item.amount).toLocaleString('en-PH')}
+          </Text>
           <Text numberOfLines={1} style={styles.billMeta}>
             {metadata}
           </Text>
+          <Text numberOfLines={1} style={styles.billPayment}>
+            {item.wallet_id ? walletName ?? 'Payment method unavailable' : 'No payment method'}
+          </Text>
         </View>
-        <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.72}
-          style={styles.billAmount}
-        >
-          ₱{Math.round(item.amount).toLocaleString('en-PH')}
-        </Text>
-        <Pressable
+        <View style={styles.billActions}>
+          <Pressable
           accessibilityRole="button"
           accessibilityLabel={`More options for ${item.name}`}
-          onPress={onManage}
+          onPress={(event) => { event.stopPropagation(); onManage(); }}
           style={styles.more}
         >
           <MoreHorizontal size={21} color={colors.textSecondary} />
-        </Pressable>
+          </Pressable>
+          <StatusBadge status={status} variant="plain" />
+        </View>
       </View>
-      <View style={styles.billBottom}>
-        <StatusBadge status={status} variant="compact" />
-      </View>
-    </View>
+    </Pressable>
   );
 }
 
@@ -984,7 +1001,7 @@ function makeStyles(themePalette: typeof palette) {
       borderWidth: 1,
       borderColor: palette.line,
     },
-    billTop: { flexDirection: 'row', alignItems: 'center' },
+    billTop: { flexDirection: 'row', alignItems: 'flex-start' },
     billIcon: {
       width: 40,
       height: 40,
@@ -993,10 +1010,12 @@ function makeStyles(themePalette: typeof palette) {
       borderRadius: 13,
       backgroundColor: palette.accentPale,
     },
-    billMain: { flex: 1, marginLeft: 11 },
+    billMain: { flex: 1, minWidth: 0, marginLeft: 11 },
     billName: { color: palette.ink, fontSize: 14, fontWeight: '900' },
+    billPayment: { marginTop: 4, color: palette.muted, fontSize: 11 },
     billMeta: { marginTop: 4, color: palette.muted, fontSize: 11 },
-    billAmount: { color: palette.ink, fontSize: 14, fontWeight: '900' },
+    billAmount: { marginTop: 3, color: palette.ink, fontSize: 14, fontWeight: '900' },
+    billActions: { width: 86, alignItems: 'flex-end', gap: 3 },
     billBottom: {
       flexDirection: 'row',
       alignItems: 'center',
