@@ -16,6 +16,7 @@ export async function list(req: Request, res: Response) {
       status?: string;
       due_within_days?: number;
       category?: string;
+      month?: string;
     },
   );
   return sendSuccess(res, data);

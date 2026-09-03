@@ -12,7 +12,7 @@ import {
   type TextInputProps,
   View,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import {
   MoreHorizontal,
   Search as SearchIcon,
@@ -134,6 +134,7 @@ function isUpcomingStatus(status: ReturnType<typeof derivedStatus>) {
 }
 
 export default function BillsScreen() {
+  const { occurrenceId } = useLocalSearchParams<{ occurrenceId?: string }>();
   const { colors } = useAppTheme();
   const toast = useToast();
   const themePalette = {
@@ -183,7 +184,14 @@ export default function BillsScreen() {
     });
   }, [refresh]);
 
-  const bills = items.filter((item) => item.source === 'bill');
+  useEffect(() => {
+    if (typeof occurrenceId !== 'string') return;
+    const occurrence = items.find((item) => item.source === 'bill' && item.id === occurrenceId);
+    if (occurrence) setDetails(occurrence);
+  }, [items, occurrenceId]);
+
+  const bills = items.filter((item) => item.source === 'bill' && !item.isOverdueFromPreviousMonth);
+  const overdueBills = items.filter((item) => item.source === 'bill' && item.isOverdueFromPreviousMonth);
   const statuses = bills.map((item) => derivedStatus(item));
   const filteredBills = bills.filter((item) => {
     const status = derivedStatus(item);
@@ -300,6 +308,20 @@ export default function BillsScreen() {
                 </Text>
               </View>
             )}
+            {filter === 'All' && !query && overdueBills.length ? (
+              <View style={styles.listSection}>
+                <Text style={styles.sectionTitle}>Overdue from previous months</Text>
+                {overdueBills.map((item) => (
+                  <BillCard
+                    key={`${item.source}-${item.id}`}
+                    item={item}
+                    walletName={item.wallet_id ? walletNames.get(item.wallet_id) : undefined}
+                    onManage={() => setManaging(item)}
+                    onOpenDetails={() => setDetails(item)}
+                  />
+                ))}
+              </View>
+            ) : null}
           </View>
         </ScrollView>
       )}
@@ -710,7 +732,7 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
     setError('');
     try {
       if (item.source === 'bill')
-        await authenticatedApiRequest(`/api/bills/${item.id}`, {
+                        await authenticatedApiRequest(`/api/bills/${item.templateId ?? item.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

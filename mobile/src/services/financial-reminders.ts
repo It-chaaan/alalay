@@ -121,7 +121,7 @@ async function reconcileFinancialRemindersInternal(items?: FinanceItem[]): Promi
   // This gives the inbox and the system tray notification one stable identity.
   let persisted: PersistedReminder[] = [];
   try {
-    persisted = await syncBillReminders();
+    persisted = (await syncBillReminders()).notifications;
   } catch (error) {
     logReminderFailure('persist bill reminders', error);
     return { permissionGranted: true, scheduled: 0 };

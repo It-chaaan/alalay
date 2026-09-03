@@ -1,5 +1,8 @@
 import { authenticatedApiRequest } from './api';
 import { deriveFinancialStatus } from '../utils/financial-status';
+import { normalizeBillListResponse, type BillApiList } from './bill-response';
+
+export { normalizeBillListResponse } from './bill-response';
 
 export type BillRecord = {
   id: string;
@@ -14,7 +17,11 @@ export type BillRecord = {
   paid_at: string | null;
   wallet_id?: string | null;
   credit_wallet_id?: string | null;
+  bill_id?: string;
+  occurrence_date?: string;
 };
+
+export type BillListResponse = BillApiList<BillRecord>;
 
 export type SubscriptionRecord = {
   id: string;
@@ -42,6 +49,8 @@ export type FinanceItem = {
   paid: boolean;
   wallet_id?: string | null;
   credit_wallet_id?: string | null;
+  templateId?: string;
+  isOverdueFromPreviousMonth?: boolean;
 };
 
 export type ExpenseRecord = {
@@ -345,7 +354,7 @@ export function fetchSavingsDashboard() {
 
 export async function fetchFinanceItems() {
   const [billResult, subscriptionResult] = await Promise.allSettled([
-    authenticatedApiRequest<BillRecord[]>('/api/bills'),
+    authenticatedApiRequest<BillListResponse>('/api/bills'),
     authenticatedApiRequest<SubscriptionRecord[]>('/api/subscriptions'),
   ]);
   if (billResult.status === 'rejected' && subscriptionResult.status === 'rejected') {
@@ -353,7 +362,10 @@ export async function fetchFinanceItems() {
       ? billResult.reason
       : new Error('Bills could not load.');
   }
-  const bills = billResult.status === 'fulfilled' ? billResult.value : [];
+  const billResponse = billResult.status === 'fulfilled'
+    ? normalizeBillListResponse(billResult.value)
+    : normalizeBillListResponse([]);
+  const bills = billResponse.items;
   const subscriptions = subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : [];
   const billItems: FinanceItem[] = bills.map((bill) => ({
     id: bill.id,
@@ -368,6 +380,13 @@ export async function fetchFinanceItems() {
     paid: bill.status === 'paid',
     wallet_id: bill.wallet_id,
     credit_wallet_id: bill.credit_wallet_id,
+    templateId: bill.bill_id ?? bill.id,
+  }));
+  const overdueBillItems: FinanceItem[] = billResponse.overdue_items.map((bill) => ({
+    id: bill.id, source: 'bill', name: bill.title, amount: Number(bill.amount), category: bill.category,
+    dueDate: bill.occurrence_date ?? bill.due_date, recurring: bill.recurring, frequency: bill.frequency,
+    paid: bill.status === 'paid', wallet_id: bill.wallet_id, credit_wallet_id: bill.credit_wallet_id,
+    templateId: bill.bill_id ?? bill.id, isOverdueFromPreviousMonth: true,
   }));
   const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({
     id: subscription.id,
@@ -381,7 +400,7 @@ export async function fetchFinanceItems() {
     paid: subscription.current_status === 'paid',
     wallet_id: subscription.wallet_id,
   }));
-  return [...billItems, ...subscriptionItems].sort((left, right) =>
+  return [...billItems, ...overdueBillItems, ...subscriptionItems].sort((left, right) =>
     left.dueDate.localeCompare(right.dueDate),
   );
 }
@@ -413,7 +432,7 @@ export async function markFinanceItemPaid(
 ) {
   if (item.source === 'bill') {
     if (!payment) throw new Error('Select a payment wallet and date.');
-    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.id}/pay`, {
+    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.templateId ?? item.id}/pay`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...payment, occurrence_date: item.dueDate }),
@@ -437,7 +456,7 @@ export async function markFinanceItemPaid(
 }
 
 export async function deleteFinanceItem(item: FinanceItem) {
-  const path = item.source === 'bill' ? `/api/bills/${item.id}` : `/api/subscriptions/${item.id}`;
+  const path = item.source === 'bill' ? `/api/bills/${item.templateId ?? item.id}` : `/api/subscriptions/${item.id}`;
   const result = await authenticatedApiRequest(path, { method: 'DELETE' });
   if (item.source === 'bill') {
     const { cancelBillReminders } = await import('./financial-reminders');

@@ -1,76 +1,36 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { selectCurrentBillOccurrence } from './bill-occurrence.service.js';
+import { materializeBillOccurrence, occurrenceDateFromAnchor, occurrenceStatus, splitOccurrencesForMonth } from './bill-occurrence.service.js';
 
-const recurringBill = {
-  recurring: true,
-  frequency: 'monthly',
-  due_date: '2026-09-14',
-  paid_occurrence_date: '2026-08-14',
-  paid_at: '2026-08-18T00:00:00.000Z',
-  status: 'unpaid',
-};
-
-test('a paid monthly occurrence remains active until the next month', () => {
-  const august = selectCurrentBillOccurrence(recurringBill, '2026-08-31');
-  assert.equal(august.status, 'paid');
-  assert.equal(august.due_date, '2026-08-14');
-
-  const september = selectCurrentBillOccurrence(recurringBill, '2026-09-01');
-  assert.equal(september.status, 'unpaid');
-  assert.equal(september.due_date, '2026-09-14');
+test('August paid occurrence stays historical and September is independently unpaid', () => {
+  const rows = [
+    { occurrence_date: '2026-08-30', status: 'paid' as const, paid_at: '2026-08-30T02:00:00Z' },
+    { occurrence_date: '2026-09-30', status: 'unpaid' as const, paid_at: null },
+  ];
+  const september = splitOccurrencesForMonth(rows, '2026-09', '2026-09-02');
+  assert.deepEqual(september.items.map((row) => row.occurrence_date), ['2026-09-30']);
+  assert.equal(occurrenceStatus(september.items[0], '2026-09-02'), 'upcoming');
+  assert.equal(occurrenceStatus(rows[0], '2026-09-02'), 'paid');
 });
 
-test('quarterly and yearly periods activate at their calendar boundaries', () => {
-  const quarterlyRecord = {
-    ...recurringBill,
-    frequency: 'quarterly',
-    due_date: '2026-10-14',
-    paid_occurrence_date: '2026-07-14',
-  };
-  const quarterly = selectCurrentBillOccurrence(
-    quarterlyRecord,
-    '2026-09-30',
-  );
-  assert.equal(quarterly.status, 'paid');
-  assert.equal(selectCurrentBillOccurrence(quarterlyRecord, '2026-10-01').status, 'unpaid');
-
-  const yearlyRecord = {
-    ...recurringBill,
-    frequency: 'yearly',
-    due_date: '2027-08-14',
-    paid_occurrence_date: '2026-08-14',
-  };
-  const yearly = selectCurrentBillOccurrence(
-    yearlyRecord,
-    '2026-08-31',
-  );
-  assert.equal(yearly.status, 'paid');
-  assert.equal(selectCurrentBillOccurrence(yearlyRecord, '2027-01-01').status, 'unpaid');
+test('only genuinely unpaid prior periods appear as overdue', () => {
+  const rows = [
+    { occurrence_date: '2026-08-30', status: 'paid' as const, paid_at: '2026-08-30T02:00:00Z' },
+    { occurrence_date: '2026-08-31', status: 'unpaid' as const, paid_at: null },
+  ];
+  assert.deepEqual(splitOccurrencesForMonth(rows, '2026-09', '2026-09-02').overdue_items.map((row) => row.occurrence_date), ['2026-08-31']);
 });
 
-test('an unpaid prior occurrence is not replaced by the next schedule', () => {
-  const overdue = selectCurrentBillOccurrence({
-    recurring: true,
-    frequency: 'monthly',
-    due_date: '2026-08-14',
-    paid_occurrence_date: null,
-    paid_at: null,
-    status: 'unpaid',
-  }, '2026-09-01');
-
-  assert.equal(overdue.due_date, '2026-08-14');
-  assert.equal(overdue.status, 'unpaid');
+test('month-end recurrence preserves the original anchor day', () => {
+  assert.equal(occurrenceDateFromAnchor('2026-01-31', 'monthly', 1), '2026-02-28');
+  assert.equal(occurrenceDateFromAnchor('2026-01-31', 'monthly', 2), '2026-03-31');
 });
 
-test('weekly periods activate on the next scheduled week', () => {
-  const record = {
-    ...recurringBill,
-    frequency: 'weekly',
-    due_date: '2026-09-07',
-    paid_occurrence_date: '2026-08-31',
-  };
-
-  assert.equal(selectCurrentBillOccurrence(record, '2026-09-06').status, 'paid');
-  assert.equal(selectCurrentBillOccurrence(record, '2026-09-07').status, 'unpaid');
+test('a legacy template cannot overwrite the occurrence month or payment state', () => {
+  const item = materializeBillOccurrence({
+    id: 'september-occurrence', bill_id: 'template', user_id: 'user', occurrence_date: '2026-09-30', occurrence_period: '2026-09', status: 'unpaid', paid_at: null,
+    bill: { due_date: '2026-08-30', status: 'paid', title: 'Apartment', recurring: true },
+  }, '2026-09-02');
+  assert.equal(item.due_date, '2026-09-30');
+  assert.equal(item.status, 'upcoming');
 });

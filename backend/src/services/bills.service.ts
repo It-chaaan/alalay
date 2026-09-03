@@ -1,40 +1,50 @@
-import { addDaysIso, client, requireUserId, throwIfError, todayIso } from './db.js';
+import { addDaysIso, client, monthRange, requireUserId, throwIfError, todayIso } from './db.js';
 import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.service.js';
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
-import { selectCurrentBillOccurrence, selectCurrentBillOccurrences } from './bill-occurrence.service.js';
+import { materializeBillOccurrence, splitOccurrencesForMonth } from './bill-occurrence.service.js';
 import { reconcileBillReminder } from './notifications.service.js';
 
 export async function listBills(
   userId: string,
-  query: { status?: string; due_within_days?: number; category?: string },
+  query: { status?: string; due_within_days?: number; category?: string; month?: string },
 ) {
-  let request = client()
-    .from('bills')
-    .select('*')
+  await reconcileBillOccurrences(userId);
+  const month = query.month && /^\d{4}-\d{2}$/.test(query.month) ? query.month : monthRange().start.slice(0, 7);
+  let request = client().from('bill_occurrences').select('*, bill:bills!inner(*)')
     .eq('user_id', requireUserId(userId))
-    .is('deleted_at', null)
-    .order('due_date', { ascending: true });
-  if (query.category) request = request.eq('category', query.category);
+    .is('bill.deleted_at', null).order('occurrence_date', { ascending: true });
   const { data, error } = await request;
   throwIfError(error);
   const today = todayIso();
-  const currentBills = selectCurrentBillOccurrences(data ?? [], today);
+  // A schedule/template can still contain its legacy August due_date and last
+  // payment state. Always let the occurrence win for membership and status.
+  const rows = (data ?? []).map((row) => materializeBillOccurrence(row, today));
+  const currentBills = splitOccurrencesForMonth(rows, month, today);
   const dueThrough = query.due_within_days === undefined ? null : addDaysIso(query.due_within_days);
-
-  return currentBills.filter((bill) => {
+  const filter = (bill: typeof rows[number]) => {
     if (query.status && bill.status !== query.status) return false;
+    if (query.category && bill.category !== query.category) return false;
     if (dueThrough && (bill.due_date < today || bill.due_date > dueThrough)) return false;
     return true;
-  });
+  };
+  const items = currentBills.items.filter(filter);
+  return { month, items, overdue_items: currentBills.overdue_items.filter(filter), overview: {
+    total: items.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    unpaid: items.filter((row) => row.status !== 'paid').reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    paid_count: items.filter((row) => row.status === 'paid').length,
+    overdue_count: currentBills.overdue_items.length,
+  } };
 }
 
 export async function getBill(userId: string, id: string) {
-  const bill = await getOwned('bills', userId, id);
-  return selectCurrentBillOccurrence(bill, todayIso());
+  const { data, error } = await client().from('bill_occurrences').select('*, bill:bills!inner(*)').eq('id', id).eq('user_id', requireUserId(userId)).is('bill.deleted_at', null).single();
+  throwIfError(error);
+  return materializeBillOccurrence(data, todayIso());
 }
 export async function createBill(userId: string, payload: Record<string, unknown>) {
   const bill = await createOwned('bills', userId, payload);
+  await reconcileBillOccurrences(userId);
   await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch((error) => {
     console.error('Bill reminder reconciliation failed after bill creation:', error instanceof Error ? error.message : String(error));
   });
@@ -116,7 +126,8 @@ export async function payBill(
 }
 
 export async function billSummary(userId: string) {
-  const rows = await listBills(userId, {});
+  const result = await listBills(userId, {});
+  const rows = [...result.items, ...result.overdue_items];
   const unpaid = rows.filter((row) => row.status !== 'paid');
   return {
     total_unpaid: unpaid.reduce((sum, row) => sum + Number(row.amount || 0), 0),
@@ -128,4 +139,10 @@ export async function billSummary(userId: string) {
       .reduce((sum, row) => sum + Number(row.amount || 0), 0),
     items: rows,
   };
+}
+
+export async function reconcileBillOccurrences(userId: string) {
+  const { data, error } = await client().rpc('reconcile_bill_occurrences', { target_user_id: requireUserId(userId) });
+  throwIfError(error);
+  return data;
 }

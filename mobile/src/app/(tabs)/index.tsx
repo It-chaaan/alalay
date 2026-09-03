@@ -213,7 +213,7 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This month</Text>
           <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
-            {financeItems.length} items
+            {financeItems.filter((item) => item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) && !item.isOverdueFromPreviousMonth).length} items
           </Text>
         </View>
         <GlassSurface style={styles.listCard} padding={0}>
@@ -229,7 +229,7 @@ export default function HomeScreen() {
               <Text style={[styles.errorText, { color: colors.danger }]}>{financeError}</Text>
             </View>
           ) : financeItems.length ? (
-            financeItems
+            financeItems.filter((item) => item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) && !item.isOverdueFromPreviousMonth)
               .slice(0, 5)
               .map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />)
           ) : (

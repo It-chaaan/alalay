@@ -6,6 +6,7 @@ export const billQuerySchema = z
     status: z.enum(['unpaid', 'paid', 'overdue']).optional(),
     due_within_days: z.coerce.number().int().nonnegative().max(365).optional(),
     category: z.string().trim().max(100).optional(),
+    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
   })
   .strict();
 

@@ -7,7 +7,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DatePickerField, parseAmount, ExpenseCategoryPicker, FinanceFormSheet, FormTextInput, formPalette } from '@/components/finance-form';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { authenticatedApiRequest } from '@/services/api';
-import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type BillRecord, type ExpenseRecord } from '@/services/finance';
+import { dateKeyInManila, fetchExpenses, fetchWallets, notifyFinancialMutation, subscribeFinancialMutations, type ExpenseRecord } from '@/services/finance';
+import { canonicalExpenseRows } from '@/services/expense-rows';
 import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { WalletPickerModal, type Wallet } from '@/components/wallet-picker';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
@@ -59,22 +60,6 @@ function groupByDate(items: ExpenseItem[]): ExpenseGroup[] {
   return Array.from(groups.values());
 }
 
-function mergeExpenseRows(expenses: ExpenseRecord[], bills: BillRecord[]): ExpenseItem[] {
-  return [
-    ...expenses.map((expense) => ({ ...expense, source: 'expense' as const, payment_method: expense.payment_method || 'other' })),
-    ...bills.filter((bill) => bill.status === 'paid').map((bill) => ({
-      id: bill.id,
-      merchant: bill.title,
-      amount: bill.amount,
-      category: bill.category,
-      date: bill.paid_at?.slice(0, 10) ?? bill.due_date,
-      payment_method: 'bill',
-      source: 'bill' as const,
-      created_at: bill.paid_at ?? undefined,
-    })),
-  ];
-}
-
 export default function ExpensesScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
@@ -95,13 +80,12 @@ export default function ExpensesScreen() {
     setLoading(true);
     setError('');
     try {
-      const [expenses, bills, dashboardSummary, walletRows] = await Promise.all([
+      const [expenses, dashboardSummary, walletRows] = await Promise.all([
         fetchExpenses(),
-        authenticatedApiRequest<BillRecord[]>('/api/bills'),
         authenticatedApiRequest<DashboardSummary>('/api/dashboard/summary'),
         fetchWallets(),
       ]);
-      setItems(mergeExpenseRows(expenses, bills));
+      setItems(canonicalExpenseRows(expenses));
       setSummary(dashboardSummary);
       setWallets(walletRows as Wallet[]);
     } catch (requestError) {

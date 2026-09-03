@@ -80,6 +80,13 @@ const envSchema = z
           'INCOME_SCHEDULER_SECRET is required in production so a durable external income scheduler can run.',
       });
     }
+    if (value.NOTIFICATION_SCHEDULER_ENABLED && (!value.SUPABASE_URL || !value.SUPABASE_SERVICE_ROLE_KEY)) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['SUPABASE_SERVICE_ROLE_KEY'],
+        message: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when notification scheduling is enabled.',
+      });
+    }
   });
 
 export const env = envSchema.parse(process.env);

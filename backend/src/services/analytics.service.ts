@@ -553,6 +553,21 @@ async function rowsFor(table: string, userId: string, dateColumn: string, from: 
   return data ?? [];
 }
 
+/** The dashboard and Bill list both use persisted occurrence dates, never a template's updated_at or payment state. */
+async function billOccurrencesFor(userId: string, from: string, to: string) {
+  const ownerId = requireUserId(userId);
+  const { error: reconcileError } = await client().rpc('reconcile_bill_occurrences', { target_user_id: ownerId });
+  throwIfError(reconcileError);
+  const { data, error } = await client().from('bill_occurrences').select('*, bill:bills!inner(*)')
+    .eq('user_id', ownerId).is('bill.deleted_at', null)
+    .gte('occurrence_date', from).lte('occurrence_date', to);
+  throwIfError(error);
+  return (data ?? []).map((row) => {
+    const template = Array.isArray(row.bill) ? row.bill[0] : row.bill;
+    return { ...(template ?? {}), ...row, due_date: row.occurrence_date };
+  });
+}
+
 export function buildMonthlySpending(expenses: Array<{ date: string; amount: unknown }>, now: Date) {
   const currentRange = monthRange(now);
   const cursor = new Date(`${currentRange.start}T12:00:00Z`);
@@ -580,7 +595,7 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   const [incomeSummaryData, expenses, bills, savingsGoals] = await Promise.all([
     incomeForMonth(userId, range.start.slice(0, 7)),
     rowsFor("expenses", userId, "date", range.start, range.end),
-    rowsFor("bills", userId, "due_date", range.start, range.end),
+    billOccurrencesFor(userId, range.start, range.end),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
   ]);
 
@@ -783,7 +798,7 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights] = await Promise.all([
     rowsFor("expenses", userId, "date", range.start, range.end),
     range.period === "this_month" ? incomeForMonth(userId, range.start.slice(0, 7)) : incomeForRange(userId, range.start, range.end),
-    rowsFor("bills", userId, "due_date", range.start, range.end),
+    billOccurrencesFor(userId, range.start, range.end),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     getBudgetPlan(userId),
@@ -1054,12 +1069,12 @@ export async function getDashboardSummary(userId: string) {
   const chartStart = monthRange(chartStartDate).start;
   const dueWeekEnd = addDaysIso(7);
   const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions, incomeData, previousIncomeData] = await Promise.all([
-    rowsFor("bills", userId, "due_date", current.start, current.end),
+    billOccurrencesFor(userId, current.start, current.end),
     rowsFor("expenses", userId, "date", current.start, current.end),
     rowsFor("expenses", userId, "date", previous.start, previous.end),
-    rowsFor("bills", userId, "due_date", previous.start, previous.end),
+    billOccurrencesFor(userId, previous.start, previous.end),
     rowsFor("expenses", userId, "date", chartStart, current.end),
-    rowsFor("bills", userId, "due_date", current.start, dueWeekEnd),
+    billOccurrencesFor(userId, current.start, dueWeekEnd),
     client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
     incomeForMonth(userId),

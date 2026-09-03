@@ -52,7 +52,7 @@ export default function Notifications() {
   );
 
   const renderItem = ({ item }: { item: InAppNotification }) => (
-    <NotificationRow item={item} onPress={() => { if (!item.read_at) { void markNotificationRead(item.id).then(() => setItems((current) => current.map((row) => row.id === item.id ? { ...row, read_at: new Date().toISOString() } : row))).catch(() => undefined); } router.push(item.related_bill_id || item.type.startsWith('bill_') ? '/(tabs)/bills' : item.related_subscription_id || item.type.startsWith('subscription_') ? '/(tabs)/subscriptions' : item.related_wallet_id ? '/(tabs)/wallets' : '/(tabs)/notifications'); }} />
+    <NotificationRow item={item} onPress={() => { if (!item.read_at) { void markNotificationRead(item.id).then(() => setItems((current) => current.map((row) => row.id === item.id ? { ...row, read_at: new Date().toISOString() } : row))).catch(() => undefined); } if (item.related_bill_occurrence_id) router.push({ pathname: '/(tabs)/bills', params: { occurrenceId: item.related_bill_occurrence_id } }); else router.push(item.related_bill_id || item.type.startsWith('bill_') ? '/(tabs)/bills' : item.related_subscription_id || item.type.startsWith('subscription_') ? '/(tabs)/subscriptions' : item.related_wallet_id ? '/(tabs)/wallets' : '/(tabs)/notifications'); }} />
   );
 
   return (

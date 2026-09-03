@@ -131,6 +131,34 @@ function moveMonth(month: string, delta: number) {
   return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
+function shortIncomeDate(value: string | null | undefined, selectedMonth: string) {
+  if (!value) return 'Not scheduled';
+  const date = value.slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return value;
+  const [year, month, day] = date.split('-').map(Number);
+  return new Intl.DateTimeFormat('en-PH', {
+    timeZone: 'Asia/Manila', month: 'short', day: 'numeric',
+    ...(year === Number(selectedMonth.slice(0, 4)) ? {} : { year: 'numeric' }),
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+function incomeCardStatus(row: Income): 'Received' | 'Overdue' | 'Due soon' | 'Upcoming' | 'Inactive' {
+  if (row.status === 'received' || row.is_posted) return 'Received';
+  if (row.status === 'overdue') return 'Overdue';
+  if (row.status === 'failed' || row.status === 'not_started') return 'Inactive';
+  const date = row.due_date ?? row.date;
+  const today = dateKeyInManila();
+  if (date < today) return 'Overdue';
+  const threshold = new Date(`${today}T12:00:00Z`);
+  threshold.setUTCDate(threshold.getUTCDate() + 7);
+  return date <= threshold.toISOString().slice(0, 10) ? 'Due soon' : 'Upcoming';
+}
+
+function incomeWalletName(row: Income, wallets: Wallet[]) {
+  if (!row.wallet_id) return 'No destination wallet';
+  return wallets.find((wallet) => wallet.id === row.wallet_id)?.name ?? 'Wallet unavailable';
+}
+
 function logIncomeFetch(event: string, details: Record<string, unknown>) {
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[Income] ${event}`, details);
 }
@@ -347,7 +375,11 @@ export default function IncomeScreen() {
               <Text style={styles.muted}>{sectionErrors.recorded}</Text>
             ) : null}
             {rows.length ? (
-              rows.map((row) => (
+              rows.map((row) => {
+                const status = incomeCardStatus(row);
+                const received = status === 'Received';
+                const date = received ? (row.received_at ?? row.date) : (row.due_date ?? row.date);
+                return (
                 <Pressable
                   key={row.id}
                   style={styles.row}
@@ -360,58 +392,29 @@ export default function IncomeScreen() {
                   </View>
                   <View style={styles.main}>
                     <Text style={styles.rowTitle}>{row.source}</Text>
-                    <Text style={styles.rowDate} numberOfLines={1}>
-                      {row.status === 'received'
-                        ? `Received ${row.date}`
-                        : row.status === 'overdue'
-                          ? `Due ${row.date}`
-                          : row.status === 'failed'
-                            ? `Failed ${row.date}`
-                            : row.status === 'not_started'
-                              ? 'Not started'
-                              : `Due ${row.date}`}
+                    <Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text>
+                    <Text style={styles.rowDate} numberOfLines={1}>{titleCase(row.type)} · {received ? 'Received' : 'Expected'} {shortIncomeDate(date, selectedMonth)}</Text>
+                    <Text style={styles.muted} numberOfLines={1}>
+                      {incomeWalletName(row, wallets)}
                     </Text>
-                    <Text style={styles.muted}>
-                      {row.type} · {row.is_recurring ? (row.frequency ?? 'Recurring') : 'One-time'}
+                    <Text style={styles.muted} numberOfLines={1}>
+                      {row.is_recurring ? titleCase(row.frequency ?? 'recurring') : 'One-time'}
                     </Text>
                   </View>
                   <View style={styles.rowRight}>
-                    <Text
-                      numberOfLines={1}
-                      style={[
-                        styles.rowStatus,
-                        row.status === 'received' && styles.statusReceived,
-                        row.status === 'overdue' && styles.statusOverdue,
-                        row.status === 'failed' && styles.statusFailed,
-                      ]}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`More options for ${row.source}`}
+                      onPress={(event) => { event.stopPropagation(); setManaging(row); }}
+                      style={styles.more}
                     >
-                      {row.status === 'received'
-                        ? 'Received'
-                        : row.status === 'overdue'
-                          ? 'Due today'
-                          : row.status === 'failed'
-                            ? 'Needs attention'
-                            : row.status === 'not_started'
-                              ? 'Not started'
-                              : 'Upcoming'}
-                    </Text>
-                    <Text style={styles.amount}>
-                      ₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}
-                    </Text>
+                      <MoreHorizontal size={20} color={colors.textSecondary} />
+                    </Pressable>
+                    <StatusBadge status={status} variant="plain" />
                   </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`More options for ${row.source}`}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      setManaging(row);
-                    }}
-                    style={styles.more}
-                  >
-                    <MoreHorizontal size={20} color={colors.textSecondary} />
-                  </Pressable>
                 </Pressable>
-              ))
+                );
+              })
             ) : (
               <View style={styles.card}>
                 <Text style={styles.cardTitle}>No income yet</Text>
@@ -605,8 +608,7 @@ function IncomeDetailsRedesigned({
   wallets: Wallet[];
   onClose: () => void;
 }) {
-  const walletName =
-    wallets.find((wallet) => wallet.id === income.wallet_id)?.name ?? 'your wallet';
+  const walletName = incomeWalletName(income, wallets);
   const received = income.status === 'received';
   const overdue = income.status === 'overdue';
   const expectedDate = income.due_date ?? (received ? income.date : null);
@@ -981,9 +983,9 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     row: {
       flexDirection: 'row',
-      alignItems: 'center',
-      padding: 14,
-      marginBottom: 10,
+      alignItems: 'flex-start',
+      padding: 15,
+      marginBottom: 12,
       borderRadius: 17,
       backgroundColor: formPalette.surface,
       borderWidth: 1,
@@ -999,8 +1001,8 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     main: { flex: 1, minWidth: 0, marginLeft: 11 },
     rowTitle: { color: formPalette.ink, fontWeight: '900', fontSize: 14 },
-    rowDate: { marginTop: 2, color: formPalette.muted, fontSize: 11, lineHeight: 15 },
-    rowRight: { width: 106, alignItems: 'flex-end', marginLeft: 8 },
+    rowDate: { marginTop: 4, color: formPalette.muted, fontSize: 11, lineHeight: 15 },
+    rowRight: { width: 86, alignItems: 'flex-end', marginLeft: 8, gap: 3 },
     rowStatus: {
       marginTop: 3,
       color: formPalette.muted,
@@ -1011,13 +1013,12 @@ function makeStyles(themePalette: typeof formPalette) {
     statusReceived: { color: formPalette.accent },
     statusOverdue: { color: formPalette.danger },
     statusFailed: { color: formPalette.danger },
-    amount: { color: formPalette.ink, fontWeight: '900', textAlign: 'right' },
+    amount: { marginTop: 3, color: formPalette.ink, fontSize: 14, fontWeight: '900' },
     more: {
       width: 42,
       height: 42,
       alignItems: 'center',
       justifyContent: 'center',
-      marginLeft: 8,
       borderRadius: 21,
       backgroundColor: formPalette.background,
     },
