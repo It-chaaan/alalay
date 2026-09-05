@@ -78,10 +78,12 @@ type Income = {
 type IncomeSummary = {
   this_month: number;
   projected_amount: number;
+  expected_today_amount: number;
   upcoming_amount: number;
   overdue_amount: number;
   monthly_sources: number;
   actual_transactions: number;
+  expected_today_transactions: number;
   upcoming_transactions: number;
   overdue_transactions: number;
 };
@@ -142,16 +144,13 @@ function shortIncomeDate(value: string | null | undefined, selectedMonth: string
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
-function incomeCardStatus(row: Income): 'Received' | 'Overdue' | 'Due soon' | 'Upcoming' | 'Inactive' {
+function incomeCardStatus(row: Income): 'Received' | 'Needs attention' | 'Delayed' | 'Expected today' | 'Upcoming' | 'Inactive' {
   if (row.status === 'received' || row.is_posted) return 'Received';
-  if (row.status === 'overdue') return 'Overdue';
-  if (row.status === 'failed' || row.status === 'not_started') return 'Inactive';
-  const date = row.due_date ?? row.date;
-  const today = dateKeyInManila();
-  if (date < today) return 'Overdue';
-  const threshold = new Date(`${today}T12:00:00Z`);
-  threshold.setUTCDate(threshold.getUTCDate() + 7);
-  return date <= threshold.toISOString().slice(0, 10) ? 'Due soon' : 'Upcoming';
+  if (row.status === 'failed') return 'Needs attention';
+  if (row.status === 'overdue') return 'Delayed';
+  if (row.status === 'expected_today') return 'Expected today';
+  if (row.status === 'not_started') return 'Inactive';
+  return 'Upcoming';
 }
 
 function incomeWalletName(row: Income, wallets: Wallet[]) {
@@ -184,10 +183,12 @@ export default function IncomeScreen() {
   const [summary, setSummary] = useState<IncomeSummary>({
     this_month: 0,
     projected_amount: 0,
+    expected_today_amount: 0,
     upcoming_amount: 0,
     overdue_amount: 0,
     monthly_sources: 0,
     actual_transactions: 0,
+    expected_today_transactions: 0,
     upcoming_transactions: 0,
     overdue_transactions: 0,
   });
@@ -229,7 +230,9 @@ export default function IncomeScreen() {
         });
         setRows(
           incomeResult.value.items.map((item) => ({
-            id: item.kind === 'recurring' ? item.sourceId : (item.transactionId ?? item.sourceId),
+            // A projected occurrence has no database ID. Its source/date key
+            // remains stable for rendering but is never used for mutations.
+            id: item.occurrenceId ?? item.occurrenceKey ?? item.transactionId ?? item.sourceId,
             source: item.name,
             type: item.category,
             amount: item.amount,
@@ -250,10 +253,12 @@ export default function IncomeScreen() {
         setSummary({
           this_month: incomeResult.value.overview.projectedAmount,
           projected_amount: incomeResult.value.overview.projectedAmount,
+          expected_today_amount: incomeResult.value.overview.expectedTodayAmount,
           upcoming_amount: incomeResult.value.overview.upcomingAmount,
           overdue_amount: incomeResult.value.overview.overdueAmount,
           monthly_sources: incomeResult.value.overview.recurringSourceCount,
           actual_transactions: incomeResult.value.overview.receivedCount,
+          expected_today_transactions: incomeResult.value.overview.expectedTodayCount,
           upcoming_transactions: incomeResult.value.overview.upcomingCount,
           overdue_transactions: incomeResult.value.overview.overdueCount,
         });
@@ -291,14 +296,15 @@ export default function IncomeScreen() {
 
   const supportingText =
     summary.actual_transactions ||
+    summary.expected_today_transactions ||
     summary.upcoming_transactions ||
     summary.overdue_transactions ||
     summary.monthly_sources
-      ? `${summary.actual_transactions} received · ${summary.upcoming_transactions} upcoming · ${summary.monthly_sources} recurring source${summary.monthly_sources === 1 ? '' : 's'}`
+      ? `${summary.actual_transactions} received · ${summary.expected_today_transactions} expected today · ${summary.upcoming_transactions} upcoming · ${summary.monthly_sources} recurring source${summary.monthly_sources === 1 ? '' : 's'}`
       : 'No income recorded this month';
   const financialBreakdown =
-    summary.actual_transactions || summary.upcoming_transactions || summary.overdue_transactions
-      ? `₱${Math.round(summary.projected_amount - summary.upcoming_amount - summary.overdue_amount).toLocaleString('en-PH')} received · ₱${Math.round(summary.upcoming_amount).toLocaleString('en-PH')} upcoming${summary.overdue_amount ? ` · ₱${Math.round(summary.overdue_amount).toLocaleString('en-PH')} overdue` : ''}`
+    summary.actual_transactions || summary.expected_today_transactions || summary.upcoming_transactions || summary.overdue_transactions
+      ? `₱${Math.round(summary.projected_amount - summary.upcoming_amount - summary.expected_today_amount - summary.overdue_amount).toLocaleString('en-PH')} received · ₱${Math.round(summary.expected_today_amount).toLocaleString('en-PH')} expected today · ₱${Math.round(summary.upcoming_amount).toLocaleString('en-PH')} upcoming${summary.overdue_amount ? ` · ₱${Math.round(summary.overdue_amount).toLocaleString('en-PH')} overdue` : ''}`
       : supportingText;
 
   return (
@@ -609,10 +615,10 @@ function IncomeDetailsRedesigned({
   onClose: () => void;
 }) {
   const walletName = incomeWalletName(income, wallets);
-  const received = income.status === 'received';
-  const overdue = income.status === 'overdue';
+  const status = incomeCardStatus(income);
+  const received = status === 'Received';
+  const overdue = status === 'Delayed';
   const expectedDate = income.due_date ?? (received ? income.date : null);
-  const status = received ? 'Received' : overdue ? 'Overdue' : 'Upcoming';
   const panResponder = useMemo(
     () =>
       PanResponder.create({

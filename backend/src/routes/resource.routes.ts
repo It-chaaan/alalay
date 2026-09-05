@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { addGoalContribution, makeResourceController, savingsDashboard } from "../controllers/resource.controller.js";
+import { addGoalContribution, releaseGoalContribution, makeResourceController, savingsDashboard } from "../controllers/resource.controller.js";
 import type { TableName } from "../services/db.js";
 import { idParamSchema } from "../schemas/common.schema.js";
 import { createExpenseSchema, expenseQuerySchema, updateExpenseSchema } from "../schemas/expense.schema.js";
@@ -13,7 +13,7 @@ import { validateRequest } from "../middleware/validateRequest.js";
 import { processSubscriptionBilling } from "../services/subscription-billing.service.js";
 import { listSubscriptionsWithOccurrences } from "../services/subscription-occurrence.service.js";
 import { writeRateLimit } from "../middleware/rateLimit.js";
-import { goalContributionSchema } from "../schemas/goalContribution.schema.js";
+import { goalContributionSchema, goalReleaseSchema } from "../schemas/goalContribution.schema.js";
 
 export function resourceRouter(table: TableName) {
   const router = Router();
@@ -32,6 +32,7 @@ export function resourceRouter(table: TableName) {
   if (table === "savings_goals") {
     router.get("/summary", asyncHandler(savingsDashboard));
     router.post("/:id/contributions", writeRateLimit, validateRequest({ params: idParamSchema, body: goalContributionSchema }), asyncHandler(addGoalContribution));
+    router.post("/:id/releases", writeRateLimit, validateRequest({ params: idParamSchema, body: goalReleaseSchema }), asyncHandler(releaseGoalContribution));
   }
 
   router.get("/", validateRequest({ query: schemas.query }), asyncHandler(async (req, res, next) => {

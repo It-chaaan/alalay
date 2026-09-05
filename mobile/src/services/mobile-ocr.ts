@@ -5,8 +5,16 @@ export type ReceiptCandidate = {
   total: number | null;
   currency: string | null;
   date: string | null;
-  lineItems: { description: string; amount: number }[];
+  lineItems: { description: string; amount: number; confidence?: number }[];
   suggestedCategory: string | null;
+  extraction?: {
+    merchant: { confidence: number; requiresConfirmation: boolean };
+    total: { confidence: number; requiresConfirmation: boolean };
+    date: { confidence: number; requiresConfirmation: boolean };
+    category: { confidence: number; requiresConfirmation: boolean };
+    warnings: string[];
+    overallConfidence: number;
+  };
 };
 
 export type ServerReceiptScan = {

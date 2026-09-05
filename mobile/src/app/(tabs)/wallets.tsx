@@ -139,12 +139,16 @@ function SafeAreaView(props: SafeAreaViewProps) {
 
 function WalletBalanceHero({
   totalBalance,
+  availableBalance,
+  reservedBalance,
   walletCount,
   visible,
   maskedBalance,
   onToggle,
 }: {
   totalBalance: number;
+  availableBalance: number;
+  reservedBalance: number;
   walletCount: number;
   visible: boolean;
   maskedBalance: string;
@@ -155,14 +159,14 @@ function WalletBalanceHero({
     <View
       accessible
       accessibilityRole="summary"
-      accessibilityLabel={`Total balance ${visible ? peso(totalBalance) : 'hidden'} across ${walletCount} wallets`}
+      accessibilityLabel={`Available to spend ${visible ? peso(availableBalance) : 'hidden'}, total balance ${visible ? peso(totalBalance) : 'hidden'}, reserved for goals ${visible ? peso(reservedBalance) : 'hidden'} across ${walletCount} wallets`}
       style={[styles.walletHero, { backgroundColor: colors.balance, borderColor: colors.primary }]}
     >
       <View pointerEvents="none" style={styles.heroGlow} />
       <View pointerEvents="none" style={styles.heroLines} />
       <WalletArtwork />
       <View style={styles.heroTop}>
-        <Text style={styles.heroEyebrow}>TOTAL BALANCE</Text>
+        <Text style={styles.heroEyebrow}>AVAILABLE TO SPEND</Text>
         <BalanceVisibilityToggle
           visible={visible}
           onToggle={onToggle}
@@ -170,7 +174,14 @@ function WalletBalanceHero({
         />
       </View>
       <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.heroValue}>
-        {visible ? peso(totalBalance) : maskedBalance}
+        {visible ? peso(availableBalance) : maskedBalance}
+      </Text>
+      <Text style={styles.heroDetail}>
+        {visible
+          ? reservedBalance > 0
+            ? `Total ${peso(totalBalance)} · Reserved ${peso(reservedBalance)}`
+            : `Total ${peso(totalBalance)}`
+          : maskedBalance}
       </Text>
     </View>
   );
@@ -314,6 +325,8 @@ export default function WalletsScreen() {
     }
   };
   const totalBalance = totalWalletBalance(wallets);
+  const availableBalance = wallets.reduce((sum, wallet) => wallet.account_type === 'credit' ? sum : sum + Number(wallet.available_balance ?? wallet.balance), 0);
+  const reservedBalance = wallets.reduce((sum, wallet) => wallet.account_type === 'credit' ? sum : sum + Number(wallet.reserved_for_goals ?? 0), 0);
   const filteredWallets =
     walletFilter === 'all'
       ? wallets
@@ -344,6 +357,8 @@ export default function WalletsScreen() {
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]}>
           <WalletBalanceHero
             totalBalance={totalBalance}
+            availableBalance={availableBalance}
+            reservedBalance={reservedBalance}
             walletCount={wallets.length}
             visible={amountsVisible}
             maskedBalance={maskedBalance}
@@ -1124,7 +1139,7 @@ export function TransferForm({
       setError('Choose a different destination wallet.');
       return;
     }
-    if (source && value + feeValue > Number(source.balance)) {
+    if (source && value + feeValue > Number(source.available_balance ?? source.balance)) {
       setError(`${source.name} doesn't have enough available funds to cover the transfer and fee.`);
       return;
     }
@@ -1172,7 +1187,7 @@ export function TransferForm({
         required
         label="From wallet"
       />
-      {source ? <Text style={styles.muted}>{peso(source.balance)} available</Text> : null}
+      {source ? <Text style={styles.muted}>{peso(source.available_balance ?? source.balance)} available to spend</Text> : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Swap source and destination wallets"
@@ -1192,7 +1207,7 @@ export function TransferForm({
         required
         label="To wallet"
       />
-      {destination ? <Text style={styles.muted}>{peso(destination.balance)} available</Text> : null}
+      {destination ? <Text style={styles.muted}>{peso(destination.available_balance ?? destination.balance)} available to spend</Text> : null}
       <FormTextInput label="Transfer fee" value={fee} onChangeText={setFee} placeholder="0" />
       <View
         style={[
@@ -1861,6 +1876,7 @@ function InterestForm({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const requestKey = useRef(`wallet-interest-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const save = async () => {
     const value = parseAmount(amount);
     if (value === null || value <= 0) {
@@ -1873,7 +1889,7 @@ function InterestForm({
       await authenticatedApiRequest(`/api/wallets/${wallet.id}/interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: value, date, note: note.trim() || null }),
+        body: JSON.stringify({ amount: value, date, note: note.trim() || null, idempotency_key: requestKey.current }),
       });
       notifyFinancialMutation();
       await onSaved();
@@ -2130,6 +2146,7 @@ function makeStyles(themePalette: typeof formPalette) {
       fontWeight: '900',
       letterSpacing: -1,
     },
+    heroDetail: { marginTop: 5, color: 'rgba(255,255,255,0.80)', fontSize: 12, fontWeight: '700' },
     walletCountPill: {
       flexDirection: 'row',
       alignItems: 'center',

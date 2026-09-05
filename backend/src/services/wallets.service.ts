@@ -183,8 +183,29 @@ async function ensureCash(userId: string) {
   return retry.data;
 }
 
-function withBalance(row: Record<string, unknown>) {
-  return { ...row, balance: asNumber(row.balance) };
+function withBalance(row: Record<string, unknown>, reservedBalance = 0) {
+  const totalBalance = asNumber(row.balance);
+  const reservedForGoals = Math.max(0, asNumber(reservedBalance));
+  return {
+    ...row,
+    balance: totalBalance,
+    total_balance: totalBalance,
+    reserved_for_goals: reservedForGoals,
+    available_balance: totalBalance - reservedForGoals,
+  };
+}
+
+async function withReservedBalances(userId: string, rows: Record<string, unknown>[]) {
+  if (!rows.length) return [];
+  const ids = rows.map((row) => String(row.id));
+  const { data, error } = await client()
+    .from('wallet_reserved_balances')
+    .select('wallet_id, reserved_balance')
+    .eq('user_id', requireUserId(userId))
+    .in('wallet_id', ids);
+  throwIfError(error);
+  const reservedByWallet = new Map((data ?? []).map((row) => [String(row.wallet_id), asNumber(row.reserved_balance)]));
+  return rows.map((row) => withBalance(row, reservedByWallet.get(String(row.id))));
 }
 
 export async function listWallets(userId: string) {
@@ -196,7 +217,7 @@ export async function listWallets(userId: string) {
     .order('is_default_cash', { ascending: false })
     .order('created_at', { ascending: true });
   throwIfError(error);
-  return (data ?? []).map(withBalance);
+  return withReservedBalances(userId, data ?? []);
 }
 
 export async function getWallet(userId: string, id: string) {
@@ -219,6 +240,7 @@ export async function getWallet(userId: string, id: string) {
     loanPayments,
     creditRepayments,
     goalContributions,
+    goalReleases,
   ] = await Promise.all([
     client()
       .from('income')
@@ -287,9 +309,15 @@ export async function getWallet(userId: string, id: string) {
       .limit(200),
     client()
       .from('goal_contributions')
-      .select('id, amount, created_at, savings_goals(title)')
+      .select('id, amount, contribution_date, created_at, savings_goals(title)')
       .eq('user_id', ownerId)
       .eq('wallet_id', id)
+      .order('created_at', { ascending: false })
+      .limit(200),
+    client()
+      .from('goal_contribution_releases')
+      .select('id, amount, released_on, created_at, contribution_id, goal_contributions(wallet_id, savings_goals(title))')
+      .eq('user_id', ownerId)
       .order('created_at', { ascending: false })
       .limit(200),
   ]);
@@ -319,6 +347,7 @@ export async function getWallet(userId: string, id: string) {
     loanPayments.error,
     creditRepayments.error,
     goalContributions.error,
+    goalReleases.error,
     counterpartResult.error,
   ].some(Boolean)
     ? 'Unable to load linked transactions.'
@@ -376,11 +405,33 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...row,
         kind: 'goal_allocation',
-        label: `Allocated to goal: ${goal?.title ?? 'Savings goal'}`,
-        date: row.created_at,
-        amount: 0,
+        label: `Reserved for ${goal?.title ?? 'Savings goal'}`,
+        date: row.contribution_date ?? row.created_at,
+        amount: -asNumber(row.amount),
       };
     }),
+    ...(goalReleases.data ?? [])
+      .filter((row) => {
+        const contribution = Array.isArray(row.goal_contributions)
+          ? row.goal_contributions[0]
+          : row.goal_contributions;
+        return contribution?.wallet_id === id;
+      })
+      .map((row) => {
+        const contribution = Array.isArray(row.goal_contributions)
+          ? row.goal_contributions[0]
+          : row.goal_contributions;
+        const goal = Array.isArray(contribution?.savings_goals)
+          ? contribution.savings_goals[0]
+          : contribution?.savings_goals;
+        return {
+          ...row,
+          kind: 'goal_release',
+          label: `Released from goal: ${goal?.title ?? 'Savings goal'}`,
+          date: row.released_on ?? row.created_at,
+          amount: asNumber(row.amount),
+        };
+      }),
     ...(transfers.data ?? []).map((row) => {
       const counterpartId = row.from_wallet_id === id ? row.to_wallet_id : row.from_wallet_id;
       const counterpartName = counterpartNames.get(counterpartId) ?? 'wallet';
@@ -436,9 +487,14 @@ export async function getWallet(userId: string, id: string) {
       };
     }),
   ].sort((left, right) => String(right.date).localeCompare(String(left.date)));
+  const [walletWithBalances] = await withReservedBalances(userId, [wallet]);
+  const interestEstimate = wallet.earns_interest
+    ? await getWalletInterestEstimate(userId, id)
+    : { enabled: false, tracking_mode: 'estimate_only' };
   return {
-    wallet: withBalance(wallet),
+    wallet: walletWithBalances,
     transactions,
+    interestEstimate,
     ...(transactionError ? { transactionError } : {}),
   };
 }
@@ -528,29 +584,22 @@ export async function createWalletTransfer(userId: string, payload: WalletTransf
 export async function createWalletInterest(
   userId: string,
   walletId: string,
-  payload: { amount: number; date: string; note?: string | null },
+  payload: { amount: number; date: string; note?: string | null; idempotency_key: string },
 ) {
   const ownerId = requireUserId(userId);
-  const { data: wallet, error: walletError } = await client()
-    .from('wallets')
-    .select('id, name')
-    .eq('id', walletId)
-    .eq('user_id', ownerId)
-    .single();
-  if (walletError || !wallet) throw new AppError(404, 'not_found', 'Wallet not found.');
-  const { data, error } = await client()
-    .from('income')
-    .insert({
-      user_id: ownerId,
-      wallet_id: walletId,
-      source: payload.note?.trim() || `${wallet.name} interest`,
-      type: 'interest',
-      amount: payload.amount,
-      date: payload.date,
-      is_recurring: false,
-    })
-    .select('id, wallet_id, source, type, amount, date')
-    .single();
+  const { data, error } = await client().rpc('post_wallet_interest', {
+    target_wallet_id: walletId, received_amount: payload.amount, credited_on_value: payload.date,
+    note_value: payload.note ?? null, request_key: payload.idempotency_key,
+  });
+  if (error?.message.includes('Wallet not found')) throw new AppError(404, 'not_found', 'Wallet not found.');
+  throwIfError(error);
+  return data;
+}
+
+export async function getWalletInterestEstimate(userId: string, walletId: string) {
+  requireUserId(userId);
+  const { data, error } = await client().rpc('wallet_interest_estimate', { target_wallet_id: walletId });
+  if (error?.message.includes('Wallet not found')) throw new AppError(404, 'not_found', 'Wallet not found.');
   throwIfError(error);
   return data;
 }

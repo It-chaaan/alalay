@@ -40,6 +40,8 @@ incomeRouter.get(
         items: result.items.map((item) => ({
           sourceId: item.sourceId.slice(0, 8),
           occurrenceId: item.occurrenceId?.slice(0, 8) ?? null,
+          isProjected: item.isProjected,
+          occurrenceKey: item.occurrenceKey,
           status: item.status,
           dueDate: item.dueDate,
           receivedDate: item.receivedDate,

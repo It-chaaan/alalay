@@ -3,11 +3,13 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { useAppTheme } from '@/theme/theme';
 
-export type FinancialStatus = 'Paid' | 'Received' | 'Upcoming' | 'Due soon' | 'Due today' | 'Overdue' | (string & {});
+export type FinancialStatus = 'Paid' | 'Received' | 'Upcoming' | 'Expected today' | 'Needs attention' | 'Delayed' | 'Due soon' | 'Due today' | 'Overdue' | (string & {});
 
 function statusPresentation(status: FinancialStatus, colors: ReturnType<typeof useAppTheme>['colors']) {
   if (status === 'Paid' || status === 'Received') return { Icon: CheckCircle2, foreground: colors.success, background: `${colors.success}22`, border: `${colors.success}55` };
   if (status === 'Overdue') return { Icon: AlertCircle, foreground: colors.danger, background: `${colors.danger}22`, border: `${colors.danger}55` };
+  if (status === 'Delayed' || status === 'Needs attention') return { Icon: AlertCircle, foreground: colors.danger, background: `${colors.danger}22`, border: `${colors.danger}55` };
+  if (status === 'Expected today') return { Icon: Clock3, foreground: colors.warning, background: `${colors.warning}18`, border: `${colors.warning}44` };
   if (status === 'Due today' || status === 'Due soon') return { Icon: AlertCircle, foreground: colors.warning, background: `${colors.warning}18`, border: `${colors.warning}44` };
   if (status === 'Upcoming') return { Icon: Clock3, foreground: colors.primary, background: colors.primarySoft, border: `${colors.primary}55` };
   if (status === 'Paused' || status === 'Inactive' || status === 'Cancelled') return { Icon: Clock3, foreground: colors.textSecondary, background: colors.surfaceSecondary, border: colors.border };

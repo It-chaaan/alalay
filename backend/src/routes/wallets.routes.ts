@@ -14,6 +14,7 @@ walletsRouter.post("/", writeRateLimit, validateRequest({ body: createWalletSche
 walletsRouter.post("/with-opening-balance", writeRateLimit, validateRequest({ body: createWalletWithOpeningBalanceSchema }), asyncHandler(controller.createWithOpeningBalance));
 walletsRouter.post("/:id/deposits", writeRateLimit, validateRequest({ params: idParamSchema, body: walletDepositSchema }), asyncHandler(controller.deposit));
 walletsRouter.post("/:id/interest", writeRateLimit, validateRequest({ params: idParamSchema, body: walletInterestSchema }), asyncHandler(controller.interest));
+walletsRouter.get("/:id/interest-estimate", validateRequest({ params: idParamSchema }), asyncHandler(controller.interestEstimate));
 walletsRouter.post("/:id/repayments", writeRateLimit, validateRequest({ params: idParamSchema, body: creditRepaymentSchema }), asyncHandler(controller.repayment));
 walletsRouter.patch("/:id", writeRateLimit, validateRequest({ params: idParamSchema, body: updateWalletSchema }), asyncHandler(controller.update));
 walletsRouter.delete("/:id", writeRateLimit, validateRequest({ params: idParamSchema }), asyncHandler(controller.remove));

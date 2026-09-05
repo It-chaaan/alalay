@@ -257,6 +257,7 @@ export const walletDepositSchema = z
     amount: currencyAmount,
     date: safeDate,
     note: z.string().trim().max(500).nullable().optional(),
+    idempotency_key: z.string().trim().min(8).max(200),
   })
   .strict();
 

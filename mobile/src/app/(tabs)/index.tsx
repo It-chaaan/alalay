@@ -47,7 +47,7 @@ import {
   fetchRecentIncome,
   fetchWallets,
   subscribeFinancialMutations,
-  totalWalletBalance,
+  totalWalletAvailableBalance,
   type FinanceItem,
   type RecentTransaction,
   type WalletRecord,
@@ -301,7 +301,8 @@ function SummaryCard({
 }) {
   const { colors } = useAppTheme();
   const { visible, toggle } = useWalletBalanceVisibility();
-  const balanceUnavailable = walletError || walletLoading;
+  const availableBalance = totalWalletAvailableBalance(wallets);
+  const balanceUnavailable = Boolean(walletError) || walletLoading || availableBalance === null;
   const amountsVisible = visible === true;
   const mask = '••••••';
   const balanceLabel = balanceUnavailable
@@ -309,7 +310,7 @@ function SummaryCard({
       ? 'loading'
       : 'unavailable'
     : amountsVisible
-      ? formatBalancePeso(totalWalletBalance(wallets))
+      ? formatBalancePeso(availableBalance)
       : 'hidden';
   const expensesLabel =
     loading || !summary
@@ -376,7 +377,7 @@ function SummaryCard({
               ? 'Loading…'
               : 'Unavailable'
             : amountsVisible
-              ? formatBalancePeso(totalWalletBalance(wallets))
+              ? formatBalancePeso(availableBalance)
               : mask}
         </Text>
         <View
@@ -485,10 +486,10 @@ function WalletHero({
   const selectedBalanceLabel =
     selectedWallet?.account_type === 'credit'
       ? 'OUTSTANDING BALANCE'
-      : selectedWallet?.account_purpose === 'savings'
-        ? 'SAVINGS BALANCE'
-        : 'AVAILABLE BALANCE';
-  const selectedBalance = Number(selectedWallet?.balance ?? 0);
+      : 'AVAILABLE BALANCE';
+  const selectedBalance = selectedWallet?.account_type === 'credit'
+    ? Number(selectedWallet.balance)
+    : Number(selectedWallet?.available_balance);
   const selectedPosition = wallets.length ? frontIndex + 1 : 0;
   const advance = useCallback(
     (steps: number) => {
@@ -506,7 +507,9 @@ function WalletHero({
       AccessibilityInfo.announceForAccessibility(`${visibleCards[0].name} selected`);
   }, [visibleCards]);
 
-  const unavailable = Boolean(walletError) || walletLoading;
+  const unavailable = Boolean(walletError) || walletLoading || wallets.some(
+    (wallet) => wallet.account_type !== 'credit' && (wallet.available_balance === undefined || !Number.isFinite(Number(wallet.available_balance))),
+  );
   const walletSwipeResponder = useMemo(
     () =>
       PanResponder.create({
@@ -559,7 +562,9 @@ function WalletHero({
       </View>
       <Text
         accessibilityLabel={
-          amountsVisible
+          unavailable
+            ? 'Available balance unavailable'
+            : amountsVisible
             ? `${selectedBalanceLabel.toLowerCase()} ${formatBalancePeso(selectedBalance)}`
             : `${selectedBalanceLabel.toLowerCase()} hidden`
         }
@@ -637,6 +642,9 @@ const WalletStackCard = memo(function WalletStackCard({
             : wallet.account_type === 'debit'
               ? 'Debit Card'
               : typeLabel(wallet.institution_type);
+  const availableBalanceLabel = !visible
+    ? 'hidden'
+    : formatBalancePeso(Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance));
   const balanceLabel = !visible ? '••••••' : formatBalancePeso(Number(wallet.balance));
   const translateY = useSharedValue(walletSlotOffset(slotIndex));
   const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
@@ -668,7 +676,7 @@ const WalletStackCard = memo(function WalletStackCard({
         accessible
         accessibilityRole="button"
         accessibilityState={{ selected: slotIndex === 0 }}
-        accessibilityLabel={`${slotIndex === 0 ? 'Selected' : 'Select'} ${wallet.name}, ${type}${wallet.last_four ? ` ending in ${wallet.last_four}` : ''}, ${wallet.account_type === 'credit' ? `Amount owed ${balanceLabel}` : visible ? balanceLabel : 'balance hidden'}`}
+        accessibilityLabel={`${slotIndex === 0 ? 'Selected' : 'Select'} ${wallet.name}, ${type}${wallet.last_four ? ` ending in ${wallet.last_four}` : ''}, ${wallet.account_type === 'credit' ? `Amount owed ${availableBalanceLabel}` : visible ? `Available balance ${availableBalanceLabel}` : 'balance hidden'}`}
         onPress={onSelect}
         style={styles.walletCardContent}
       >
@@ -705,7 +713,7 @@ const WalletStackCard = memo(function WalletStackCard({
             minimumFontScale={0.55}
             style={[styles.walletCardBalance, { color: colors.textOnPrimary }]}
           >
-            {balanceLabel}
+            {visible ? availableBalanceLabel : balanceLabel}
           </Text>
         </View>
       </Pressable>
@@ -950,7 +958,7 @@ function WalletQuickView({
             </Text>
           </View>
           <Text style={[styles.walletBalance, { color: colors.textPrimary }]}>
-            {formatBalancePeso(Number(wallet.balance))}
+              {formatBalancePeso(Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance))}
           </Text>
           <ChevronRight size={18} color={colors.textSecondary} />
         </Pressable>

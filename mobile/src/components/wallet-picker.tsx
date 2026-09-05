@@ -20,6 +20,9 @@ export type Wallet = {
   interest_credit_frequency?: string | null;
   credit_limit?: number | string | null;
   balance: number | string;
+  total_balance?: number | string;
+  reserved_for_goals?: number | string;
+  available_balance?: number | string;
   color: string;
   is_default_cash: boolean;
   default_outgoing_transfer_fee?: number | string | null;
@@ -310,13 +313,13 @@ function walletDisplayName(wallet: Wallet) {
 }
 
 function walletBalanceLabel(wallet: Wallet) {
-  const balance = Number(wallet.balance) || 0;
+  const balance = Number(wallet.available_balance ?? wallet.balance) || 0;
   const value = `₱${balance.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   if (wallet.account_type === 'credit') {
     const available = Math.max(0, Number(wallet.credit_limit ?? 0) - balance);
     return `Available credit: ₱${available.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
-  return `${wallet.account_purpose === 'savings' ? 'Savings balance' : 'Available balance'}: ${value}`;
+  return `${wallet.account_purpose === 'savings' ? 'Savings available' : 'Available to spend'}: ${value}`;
 }
 
 const styles = StyleSheet.create({

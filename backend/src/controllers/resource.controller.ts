@@ -10,11 +10,27 @@ export async function savingsDashboard(req: Request, res: Response) {
 }
 
 export async function addGoalContribution(req: Request, res: Response) {
-  const body = req.validated?.body as { wallet_id: string; amount: number };
+  const body = req.validated?.body as { wallet_id: string; amount: number; contribution_date: string; note?: string; idempotency_key: string };
   const { data, error } = await client().rpc("add_goal_contribution", {
     target_goal_id: (req.validated?.params as { id: string }).id,
     source_wallet_id: body.wallet_id,
     contribution_amount: body.amount,
+    contribution_on: body.contribution_date,
+    contribution_note: body.note ?? null,
+    request_id: body.idempotency_key,
+  });
+  throwIfError(error);
+  return sendSuccess(res, data);
+}
+
+export async function releaseGoalContribution(req: Request, res: Response) {
+  const body = req.validated?.body as { contribution_id: string; amount: number; release_date?: string; note?: string; idempotency_key: string };
+  const { data, error } = await client().rpc("release_goal_contribution", {
+    target_contribution_id: body.contribution_id,
+    release_amount: body.amount,
+    released_on_value: body.release_date ?? null,
+    release_note: body.note ?? null,
+    request_id: body.idempotency_key,
   });
   throwIfError(error);
   return sendSuccess(res, data);

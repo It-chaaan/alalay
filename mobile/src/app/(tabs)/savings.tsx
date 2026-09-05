@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useMemo, useState } from 'react';
+import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -40,6 +40,7 @@ import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { authenticatedApiRequest } from '@/services/api';
 import {
   fetchWallets,
+  dateKeyInManila,
   notifyFinancialMutation,
   subscribeFinancialMutations,
 } from '@/services/finance';
@@ -869,7 +870,7 @@ function ContributionForm({
       });
       notifyFinancialMutation();
       await onSaved();
-      toast.success('Goal contribution added successfully');
+      toast.success('Money reserved for this goal');
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not update this goal.');
     } finally {
@@ -908,6 +909,9 @@ function WalletContributionForm({
   const [amount, setAmount] = useState('');
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [walletId, setWalletId] = useState<string | null>(null);
+  const [contributionDate, setContributionDate] = useState(dateKeyInManila());
+  const [note, setNote] = useState('');
+  const idempotencyKey = useRef(`goal-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -931,7 +935,7 @@ function WalletContributionForm({
       await authenticatedApiRequest(`/api/savings-goals/${goal.id}/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet_id: walletId, amount: value }),
+        body: JSON.stringify({ wallet_id: walletId, amount: value, contribution_date: contributionDate, note: note || undefined, idempotency_key: idempotencyKey.current }),
       });
       notifyFinancialMutation();
       await onSaved();
@@ -944,13 +948,13 @@ function WalletContributionForm({
   };
   return (
     <FinanceFormSheet
-      title={`Add to ${goal.title}`}
-      eyebrow="GOAL CONTRIBUTION"
+      title={`Reserve money for ${goal.title}`}
+      eyebrow="GOAL RESERVATION"
       amount={amount}
       onAmountChange={setAmount}
       error={error}
       saving={saving}
-      saveLabel="Add money"
+      saveLabel={amount ? `Reserve ${peso(Number(parseAmount(amount) ?? 0))}` : 'Reserve money'}
       onSave={() => void save()}
       onClose={onClose}
     >
@@ -964,6 +968,12 @@ function WalletContributionForm({
         required
         label="From wallet"
       />
+      {walletId ? (() => {
+        const selected = wallets.find((wallet) => wallet.id === walletId);
+        return selected ? <Text style={styles.muted}>{peso(Number(selected.available_balance ?? selected.balance))} available to spend in {selected.name}. Reserved money remains in this wallet.</Text> : null;
+      })() : null}
+      <DatePickerField label="Funding date" value={contributionDate} onChange={setContributionDate} compact />
+      <FormTextInput label="Note (optional)" value={note} onChangeText={setNote} placeholder="What is this allocation for?" />
     </FinanceFormSheet>
   );
 }

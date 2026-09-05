@@ -108,6 +108,10 @@ export type WalletRecord = {
   interest_credit_frequency?: string | null;
   credit_limit?: number | string | null;
   balance: number | string;
+  /** Physical wallet amount; goal reservations do not reduce this value. */
+  total_balance?: number | string;
+  reserved_for_goals?: number | string;
+  available_balance?: number | string;
   color: string;
   icon?: string | null;
   is_default_cash: boolean;
@@ -140,6 +144,25 @@ export function fetchWallets() {
   return authenticatedApiRequest<WalletRecord[]>('/api/wallets');
 }
 
+export type GoalReleasePayload = {
+  contribution_id: string;
+  amount: number;
+  release_date?: string;
+  note?: string;
+  idempotency_key: string;
+};
+
+/** Releases a reservation and refreshes all financial subscribers, including Home. */
+export async function releaseGoalFunds(goalId: string, payload: GoalReleasePayload) {
+  const result = await authenticatedApiRequest(`/api/savings-goals/${goalId}/releases`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  notifyFinancialMutation();
+  return result;
+}
+
 export type LoanSummaryResponse = {
   loans: { id: string; status: 'active' | 'paid' | 'written_off' }[];
   summary: { owed_to_me: number; i_owe: number };
@@ -150,12 +173,29 @@ export function fetchLoanSummary() {
 }
 
 /** Uses the same server-computed wallet balances shown by Wallets Overview. */
-export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance' | 'account_type'>[]) {
+export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance' | 'total_balance' | 'account_type'>[]) {
   return wallets.reduce((sum, wallet) => {
     if (wallet.account_type === 'credit') return sum;
-    const balance = Number(wallet.balance);
+    const balance = Number(wallet.total_balance ?? wallet.balance);
     return sum + (Number.isFinite(balance) ? balance : 0);
   }, 0);
+}
+
+/**
+ * Canonical spendable total returned by the Wallet API. Missing availability is
+ * deliberately not substituted with physical balance: callers must show an
+ * unavailable state until the backend contract is present.
+ */
+export function totalWalletAvailableBalance(wallets: Pick<WalletRecord, 'available_balance' | 'account_type'>[]): number | null {
+  let total = 0;
+  for (const wallet of wallets) {
+    if (wallet.account_type === 'credit') continue;
+    if (wallet.available_balance === undefined || wallet.available_balance === null) return null;
+    const balance = Number(wallet.available_balance);
+    if (!Number.isFinite(balance)) return null;
+    total += balance;
+  }
+  return total;
 }
 
 export type SavingsDashboard = {
@@ -235,12 +275,14 @@ export type IncomeMonthItem = {
   kind: 'recurring' | 'one_time';
   sourceId: string;
   occurrenceId: string | null;
+  isProjected: boolean;
+  occurrenceKey: string;
   transactionId: string | null;
   name: string;
   category: string;
   amount: number;
   frequency: string | null;
-  status: string;
+  status: 'received' | 'upcoming' | 'expected_today' | 'overdue' | 'failed' | 'not_started';
   dueDate: string | null;
   receivedDate: string | null;
   receivedAt: string | null;
@@ -253,10 +295,12 @@ export type IncomeMonth = {
   month: string;
   overview: {
     receivedAmount: number;
+    expectedTodayAmount: number;
     upcomingAmount: number;
     overdueAmount: number;
     projectedAmount: number;
     receivedCount: number;
+    expectedTodayCount: number;
     upcomingCount: number;
     overdueCount: number;
     recurringSourceCount: number;
@@ -269,6 +313,7 @@ export type IncomeMonth = {
 export function fetchIncomeMonth(month: string) {
   return authenticatedApiRequest<IncomeMonth>(
     `/api/income/my-income?month=${encodeURIComponent(month)}`,
+    { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } },
   );
 }
 

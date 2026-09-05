@@ -37,6 +37,7 @@ type WalletDetail = {
   wallet: WalletWithDates;
   transactions?: WalletTransaction[];
   transactionError?: string;
+  interestEstimate?: { enabled: boolean; annual_interest_rate?: number | string; estimated_daily_interest?: number | string; estimated_accrued_interest?: number | string };
 };
 
 const peso = (value: number | string) =>
@@ -57,6 +58,10 @@ const dateLabel = (value?: string | null) =>
         new Date(value),
       )
     : null;
+const interestLabel = (value?: number | string) => {
+  const amount = Number(value ?? 0);
+  return amount > 0 && amount < 0.01 ? 'Less than ₱0.01 accrued' : peso(amount);
+};
 const todayIso = () => new Intl.DateTimeFormat('en-CA', {
   timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit',
 }).format(new Date());
@@ -104,6 +109,7 @@ export default function WalletDetailsScreen() {
   }, [load]);
 
   const wallet = detail?.wallet;
+  const interestEstimate = detail?.interestEstimate;
   const transactions = useMemo(
     () => (detail?.transactions ?? []).slice(0, 5),
     [detail?.transactions],
@@ -194,9 +200,14 @@ export default function WalletDetailsScreen() {
               </Text>
               <View style={styles.cardDivider} />
               <Text style={styles.balanceLabel}>
-                {wallet.account_type === 'credit' ? 'OUTSTANDING' : 'CURRENT BALANCE'}
+                {wallet.account_type === 'credit' ? 'OUTSTANDING' : 'AVAILABLE TO SPEND'}
               </Text>
-              <Text style={styles.balance}>{peso(wallet.balance)}</Text>
+              <Text style={styles.balance}>{peso(wallet.account_type === 'credit' ? wallet.balance : (wallet.available_balance ?? wallet.balance))}</Text>
+              {wallet.account_type !== 'credit' ? (
+                <Text style={styles.balanceSubtext}>
+                  Total {peso(wallet.total_balance ?? wallet.balance)}{Number(wallet.reserved_for_goals ?? 0) > 0 ? ` · Reserved ${peso(wallet.reserved_for_goals ?? 0)}` : ''}
+                </Text>
+              ) : null}
             </View>
             <View style={styles.actions}>
               {wallet.account_type === 'credit' ? (
@@ -241,6 +252,23 @@ export default function WalletDetailsScreen() {
               {wallet.account_purpose ? <InfoRow label="Account purpose" value={wallet.account_purpose === 'savings' ? 'Savings' : 'Everyday'} colors={colors} /> : null}
               {wallet.earns_interest ? <InfoRow label="Interest" value={`${wallet.annual_interest_rate ?? 0}% yearly · ${wallet.interest_credit_frequency ?? 'Unspecified'}`} colors={colors} /> : null}
               <InfoRow label="Currency" value="PHP" colors={colors} />
+              {interestEstimate?.enabled ? (
+                <>
+                  <InfoRow label="Interest tracking" value="Estimate only" colors={colors} />
+                  <InfoRow label="Annual rate" value={`${interestEstimate.annual_interest_rate}%`} colors={colors} />
+                  <InfoRow label="Estimated daily interest" value={interestLabel(interestEstimate.estimated_daily_interest)} colors={colors} />
+                  <InfoRow label="Estimated accrued interest" value={interestLabel(interestEstimate.estimated_accrued_interest)} colors={colors} />
+                  <Text style={[styles.reservationHint, { color: colors.textSecondary }]}>This estimate uses your confirmed physical Wallet balance. It does not change your balance until your bank credits interest and you record the actual amount.</Text>
+                </>
+              ) : null}
+              {wallet.account_type !== 'credit' ? (
+                <>
+                  <InfoRow label="Total balance" value={peso(wallet.total_balance ?? wallet.balance)} colors={colors} />
+                  <InfoRow label="Reserved for Goals" value={peso(wallet.reserved_for_goals ?? 0)} colors={colors} />
+                  <InfoRow label="Available to spend" value={peso(wallet.available_balance ?? wallet.balance)} colors={colors} />
+                  <Text style={[styles.reservationHint, { color: colors.textSecondary }]}>Reserved money stays in this Wallet, but is set aside for Savings Goals and cannot be spent normally.</Text>
+                </>
+              ) : null}
               {wallet.account_type === 'credit' ? (
                 <>
                   <InfoRow label="Outstanding balance" value={peso(wallet.balance)} colors={colors} />
@@ -397,7 +425,7 @@ function CreditPaymentForm({
     if (value === null || value <= 0) return setError('Enter a payment amount greater than zero.');
     if (!paymentWallet) return setError('Choose a payment wallet.');
     if (value > Number(wallet.balance)) return setError(`Payment cannot exceed the outstanding balance of ${peso(wallet.balance)}.`);
-    if (value > Number(paymentWallet.balance)) return setError(`Insufficient balance in ${paymentWallet.name} to pay ${peso(value)}.`);
+    if (value > Number(paymentWallet.available_balance ?? paymentWallet.balance)) return setError(`Insufficient available balance in ${paymentWallet.name} to pay ${peso(value)}.`);
     setSaving(true);
     setError('');
     try {
@@ -417,7 +445,7 @@ function CreditPaymentForm({
   return (
     <FinanceFormSheet title="Pay card" eyebrow={wallet.name.toUpperCase()} amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Record payment" onSave={() => void save()} onClose={onClose}>
       <WalletPicker wallets={eligibleWallets} value={paymentWalletId} onChange={setPaymentWalletId} required label="Payment wallet" excludeCredit activeOnly />
-      {paymentWallet ? <Text style={styles.formHint}>{peso(paymentWallet.balance)} available in {paymentWallet.name}</Text> : null}
+      {paymentWallet ? <Text style={styles.formHint}>{peso(paymentWallet.available_balance ?? paymentWallet.balance)} available to spend in {paymentWallet.name}</Text> : null}
       <Text style={styles.formHint}>This tracks a balance transfer in Alalay. It does not send a real payment to the bank and is not recorded as another expense.</Text>
       <DatePickerField label="Payment date" value={date} onChange={setDate} />
     </FinanceFormSheet>
@@ -490,6 +518,7 @@ function TransactionRow({
   colors: ReturnType<typeof useAppTheme>['colors'];
 }) {
   const incoming = transaction.amount >= 0;
+  const isGoalReservation = transaction.kind === 'goal_allocation';
   return (
     <View
       style={[
@@ -500,10 +529,10 @@ function TransactionRow({
       <View
         style={[
           styles.transactionIcon,
-          { backgroundColor: incoming ? colors.primarySoft : `${colors.danger}33` },
+          { backgroundColor: isGoalReservation || incoming ? colors.primarySoft : `${colors.danger}33` },
         ]}
       >
-        {incoming ? (
+        {incoming || isGoalReservation ? (
           <ArrowDownToLine size={19} color={colors.primary} />
         ) : (
           <ArrowUpRight size={19} color={colors.danger} />
@@ -518,7 +547,7 @@ function TransactionRow({
         </Text>
       </View>
       <Text
-        style={[styles.transactionAmount, { color: incoming ? colors.primary : colors.danger }]}
+        style={[styles.transactionAmount, { color: incoming || isGoalReservation ? colors.primary : colors.danger }]}
       >
         {incoming ? '+' : '−'}
         {peso(Math.abs(transaction.amount))}
@@ -557,6 +586,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1.2,
   },
   balance: { marginTop: 6, color: '#FFFFFF', fontSize: 36, fontWeight: '900' },
+  balanceSubtext: { marginTop: 5, color: 'rgba(255,255,255,0.78)', fontSize: 12, fontWeight: '700' },
+  reservationHint: { paddingTop: 12, fontSize: 12, lineHeight: 18 },
   actions: { flexDirection: 'row', gap: 12 },
   action: {
     flex: 1,

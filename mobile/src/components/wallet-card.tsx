@@ -19,6 +19,10 @@ export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletC
   const { colors } = useAppTheme();
   const { visible } = useWalletBalanceVisibility();
   const amountsVisible = visible === true;
+  const availableBalance = Number(wallet.available_balance ?? wallet.balance);
+  const totalBalance = Number(wallet.total_balance ?? wallet.balance);
+  const reservedBalance = Number(wallet.reserved_for_goals ?? 0);
+  const availableText = amountsVisible ? formatBalance(availableBalance) : 'hidden';
   const balance = amountsVisible ? formatBalance(wallet.balance) : '••••••';
   const institution = institutionFor(wallet.institution_key);
   const category =
@@ -39,20 +43,18 @@ export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletC
   const amountLabel =
     wallet.account_type === 'credit'
       ? 'AVAILABLE CREDIT'
-      : wallet.account_purpose === 'savings'
-        ? 'SAVINGS BALANCE'
-        : 'AVAILABLE BALANCE';
+      : 'AVAILABLE TO SPEND';
   const displayBalance =
     wallet.account_type === 'credit'
       ? Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance))
-      : Number(wallet.balance);
+      : availableBalance;
   const cardColor =
     wallet.institution_key && institution.id !== 'cash' ? institution.brandColor : wallet.color;
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${wallet.name}, ${metadata}, ${amountLabel.toLowerCase()} ${amountsVisible ? balance : 'hidden'}`}
+      accessibilityLabel={`${wallet.name}, ${metadata}, ${amountLabel.toLowerCase()} ${availableText}, total ${amountsVisible ? formatBalance(totalBalance) : 'hidden'}, reserved for goals ${amountsVisible ? formatBalance(reservedBalance) : 'hidden'}`}
       onPress={onPress}
       style={({ pressed }) => [
         styles.card,
@@ -114,6 +116,13 @@ export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletC
           >
             {amountsVisible ? formatBalance(displayBalance) : balance}
           </Text>
+          {wallet.account_type !== 'credit' ? (
+            <Text numberOfLines={1} style={styles.breakdown}>
+              {reservedBalance > 0
+                ? `Total ${amountsVisible ? formatBalance(totalBalance) : 'hidden'} · Reserved ${amountsVisible ? formatBalance(reservedBalance) : 'hidden'}`
+                : `Total ${amountsVisible ? formatBalance(totalBalance) : 'hidden'}`}
+            </Text>
+          ) : null}
         </View>
       </View>
     </Pressable>
@@ -124,7 +133,7 @@ const styles = StyleSheet.create({
   // Width is supplied by the two-column parent; this stays compact and equal-height.
   card: {
     width: '48%',
-    minHeight: 190,
+    minHeight: 208,
     overflow: 'hidden',
     padding: 12,
     borderRadius: 22,
@@ -162,6 +171,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   balance: { marginTop: 3, color: '#FFFFFF', fontSize: 18, lineHeight: 22, fontWeight: '900' },
+  breakdown: { marginTop: 5, color: 'rgba(255,255,255,0.78)', fontSize: 10, fontWeight: '700' },
   watermark: {
     position: 'absolute',
     right: -5,

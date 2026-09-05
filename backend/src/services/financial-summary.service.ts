@@ -8,13 +8,18 @@ import {
 export type MyIncomeItem = {
   kind: 'recurring' | 'one_time';
   sourceId: string;
+  /** A UUID only when the income occurrence has been persisted. */
   occurrenceId: string | null;
+  /** Virtual projections are not database records and must never be mutated by ID. */
+  isProjected: boolean;
+  /** Stable UI identity for a source/date projection or posted occurrence. */
+  occurrenceKey: string;
   transactionId: string | null;
   name: string;
   category: string;
   amount: number;
   frequency: string | null;
-  status: 'received' | 'upcoming' | 'overdue' | 'failed' | 'not_started';
+  status: 'received' | 'upcoming' | 'expected_today' | 'overdue' | 'failed' | 'not_started';
   dueDate: string | null;
   receivedDate: string | null;
   receivedAt: string | null;
@@ -135,6 +140,8 @@ export async function myIncomeForMonth(userId: string, month?: string) {
       kind: schedule || isRecurring(row) ? 'recurring' : 'one_time',
       sourceId: String(schedule?.id ?? row.schedule_id ?? row.id),
       occurrenceId: schedule ? String(row.id) : null,
+      isProjected: false,
+      occurrenceKey: String(row.occurrence_key ?? `${schedule?.id ?? row.schedule_id ?? row.id}:${row.date}`),
       transactionId: String(row.id),
       name: String(row.source),
       category: String(row.type ?? 'other'),
@@ -162,13 +169,21 @@ export async function myIncomeForMonth(userId: string, month?: string) {
     items.push({
       kind: isRecurring(source) ? 'recurring' : 'one_time',
       sourceId: String(source.id),
-      occurrenceId: String(expected.id),
+      occurrenceId: null,
+      isProjected: true,
+      occurrenceKey: `${source.id}:${expected.date}`,
       transactionId: null,
       name: String(source.source),
       category: String(source.type ?? 'other'),
       amount: Number(source.amount ?? 0),
       frequency: source.frequency ? String(source.frequency) : null,
-      status: failure ? 'failed' : String(expected.date) < today ? 'overdue' : 'upcoming',
+      status: failure
+        ? 'failed'
+        : String(expected.date) < today
+          ? 'overdue'
+          : String(expected.date) === today
+            ? 'expected_today'
+            : 'upcoming',
       dueDate: String(expected.date),
       receivedDate: null,
       receivedAt: null,
@@ -184,7 +199,7 @@ export async function myIncomeForMonth(userId: string, month?: string) {
     const rightDate =
       right.status === 'received' ? (right.receivedDate ?? '') : (right.dueDate ?? '9999-12-31');
     const statusOrder = (status: MyIncomeItem['status']) =>
-      status === 'upcoming' || status === 'overdue' ? 0 : 1;
+      status === 'upcoming' || status === 'expected_today' || status === 'overdue' || status === 'failed' ? 0 : 1;
     return (
       statusOrder(left.status) - statusOrder(right.status) ||
       rightDate.localeCompare(leftDate) ||
@@ -193,16 +208,19 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   });
 
   const received = items.filter((item) => item.status === 'received');
+  const expectedToday = items.filter((item) => item.status === 'expected_today');
   const upcoming = items.filter((item) => item.status === 'upcoming');
   const overdue = items.filter((item) => item.status === 'overdue');
   return {
     month: selectedMonth,
     overview: {
       receivedAmount: received.reduce((sum, item) => sum + item.amount, 0),
+      expectedTodayAmount: expectedToday.reduce((sum, item) => sum + item.amount, 0),
       upcomingAmount: upcoming.reduce((sum, item) => sum + item.amount, 0),
       overdueAmount: overdue.reduce((sum, item) => sum + item.amount, 0),
       projectedAmount: items.reduce((sum, item) => sum + item.amount, 0),
       receivedCount: received.length,
+      expectedTodayCount: expectedToday.length,
       upcomingCount: upcoming.length,
       overdueCount: overdue.length,
       recurringSourceCount: sourceRows.length,
