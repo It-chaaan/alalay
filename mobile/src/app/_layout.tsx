@@ -1,5 +1,4 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
@@ -63,7 +62,6 @@ function ThemedRoot() {
       </ModalVisibilityProvider>
       <StatusBar
         style={resolvedTheme === 'dark' ? 'light' : 'dark'}
-        backgroundColor={colors.background}
       />
     </ThemeProvider>
   );
@@ -79,6 +77,7 @@ function SessionGate() {
     '/bills',
     '/budget',
     '/expenses',
+    '/ai',
     '/income',
     '/reports',
     '/wallets',

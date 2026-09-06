@@ -12,7 +12,7 @@ import {
   WalletCards,
   X,
 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Component, type ErrorInfo, type ReactNode, useMemo, useState } from 'react';
 import alalayLogo from '../../assets/logo-symbol-white.svg';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { useBills } from '../../hooks/useBills';
@@ -522,16 +522,47 @@ type DueDateItem = {
   kind: 'bill' | 'subscription';
 };
 
+class DashboardWidgetBoundary extends Component<
+  { children: ReactNode; onRetry: () => void },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    if (import.meta.env.DEV) {
+      console.error('Dashboard widget failed to render', { message: error.message, componentStack: info.componentStack });
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return <article className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>We couldn’t load your upcoming dates. Please try again.</p><button type="button" onClick={() => { this.setState({ hasError: false }); this.props.onRetry(); }} className="mt-2 font-semibold underline">Try again</button></article>;
+    }
+    return this.props.children;
+  }
+}
+
+function isDateKey(value: string | undefined) {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const [year, month, day] = value.split('-').map(Number);
+  const parsed = new Date(year, month - 1, day);
+  return parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day;
+}
+
 function getDueDateItems(bills: Bill[], subscriptions: Subscription[]) {
   return [
-    ...bills.map((bill) => ({
+    ...bills.filter((bill) => isDateKey(bill.due_date)).map((bill) => ({
       id: `bill-${bill.id}`,
       name: bill.title,
       amount: Number(bill.amount),
       date: bill.due_date,
       kind: 'bill' as const,
     })),
-    ...subscriptions.map((subscription) => ({
+    ...subscriptions.filter((subscription) => isDateKey(subscription.renewal_date)).map((subscription) => ({
       id: `subscription-${subscription.id}`,
       name: subscription.name,
       amount: Number(subscription.amount),
@@ -555,32 +586,24 @@ function monthTitle(date: Date) {
 function DueDatesCalendar({
   bills,
   subscriptions,
+  isLoading = false,
+  error = null,
+  onRetry,
 }: {
   bills: Bill[];
   subscriptions: Subscription[];
+  isLoading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }) {
   const [visibleMonth, setVisibleMonth] = useState(
     () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const hasValidInputs = Array.isArray(bills) && Array.isArray(subscriptions);
   const items = useMemo<DueDateItem[]>(
-    () => [
-      ...bills.map((bill) => ({
-        id: `bill-${bill.id}`,
-        name: bill.title,
-        amount: Number(bill.amount),
-        date: bill.due_date,
-        kind: 'bill' as const,
-      })),
-      ...subscriptions.map((subscription) => ({
-        id: `subscription-${subscription.id}`,
-        name: subscription.name,
-        amount: Number(subscription.amount),
-        date: subscription.renewal_date,
-        kind: 'subscription' as const,
-      })),
-    ],
-    [bills, subscriptions],
+    () => (hasValidInputs ? getDueDateItems(bills, subscriptions) : []),
+    [bills, hasValidInputs, subscriptions],
   );
   const itemsByDate = useMemo(() => {
     const grouped = new Map<string, DueDateItem[]>();
@@ -609,6 +632,14 @@ function DueDatesCalendar({
   function moveMonth(offset: number) {
     setVisibleMonth((month) => new Date(month.getFullYear(), month.getMonth() + offset, 1));
     setSelectedDate(null);
+  }
+
+  if (isLoading) {
+    return <SkeletonCard className="min-h-[280px]"><SkeletonText className="w-28" /><SkeletonBlock className="mt-5 h-52 w-full" /></SkeletonCard>;
+  }
+
+  if (error || !hasValidInputs) {
+    return <article className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>We couldn’t load your upcoming dates. Please try again.</p>{onRetry ? <button type="button" onClick={onRetry} className="mt-2 font-semibold underline">Try again</button> : null}</article>;
   }
 
   return (
@@ -688,6 +719,7 @@ function DueDatesCalendar({
           );
         })}
       </div>
+      {!items.length ? <p className="mt-3 rounded-xl bg-slate-50 p-3 text-sm text-slate-500">No upcoming bill or subscription dates for this month.</p> : null}
       {selectedItems.length ? (
         <div className="mt-2 space-y-2 rounded-xl bg-slate-50 p-2">
           <p className="text-xs font-semibold text-slate-700">
@@ -990,14 +1022,14 @@ function RecentTransactions({
 export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const name = getDisplayName(session);
   const greeting = getPhilippineGreeting();
-  const { data: summary, isLoading, isSlowLoading, error } = useDashboard();
+  const { data: summary, isLoading, isSlowLoading, error, refetch } = useDashboard();
   const { data: report } = useReports({ period: 'ytd' });
   const { data: monthlyReport } = useReports({ period: 'this_month' });
   const { data: budget } = useBudget();
-  const { data: loans } = useApiQuery<LoanSummary>('/loans/summary');
+  const { data: loansResponse } = useApiQuery<{ summary: LoanSummary }>('/loans');
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
-  const { data: bills, isLoading: billsLoading, refetch: refetchBills } = useBills();
-  const { data: subscriptions, isLoading: subscriptionsLoading } = useSubscriptions();
+  const { data: bills, isLoading: billsLoading, error: billsError, refetch: refetchBills } = useBills();
+  const { data: subscriptions, isLoading: subscriptionsLoading, error: subscriptionsError } = useSubscriptions();
   const [isPrivate, setIsPrivate] = useState(false);
   const scheduleLoading = billsLoading || subscriptionsLoading;
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -1041,7 +1073,10 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
       ) : null}
       {error ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-          {error}
+          <p>We couldn’t load your dashboard. Please try again.</p>
+          <button type="button" onClick={refetch} className="mt-2 font-semibold underline">
+            Try again
+          </button>
         </div>
       ) : null}
       {!isLoading && !error && !summary ? (
@@ -1055,7 +1090,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
             summary={summary}
             wallets={wallets ?? []}
             report={report ?? undefined}
-            loans={loans ?? undefined}
+            loans={loansResponse?.summary}
             isPrivate={isPrivate}
             onTogglePrivacy={() => setIsPrivate((current) => !current)}
           />
@@ -1066,14 +1101,9 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
                 <MoneyFlowCard report={report ?? undefined} isPrivate={isPrivate} />
               </div>
               <div className="dashboard-card dashboard-due-dates">
-                {scheduleLoading ? (
-                  <SkeletonCard className="min-h-[280px]">
-                    <SkeletonText className="w-28" />
-                    <SkeletonBlock className="mt-5 h-52 w-full" />
-                  </SkeletonCard>
-                ) : (
-                  <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} />
-                )}
+                <DashboardWidgetBoundary onRetry={refetchBills}>
+                  <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} isLoading={scheduleLoading} error={billsError ?? subscriptionsError} onRetry={refetchBills} />
+                </DashboardWidgetBoundary>
               </div>
               <div className="dashboard-card dashboard-upcoming-bills">
                 {scheduleLoading ? (

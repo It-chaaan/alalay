@@ -39,7 +39,7 @@ export function getBillDisplayStatus(bill: Bill, todayIso: string): BillDisplayS
 }
 
 export function isUpcomingBill(bill: Bill, todayIso: string) {
-  return bill.status === 'unpaid' && bill.due_date >= todayIso;
+  return bill.status !== 'paid' && bill.due_date >= todayIso;
 }
 
 export function isOverdueBill(bill: Bill, todayIso: string) {

@@ -27,6 +27,7 @@ export default function TabLayout() {
       <Tabs.Screen name="profile" options={{ title: 'Profile' }} />
       <Tabs.Screen name="notifications" options={{ title: 'Notifications' }} />
       <Tabs.Screen name="reports" options={{ title: 'Reports' }} />
+      <Tabs.Screen name="ai" options={{ title: 'Alalay AI' }} />
     </Tabs>
   );
 }

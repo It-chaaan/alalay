@@ -161,7 +161,7 @@ Copy the relevant example file to `.env` in that workspace. Never commit populat
 | ------------------------ | -------- | ------------------------------ | ---------------------------------- |
 | `VITE_SUPABASE_URL`      | Yes      | Supabase project URL           | `https://your-project.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Yes      | Browser-safe Supabase anon key | `your-anon-key`                    |
-| `VITE_API_URL`           | No       | Backend base URL               | `http://localhost:3000`            |
+| `VITE_API_URL`           | No       | Absolute backend base URL      | `http://localhost:3000`            |
 
 Vite variables are client-visible. Do not place service-role keys or provider secrets in this file.
 
@@ -243,7 +243,7 @@ cd frontend
 npm run dev
 ```
 
-Use the URL printed by Vite and keep `VITE_API_URL` pointed at the backend.
+Use the URL printed by Vite and keep `VITE_API_URL` pointed at the backend. In local development use `http://localhost:3000`; production builds require an absolute HTTPS backend URL. Do not set it to a variable name or a relative path, because that sends API requests to the Vite server.
 
 Start the mobile client:
 

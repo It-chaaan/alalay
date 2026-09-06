@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 function Icon({ type }: { type: "bill" | "expense" | "scan" | "plus" | "close" | "help" }) {
   const common = "h-4 w-4";
@@ -57,6 +57,8 @@ function Icon({ type }: { type: "bill" | "expense" | "scan" | "plus" | "close" |
 export function QuickActions() {
   const [isOpen, setIsOpen] = useState(false);
   const menuId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -64,36 +66,49 @@ export function QuickActions() {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
       }
     }
 
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
+    window.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("pointerdown", handlePointerDown);
+    };
   }, [isOpen]);
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
+    <div ref={rootRef} className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3">
       <div
         id={menuId}
+        role="menu"
         aria-hidden={!isOpen}
         className={`flex flex-col items-end gap-3 transition duration-200 ${
           isOpen ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0"
         }`}
       >
-          <a href="/app/bills?action=add-bill" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          <a role="menuitem" href="/app/bills?action=add-bill" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="bill" />
             Add bill
           </a>
-          <a href="/app/expenses?action=log-expense" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          <a role="menuitem" href="/app/expenses?action=log-expense" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="expense" />
             Log expense
           </a>
-          <a href="/app/ocr-scanner" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
+          <a role="menuitem" href="/app/ocr-scanner" tabIndex={isOpen ? 0 : -1} className="inline-flex min-h-10 items-center gap-2 rounded-full bg-brand-primary px-4 py-2 text-sm font-semibold text-white shadow-xl transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2">
             <Icon type="scan" />
             Scan receipt
           </a>
       </div>
       <button
+        ref={triggerRef}
         type="button"
         aria-controls={menuId}
         aria-expanded={isOpen}

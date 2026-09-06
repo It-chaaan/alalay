@@ -6,18 +6,11 @@
     "orientation": "portrait",
     "scheme": "alalay",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
     "icon": "./assets/alalay-app-icon.png",
-    "splash": {
-      "image": "./assets/alalay-splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#F8F7F2"
-    },
     "ios": {
       "supportsTablet": true
     },
     "android": {
-      "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.CAMERA",
@@ -37,7 +30,14 @@
     },
     "plugins": [
       "expo-router",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/alalay-splash.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#F8F7F2"
+        }
+      ],
       [
         "expo-notifications",
         {
@@ -59,7 +59,11 @@
         {
           "photosPermission": "Allow Budget Tracker to choose receipt photos."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-image",
+      "expo-web-browser",
+      "expo-status-bar"
     ],
     "experiments": {
       "typedRoutes": true,

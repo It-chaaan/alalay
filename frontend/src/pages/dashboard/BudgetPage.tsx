@@ -1,5 +1,5 @@
 import type { Session } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BudgetFormPanel } from "../../components/forms/FinancialActionPanels";
 import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
 import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
@@ -12,6 +12,13 @@ import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { SlideOver } from '../../components/ui/SlideOver';
+import {
+  copyPreviousBudgetCategories,
+  mergeRecommendedBudgetCategories,
+  previousBudgetMonth,
+  type BudgetDraftCategory,
+} from '../../utils/budgetSetups';
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -127,6 +134,64 @@ function BudgetAction({ label, monthLabel, onOpen, disabled = false }: { label: 
   );
 }
 
+type BudgetSetup = 'copy' | 'recommended' | 'custom';
+
+function BudgetSetupPicker({
+  open,
+  monthLabel,
+  isLoadingPrevious,
+  canCopyPrevious,
+  previousError,
+  onClose,
+  onSelect,
+}: {
+  open: boolean;
+  monthLabel: string;
+  isLoadingPrevious: boolean;
+  canCopyPrevious: boolean;
+  previousError: string | null;
+  onClose: () => void;
+  onSelect: (setup: BudgetSetup) => void;
+}) {
+  return (
+    <SlideOver
+      open={open}
+      onClose={onClose}
+      title="Choose a starting setup"
+      description={`Start with an editable plan for ${monthLabel}. Nothing is saved until you review the budget.`}
+    >
+      <div className="space-y-3">
+        <button type="button" disabled={isLoadingPrevious || !canCopyPrevious} onClick={() => onSelect('copy')} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary disabled:cursor-not-allowed disabled:opacity-55 dark:border-slate-700 dark:bg-slate-800">
+          <span className="block text-sm font-semibold text-slate-950 dark:text-white">Copy last month</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-300">
+            {isLoadingPrevious ? 'Loading the previous month…' : previousError ? 'We could not load the previous budget. Please try again.' : canCopyPrevious ? 'Reuse the previous month’s categories and planned amounts.' : 'No previous budget is available to copy.'}
+          </span>
+        </button>
+        <button type="button" onClick={() => onSelect('recommended')} className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-brand-primary focus:outline-none focus:ring-2 focus:ring-brand-primary dark:border-slate-700 dark:bg-slate-800">
+          <span className="block text-sm font-semibold text-slate-950 dark:text-white">Recommended budget setup</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-500 dark:text-slate-300">Build an editable plan based on your income and spending.</span>
+          <span className="mt-2 block text-xs font-semibold text-brand-primary">50% Needs · 30% Wants · 20% Savings</span>
+        </button>
+        <button type="button" onClick={() => onSelect('custom')} className="w-full rounded-2xl border border-brand-primary bg-brand-primary/5 p-4 text-left transition hover:bg-brand-primary/10 focus:outline-none focus:ring-2 focus:ring-brand-primary dark:bg-brand-primary/15">
+          <span className="block text-sm font-semibold text-brand-primary">Custom</span>
+          <span className="mt-1 block text-xs leading-5 text-slate-600 dark:text-slate-300">Start with no template allocations and build your own plan.</span>
+        </button>
+      </div>
+    </SlideOver>
+  );
+}
+
+function ReplaceBudgetSetupDialog({ open, monthLabel, isConfirming, onClose, onConfirm }: { open: boolean; monthLabel: string; isConfirming: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <SlideOver open={open} onClose={onClose} title="Replace this budget setup?" description={`This will replace the current category allocations for ${monthLabel}. This action will only be saved after you review and save the budget.`}>
+      <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+        <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800">Cancel</button>
+        <button type="button" disabled={isConfirming} onClick={onConfirm} className="min-h-11 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white transition hover:bg-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary focus:ring-offset-2 disabled:opacity-60">Replace setup</button>
+      </div>
+    </SlideOver>
+  );
+}
+
 function HealthRow({ label, amount, percent, color }: { label: string; amount: number; percent: number; color: string }) {
   return (
     <div>
@@ -146,9 +211,20 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const budgetDialog = useActionDialog("budget");
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonthKey);
   const { data: fetchedBudgetSummary, isLoading, isSlowLoading, error, refetch } = useBudget(selectedMonth);
+  const previousMonth = previousBudgetMonth(selectedMonth);
+  const { data: previousBudgetSummary, isLoading: isLoadingPreviousBudget, error: previousBudgetError } = useBudget(previousMonth);
   const { data: incomeSummary } = useIncomeSummary(selectedMonth);
   const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
   const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
+  const [setupPickerOpen, setSetupPickerOpen] = useState(false);
+  const [pendingSetup, setPendingSetup] = useState<BudgetSetup | null>(null);
+  const [setupMonth, setSetupMonth] = useState<string | null>(null);
+  const [draftCategories, setDraftCategories] = useState<BudgetDraftCategory[] | null>(null);
+  const [draftKey, setDraftKey] = useState(0);
+  const [draftMonth, setDraftMonth] = useState(selectedMonth);
+  const setupTriggerRef = useRef<HTMLButtonElement>(null);
+  const replacementInFlightRef = useRef(false);
+  const [isConfirmingReplacement, setIsConfirmingReplacement] = useState(false);
   const budgetSummary = optimisticBudgetSummary ?? fetchedBudgetSummary;
   const monthLabel = getMonthLabel(selectedMonth);
   const goals = savingsGoals ?? [];
@@ -194,6 +270,58 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
     }
   }, [selectedMonth, fetchedBudgetSummary]);
 
+  useEffect(() => {
+    // A form or picker can never submit a setup after the user has moved to another month.
+    budgetDialog.close();
+    setSetupPickerOpen(false);
+    setPendingSetup(null);
+    setSetupMonth(null);
+    replacementInFlightRef.current = false;
+    setIsConfirmingReplacement(false);
+  }, [selectedMonth]);
+
+  function openBudgetEditor() {
+    setDraftCategories(null);
+    setDraftMonth(selectedMonth);
+    budgetDialog.open();
+  }
+
+  function openSetupPicker() {
+    setSetupMonth(selectedMonth);
+    setSetupPickerOpen(true);
+  }
+
+  function applySetup(setup: BudgetSetup, targetMonth: string) {
+    if (targetMonth !== selectedMonth) return;
+    const currentCategories = budgetSummary?.categories.filter((category) => !category.goal).map((category) => ({ id: category.id, name: category.name, budget: category.budget })) ?? [];
+    const nextCategories = setup === 'copy'
+      ? copyPreviousBudgetCategories(previousBudgetSummary?.categories ?? [])
+      : setup === 'recommended'
+        ? mergeRecommendedBudgetCategories(currentCategories, Number(budgetSummary?.budget_amount ?? 0))
+        : [];
+    setDraftCategories(nextCategories);
+    setDraftKey((value) => value + 1);
+    setDraftMonth(targetMonth);
+    setPendingSetup(null);
+    setSetupMonth(null);
+    budgetDialog.open();
+  }
+
+  function chooseSetup(setup: BudgetSetup) {
+    const targetMonth = setupMonth;
+    if (!targetMonth || targetMonth !== selectedMonth) return;
+    if (setup === 'copy' && !previousBudgetSummary?.categories.some((category) => !category.goal)) return;
+    setSetupPickerOpen(false);
+    const hasCurrentPlan = Boolean(budgetSummary?.categories.some((category) => !category.goal));
+    if (hasCurrentPlan) {
+      replacementInFlightRef.current = false;
+      setIsConfirmingReplacement(false);
+      setPendingSetup(setup);
+      return;
+    }
+    applySetup(setup, targetMonth);
+  }
+
   function refetchBudgetAndGoals(result?: unknown) {
     if (result && typeof result === "object" && "month" in result && (result as BudgetSummary).month === selectedMonth) {
       setOptimisticBudgetSummary(result as BudgetSummary);
@@ -216,7 +344,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       {!isLoading && !error && !budgetSummary ? (
         <section className="mt-5">
           <SectionToolbar title="Budget plan">
-            <BudgetAction label="Create Budget" monthLabel={monthLabel} onOpen={budgetDialog.open} />
+            <div className="flex flex-wrap items-center gap-2"><button ref={setupTriggerRef} type="button" onClick={openSetupPicker} className="inline-flex h-9 items-center rounded-xl border border-brand-primary px-3 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/5 focus:outline-none focus:ring-2 focus:ring-brand-primary">Choose a starting setup</button><BudgetAction label="Create Budget" monthLabel={monthLabel} onOpen={openBudgetEditor} /></div>
           </SectionToolbar>
           <div className="mt-4 rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No budget has been created yet. Start by setting your category allocations.</div>
         </section>
@@ -331,7 +459,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
 
       <section className="mt-5">
         <SectionToolbar title="Category budgets" count={spendingCategories.length}>
-          <BudgetAction label="Edit Budget" monthLabel={monthLabel} onOpen={budgetDialog.open} disabled={isLoading} />
+          <div className="flex flex-wrap items-center gap-2"><button ref={setupTriggerRef} type="button" onClick={openSetupPicker} className="inline-flex h-9 items-center rounded-xl border border-brand-primary px-3 text-sm font-semibold text-brand-primary transition hover:bg-brand-primary/5 focus:outline-none focus:ring-2 focus:ring-brand-primary">Choose a starting setup</button><BudgetAction label="Edit Budget" monthLabel={monthLabel} onOpen={openBudgetEditor} disabled={isLoading} /></div>
         </SectionToolbar>
         <div className="mt-4 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
         <div className="space-y-4">
@@ -362,7 +490,9 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       </section>
         </>
       ) : null}
-      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetchBudgetAndGoals} budgetSummary={budgetSummary} month={selectedMonth} />
+      <BudgetSetupPicker open={setupPickerOpen} monthLabel={monthLabel} isLoadingPrevious={isLoadingPreviousBudget} canCopyPrevious={Boolean(previousBudgetSummary?.categories.some((category) => !category.goal))} previousError={previousBudgetError} onClose={() => { setSetupPickerOpen(false); setSetupMonth(null); }} onSelect={chooseSetup} />
+      <ReplaceBudgetSetupDialog open={Boolean(pendingSetup)} monthLabel={getMonthLabel(setupMonth ?? selectedMonth)} isConfirming={isConfirmingReplacement} onClose={() => { replacementInFlightRef.current = false; setIsConfirmingReplacement(false); setPendingSetup(null); setSetupMonth(null); setupTriggerRef.current?.focus(); }} onConfirm={() => { if (replacementInFlightRef.current || !pendingSetup || !setupMonth) return; replacementInFlightRef.current = true; setIsConfirmingReplacement(true); applySetup(pendingSetup, setupMonth); }} />
+      <BudgetFormPanel open={budgetDialog.isOpen} onClose={budgetDialog.close} onSuccess={refetchBudgetAndGoals} budgetSummary={budgetSummary} month={draftMonth} initialCategories={draftCategories} draftKey={draftKey} />
     </DashboardShell>
   );
 }

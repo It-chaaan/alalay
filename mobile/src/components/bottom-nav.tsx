@@ -2,7 +2,7 @@ import { router, usePathname } from 'expo-router';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { BarChart3, Home, ScanLine, Wallet, WalletCards } from 'lucide-react-native';
+import { BarChart3, Bot, Home, ScanLine, Wallet, WalletCards } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_BOTTOM_OFFSET, BOTTOM_NAV_HEIGHT } from './bottom-nav-clearance';
 import { useModalVisibility } from './modal-visibility';
@@ -41,6 +41,7 @@ export function BottomNav() {
       <NavItem icon={Home} label="Home" active={pathname === '/' || pathname === '/(tabs)'} onPress={() => router.replace('/(tabs)')} />
       <NavItem icon={Wallet} label="Wallet" active={isActive('/wallets') || pathname === '/wallet-details'} onPress={() => router.replace('/(tabs)/wallets')} />
       <View pointerEvents="none" style={styles.cameraSpacer} />
+      <NavItem icon={Bot} label="Alalay AI" active={isActive('/ai')} onPress={() => router.replace('/(tabs)/ai')} />
       <NavItem icon={WalletCards} label="Budget" active={isActive('/budget')} onPress={() => router.replace('/(tabs)/budget')} />
       <NavItem icon={BarChart3} label="Reports" active={isActive('/reports')} onPress={() => router.replace('/(tabs)/reports')} />
     </View>

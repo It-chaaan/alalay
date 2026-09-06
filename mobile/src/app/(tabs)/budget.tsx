@@ -44,6 +44,7 @@ import { authenticatedApiRequest } from '@/services/api';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
+import { recommendedBudgetTemplate } from '@shared/budget-templates';
 import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta } from '@/constants/categories';
 import { budgetProgressPercent, budgetUsagePercent } from '@/utils/budget-summary';
@@ -1233,7 +1234,7 @@ function TemplatePicker({
                   : 'No previous budget is available to copy.'}
               </Text>
             </Pressable>
-            {budgetTemplates.slice(0, 1).map((template) => (
+            {[recommendedBudgetTemplate].map((template) => (
               <Pressable
                 key={template.id}
                 accessibilityRole="button"

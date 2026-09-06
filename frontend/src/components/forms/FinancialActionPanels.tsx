@@ -40,6 +40,7 @@ import {
   incomeCategoryKeys,
   subscriptionCategoryDefinitions,
 } from '@shared/category-registry';
+import type { BudgetDraftCategory } from '../../utils/budgetSetups';
 
 type FormDialogProps = {
   open: boolean;
@@ -1396,7 +1397,7 @@ const budgetCategorySchema = z.object({
 });
 
 const budgetSchema = z.object({
-  categories: z.array(budgetCategorySchema).min(1, 'At least one category is required'),
+  categories: z.array(budgetCategorySchema),
   savings_allocation: z.coerce.number().nonnegative('Monthly savings budget cannot be negative'),
   auto_distribute_savings: z.boolean(),
   remaining_savings_behavior: z.enum(['auto_general', 'leave_unallocated', 'ask_monthly']),
@@ -1436,12 +1437,17 @@ function createBudgetCategoryId() {
   );
 }
 
-function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormInput {
+function buildBudgetDefaults(
+  budgetSummary: BudgetSummary | null,
+  initialCategories?: BudgetDraftCategory[] | null,
+): BudgetFormInput {
   const savingsCategory = budgetSummary?.categories.find((category) => category.goal);
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
 
   return {
-    categories: spendingCategories.length
+    categories: initialCategories
+      ? initialCategories.map((category) => ({ ...category }))
+      : spendingCategories.length
       ? spendingCategories.map((category) => ({
           id: category.id,
           name: category.name,
@@ -1459,6 +1465,8 @@ function buildBudgetDefaults(budgetSummary: BudgetSummary | null): BudgetFormInp
 type BudgetFormPanelProps = FormDialogProps & {
   budgetSummary: BudgetSummary | null;
   month: string;
+  initialCategories?: BudgetDraftCategory[] | null;
+  draftKey?: number;
 };
 
 export function BudgetFormPanel({
@@ -1467,6 +1475,8 @@ export function BudgetFormPanel({
   onSuccess,
   budgetSummary,
   month,
+  initialCategories,
+  draftKey,
 }: BudgetFormPanelProps) {
   const formId = useId();
   const { mutate, isSubmitting, error, reset: resetMutation } = useApiMutation();
@@ -1479,7 +1489,7 @@ export function BudgetFormPanel({
     formState: { errors },
   } = useForm<BudgetFormInput, unknown, BudgetFormValues>({
     resolver: zodResolver(budgetSchema),
-    defaultValues: buildBudgetDefaults(budgetSummary),
+    defaultValues: buildBudgetDefaults(budgetSummary, initialCategories),
   });
   const { fields, append, remove } = useFieldArray({
     control,
@@ -1495,12 +1505,12 @@ export function BudgetFormPanel({
 
   useEffect(() => {
     if (open && !wasOpen.current) {
-      reset(buildBudgetDefaults(budgetSummary));
+      reset(buildBudgetDefaults(budgetSummary, initialCategories));
       resetMutation();
     }
 
     wasOpen.current = open;
-  }, [budgetSummary, open, reset, resetMutation]);
+  }, [budgetSummary, draftKey, initialCategories, open, reset, resetMutation]);
 
   async function onSubmit(values: BudgetFormValues) {
     const savingsCategory = budgetSummary?.categories.find((category) => category.goal);

@@ -240,7 +240,7 @@ export function AlalayChatHead() {
   );
 }
 
-function AlalayChat({ onClose }: { onClose: () => void }) {
+export function AlalayChat({ onClose, tabScreen = false }: { onClose?: () => void; tabScreen?: boolean }) {
   const { colors } = useAppTheme();
   const { insight, state: insightState, refresh: refreshInsight } = useDashboardInsight();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -307,21 +307,16 @@ function AlalayChat({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <SafeAreaView style={styles.chatScreen} edges={['bottom']}>
+    <SafeAreaView style={tabScreen ? [styles.chatBody, { backgroundColor: colors.background }] : styles.chatScreen} edges={['bottom']}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.chatBody}
         keyboardVerticalOffset={0}
       >
         <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close chat"
-            onPress={onClose}
-            style={styles.headerButton}
-          >
+          {onClose ? <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}>
             <ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} />
-          </Pressable>
+          </Pressable> : <View style={styles.headerButton} />}
           <View style={styles.chatTitleWrap}>
             <Text style={styles.chatTitle}>Ask Alalay</Text>
             <Text style={styles.chatSubtitle}>Your financial companion</Text>
@@ -532,7 +527,7 @@ function createStyles(colors: ReturnType<typeof useAppTheme>['colors']) {
     popupScrollContent: { paddingRight: 9 },
     popupCopy: { color: colors.muted, fontSize: 12, lineHeight: 19 },
     chatScreen: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       zIndex: 30,
       backgroundColor: colors.background,
     },

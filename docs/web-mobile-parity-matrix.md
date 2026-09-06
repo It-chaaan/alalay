@@ -1,0 +1,17 @@
+# Web/mobile parity working matrix
+
+| Item | Mobile behavior | Current web behavior | Backend/API | Gap | Required change | Verification |
+| --- | --- | --- | --- | --- | --- | --- |
+| Authentication/session | SecureStore-backed Supabase session and MFA gate | Supabase browser session and MFA gate | Shared bearer API | Platform-specific | None | Existing auth flows |
+| Dashboard/API response | Uses Expo API URL and controlled response errors | Uses `VITE_API_URL` and controlled response errors | `/api/dashboard/summary` | Already equivalent after existing web fix | Keep restart/config guidance | Browser network test |
+| Income named routes | Uses `/income/my-income` | Uses the canonical endpoint | Named routes precede `/:id` | Already equivalent | Add route regression coverage if absent | Backend route tests |
+| Income/wallet records | Displays projected vs confirmed occurrences | Same backend summary contract | Scheduler/RPC-backed occurrences | Audit required | Reconcile deterministic fixtures | API/database tests |
+| Wallet interest | Descriptive rate and manual actual credits | Same descriptive/manual model | Wallet interest endpoints | Already equivalent | No automatic accrual | Wallet mutation test |
+| Bills/reminders | In-app notification deep links | In-app notifications and unread bell | Notification routes/scheduler | Audit required | Two-account scheduler test | API/database tests |
+| Budget templates | `mobile/src/app/(tabs)/budget.tsx` provides persistent setup selection and local draft transformations | `frontend/src/pages/dashboard/BudgetPage.tsx`, `frontend/src/components/forms/FinancialActionPanels.tsx`, and `frontend/src/utils/budgetSetups.ts` provide the same three setup choices, local drafts, confirmation, and selected-month save | Existing `PATCH /api/budget` only; no template endpoint | Implemented and verified | Copy uses the previous selected month, Recommended uses shared `shared/budget-templates.ts` weights/rounding, and Custom starts blank; populated plans require review confirmation | `frontend/src/utils/budgetSetups.test.ts`; `tsc --noEmit`, workflow tests, Vite production build |
+| Expenses/goals/reports | Native presentation adapted per device | Responsive web pages present | Shared financial summaries | Audit required | Reconcile same fixture data | API + web checks |
+| OCR/AI/settings | Expo-specific permissions and native UI | Browser-specific upload/UI | Shared OCR/AI/settings APIs | Intentional platform treatment | None unless behavior differs | Manual client smoke test |
+| Quick actions | Native floating primary action | Floating web action menu | Client navigation only | Missing accessibility/dismissal behavior | Implemented: menu roles, outside dismissal, Escape focus restoration | Type check and manual keyboard test |
+| Theme/date controls | Native picker/theme APIs | Browser controls/theme classes | Client-only | Audit required | Light/dark browser date-control test | Browser test |
+| Search/navigation | Router destinations and deep links | Browser routes and global search | Client routing | Audit required | Verify links/direct refreshes | Browser smoke test |
+| Shared API errors | Typed errors | Typed API errors with safe preview | JSON API error envelope | Already equivalent after existing web fix | Keep contract tests | API response tests |

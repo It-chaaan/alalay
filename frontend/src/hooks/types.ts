@@ -8,7 +8,7 @@ export type Bill = {
   paid_occurrence_date?: string | null;
   recurring: boolean;
   frequency: string | null;
-  status: 'unpaid' | 'paid' | 'overdue';
+  status: 'unpaid' | 'paid' | 'overdue' | 'due_soon' | 'upcoming';
   paid_at: string | null;
   notes?: string | null;
   attachment_url?: string | null;
