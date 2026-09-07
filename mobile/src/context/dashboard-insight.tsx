@@ -64,9 +64,12 @@ export function DashboardInsightProvider({
   useEffect(() => {
     mounted.current = true;
     if (!enabled) {
-      setInsight(null);
       insightRef.current = null;
-      setState('empty');
+      queueMicrotask(() => {
+        if (!mounted.current) return;
+        setInsight(null);
+        setState('empty');
+      });
       return;
     }
     void refresh();

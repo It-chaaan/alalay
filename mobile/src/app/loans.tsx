@@ -11,6 +11,7 @@ import { WalletPicker, type Wallet } from '@/components/wallet-picker';
 import { fetchWallets, notifyFinancialMutation, type WalletRecord } from '@/services/finance';
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 
 type Direction = 'lent' | 'borrowed';
 type Tab = 'active' | 'history';
@@ -19,7 +20,7 @@ type Loan = { id: string; direction: Direction; counterparty: string; outstandin
 type LoansResponse = { loans: Loan[]; summary: { owed_to_me: number; i_owe: number; net_position: number; interest_earned_this_month?: number; interest_paid_this_month?: number } };
 
 const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
-const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
+const peso = (value: number) => formatCurrency(Math.round(value));
 const money = (value: string | number | null | undefined) => Number(value ?? 0);
 const key = (prefix: string) => `mobile-${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 

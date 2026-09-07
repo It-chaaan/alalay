@@ -10,6 +10,7 @@ import { NotificationHeaderButton } from '@/components/notification-header-butto
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { getCategoryMeta } from '@/constants/categories';
 import { cashFlowComparison } from '@/utils/cash-flow-comparison';
 
@@ -51,7 +52,10 @@ const periodOptions: { label: string; value: ReportPeriod }[] = [
 ];
 
 function numberOrZero(value: unknown) { return typeof value === 'number' && Number.isFinite(value) ? value : 0; }
-function peso(value: number, signed = false) { const sign = signed && value < 0 ? '−' : ''; return `${sign}₱${Math.abs(value).toLocaleString('en-PH', { maximumFractionDigits: 2 })}`; }
+function peso(value: number, signed = false) {
+  const sign = signed && value < 0 ? '−' : '';
+  return `${sign}${formatCurrency(Math.abs(value))}`;
+}
 function shortRangeLabel(range: Range) {
   if (!range.start || !range.end) return range.label;
   const start = new Date(`${range.start}T12:00:00`); const end = new Date(`${range.end}T12:00:00`);

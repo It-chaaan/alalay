@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -44,10 +44,18 @@ import { authenticatedApiRequest } from '@/services/api';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
-import { recommendedBudgetTemplate } from '@shared/budget-templates';
+import { recommendedBudgetTemplate, type BudgetTemplate } from '@shared/budget-templates';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { getCategoryMeta } from '@/constants/categories';
 import { budgetProgressPercent, budgetUsagePercent } from '@/utils/budget-summary';
+import {
+  canApplyBudgetSetup,
+  canStartBudgetSave,
+  copiedBudgetEntries,
+  previousBudgetMonth,
+  recommendedBudgetEntries,
+} from '@/utils/budget-setup';
 
 type Category = {
   id: string;
@@ -80,13 +88,6 @@ type Summary = {
   goal_allocations: GoalAlloc[];
 };
 type BudgetEntry = { id: string; name: string; budget: number; icon?: string; persisted: boolean };
-type BudgetTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  preview: string;
-  allocations: { label: string; weight: number }[];
-};
 type Shortfall = {
   id: string;
   name: string;
@@ -137,72 +138,6 @@ const customCategoryIcons: { key: string; label: string; icon: LucideIcon }[] = 
   { key: 'car', label: 'Car', icon: Car },
 ];
 
-const budgetTemplates: BudgetTemplate[] = [
-  {
-    id: 'balanced',
-    name: 'Recommended budget setup',
-    description: 'Build an editable plan based on your income and spending.',
-    preview: '50% Needs · 30% Wants · 20% Savings',
-    allocations: [
-      { label: 'Rent', weight: 0.2 },
-      { label: 'Food', weight: 0.15 },
-      { label: 'Electricity', weight: 0.1 },
-      { label: 'Transport', weight: 0.05 },
-      { label: 'Entertainment', weight: 0.15 },
-      { label: 'Shopping', weight: 0.1 },
-      { label: 'Savings', weight: 0.2 },
-    ],
-  },
-  {
-    id: 'essentials',
-    name: 'Common essentials',
-    description: 'Prioritize housing, food, utilities, and everyday needs.',
-    preview: '85% essentials · 10% savings · 5% wants',
-    allocations: [
-      { label: 'Rent', weight: 0.3 },
-      { label: 'Food', weight: 0.2 },
-      { label: 'Electricity', weight: 0.1 },
-      { label: 'Transport', weight: 0.1 },
-      { label: 'Healthcare', weight: 0.05 },
-      { label: 'Debt / Loan', weight: 0.05 },
-      { label: 'Savings budget', weight: 0.1 },
-      { label: 'Personal Care', weight: 0.05 },
-      { label: 'Entertainment', weight: 0.05 },
-    ],
-  },
-  {
-    id: 'savings',
-    name: 'Common savings',
-    description: 'Set aside more for savings while keeping essentials practical.',
-    preview: '25% savings · 62% essentials · 13% flexible',
-    allocations: [
-      { label: 'Rent', weight: 0.25 },
-      { label: 'Food', weight: 0.15 },
-      { label: 'Electricity', weight: 0.1 },
-      { label: 'Transport', weight: 0.08 },
-      { label: 'Healthcare', weight: 0.05 },
-      { label: 'Debt / Loan', weight: 0.05 },
-      { label: 'Savings budget', weight: 0.25 },
-      { label: 'Entertainment', weight: 0.03 },
-      { label: 'Personal Care', weight: 0.04 },
-    ],
-  },
-  {
-    id: 'minimal',
-    name: 'Common starter',
-    description: 'A small set of categories for a simple first budget.',
-    preview: 'Food · Transport · Utilities · Savings · Personal',
-    allocations: [
-      { label: 'Food', weight: 0.25 },
-      { label: 'Transport', weight: 0.15 },
-      { label: 'Electricity', weight: 0.15 },
-      { label: 'Savings budget', weight: 0.2 },
-      { label: 'Personal Care', weight: 0.15 },
-      { label: 'Shopping', weight: 0.1 },
-    ],
-  },
-];
-
 const starterCategories = [
   ['food', 'Food'],
   ['transportation', 'Transport'],
@@ -225,13 +160,7 @@ function commonCategoryEntries(): BudgetEntry[] {
   }));
 }
 
-function previousMonthKey(month: string) {
-  const date = new Date(`${month}-01T12:00:00`);
-  date.setMonth(date.getMonth() - 1);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-}
-
-const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
+const peso = (value: number) => formatCurrency(Math.round(value));
 
 function currentManilaMonth() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -261,20 +190,29 @@ function monthLabel(month: string) {
   );
 }
 
+function useBudgetStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(
+    () =>
+      createStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.primary,
+        accentDark: colors.primary,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        line: colors.border,
+      }),
+    [colors],
+  );
+}
+
 export default function Budget() {
   const { colors } = useAppTheme();
-  styles = createStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.primary,
-    accentDark: colors.primary,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    line: colors.border,
-  });
+  const styles = useBudgetStyles();
   const bottomNavClearance = useBottomNavClearance();
   const [month] = useState(currentManilaMonth);
   const [data, setData] = useState<Summary | null>(null);
@@ -301,15 +239,44 @@ export default function Budget() {
   }, [month]);
 
   useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  useEffect(() => {
-    void authenticatedApiRequest<Summary | null>(
-      `/api/budget/summary?month=${previousMonthKey(month)}`,
-    )
-      .then(setPreviousData)
-      .catch(() => setPreviousData(null));
+    let active = true;
+    const capturedMonth = month;
+    const load = async () => {
+      try {
+        const summary = await authenticatedApiRequest<Summary | null>(
+          `/api/budget/summary?month=${capturedMonth}`,
+        );
+        if (!canApplyBudgetSetup({ capturedMonth, activeMonth: month, dialogOpen: active })) return;
+        setData(summary);
+        setError('');
+      } catch (cause) {
+        if (!canApplyBudgetSetup({ capturedMonth, activeMonth: month, dialogOpen: active })) return;
+        setError(cause instanceof Error ? cause.message : 'Budget could not load.');
+      } finally {
+        if (canApplyBudgetSetup({ capturedMonth, activeMonth: month, dialogOpen: active })) {
+          setLoading(false);
+        }
+      }
+    };
+    const loadPrevious = async () => {
+      try {
+        const previousSummary = await authenticatedApiRequest<Summary | null>(
+          `/api/budget/summary?month=${previousBudgetMonth(capturedMonth)}`,
+        );
+        if (canApplyBudgetSetup({ capturedMonth, activeMonth: month, dialogOpen: active })) {
+          setPreviousData(previousSummary);
+        }
+      } catch {
+        if (canApplyBudgetSetup({ capturedMonth, activeMonth: month, dialogOpen: active })) {
+          setPreviousData(null);
+        }
+      }
+    };
+    void load();
+    void loadPrevious();
+    return () => {
+      active = false;
+    };
   }, [month]);
 
   const label = monthLabel(month);
@@ -499,34 +466,35 @@ export default function Budget() {
           }}
         />
       )}
-      <TemplatePicker
-        month={month}
-        visible={setupOpen}
-        previousSummary={previousData}
-        onClose={() => setSetupOpen(false)}
-        onSelect={(template) => {
-          setSetupOpen(false);
-          setStartEmpty(false);
-          setCopyLastMonthSetup(false);
-          setOpen(true);
-          // The form receives the selected setup through a one-shot event below.
-          setPendingTemplate(template);
-        }}
-        onCopyLastMonth={() => {
-          setSetupOpen(false);
-          setStartEmpty(false);
-          setCopyLastMonthSetup(true);
-          setPendingTemplate(null);
-          setOpen(true);
-        }}
-        onCustom={() => {
-          setSetupOpen(false);
-          setStartEmpty(true);
-          setCopyLastMonthSetup(false);
-          setPendingTemplate(null);
-          setOpen(true);
-        }}
-      />
+      {setupOpen ? (
+        <TemplatePicker
+          month={month}
+          visible
+          previousSummary={previousData}
+          onClose={() => setSetupOpen(false)}
+          onSelect={(template) => {
+            setSetupOpen(false);
+            setStartEmpty(false);
+            setCopyLastMonthSetup(false);
+            setOpen(true);
+            setPendingTemplate(template);
+          }}
+          onCopyLastMonth={() => {
+            setSetupOpen(false);
+            setStartEmpty(false);
+            setCopyLastMonthSetup(true);
+            setPendingTemplate(null);
+            setOpen(true);
+          }}
+          onCustom={() => {
+            setSetupOpen(false);
+            setStartEmpty(true);
+            setCopyLastMonthSetup(false);
+            setPendingTemplate(null);
+            setOpen(true);
+          }}
+        />
+      ) : null}
     </SafeAreaView>
   );
 }
@@ -542,6 +510,7 @@ function BudgetSummary({
   spent: number;
   remaining: number;
 }) {
+  const styles = useBudgetStyles();
   const percent = budgetUsagePercent(spent, budgeted);
   const progress = budgetProgressPercent(spent, budgeted);
   const over = remaining < 0;
@@ -599,6 +568,7 @@ function Metric({
   value: string;
   tone?: 'normal' | 'positive' | 'danger';
 }) {
+  const styles = useBudgetStyles();
   return (
     <View style={styles.metric}>
       <Text style={styles.metricLabel}>{label}</Text>
@@ -625,13 +595,16 @@ function BudgetCategoryRow({
 }) {
   const over = category.spent > category.budget;
   const color = getCategoryMeta(category.name).color;
-  const CategoryIcon = categoryIcon(category.name, category.icon);
   const tone = over ? formPalette.danger : color;
   const remaining = category.budget - category.spent;
   return (
     <BudgetProgressRow
-      icon={<CategoryIcon size={19} color={tone} />}
-      backgroundIcon={<CategoryIcon size={76} color={color} opacity={0.045} />}
+      icon={createElement(categoryIcon(category.name, category.icon), { size: 19, color: tone })}
+      backgroundIcon={createElement(categoryIcon(category.name, category.icon), {
+        size: 76,
+        color,
+        opacity: 0.045,
+      })}
       title={category.name}
       detail={`${peso(category.spent)} / ${peso(category.budget)}`}
       percent={category.percent}
@@ -642,6 +615,7 @@ function BudgetCategoryRow({
 }
 
 function GoalAllocationRows({ summary }: { summary: Summary }) {
+  const styles = useBudgetStyles();
   const allocations = summary.goal_allocations ?? [];
   const total =
     summary.goal_allocation_total ?? allocations.reduce((sum, item) => sum + item.amount, 0);
@@ -686,6 +660,7 @@ function BudgetProgressRow({
   color: string;
   remaining: string;
 }) {
+  const styles = useBudgetStyles();
   const safePercent = Math.min(100, Math.max(0, percent));
   return (
     <View
@@ -739,7 +714,15 @@ function BudgetForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const styles = useBudgetStyles();
   const initialEntries = useMemo(() => {
+    if (pendingTemplate) {
+      return recommendedBudgetEntries({
+        categories: summary?.categories ?? [],
+        template: pendingTemplate,
+        monthlyBudget: summary?.budget_amount ?? 0,
+      });
+    }
     if (copyLastMonthSetup && previousSummary?.categories.length) {
       return previousSummary.categories
         .filter((category) => !category.goal)
@@ -768,7 +751,7 @@ function BudgetForm({
           persisted: true,
         }));
     return commonCategoryEntries();
-  }, [copyLastMonthSetup, previousSummary, startEmpty, summary, shortfalls]);
+  }, [copyLastMonthSetup, pendingTemplate, previousSummary, startEmpty, summary, shortfalls]);
   const [entries, setEntries] = useState<BudgetEntry[]>(initialEntries);
   const [monthlyBudget, setMonthlyBudget] = useState(() => String(summary?.budget_amount ?? (copyLastMonthSetup ? previousSummary?.budget_amount ?? '' : '')));
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
@@ -782,41 +765,7 @@ function BudgetForm({
   const [customCategoryError, setCustomCategoryError] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  useEffect(() => {
-    if (!pendingTemplate) return;
-    const base: BudgetEntry[] = (
-      summary?.categories.filter((category) => !category.goal) ?? []
-    ).map((category) => ({
-      id: category.id,
-      name: category.name,
-      budget: category.budget,
-      icon: category.icon,
-      persisted: true,
-    }));
-    const monthly = parseAmount(monthlyBudget) ?? summary?.budget_amount ?? 0;
-    const templateEntries = pendingTemplate.allocations
-      .map((allocation) => {
-        const existing = base.find(
-          (category) => category.name.toLowerCase() === allocation.label.toLowerCase(),
-        );
-        return {
-          id:
-            existing?.id ?? `budget-${allocation.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-          name: existing?.name ?? allocation.label,
-          budget: existing?.budget ?? Math.round(monthly * allocation.weight),
-          icon: existing?.icon,
-          persisted: Boolean(existing),
-        };
-      });
-    const merged = [
-      ...base.filter((entry) => !templateEntries.some((item) => item.id === entry.id)),
-      ...templateEntries,
-    ];
-    replaceDraftEntries(merged);
-    if (monthly > 0) setMonthlyBudget(String(Math.round(monthly)));
-    // Apply a selected setup once; including draft values here would overwrite edits while typing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingTemplate]);
+  const savingRef = useRef(false);
   const selectedEntry = entries.find((entry) => entry.id === selectedId);
   const amount = drafts[selectedId] ?? '';
   const options = useMemo(
@@ -845,15 +794,7 @@ function BudgetForm({
   };
   const copyLastMonth = () => {
     if (!previousSummary?.categories.length) return;
-    const copied = previousSummary.categories
-      .filter((category) => !category.goal)
-      .map((category) => ({
-        id: category.id,
-        name: category.name,
-        budget: category.budget,
-        icon: category.icon,
-        persisted: false,
-      }));
+    const copied = copiedBudgetEntries(previousSummary.categories);
     setMonthlyBudget(
       String(previousSummary.budget_amount || copied.reduce((sum, entry) => sum + entry.budget, 0)),
     );
@@ -942,6 +883,7 @@ function BudgetForm({
   };
 
   const save = async () => {
+    if (!canStartBudgetSave(savingRef.current)) return;
     if (confirmedBudget <= 0) {
       setError('Enter a valid monthly budget.');
       return;
@@ -956,6 +898,7 @@ function BudgetForm({
       setError('Each budget category must be unique.');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
@@ -981,6 +924,7 @@ function BudgetForm({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this budget.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -1134,25 +1078,29 @@ function BudgetForm({
           </Pressable>
         </View>
       ) : null}
-      <BudgetCategoryPicker
-        visible={addCategoryOpen}
-        options={availableCategories}
-        onClose={() => setAddCategoryOpen(false)}
-        onSelect={(label) => addCategory(label)}
-        onCustom={() => {
-          setAddCategoryOpen(false);
-          setCustomCategoryOpen(true);
-        }}
-      />
-      <CustomCategorySheet
-        visible={customCategoryOpen}
-        error={customCategoryError}
-        onClose={() => {
-          setCustomCategoryOpen(false);
-          setCustomCategoryError('');
-        }}
-        onAdd={addCustomCategory}
-      />
+      {addCategoryOpen ? (
+        <BudgetCategoryPicker
+          visible
+          options={availableCategories}
+          onClose={() => setAddCategoryOpen(false)}
+          onSelect={(label) => addCategory(label)}
+          onCustom={() => {
+            setAddCategoryOpen(false);
+            setCustomCategoryOpen(true);
+          }}
+        />
+      ) : null}
+      {customCategoryOpen ? (
+        <CustomCategorySheet
+          visible
+          error={customCategoryError}
+          onClose={() => {
+            setCustomCategoryOpen(false);
+            setCustomCategoryError('');
+          }}
+          onAdd={addCustomCategory}
+        />
+      ) : null}
       <View style={styles.limitPreview}>
         <Text style={styles.limitLabel}>{selectedLabel}</Text>
         <Text style={[styles.limitLabel, { fontSize: 13 }]}>
@@ -1181,13 +1129,15 @@ function TemplatePicker({
   onCustom: () => void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useBudgetStyles();
   const [selectedTemplate, setSelectedTemplate] = useState<BudgetTemplate | null>(null);
-  useEffect(() => {
-    if (!visible) setSelectedTemplate(null);
-  }, [visible]);
+  const close = () => {
+    setSelectedTemplate(null);
+    onClose();
+  };
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.addCategoryBackdrop} onPress={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+      <Pressable style={styles.addCategoryBackdrop} onPress={close}>
         <Pressable
           style={[styles.addCategorySheet, { backgroundColor: colors.surface }]}
           onPress={(event) => event.stopPropagation()}
@@ -1204,7 +1154,7 @@ function TemplatePicker({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Close template picker"
-              onPress={onClose}
+              onPress={close}
               style={styles.iconClose}
             >
               <X size={20} color={colors.textPrimary} />
@@ -1273,7 +1223,10 @@ function TemplatePicker({
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={`Apply ${selectedTemplate.name} setup`}
-                  onPress={() => onSelect(selectedTemplate)}
+                  onPress={() => {
+                    setSelectedTemplate(null);
+                    onSelect(selectedTemplate);
+                  }}
                   style={({ pressed }) => [styles.templatePrimary, pressed && styles.pressed]}
                 >
                   <Text style={styles.templatePrimaryText}>Apply setup</Text>
@@ -1315,13 +1268,11 @@ function BudgetCategoryPicker({
   onCustom: () => void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useBudgetStyles();
   const [query, setQuery] = useState('');
   const filtered = options.filter((option) =>
     option.label.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  useEffect(() => {
-    if (!visible) setQuery('');
-  }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.addCategoryBackdrop} onPress={onClose}>
@@ -1422,14 +1373,9 @@ function CustomCategorySheet({
   onAdd: (name: string, icon: string) => void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useBudgetStyles();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState(customCategoryIcons[0].key);
-  useEffect(() => {
-    if (!visible) {
-      setName('');
-      setIcon(customCategoryIcons[0].key);
-    }
-  }, [visible]);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <Pressable style={styles.addCategoryBackdrop} onPress={onClose}>
@@ -1519,6 +1465,7 @@ interface SectionProps {
 }
 
 function Section({ title, action, children }: SectionProps) {
+  const styles = useBudgetStyles();
   return (
     <View style={styles.section}>
       <View style={styles.sectionHeading}>
@@ -2022,7 +1969,7 @@ function createStyles(palette: typeof formPalette) {
     preferenceTextActive: { color: palette.accentDark },
     // Custom-category sheet
     addCategoryBackdrop: {
-      ...StyleSheet.absoluteFillObject,
+      ...StyleSheet.absoluteFill,
       justifyContent: 'flex-end',
       backgroundColor: 'rgba(17,35,28,0.35)',
     },
@@ -2091,4 +2038,3 @@ function createStyles(palette: typeof formPalette) {
     customCategorySaveText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   });
 }
-let styles = createStyles(formPalette);

@@ -762,7 +762,7 @@ export function CreditRepaymentForm({
           <option value="">Select wallet</option>
           {paymentWallets.map((wallet) => (
             <option key={wallet.id} value={wallet.id}>
-              {wallet.name} Â· {formatCurrency(Number(wallet.balance))} available before allocations
+              {wallet.name} · {formatCurrency(Number(wallet.balance))} available before allocations
             </option>
           ))}
         </select>

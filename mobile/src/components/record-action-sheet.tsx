@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ActivityIndicator, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,13 +37,12 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
     return () => setModalVisible(false);
   }, [setModalVisible, visible]);
 
-  useEffect(() => {
-    if (!visible) {
-      setConfirmation(null);
-      setBusy(false);
-      setError('');
-    }
-  }, [visible]);
+  const close = useCallback(() => {
+    setConfirmation(null);
+    setBusy(false);
+    setError('');
+    onClose();
+  }, [onClose]);
 
   const run = async (action: RecordAction) => {
     setBusy(true);
@@ -51,7 +50,7 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
     try {
       await action.onPress();
       setConfirmation(null);
-      onClose();
+      close();
     } catch (actionError) {
       setError(actionError instanceof Error ? actionError.message : 'Could not complete this action.');
     } finally {
@@ -69,13 +68,13 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
     void run(action);
   };
 
-  return <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose} statusBarTranslucent>
+  return <Modal visible={visible} animationType="fade" transparent onRequestClose={close} statusBarTranslucent>
     <View style={styles.overlay}>
-      <Pressable accessibilityLabel="Close action sheet" style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={onClose} />
+      <Pressable accessibilityLabel="Close action sheet" style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={close} />
       <View style={[styles.sheetWrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
         <View style={[styles.sheetClip, { borderColor: colors.border }]}>
-          <BlurView intensity={42} tint={resolvedTheme} style={StyleSheet.absoluteFillObject} />
-          <View pointerEvents="none" style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.surfaceTranslucent }]} />
+          <BlurView intensity={42} tint={resolvedTheme} style={StyleSheet.absoluteFill} />
+          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]} />
           <View style={styles.sheet}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
             <Text numberOfLines={2} style={[styles.recordName, { color: colors.textSecondary }]}>{recordName}</Text>
@@ -89,7 +88,7 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
               </View>
             </> : <>
               {actions.map((action) => <Pressable key={action.label} accessibilityRole="button" accessibilityState={{ disabled: action.disabled || busy }} disabled={action.disabled || busy} onPress={() => select(action)} style={({ pressed }) => [styles.action, { backgroundColor: colors.surfaceInput }, pressed && styles.pressed, (action.disabled || busy) && styles.disabled]}>{action.icon}{busy ? null : <Text style={[styles.actionText, { color: action.tone === 'primary' ? colors.primary : action.tone === 'destructive' ? colors.danger : colors.textPrimary }]}>{action.label}</Text>}</Pressable>)}
-              <Pressable accessibilityRole="button" onPress={onClose} disabled={busy} style={[styles.action, styles.cancel, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text></Pressable>
+              <Pressable accessibilityRole="button" onPress={close} disabled={busy} style={[styles.action, styles.cancel, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text></Pressable>
             </>}
           </View>
         </View>
@@ -100,7 +99,7 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
 
 const styles = StyleSheet.create({
   overlay: { flex: 1, justifyContent: 'center' },
-  backdrop: { ...StyleSheet.absoluteFillObject },
+  backdrop: { ...StyleSheet.absoluteFill },
   sheetWrap: { width: '100%', maxWidth: 480, alignSelf: 'center', paddingHorizontal: 24 },
   sheetClip: { overflow: 'hidden', borderRadius: 30, borderWidth: StyleSheet.hairlineWidth },
   sheet: { padding: 22, gap: 10 },

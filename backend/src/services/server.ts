@@ -1,11 +1,23 @@
 import fs from 'node:fs';
 import https from 'node:https';
 import cors from 'cors';
-import express from 'express';
+import express, { type RequestHandler } from 'express';
 import { allowedCorsOrigins, env } from '../config/env.js';
 import { errorHandler } from '../middleware/errorHandler.js';
 import { apiRouter } from '../routes/index.js';
 import { processIncomeSchedules } from './income-scheduler.service.js';
+import { runBillingScheduler } from './billing-scheduler.service.js';
+import { runNotificationScheduler } from './notification-scheduler.service.js';
+import { timingSafeEqual } from 'node:crypto';
+
+type SchedulerJob = 'income' | 'billing' | 'notifications';
+
+function hasSchedulerSecret(value: string | undefined, expected: string | undefined) {
+  if (!value || !expected) return false;
+  const received = Buffer.from(value);
+  const configured = Buffer.from(expected);
+  return received.length === configured.length && timingSafeEqual(received, configured);
+}
 
 export function createServer() {
   const app = express();
@@ -53,14 +65,11 @@ export function createServer() {
     res.json({ status: 'ok' });
   });
 
-  // This intentionally sits outside the user-authenticated API. Configure a
-  // platform cron job to call it; the database RPC supplies locking and the
-  // occurrence key supplies retry-safe idempotency.
-  app.post('/internal/income-scheduler', async (req, res, next) => {
-    if (
-      !env.INCOME_SCHEDULER_SECRET ||
-      req.header('x-scheduler-secret') !== env.INCOME_SCHEDULER_SECRET
-    ) {
+  // Deliberately outside the user API. A single durable scheduler should invoke
+  // these idempotent jobs; no mobile or web client receives this secret.
+  const runScheduler: RequestHandler = async (req, res, next) => {
+    const job = req.params.job as SchedulerJob;
+    if (!['income', 'billing', 'notifications'].includes(job) || !hasSchedulerSecret(req.header('x-scheduler-secret'), env.INCOME_SCHEDULER_SECRET)) {
       res.status(401).json({
         success: false,
         error: { code: 'unauthorized', message: 'Scheduler authentication failed.' },
@@ -68,12 +77,24 @@ export function createServer() {
       return;
     }
     try {
-      const processed = await processIncomeSchedules();
-      res.json({ success: true, data: { processed } });
+      const result = job === 'income'
+        ? { processed: await processIncomeSchedules() }
+        : job === 'billing'
+          ? await runBillingScheduler()
+          : { processed: await runNotificationScheduler() };
+      res.json({ success: true, data: { job, ...result } });
     } catch (error) {
       next(error);
     }
-  });
+  };
+  app.post('/internal/scheduler/:job', runScheduler);
+
+  // Compatibility for an already-configured external scheduler. Remove after
+  // the deployment has switched to /internal/scheduler/income.
+  app.post('/internal/income-scheduler', (req, _res, next) => {
+    req.params.job = 'income';
+    next();
+  }, runScheduler);
 
   app.use('/api', apiRouter);
 

@@ -22,6 +22,7 @@ import { DatePickerField, FinanceFormSheet, FormTextInput, parseAmount } from '@
 import { fetchWallets, notifyFinancialMutation, repayCreditAccount } from '@/services/finance';
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { DepositForm, EditWalletSheet, TransferForm } from './(tabs)/wallets';
 
 type WalletWithDates = Wallet & { created_at?: string | null; updated_at?: string | null };
@@ -40,8 +41,7 @@ type WalletDetail = {
   interestEstimate?: { enabled: boolean; annual_interest_rate?: number | string; estimated_daily_interest?: number | string; estimated_accrued_interest?: number | string };
 };
 
-const peso = (value: number | string) =>
-  `₱${Math.round(Number(value) || 0).toLocaleString('en-PH')}`;
+const peso = (value: number | string) => formatCurrency(Math.round(Number(value) || 0));
 const typeLabel = (type: string) =>
   type === 'e_wallet'
     ? 'E-wallet'

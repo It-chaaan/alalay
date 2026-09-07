@@ -81,6 +81,15 @@ export function throwIfError(error: { message: string; code?: string; details?: 
     if (code === "23503" && error.message.includes("income_wallet_id_fkey")) {
       throw new AppError(400, "invalid_wallet", "Select where this income was received.", `${code}: ${error.message}`);
     }
+    if (code === "P0001" && error.message.includes("income destination wallet")) {
+      throw new AppError(400, "invalid_wallet", "Choose one of your wallets.", `${code}: ${error.message}`);
+    }
+    if (code === "P0001" && /Contribution must be|Contribution date is required|enough available|exceeds the goal target/.test(error.message)) {
+      throw new AppError(422, "validation_error", error.message, `${code}: ${error.message}`);
+    }
+    if (code === "P0001" && /Goal not found|Wallet not found/.test(error.message)) {
+      throw new AppError(404, "not_found", "The goal or wallet could not be found.", `${code}: ${error.message}`);
+    }
     if (code === "23503" || code === "23514" || code.startsWith("22")) throw new AppError(400, "database_validation", "The submitted information could not be saved.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
     throw new AppError(500, "database_error", "The database operation could not be completed.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
   }

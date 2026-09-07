@@ -56,6 +56,7 @@ import { SectionAddButton } from '@/components/header-add-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE, useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { sortCategoriesByLabel } from '@/utils/category-sorting';
 import { RecordActionSheet } from '@/components/record-action-sheet';
 import { WalletCard } from '@/components/wallet-card';
@@ -104,7 +105,7 @@ function addDaysIso(value: string, days: number) {
 }
 
 function peso(value: number | string) {
-  return `₱${Math.round(Number(value)).toLocaleString('en-PH')}`;
+  return formatCurrency(Math.round(Number(value)));
 }
 function typeLabel(type: string) {
   return type === 'e_wallet'
@@ -860,7 +861,7 @@ export function EditWalletSheet({
         <Pressable
           accessibilityLabel="Close edit wallet"
           onPress={onClose}
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.overlay }]}
+          style={[StyleSheet.absoluteFill, { backgroundColor: colors.overlay }]}
         />
         <KeyboardAvoidingView
           style={editStyles.keyboard}

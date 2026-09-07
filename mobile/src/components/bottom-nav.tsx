@@ -1,8 +1,8 @@
 import { router, usePathname } from 'expo-router';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Svg, { Path } from 'react-native-svg';
-import { BarChart3, Bot, Home, ScanLine, Wallet, WalletCards } from 'lucide-react-native';
+import { BarChart3, Home, ScanLine, Wallet, WalletCards } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BOTTOM_NAV_BOTTOM_OFFSET, BOTTOM_NAV_HEIGHT } from './bottom-nav-clearance';
 import { useModalVisibility } from './modal-visibility';
@@ -25,6 +25,7 @@ export function BottomNav() {
   const { modalCount } = useModalVisibility();
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [width, setWidth] = useState(0);
+  const scannerOpening = useRef(false);
   useEffect(() => {
     const show = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
     const hide = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
@@ -32,21 +33,34 @@ export function BottomNav() {
   }, []);
   if (modalCount > 0 || keyboardVisible) return null;
   const isActive = (route: string) => pathname === route || pathname.startsWith(`${route}/`) || pathname === `/(tabs)${route}` || pathname.startsWith(`/(tabs)${route}/`);
+  const openScanner = () => {
+    if (scannerOpening.current) return;
+    scannerOpening.current = true;
+    router.replace('/(tabs)/ocr');
+    setTimeout(() => { scannerOpening.current = false; }, 750);
+  };
   const path = navPath(width, BOTTOM_NAV_HEIGHT);
   return <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)} style={[styles.bottomNavOuter, { bottom: BOTTOM_NAV_BOTTOM_OFFSET + insets.bottom }]}>
     {width > 0 ? <Svg pointerEvents="none" width={width} height={BOTTOM_NAV_HEIGHT} style={styles.navShape}>
       <Path d={path} fill={colors.surfaceTranslucent} stroke={colors.border} strokeWidth={1} />
     </Svg> : null}
     <View style={styles.navContent}>
-      <NavItem icon={Home} label="Home" active={pathname === '/' || pathname === '/(tabs)'} onPress={() => router.replace('/(tabs)')} />
-      <NavItem icon={Wallet} label="Wallet" active={isActive('/wallets') || pathname === '/wallet-details'} onPress={() => router.replace('/(tabs)/wallets')} />
-      <View pointerEvents="none" style={styles.cameraSpacer} />
-      <NavItem icon={Bot} label="Alalay AI" active={isActive('/ai')} onPress={() => router.replace('/(tabs)/ai')} />
-      <NavItem icon={WalletCards} label="Budget" active={isActive('/budget')} onPress={() => router.replace('/(tabs)/budget')} />
-      <NavItem icon={BarChart3} label="Reports" active={isActive('/reports')} onPress={() => router.replace('/(tabs)/reports')} />
+      <View style={styles.navSlot}>
+        <NavItem icon={Home} label="Home" active={pathname === '/' || pathname === '/(tabs)'} onPress={() => router.replace('/(tabs)')} />
+      </View>
+      <View style={styles.navSlot}>
+        <NavItem icon={Wallet} label="Wallet" active={isActive('/wallets') || pathname === '/wallet-details'} onPress={() => router.replace('/(tabs)/wallets')} />
+      </View>
+      <View pointerEvents="none" accessible={false} style={styles.navSlot} />
+      <View style={styles.navSlot}>
+        <NavItem icon={WalletCards} label="Budget" active={isActive('/budget')} onPress={() => router.replace('/(tabs)/budget')} />
+      </View>
+      <View style={styles.navSlot}>
+        <NavItem icon={BarChart3} label="Reports" active={isActive('/reports')} onPress={() => router.replace('/(tabs)/reports')} />
+      </View>
     </View>
     <View pointerEvents="none" accessible={false} style={[styles.scanHalo, { backgroundColor: colors.primarySoft, borderColor: colors.primary }]} />
-    <Pressable accessibilityRole="button" accessibilityLabel="Scan receipt" onPress={() => router.replace('/(tabs)/ocr')} style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary, borderColor: colors.textOnPrimary, shadowColor: colors.shadow }, pressed && styles.pressed]}><ScanLine size={25} color={colors.inverse} strokeWidth={2.4} /></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Scan receipt" onPress={openScanner} style={({ pressed }) => [styles.addButton, { backgroundColor: colors.primary, borderColor: colors.textOnPrimary, shadowColor: colors.shadow }, pressed && styles.pressed]}><ScanLine size={25} color={colors.inverse} strokeWidth={2.4} /></Pressable>
   </View>;
 }
 
@@ -58,9 +72,9 @@ function NavItem({ icon: IconComponent, label, active, onPress }: { icon: Icon; 
 const styles = StyleSheet.create({
   bottomNavOuter: { position: 'absolute', left: 16, right: 16, height: BOTTOM_NAV_HEIGHT, overflow: 'visible', zIndex: 50 },
   navShape: { position: 'absolute', left: 0, bottom: 0, zIndex: 0 },
-  navContent: { position: 'absolute', left: 0, right: 0, bottom: 0, height: BOTTOM_NAV_HEIGHT, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', zIndex: 1 },
-  cameraSpacer: { width: 58, height: 58 },
-  navItem: { width: 50, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3, outlineWidth: 0 },
+  navContent: { position: 'absolute', left: 0, right: 0, bottom: 0, height: BOTTOM_NAV_HEIGHT, paddingHorizontal: 9, flexDirection: 'row', alignItems: 'center', zIndex: 1 },
+  navSlot: { flex: 1, minWidth: 44, alignItems: 'center', justifyContent: 'center' },
+  navItem: { width: '100%', minHeight: 44, height: 58, alignItems: 'center', justifyContent: 'center', gap: 3, outlineWidth: 0 },
   navLabel: { fontSize: 9, fontWeight: '700' },
   navLabelActive: { fontWeight: '900' },
   navDot: { width: 4, height: 4, borderRadius: 2 },

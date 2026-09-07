@@ -1,0 +1,36 @@
+name: Quality
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            backend/package-lock.json
+            frontend/package-lock.json
+            mobile/package-lock.json
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm --prefix frontend ci
+      - run: npm --prefix mobile ci
+      - run: npm --prefix backend run build
+      - run: npm --prefix frontend exec tsc --noEmit
+      - run: npm --prefix mobile exec tsc --noEmit
+      - run: npm --prefix mobile run lint
+      - run: npm run scan:encoding
+      - run: npm --prefix mobile run test:budget-setup
+      - run: npm run test:contracts
+      - run: npm run test:workflows
+      - run: npm audit --omit=dev --audit-level=high
+      - run: npm --prefix backend audit --omit=dev --audit-level=high
+      - run: npm --prefix mobile audit --omit=dev --audit-level=high

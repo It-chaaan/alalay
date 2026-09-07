@@ -38,6 +38,12 @@ const envSchema = z
       .transform((value) => value === 'true'),
     // Used only by an external scheduler (Render Cron, GitHub Actions, etc.).
     INCOME_SCHEDULER_SECRET: z.string().min(24).optional(),
+    // Production jobs must be triggered by one durable external scheduler.
+    // This is retained only for explicitly enabled local development.
+    IN_PROCESS_SCHEDULERS_ENABLED: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((value) => value === 'true'),
   })
   .superRefine((value, ctx) => {
     const local = value.NODE_ENV !== 'production';
@@ -80,6 +86,13 @@ const envSchema = z
           'INCOME_SCHEDULER_SECRET is required in production so a durable external income scheduler can run.',
       });
     }
+    if (!local && value.IN_PROCESS_SCHEDULERS_ENABLED) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['IN_PROCESS_SCHEDULERS_ENABLED'],
+        message: 'IN_PROCESS_SCHEDULERS_ENABLED must not be enabled in production.',
+      });
+    }
     if (value.NOTIFICATION_SCHEDULER_ENABLED && (!value.SUPABASE_URL || !value.SUPABASE_SERVICE_ROLE_KEY)) {
       ctx.addIssue({
         code: 'custom',
@@ -90,6 +103,9 @@ const envSchema = z
   });
 
 export const env = envSchema.parse(process.env);
+
+export const inProcessSchedulersEnabled =
+  env.NODE_ENV !== 'production' && env.IN_PROCESS_SCHEDULERS_ENABLED === true;
 
 export function allowedCorsOrigins() {
   return new Set([

@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { MoreHorizontal, Plus, ScanLine, Search, ShoppingCart } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -17,13 +17,20 @@ import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { getCategoryMeta } from '@/constants/categories';
 import { useToast } from '@/components/toast-provider';
+import { formatCurrency } from '@/utils/currency';
+import {
+  canApplyExpenseResponse,
+  canStartExpenseSave,
+  expenseDeleteRequestIntent,
+  expenseRequestIntent,
+  groupExpenseRows,
+} from '@/utils/expense-screen';
 
 type ExpenseItem = ExpenseRecord & { source: 'expense' | 'bill'; payment_method: string; created_at?: string };
-type ExpenseGroup = { date: string; subtotal: number; items: ExpenseItem[] };
 type DashboardSummary = { monthly_expenses: number; monthly_expenses_delta_percent: number | null };
 
 
-function peso(value: number) { return '₱' + Math.round(value).toLocaleString('en-PH'); }
+function peso(value: number) { return formatCurrency(Math.round(value)); }
 
 function currentMonthKey() {
   return dateKeyInManila().slice(0, 7);
@@ -41,31 +48,32 @@ function categoryIcon(name: string) {
   return getCategoryMeta(name).icon;
 }
 
-function categoryColor(name: string) {
-  return getCategoryMeta(name).color;
-}
-
-function groupByDate(items: ExpenseItem[]): ExpenseGroup[] {
-  const groups = new Map<string, ExpenseGroup>();
-  items.slice().sort((left, right) => (right.date + (right.created_at ?? right.id)).localeCompare(left.date + (left.created_at ?? left.id))).forEach((item) => {
-    const date = item.date.slice(0, 10);
-    const group = groups.get(date);
-    if (group) {
-      group.items.push(item);
-      group.subtotal += Number(item.amount) || 0;
-    } else {
-      groups.set(date, { date, subtotal: Number(item.amount) || 0, items: [item] });
-    }
-  });
-  return Array.from(groups.values());
+function useExpenseStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(
+    () =>
+      makeStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.primary,
+        accentDark: colors.primary,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        line: colors.border,
+      }),
+    [colors],
+  );
 }
 
 export default function ExpensesScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  styles = makeStyles({ ...formPalette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, balance: colors.balance, line: colors.border });
+  const styles = useExpenseStyles();
   const bottomNavClearance = useBottomNavClearance();
-  const month = currentMonthKey();
+  const [month] = useState(currentMonthKey);
   const [items, setItems] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -75,8 +83,12 @@ export default function ExpensesScreen() {
   const [managing, setManaging] = useState<ExpenseItem | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const refreshRequestRef = useRef(0);
+  const focusedRef = useRef(false);
 
   const refresh = useCallback(async () => {
+    const requestId = refreshRequestRef.current + 1;
+    refreshRequestRef.current = requestId;
     setLoading(true);
     setError('');
     try {
@@ -85,17 +97,59 @@ export default function ExpensesScreen() {
         authenticatedApiRequest<DashboardSummary>('/api/dashboard/summary'),
         fetchWallets(),
       ]);
+      if (
+        !canApplyExpenseResponse({
+          requestId,
+          currentRequestId: refreshRequestRef.current,
+          focused: focusedRef.current,
+        })
+      ) {
+        return;
+      }
       setItems(canonicalExpenseRows(expenses));
       setSummary(dashboardSummary);
       setWallets(walletRows as Wallet[]);
     } catch (requestError) {
+      if (
+        !canApplyExpenseResponse({
+          requestId,
+          currentRequestId: refreshRequestRef.current,
+          focused: focusedRef.current,
+        })
+      ) {
+        return;
+      }
       setError(requestError instanceof Error ? requestError.message : 'Expenses could not load.');
     } finally {
-      setLoading(false);
+      if (
+        canApplyExpenseResponse({
+          requestId,
+          currentRequestId: refreshRequestRef.current,
+          focused: focusedRef.current,
+        })
+      ) {
+        setLoading(false);
+      }
     }
   }, []);
 
-  useEffect(() => { void refresh(); return subscribeFinancialMutations(() => { void refresh(); }); }, [refresh]);
+  useEffect(
+    () =>
+      subscribeFinancialMutations(() => {
+        if (focusedRef.current) void refresh();
+      }),
+    [refresh],
+  );
+  useFocusEffect(
+    useCallback(() => {
+      focusedRef.current = true;
+      void refresh();
+      return () => {
+        focusedRef.current = false;
+        refreshRequestRef.current += 1;
+      };
+    }, [refresh]),
+  );
 
   const monthItems = useMemo(() => items.filter((item) => item.date.slice(0, 7) === month), [items, month]);
   const filteredItems = useMemo(() => {
@@ -104,7 +158,7 @@ export default function ExpensesScreen() {
   }, [monthItems, query]);
   const rowTotal = monthItems.reduce((sum, item) => sum + Number(item.amount), 0);
   const total = summary?.monthly_expenses ?? rowTotal;
-  const groups = useMemo(() => groupByDate(filteredItems), [filteredItems]);
+  const groups = useMemo(() => groupExpenseRows(filteredItems), [filteredItems]);
   const hasAnyExpenses = items.length > 0;
 
   return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}>
@@ -119,18 +173,18 @@ export default function ExpensesScreen() {
     {editing && <ExpenseForm wallets={wallets} item={editing} onClose={() => setEditing(null)} onSaved={async () => { setEditing(null); await refresh(); }} />}
     {managing && <RecordActionSheet visible title="Expense options" recordName={managing.merchant} onClose={() => setManaging(null)} actions={[
       { label: 'Edit', onPress: () => { setManaging(null); if (managing.source === 'expense') setEditing(managing); else router.push('/(tabs)/bills'); } },
-      ...(managing.source === 'expense' ? [{ label: 'Delete', tone: 'destructive' as const, confirm: { title: `Delete ${managing.merchant}?`, message: 'This expense will be removed from your financial history.' }, onPress: async () => { await authenticatedApiRequest(`/api/expenses/${managing.id}`, { method: 'DELETE' }); notifyFinancialMutation(); toast.success('Expense deleted successfully'); } }] : []),
+      ...(managing.source === 'expense' ? [{ label: 'Delete', tone: 'destructive' as const, confirm: { title: `Delete ${managing.merchant}?`, message: 'This expense will be removed from your financial history.' }, onPress: async () => { const request = expenseDeleteRequestIntent(managing.id); await authenticatedApiRequest(request.path, { method: request.method }); notifyFinancialMutation(); toast.success('Expense deleted successfully'); } }] : []),
     ]} />}
   </SafeAreaView>;
 }
 
 function ExpenseRow({ item, wallets, onManage }: { item: ExpenseItem; wallets: Wallet[]; onManage: () => void }) {
   const { colors } = useAppTheme();
-  const Icon = categoryIcon(item.category);
+  const styles = useExpenseStyles();
   const walletName = item.wallet_id ? wallets.find((wallet) => wallet.id === item.wallet_id)?.name : undefined;
   const typeLabel = walletName ?? (item.source === 'bill' ? 'Bill' : item.payment_method === 'other' ? 'Other' : item.payment_method);
   const meta = getCategoryMeta(item.category);
-  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: meta.tint }]}><Icon size={19} color={meta.color} /></View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || meta.label}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={onManage} style={styles.moreButton}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>;
+  return <View style={styles.expenseRow}><View style={[styles.expenseIcon, { backgroundColor: meta.tint }]}>{createElement(categoryIcon(item.category), { size: 19, color: meta.color })}</View><View style={styles.expenseMain}><Text numberOfLines={1} style={styles.expenseName}>{item.merchant}</Text><View style={styles.tags}><Text style={styles.categoryTag}>{item.custom_category || meta.label}</Text><Text style={styles.typeTag}>{typeLabel}</Text></View></View><Text style={styles.expenseAmount}>{peso(Number(item.amount))}</Text><Pressable accessibilityRole="button" accessibilityLabel={`More options for ${item.merchant}`} onPress={onManage} style={styles.moreButton}><MoreHorizontal size={20} color={colors.textSecondary} /></Pressable></View>;
 }
 
 function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; item?: ExpenseRecord; onClose: () => void; onSaved: () => Promise<void> }) {
@@ -142,8 +196,10 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
   const [date, setDate] = useState(item?.date ?? dateKeyInManila());
   const [walletId, setWalletId] = useState<string | null>(item?.wallet_id ?? null);
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState('');
   const save = async () => {
+    if (!canStartExpenseSave(savingRef.current)) return;
     const value = parseAmount(amount);
     if (!note.trim() || value === null || value <= 0) {
       setError('Add a note and a valid amount.');
@@ -157,16 +213,19 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
       setError('Please specify a category.');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
-      await authenticatedApiRequest(item ? `/api/expenses/${item.id}` : '/api/expenses', { method: item ? 'PATCH' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, date, wallet_id: walletId }) });
+      const request = expenseRequestIntent(item?.id);
+      await authenticatedApiRequest(request.path, { method: request.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ merchant: note.trim(), amount: value, category, categories: [category], custom_category: category === 'Other' ? customCategory.trim() : null, date, wallet_id: walletId }) });
       notifyFinancialMutation();
       await onSaved();
       toast.success(item ? 'Expense updated successfully' : 'Expense recorded successfully');
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Could not save this expense.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -180,6 +239,7 @@ function ExpenseForm({ wallets, item, onClose, onSaved }: { wallets: Wallet[]; i
 }
 
 function ExpenseWalletField({ wallets, value, onChange }: { wallets: Wallet[]; value: string | null; onChange: (value: string | null) => void }) {
+  const styles = useExpenseStyles();
   const [open, setOpen] = useState(false);
   const selected = wallets.find((wallet) => wallet.id === value);
   return <View style={styles.walletField}><Text style={styles.formLabel}>Payment method</Text><Pressable accessibilityRole="button" accessibilityLabel={`Choose payment method${selected ? `, ${selected.name}` : ''}`} onPress={() => setOpen(true)} style={styles.walletTrigger}><Text style={[styles.walletValue, !selected && styles.walletPlaceholder]}>{selected?.name ?? 'Select wallet'}</Text><Text style={styles.walletChevron}>{'›'}</Text></Pressable><WalletPickerModal visible={open} wallets={wallets} onClose={() => setOpen(false)} onChange={(walletId) => { onChange(walletId); setOpen(false); }} allowUnset={false} /></View>;
@@ -250,4 +310,3 @@ function makeStyles(themePalette: typeof formPalette) { const formPalette = them
   formLabel: { marginBottom: 9, color: formPalette.muted, fontSize: 11, fontWeight: '900', letterSpacing: 0.4 },
   pressed: { opacity: 0.72 },
 }); }
-let styles = makeStyles(formPalette);

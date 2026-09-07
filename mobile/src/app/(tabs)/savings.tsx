@@ -48,6 +48,7 @@ import { NotificationHeaderButton } from '@/components/notification-header-butto
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { useToast } from '@/components/toast-provider';
 
 type Goal = {
@@ -113,7 +114,7 @@ function GoalIcon({ name }: { name: string }) {
   const Icon = goalIconMap[name as keyof typeof goalIconMap] ?? Target;
   return <Icon size={21} color={formPalette.accent} strokeWidth={2} />;
 }
-const peso = (value: number) => `₱${Math.round(value).toLocaleString('en-PH')}`;
+const peso = (value: number) => formatCurrency(Math.round(value));
 
 function goalProgress(goal: Goal) {
   const saved = Number(goal.current_amount) || 0;
@@ -911,7 +912,8 @@ function WalletContributionForm({
   const [walletId, setWalletId] = useState<string | null>(null);
   const [contributionDate, setContributionDate] = useState(dateKeyInManila());
   const [note, setNote] = useState('');
-  const idempotencyKey = useRef(`goal-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const idempotencyKey = useRef<string | null>(null);
+  const savingRef = useRef(false);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   useEffect(() => {
@@ -920,6 +922,7 @@ function WalletContributionForm({
       .catch(() => setError('Wallets could not load.'));
   }, []);
   const save = async () => {
+    if (savingRef.current) return;
     const value = parseAmount(amount);
     if (value === null || value <= 0) {
       setError('Enter a valid amount to add.');
@@ -929,6 +932,8 @@ function WalletContributionForm({
       setError('Choose the wallet where this money is held.');
       return;
     }
+    savingRef.current = true;
+    if (!idempotencyKey.current) idempotencyKey.current = `goal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setSaving(true);
     setError('');
     try {
@@ -943,6 +948,7 @@ function WalletContributionForm({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add money to this goal.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

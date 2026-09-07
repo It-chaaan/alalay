@@ -43,6 +43,7 @@ import { NotificationHeaderButton } from '@/components/notification-header-butto
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
 import { useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { useToast } from '@/components/toast-provider';
 import { filterSubscriptions } from '@/utils/subscription-search';
 import { getCategoryMeta } from '@/constants/categories';
@@ -286,13 +287,13 @@ export default function Subscriptions() {
             context={new Intl.DateTimeFormat('en-US', { month: 'long' })
               .format(new Date())
               .toUpperCase()}
-            value={`₱${Math.round(monthlyTotal).toLocaleString('en-PH')}/mo`}
+            value={`${formatCurrency(Math.round(monthlyTotal))}/mo`}
             supportingInfo={
               rows.length
-                ? `₱${Math.round(yearly).toLocaleString('en-PH')}/year · ${percent === null ? 'Income unavailable' : `${percent.toFixed(1)}% of income`}`
+                ? `${formatCurrency(Math.round(yearly))}/year · ${percent === null ? 'Income unavailable' : `${percent.toFixed(1)}% of income`}`
                 : 'No active subscriptions'
             }
-            accessibilityLabel={`Subscriptions overview. Monthly subscriptions: ₱${Math.round(monthlyTotal).toLocaleString('en-PH')}.`}
+            accessibilityLabel={`Subscriptions overview. Monthly subscriptions: ${formatCurrency(Math.round(monthlyTotal))}.`}
           />
           <View style={styles.listSection}>
             <View style={styles.sectionHeader}>
@@ -418,7 +419,7 @@ export default function Subscriptions() {
                     <View style={styles.main}>
                       <Text style={[styles.name, { color: colors.textPrimary }]}>{row.name}</Text>
                       <Text style={[styles.muted, { color: colors.textSecondary }]}>
-                        ₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}/
+                        {formatCurrency(Math.round(Number(row.amount)))}/
                         {row.billing_cycle === 'yearly'
                           ? 'yr'
                           : row.billing_cycle === 'quarterly'
@@ -519,7 +520,7 @@ export default function Subscriptions() {
       )}
       {details && <FinancialItemDetailsSheet
         visible title="Subscription details" name={details.name}
-        amount={`₱${Math.round(Number(details.amount)).toLocaleString('en-PH')}/${details.billing_cycle === 'yearly' ? 'yr' : details.billing_cycle === 'quarterly' ? 'qtr' : details.billing_cycle === 'weekly' ? 'wk' : 'mo'}`}
+        amount={`${formatCurrency(Math.round(Number(details.amount)))}/${details.billing_cycle === 'yearly' ? 'yr' : details.billing_cycle === 'quarterly' ? 'qtr' : details.billing_cycle === 'weekly' ? 'wk' : 'mo'}`}
         status={subscriptionStatus(details)} onClose={() => setDetails(null)}
         details={[
           { label: 'Category', value: details.custom_category ?? details.category ?? 'Subscription' },
@@ -909,7 +910,7 @@ function makeStyles(themePalette: typeof formPalette) {
     clearFilters: { alignSelf: 'flex-start', marginTop: 12 },
     clearFiltersText: { fontSize: 12, fontWeight: '900' },
     overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,35,28,0.28)' },
-    dismiss: { ...StyleSheet.absoluteFillObject },
+    dismiss: { ...StyleSheet.absoluteFill },
     filterSheet: {
       maxHeight: '86%',
       padding: 20,

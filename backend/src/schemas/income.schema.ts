@@ -49,6 +49,7 @@ const incomeShape = z
       z.enum(['monthly', 'weekly', 'biweekly', 'yearly']).nullable().optional(),
     ),
     wallet_id: z.string().uuid(),
+    idempotency_key: z.string().trim().min(16).max(100).optional(),
   })
   .strict();
 

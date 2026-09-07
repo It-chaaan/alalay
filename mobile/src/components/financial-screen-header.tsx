@@ -26,11 +26,11 @@ export function FinancialScreenHeader({
         pointerEvents="none"
         intensity={28}
         tint={resolvedTheme}
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
       />
       <View
         pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: colors.surfaceTranslucent }]}
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]}
       />
       <View style={styles.sideSlot}>
         {onBack ? (

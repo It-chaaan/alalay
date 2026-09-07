@@ -55,11 +55,14 @@ import {
 import { useCurrentProfile } from '@/hooks/use-current-profile';
 import { getProfileFirstName } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 import { GlassSurface } from '@/components/glass-surface';
 import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
 import { cycleIndex, visibleWallets, walletSlotOffset } from '@/utils/wallet-stack';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 const palette = {
   background: '#F4F7F1',
@@ -92,16 +95,12 @@ type DashboardSummary = {
 };
 
 function formatPeso(value: number) {
-  return `₱${Math.round(value).toLocaleString('en-PH')}`;
+  return formatCurrency(value);
 }
 
 function formatBalancePeso(value: number) {
-  const sign = value < 0 ? String.fromCharCode(0x2212) : '';
-  return (
-    sign +
-    String.fromCharCode(0x20b1) +
-    Math.abs(value).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-  );
+  const formatted = formatCurrency(Math.abs(value));
+  return value < 0 ? `−${formatted}` : formatted;
 }
 
 export default function HomeScreen() {
@@ -841,7 +840,7 @@ function QuickActionsCard() {
         onRequestClose={closeMore}
       >
         <Pressable style={styles.moreBackdrop} onPress={closeMore}>
-          <Pressable
+          <AnimatedPressable
             style={[
               styles.moreMenu,
               { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
@@ -881,7 +880,7 @@ function QuickActionsCard() {
                 Loans &amp; Debt
               </Text>
             </Pressable>
-          </Pressable>
+          </AnimatedPressable>
         </Pressable>
       </Modal>
     </View>
@@ -1672,7 +1671,7 @@ const styles = StyleSheet.create({
     borderColor: palette.accentSoft,
   },
   quickAddText: { marginLeft: 8, color: palette.accent, fontSize: 13, fontWeight: '800' },
-  dismissLayer: { ...StyleSheet.absoluteFillObject, zIndex: 4 },
+  dismissLayer: { ...StyleSheet.absoluteFill, zIndex: 4 },
   chatHead: {
     position: 'absolute',
     right: 20,
@@ -1739,8 +1738,8 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   addMenuLabel: { color: palette.ink, fontSize: 11, fontWeight: '800', textAlign: 'center' },
-  formOverlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' },
-  formDismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.28)' },
+  formOverlay: { ...StyleSheet.absoluteFill, zIndex: 20, justifyContent: 'flex-end' },
+  formDismiss: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(17,35,28,0.28)' },
   formKeyboard: { maxHeight: '88%' },
   formCard: {
     padding: 20,

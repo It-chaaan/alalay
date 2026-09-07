@@ -13,17 +13,19 @@
     "android": {
       "predictiveBackGestureEnabled": false,
       "permissions": [
-        "android.permission.CAMERA",
+        "android.permission.CAMERA"
+      ],
+      "blockedPermissions": [
         "android.permission.RECORD_AUDIO",
-        "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO"
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
       ],
       "icon": "./assets/alalay-app-icon.png",
       "adaptiveIcon": {
         "foregroundImage": "./assets/alalay-adaptive-foreground.png",
         "backgroundColor": "#D8EFE2"
       },
-      "package": "com.anonymous.mobile"
+      "package": "com.itchaaan.alalay"
     },
     "web": {
       "output": "static"

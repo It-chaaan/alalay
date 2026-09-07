@@ -9,6 +9,7 @@ export type BillRecord = {
   title: string;
   amount: number | string;
   category: string;
+  icon?: string | null;
   custom_category?: string | null;
   due_date: string;
   recurring: boolean;
@@ -42,6 +43,7 @@ export type FinanceItem = {
   name: string;
   amount: number;
   category: string;
+  icon?: string | null;
   custom_category?: string | null;
   dueDate: string;
   recurring: boolean;

@@ -15,11 +15,9 @@ export function makeResourceService(table: TableName) {
     },
     get: (userId: string, id: string) => getOwned(table, userId, id),
     create: async (userId: string, payload: Record<string, unknown>) => {
-      const result = await createOwned(
-        table,
-        userId,
-        table === 'income' ? scheduleIncomePayload(payload) : payload,
-      );
+      const result = table === 'income' && payload.is_recurring === true
+        ? await createIncomeSchedule(userId, payload)
+        : await createOwned(table, userId, table === 'income' ? scheduleIncomePayload(payload) : payload);
       invalidateReportsForUser(userId);
       return result;
     },
@@ -70,6 +68,22 @@ export function makeResourceService(table: TableName) {
       return result;
     },
   };
+}
+
+async function createIncomeSchedule(userId: string, payload: Record<string, unknown>) {
+  const { data, error } = await client().rpc('create_income_schedule', {
+    owner_id: requireUserId(userId),
+    wallet_id_value: payload.wallet_id,
+    source_value: payload.source,
+    type_value: payload.type ?? null,
+    custom_type_value: payload.custom_type ?? null,
+    amount_value: payload.amount,
+    date_value: payload.date,
+    frequency_value: payload.frequency,
+    request_key: payload.idempotency_key ?? null,
+  });
+  throwIfError(error);
+  return data;
 }
 
 function addDays(value: string, days: number) {

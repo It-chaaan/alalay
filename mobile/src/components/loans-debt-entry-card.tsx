@@ -10,6 +10,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import type { ReactNode } from 'react';
 
 import { useAppTheme } from '@/theme/theme';
+import { formatCurrency } from '@/utils/currency';
 
 type Props = {
   owedToMe?: number;
@@ -20,7 +21,7 @@ type Props = {
   onPress: () => void;
 };
 function peso(value: number) {
-  return `₱${Math.round(value).toLocaleString('en-PH')}`;
+  return formatCurrency(Math.round(value));
 }
 
 export function LoansDebtEntryCard({

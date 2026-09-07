@@ -1,5 +1,5 @@
 import { createServer } from "./server.js";
-import { env } from "./config/env.js";
+import { env, inProcessSchedulersEnabled } from "./config/env.js";
 import { startNotificationScheduler } from "./services/notification-scheduler.service.js";
 import { startBillingScheduler } from "./services/billing-scheduler.service.js";
 import { startIncomeScheduler } from "./services/income-scheduler.service.js";
@@ -10,9 +10,13 @@ const address = `${protocol}://localhost:${env.PORT}`;
 
 const server = app.listen(env.PORT, () => {
   console.log(`Server listening on ${address}`);
-  startBillingScheduler();
-  startIncomeScheduler();
-  startNotificationScheduler();
+  if (inProcessSchedulersEnabled) {
+    startBillingScheduler();
+    startIncomeScheduler();
+    startNotificationScheduler();
+  } else {
+    console.log('In-process schedulers disabled; configure a durable external scheduler.');
+  }
 });
 
 server.on("error", (error: NodeJS.ErrnoException) => {

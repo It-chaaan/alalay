@@ -1,4 +1,6 @@
 import { authenticatedApiRequest, ApiRequestError } from './api';
+import { File } from 'expo-file-system';
+import { receiptUploadMetadata } from '@/utils/receipt-upload';
 
 export type ReceiptCandidate = {
   merchant: string | null;
@@ -31,9 +33,10 @@ export class ReceiptUploadError extends Error {
 
 /** Uploads the selected local image. OCR stays exclusively on the authenticated server. */
 export async function scanReceiptImage(image: { uri: string; mimeType?: string | null }, signal?: AbortSignal): Promise<ServerReceiptScan> {
-  const type = image.mimeType === 'image/png' ? 'image/png' : 'image/jpeg';
+  const { filename } = receiptUploadMetadata(image);
   const form = new FormData();
-  form.append('image', { uri: image.uri, name: `receipt.${type === 'image/png' ? 'png' : 'jpg'}`, type } as never);
+  const file = new File(image.uri);
+  form.append('image', file, filename);
   try {
     return await authenticatedApiRequest<ServerReceiptScan>('/api/ocr/receipt', { method: 'POST', body: form, signal });
   } catch (error) {

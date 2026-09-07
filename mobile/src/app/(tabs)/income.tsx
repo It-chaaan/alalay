@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -55,6 +55,17 @@ import { StatusBadge } from '@/components/status-badge';
 import { sortCategoriesByLabel } from '@/utils/category-sorting';
 import { useToast } from '@/components/toast-provider';
 import { useIncomeWorkflow, type IncomeWorkflowDraft } from '@/context/income-workflow';
+import {
+  canApplyIncomeResponse,
+  canStartIncomeSave,
+  incomeDeleteRequestIntent,
+  incomeRequestIntent,
+  manilaIncomeMonth,
+  moveIncomeMonth,
+  occurrenceBelongsToIncomeMonth,
+  presentationIncomeOccurrences,
+  shouldRefreshIncomeForMutation,
+} from '@/utils/income-screen';
 
 type Income = {
   id: string;
@@ -113,24 +124,13 @@ const incomeTypeValues = Object.fromEntries(
 ) as Record<string, string>;
 
 function currentMonthKey() {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Manila',
-    year: 'numeric',
-    month: '2-digit',
-  }).formatToParts(new Date());
-  return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}`;
+  return manilaIncomeMonth(new Date());
 }
 
 function monthName(month: string) {
   return new Intl.DateTimeFormat('en-US', { month: 'long' })
     .format(new Date(`${month}-01T12:00:00`))
     .toUpperCase();
-}
-
-function moveMonth(month: string, delta: number) {
-  const [year, monthNumber] = month.split('-').map(Number);
-  const date = new Date(Date.UTC(year, monthNumber - 1 + delta, 1));
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`;
 }
 
 function shortIncomeDate(value: string | null | undefined, selectedMonth: string) {
@@ -162,22 +162,31 @@ function logIncomeFetch(event: string, details: Record<string, unknown>) {
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[Income] ${event}`, details);
 }
 
+function useIncomeStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(
+    () =>
+      makeStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.primary,
+        accentDark: colors.primary,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        line: colors.border,
+      }),
+    [colors],
+  );
+}
+
 export default function IncomeScreen() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const workflow = useIncomeWorkflow();
-  styles = makeStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.primary,
-    accentDark: colors.primary,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    line: colors.border,
-  });
+  const styles = useIncomeStyles();
   const bottomNavClearance = useBottomNavClearance();
   const [rows, setRows] = useState<Income[]>([]);
   const [summary, setSummary] = useState<IncomeSummary>({
@@ -200,18 +209,29 @@ export default function IncomeScreen() {
   const [managing, setManaging] = useState<Income | null>(null);
   const [details, setDetails] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [walletSelection, setWalletSelection] = useState<{ id: string; version: number } | null>(
-    null,
-  );
+  const [walletSelection, setWalletSelection] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
+  const refreshRequestRef = useRef(0);
+  const isFocusedRef = useRef(false);
 
   const refresh = useCallback(
     async (trigger = 'manual') => {
+      const requestId = refreshRequestRef.current + 1;
+      refreshRequestRef.current = requestId;
       logIncomeFetch('fetch trigger', { trigger, month: selectedMonth });
       setLoading(true);
       setError('');
       logIncomeFetch('request start', { month: selectedMonth });
       const results = await Promise.allSettled([fetchIncomeMonth(selectedMonth), fetchWallets()]);
+      if (
+        !canApplyIncomeResponse({
+          requestId,
+          currentRequestId: refreshRequestRef.current,
+          focused: isFocusedRef.current,
+        })
+      ) {
+        return;
+      }
       const [incomeResult, walletRows] = results;
       const failure = (result: PromiseSettledResult<unknown>) =>
         result.status === 'rejected'
@@ -228,8 +248,22 @@ export default function IncomeScreen() {
           month: selectedMonth,
           items: incomeResult.value.items.length,
         });
+        const presentation = presentationIncomeOccurrences(incomeResult.value.items);
+        if (presentation.duplicateProjectedOccurrences) {
+          logIncomeFetch('duplicate projected occurrences', {
+            month: selectedMonth,
+            count: presentation.duplicateProjectedOccurrences,
+          });
+        }
         setRows(
-          incomeResult.value.items.map((item) => ({
+          presentation.items
+            .filter((item) =>
+              occurrenceBelongsToIncomeMonth(
+                { ...item, dueDate: item.dueDate, receivedDate: item.receivedDate },
+                selectedMonth,
+              ),
+            )
+            .map((item) => ({
             // A projected occurrence has no database ID. Its source/date key
             // remains stable for rendering but is never used for mutations.
             id: item.occurrenceId ?? item.occurrenceKey ?? item.transactionId ?? item.sourceId,
@@ -248,7 +282,7 @@ export default function IncomeScreen() {
             created_at: item.createdAt,
             updated_at: item.updatedAt,
             transaction_id: item.transactionId,
-          })),
+            })),
         );
         setSummary({
           this_month: incomeResult.value.overview.projectedAmount,
@@ -277,20 +311,27 @@ export default function IncomeScreen() {
   useEffect(
     () =>
       subscribeFinancialMutations(() => {
-        void refresh('financial mutation');
+        if (shouldRefreshIncomeForMutation(isFocusedRef.current)) {
+          void refresh('financial mutation');
+        }
       }),
     [refresh],
   );
   useFocusEffect(
     useCallback(() => {
+      isFocusedRef.current = true;
       const createdId = workflow.takeCreatedWallet();
       if (createdId) {
-        setWalletSelection({ id: createdId, version: Date.now() });
+        setWalletSelection(createdId);
         setOpen(true);
       }
       // Expo Router retains tab screens. Focus is the reliable lifecycle for
       // both the initial request and returning to an already-mounted Income tab.
       void refresh('screen focus');
+      return () => {
+        isFocusedRef.current = false;
+        refreshRequestRef.current += 1;
+      };
     }, [refresh, workflow]),
   );
 
@@ -352,7 +393,7 @@ export default function IncomeScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Show previous income month"
-              onPress={() => setSelectedMonth((month) => moveMonth(month, -1))}
+              onPress={() => setSelectedMonth((month) => moveIncomeMonth(month, -1))}
               style={styles.monthButton}
             >
               <Text style={styles.monthButtonText}>‹</Text>
@@ -362,7 +403,7 @@ export default function IncomeScreen() {
               accessibilityRole="button"
               accessibilityLabel="Show next income month"
               disabled={selectedMonth >= currentMonthKey()}
-              onPress={() => setSelectedMonth((month) => moveMonth(month, 1))}
+              onPress={() => setSelectedMonth((month) => moveIncomeMonth(month, 1))}
               style={[
                 styles.monthButton,
                 selectedMonth >= currentMonthKey() && styles.monthButtonDisabled,
@@ -433,7 +474,7 @@ export default function IncomeScreen() {
       {open && (
         <IncomeForm
           wallets={wallets}
-          selectedWalletId={walletSelection?.id}
+          selectedWalletId={walletSelection ?? undefined}
           onAddWallet={(draft) => {
             workflow.saveDraft(draft);
             setOpen(false);
@@ -486,7 +527,8 @@ export default function IncomeScreen() {
                 message: 'Future occurrences will be cancelled. Any received history is preserved.',
               },
               onPress: async () => {
-                await authenticatedApiRequest(`/api/income/${managing.id}`, { method: 'DELETE' });
+                const request = incomeDeleteRequestIntent(managing.id);
+                await authenticatedApiRequest(request.path, { method: request.method });
                 notifyFinancialMutation();
                 await refresh();
                 toast.success('Income deleted; received history preserved.');
@@ -503,77 +545,6 @@ export default function IncomeScreen() {
         />
       )}
     </SafeAreaView>
-  );
-}
-
-function incomeDateTime(value: string | null | undefined) {
-  if (!value) return 'Not received yet';
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return new Intl.DateTimeFormat('en-PH', {
-    timeZone: 'Asia/Manila',
-    dateStyle: 'medium',
-    timeStyle: 'short',
-  }).format(parsed);
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function IncomeDetails({
-  income,
-  wallets,
-  onClose,
-}: {
-  income: Income;
-  wallets: Wallet[];
-  onClose: () => void;
-}) {
-  const walletName =
-    wallets.find((wallet) => wallet.id === income.wallet_id)?.name ?? 'Unavailable wallet';
-  return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.modalBackdrop} onPress={onClose}>
-        <Pressable style={styles.detailsSheet} onPress={(event) => event.stopPropagation()}>
-          <Text style={styles.sectionTitle}>Income details</Text>
-          <Text style={styles.detailsName}>{income.source}</Text>
-          <Text style={styles.detailsAmount}>
-            ₱{Math.round(Number(income.amount)).toLocaleString('en-PH')}
-          </Text>
-          <Detail label="Category" value={income.type} />
-          <Detail
-            label="Frequency"
-            value={income.is_recurring ? (income.frequency ?? 'Recurring') : 'One-time'}
-          />
-          <Detail
-            label="Status"
-            value={
-              income.status === 'received'
-                ? 'Received'
-                : income.status === 'overdue'
-                  ? 'Overdue'
-                  : 'Upcoming'
-            }
-          />
-          <Detail label="Destination wallet" value={walletName} />
-          <Detail
-            label="Due on"
-            value={
-              income.due_date ?? (income.status === 'received' ? income.date : 'Not scheduled')
-            }
-          />
-          <Detail label="Received on" value={incomeDateTime(income.received_at)} />
-          <Detail
-            label="Added on"
-            value={income.created_at ? incomeDateTime(income.created_at) : 'Unknown'}
-          />
-          {income.transaction_id ? (
-            <Detail label="Wallet transaction" value={income.transaction_id} />
-          ) : null}
-          <Pressable style={styles.retry} onPress={onClose}>
-            <Text style={styles.retryText}>Close</Text>
-          </Pressable>
-        </Pressable>
-      </Pressable>
-    </Modal>
   );
 }
 
@@ -614,6 +585,7 @@ function IncomeDetailsRedesigned({
   wallets: Wallet[];
   onClose: () => void;
 }) {
+  const styles = useIncomeStyles();
   const walletName = incomeWalletName(income, wallets);
   const status = incomeCardStatus(income);
   const received = status === 'Received';
@@ -715,58 +687,11 @@ function IncomeDetailsRedesigned({
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
+  const styles = useIncomeStyles();
   return (
     <View style={styles.detailRow}>
       <Text style={styles.detailLabel}>{label}</Text>
       <Text style={styles.detailValue}>{value}</Text>
-    </View>
-  );
-}
-
-function IncomeSection({
-  title,
-  error,
-  empty,
-  children,
-}: {
-  title: string;
-  error: string;
-  empty: string;
-  children: ReactNode;
-}) {
-  return (
-    <View style={styles.listSection}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      {error ? (
-        <View style={styles.card}>
-          <Text style={styles.muted}>{error}</Text>
-        </View>
-      ) : (
-        children || (
-          <View style={styles.card}>
-            <Text style={styles.muted}>{empty}</Text>
-          </View>
-        )
-      )}
-    </View>
-  );
-}
-
-function IncomeRow({ row }: { row: Income }) {
-  return (
-    <View style={styles.row}>
-      <View style={styles.icon}>
-        <ArrowUpRight size={18} color={formPalette.accent} />
-      </View>
-      <View style={styles.main}>
-        <Text style={styles.rowTitle}>{row.source}</Text>
-        <Text style={styles.muted}>
-          {row.is_scheduled
-            ? `Recurring Â· Upcoming Â· Due ${row.date}`
-            : `${row.frequency ?? 'Monthly'} Â· Recurring`}
-        </Text>
-      </View>
-      <Text style={styles.amount}>â‚±{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text>
     </View>
   );
 }
@@ -788,6 +713,7 @@ function IncomeForm({
 }) {
   const toast = useToast();
   const workflow = useIncomeWorkflow();
+  const styles = useIncomeStyles();
   const preserved = initial ? null : workflow.draft;
   useEffect(() => {
     if (!initial && workflow.draft) workflow.takeDraft();
@@ -808,12 +734,12 @@ function IncomeForm({
     selectedWalletId ?? preserved?.walletId ?? initial?.wallet_id ?? null,
   );
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState('');
-  useEffect(() => {
-    if (selectedWalletId) setWalletId(selectedWalletId);
-  }, [selectedWalletId]);
+  const requestKey = useRef<string | null>(null);
 
   const save = async () => {
+    if (!canStartIncomeSave(savingRef.current)) return;
     const value = parseAmount(amount);
     if (!source.trim() || value === null || value <= 0 || !walletId) {
       setError(
@@ -827,12 +753,16 @@ function IncomeForm({
       setError('Please specify an income type.');
       return;
     }
+    savingRef.current = true;
     setSaving(true);
     setError('');
     try {
-      const path = initial ? `/api/income/${initial.id}` : '/api/income';
-      const result = await authenticatedApiRequest<{ is_posted?: boolean }>(path, {
-        method: initial ? 'PATCH' : 'POST',
+      if (!requestKey.current) {
+        requestKey.current = `income-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      }
+      const request = incomeRequestIntent(initial?.id);
+      const result = await authenticatedApiRequest<{ is_posted?: boolean }>(request.path, {
+        method: request.method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           source: source.trim(),
@@ -843,6 +773,7 @@ function IncomeForm({
           is_recurring: recurring,
           frequency: recurring ? frequency : null,
           wallet_id: walletId,
+          ...(initial || !requestKey.current ? {} : { idempotency_key: requestKey.current }),
         }),
       });
       notifyFinancialMutation();
@@ -857,6 +788,7 @@ function IncomeForm({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not save this income.');
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -1146,5 +1078,3 @@ function makeStyles(themePalette: typeof formPalette) {
     },
   });
 }
-let styles = makeStyles(formPalette);
-styles = { ...styles, more: { ...styles.more, backgroundColor: 'transparent' } };

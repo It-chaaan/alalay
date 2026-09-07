@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -12,7 +12,7 @@ import {
   type TextInputProps,
   View,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import {
   MoreHorizontal,
   Search as SearchIcon,
@@ -58,6 +58,7 @@ import { FinancialItemDetailsSheet } from '@/components/financial-item-details-s
 import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { reconcileFinancialReminders } from '@/services/financial-reminders';
+import { validateBillForm, type FieldErrors } from '@/utils/form-validation';
 
 const palette = {
   background: '#F4F7F1',
@@ -102,6 +103,10 @@ function TextInput(props: TextInputProps) {
 
 type EditorProps = { item: FinanceItem; onClose: () => void; onSaved: () => Promise<void> };
 type BillFilter = 'All' | 'Upcoming' | 'Overdue' | 'Paid';
+function FieldError({ message }: { message?: string }) {
+  const { colors } = useAppTheme();
+  return message ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 12, fontWeight: '700', marginTop: 5 }}>{message}</Text> : null;
+}
 
 function currentMonthKey() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -132,23 +137,23 @@ function formatBillDate(value: string) {
 function isUpcomingStatus(status: ReturnType<typeof derivedStatus>) {
   return status === 'Upcoming' || status === 'Due soon' || status === 'Due today';
 }
+function useBillStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(() => {
+    const themePalette = {
+      ...palette, background: colors.background, surface: colors.surfaceElevated,
+      ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary,
+      accentPale: colors.primarySoft, line: colors.border, danger: colors.danger,
+    };
+    return { ...makeStyles(themePalette), ...makeFilterStyles(themePalette), more: { ...makeStyles(themePalette).more, backgroundColor: 'transparent' } };
+  }, [colors]);
+}
 
 export default function BillsScreen() {
   const { occurrenceId } = useLocalSearchParams<{ occurrenceId?: string }>();
   const { colors } = useAppTheme();
   const toast = useToast();
-  const themePalette = {
-    ...palette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.primary,
-    accentPale: colors.primarySoft,
-    line: colors.border,
-    danger: colors.danger,
-  };
-  styles = Object.assign(makeStyles(themePalette), makeFilterStyles(themePalette));
+  const styles = useBillStyles();
   const bottomNavClearance = useBottomNavClearance();
   const [items, setItems] = useState<FinanceItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -162,6 +167,7 @@ export default function BillsScreen() {
   const [managing, setManaging] = useState<FinanceItem | null>(null);
   const [details, setDetails] = useState<FinanceItem | null>(null);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
+  const [referenceDate, setReferenceDate] = useState(() => dateKeyInManila());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -177,17 +183,23 @@ export default function BillsScreen() {
     }
   }, []);
 
-  useEffect(() => {
-    void refresh();
-    return subscribeFinancialMutations(() => {
+  useFocusEffect(
+    useCallback(() => {
+      setReferenceDate(dateKeyInManila());
+      void refresh();
+    const unsubscribe = subscribeFinancialMutations(() => {
       void refresh();
     });
-  }, [refresh]);
+    return () => {
+      unsubscribe();
+    };
+    }, [refresh]),
+  );
 
   useEffect(() => {
     if (typeof occurrenceId !== 'string') return;
     const occurrence = items.find((item) => item.source === 'bill' && item.id === occurrenceId);
-    if (occurrence) setDetails(occurrence);
+    if (occurrence) queueMicrotask(() => setDetails(occurrence));
   }, [items, occurrenceId]);
 
   const bills = items.filter((item) => item.source === 'bill' && !item.isOverdueFromPreviousMonth);
@@ -206,7 +218,7 @@ export default function BillsScreen() {
   const monthlyStatuses = monthlyBills.map((item) => derivedStatus(item));
   const dueThisWeek = monthlyBills.filter((item) => {
     const days = Math.round(
-      (new Date(`${item.dueDate}T12:00:00`).getTime() - Date.now()) / 86400000,
+      (new Date(`${item.dueDate}T12:00:00`).getTime() - new Date(`${referenceDate}T12:00:00+08:00`).getTime()) / 86400000,
     );
     return days >= 0 && days <= 7 && derivedStatus(item) !== 'Paid';
   }).length;
@@ -455,6 +467,7 @@ function BillFilterSheet({
   onSelect: (value: BillFilter) => void;
   onClose: () => void;
 }) {
+  const styles = useBillStyles();
   const options: BillFilter[] = ['All', 'Upcoming', 'Overdue', 'Paid'];
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -510,6 +523,7 @@ function BillFilterSheet({
 }
 
 function BillCard({ item, walletName, onManage, onOpenDetails }: { item: FinanceItem; walletName?: string; onManage: () => void; onOpenDetails: () => void }) {
+  const styles = useBillStyles();
   const { colors } = useAppTheme();
   const status = derivedStatus(item);
   const metadata = `${item.source === 'subscription' ? 'Subscription' : item.custom_category || item.category} · Due ${formatBillDate(item.dueDate)}`;
@@ -521,7 +535,7 @@ function BillCard({ item, walletName, onManage, onOpenDetails }: { item: Finance
       onPress={onOpenDetails}
     >
       <View style={styles.billTop}>
-        <BrandLogo name={item.name} entity="bill" category={item.category} size={40} />
+        <BrandLogo name={item.name} entity="bill" category={item.category} customCategory={item.custom_category} icon={item.icon} size={40} />
         <View style={styles.billMain}>
           <Text numberOfLines={1} style={styles.billName}>
             {item.name}
@@ -563,6 +577,7 @@ function BillPaymentSheet({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const styles = useBillStyles();
   const toast = useToast();
   const insets = useSafeAreaInsets();
   const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
@@ -700,34 +715,13 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
 
   const save = async () => {
-    const parsedAmount = Number(amount);
-    if (!name.trim()) {
-      setError('Enter a biller name.');
-      return;
-    }
-    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
-      setError('Enter an amount greater than zero.');
-      return;
-    }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-      setError('Choose a valid due date.');
-      return;
-    }
-    if (item.source === 'bill' && !category.trim()) {
-      setError('Choose a category.');
-      return;
-    }
-    if (item.source === 'bill' && category === 'Other' && !customCategory.trim()) {
-      setError('Please specify a category.');
-      return;
-    }
-    if (item.source === 'bill' && !walletId) {
-      setError('Choose a payment method.');
-      return;
-    }
+    const nextErrors = item.source === 'bill' ? validateBillForm({ name, amount, date, category, customCategory, walletId }) : {};
+    if (Object.keys(nextErrors).length) { setFieldErrors(nextErrors); setError('Check the highlighted fields.'); return; }
+    const parsedAmount = Number(amount.replace(/,/g, ''));
     setSaving(true);
     setError('');
     try {
@@ -777,8 +771,9 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
       title={item.source === 'bill' ? item.name : item.name}
       eyebrow={item.source === 'bill' ? 'EDIT BILL' : 'EDIT SUBSCRIPTION'}
       amount={amount}
-      onAmountChange={setAmount}
+        onAmountChange={(value) => { setAmount(value); setFieldErrors((current) => ({ ...current, amount: undefined })); setError(''); }}
       error={error}
+      amountError={fieldErrors.amount}
       saving={saving}
       saveLabel="Save changes"
       onSave={() => void save()}
@@ -787,34 +782,42 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
       <FormTextInput
         label="Biller name"
         value={name}
-        onChangeText={setName}
+        onChangeText={(value) => { setName(value); setFieldErrors((current) => ({ ...current, name: undefined })); setError(''); }}
+        error={fieldErrors.name}
         placeholder="e.g. Maynilad"
       />
       {item.source === 'bill' ? (
-        <CategoryChipRow
+        <>
+          <CategoryChipRow
           label="Category *"
           value={category}
-          onChange={setCategory}
+          onChange={(value) => { setCategory(value); setFieldErrors((current) => ({ ...current, category: undefined, customCategory: undefined })); setError(''); }}
           options={billCategories}
           customValue={customCategory}
-          onCustomValueChange={setCustomCategory}
+          onCustomValueChange={(value) => { setCustomCategory(value); setFieldErrors((current) => ({ ...current, customCategory: undefined })); setError(''); }}
           customLabel="Specify category *"
-        />
+          />
+          <FieldError message={fieldErrors.category ?? fieldErrors.customCategory} />
+        </>
       ) : null}
       <FrequencyChips
         value={frequency}
         onChange={setFrequency}
         includeOneTime={item.source === 'bill'}
       />
-      <DatePickerField label="Due date" value={date} onChange={setDate} />
+      <DatePickerField label="Due date" value={date} onChange={(value) => { setDate(value); setFieldErrors((current) => ({ ...current, date: undefined })); setError(''); }} />
+      <FieldError message={fieldErrors.date} />
       {item.source === 'bill' ? (
-        <WalletPicker
+        <>
+          <WalletPicker
           wallets={wallets}
           value={walletId}
-          onChange={setWalletId}
+          onChange={(value) => { setWalletId(value); setFieldErrors((current) => ({ ...current, wallet: undefined })); setError(''); }}
           required
           label="Payment method"
-        />
+          />
+          <FieldError message={fieldErrors.wallet} />
+        </>
       ) : null}
     </FinanceFormSheet>
   );
@@ -839,17 +842,12 @@ function NewBillForm({
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [walletId, setWalletId] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
 
   const save = async () => {
-    const value = parseAmount(amount);
-    if (!name.trim() || value === null || value <= 0 || !category || !walletId) {
-      setError('Enter a biller name and a valid amount.');
-      return;
-    }
-    if (category === 'Other' && !customCategory.trim()) {
-      setError('Please specify a category.');
-      return;
-    }
+    const nextErrors = validateBillForm({ name, amount, date, category, customCategory, walletId });
+    if (Object.keys(nextErrors).length) { setFieldErrors(nextErrors); setError('Check the highlighted fields.'); return; }
+    const value = parseAmount(amount) ?? 0;
     setSaving(true);
     setError('');
     try {
@@ -881,8 +879,9 @@ function NewBillForm({
       title="Add bill"
       eyebrow="BILLS"
       amount={amount}
-      onAmountChange={setAmount}
+      onAmountChange={(value) => { setAmount(value); setFieldErrors((current) => ({ ...current, amount: undefined })); setError(''); }}
       error={error}
+      amountError={fieldErrors.amount}
       saving={saving}
       saveLabel="Save bill"
       onSave={() => void save()}
@@ -891,26 +890,30 @@ function NewBillForm({
       <FormTextInput
         label="Biller name"
         value={name}
-        onChangeText={setName}
+        onChangeText={(value) => { setName(value); setFieldErrors((current) => ({ ...current, name: undefined })); setError(''); }}
+        error={fieldErrors.name}
         placeholder="e.g. Meralco"
       />
       <CategoryChipRow
         value={category}
-        onChange={setCategory}
+        onChange={(value) => { setCategory(value); setFieldErrors((current) => ({ ...current, category: undefined, customCategory: undefined })); setError(''); }}
         options={billCategories}
         label="Category *"
         customValue={customCategory}
-        onCustomValueChange={setCustomCategory}
+        onCustomValueChange={(value) => { setCustomCategory(value); setFieldErrors((current) => ({ ...current, customCategory: undefined })); setError(''); }}
         customLabel="Specify category *"
       />
+      <FieldError message={fieldErrors.category ?? fieldErrors.customCategory} />
       <WalletPicker
         wallets={wallets}
         value={walletId}
-        onChange={setWalletId}
+        onChange={(value) => { setWalletId(value); setFieldErrors((current) => ({ ...current, wallet: undefined })); setError(''); }}
         required
         label="Payment method"
       />
-      <DatePickerField label="Due date" value={date} onChange={setDate} />
+      <FieldError message={fieldErrors.wallet} />
+      <DatePickerField label="Due date" value={date} onChange={(value) => { setDate(value); setFieldErrors((current) => ({ ...current, date: undefined })); setError(''); }} />
+      <FieldError message={fieldErrors.date} />
       <FrequencyChips value={frequency} onChange={setFrequency} includeOneTime />
     </FinanceFormSheet>
   );
@@ -1083,8 +1086,8 @@ function makeStyles(themePalette: typeof palette) {
       backgroundColor: palette.accentPale,
     },
     retryText: { color: palette.accent, fontSize: 12, fontWeight: '900' },
-    overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' },
-    dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.28)' },
+    overlay: { ...StyleSheet.absoluteFill, zIndex: 20, justifyContent: 'flex-end' },
+    dismiss: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(17,35,28,0.28)' },
     editorKeyboard: { maxHeight: '88%' },
     editor: {
       padding: 20,
@@ -1267,6 +1270,3 @@ function makeFilterStyles(themePalette: typeof palette) {
     filterOptionCount: { color: p.muted, fontSize: 13, fontWeight: '800' },
   });
 }
-
-let styles = Object.assign(makeStyles(palette), makeFilterStyles(palette));
-styles = { ...styles, more: { ...styles.more, backgroundColor: 'transparent' } };

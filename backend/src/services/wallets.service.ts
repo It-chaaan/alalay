@@ -1,6 +1,7 @@
 import { client, requireUserId, throwIfError, asNumber, todayIso } from './db.js';
 import { AppError } from '../utils/api.js';
 import { walletTransferPerspective } from './wallet-transactions.js';
+import { buildWalletOpeningBalanceRpcArgs } from './wallet-opening-balance.js';
 
 export type WalletPayload = {
   name: string;
@@ -688,26 +689,10 @@ export async function createWalletWithOpeningBalance(
 ) {
   validateAccountType(payload);
   await validateCreditPaymentWallet(userId, undefined, payload, payload.account_type === 'credit');
-  if (payload.account_type === 'credit') {
-    return createCreditWalletWithOpeningBalance(userId, payload);
-  }
-  const ownerId = requireUserId(userId);
-  const { data, error } = await client().rpc('create_wallet_with_opening_balance', {
-    wallet_name: payload.name,
-    wallet_type: payload.institution_type,
-    wallet_key: payload.institution_key,
-    wallet_color: payload.color ?? '#0F8A6B',
-    wallet_icon: payload.icon ?? null,
-    wallet_currency: payload.currency ?? 'PHP',
-    wallet_last_four: payload.last_four ?? null,
-    opening_amount: payload.opening_balance,
-    account_type_value: payload.account_type ?? null,
-    credit_limit_value: payload.credit_limit ?? null,
-    account_purpose_value: payload.account_purpose ?? null,
-    earns_interest_value: payload.earns_interest ?? false,
-    annual_interest_rate_value: payload.annual_interest_rate ?? null,
-    interest_credit_frequency_value: payload.interest_credit_frequency ?? null,
-  });
+  const { data, error } = await client().rpc(
+    'create_wallet_with_opening_balance_v2',
+    buildWalletOpeningBalanceRpcArgs(payload),
+  );
   if (error?.code === 'P0001' && error.message.includes('classification')) {
     throw new AppError(
       422,
@@ -716,74 +701,17 @@ export async function createWalletWithOpeningBalance(
       `${error.code}: ${error.message}`,
     );
   }
-  if (error && error.code !== 'PGRST202') throwIfError(error);
-  // The RPC is introduced by 20260811010000_wallet_opening_balance.sql. During
-  // rolling deployments PostgREST can briefly have an older schema cache. Use
-  // the same ledger tables as a compatibility path instead of creating a
-  // wallet without its opening balance.
-  if (error?.code === 'PGRST202') {
-    const { data: wallet, error: walletError } = await client()
-      .from('wallets')
-      .insert({
-        user_id: ownerId,
-        name: payload.name,
-        institution_type: payload.institution_type,
-        institution_key: payload.institution_key,
-        color: payload.color ?? '#0F8A6B',
-        icon: payload.icon ?? null,
-        currency: payload.currency ?? 'PHP',
-        last_four: payload.last_four ?? null,
-        is_default_cash: false,
-        account_type: payload.account_type ?? null,
-        credit_limit: payload.credit_limit ?? null,
-        account_purpose: payload.account_purpose ?? null,
-        earns_interest: payload.earns_interest ?? false,
-        annual_interest_rate: payload.annual_interest_rate ?? null,
-        interest_credit_frequency: payload.interest_credit_frequency ?? null,
-        payment_due_date: payload.payment_due_date ?? null,
-        payment_due_day: payload.payment_due_day ?? null,
-        payment_wallet_id: payload.payment_wallet_id ?? null,
-        auto_record_payment: payload.auto_record_payment ?? false,
-        payment_rule: payload.payment_rule ?? null,
-        fixed_payment_amount: payload.fixed_payment_amount ?? null,
-      })
-      .select('*')
-      .single();
-    throwIfError(walletError);
-
-    if (payload.opening_balance > 0) {
-      const { error: adjustmentError } = await client().from('wallet_adjustments').insert({
-        user_id: ownerId,
-        wallet_id: wallet.id,
-        amount: payload.opening_balance,
-        date: todayIso(),
-        note: 'Opening balance',
-      });
-      if (adjustmentError) {
-        const { error: rollbackError } = await client()
-          .from('wallets')
-          .delete()
-          .eq('id', wallet.id)
-          .eq('user_id', ownerId);
-        if (rollbackError) {
-          throw new AppError(
-            500,
-            'wallet_opening_balance_rollback_failed',
-            'Wallet creation could not be completed safely.',
-          );
-        }
-        throwIfError(adjustmentError);
-      }
-    }
-
-    const { data: refreshed, error: refreshError } = await client()
-      .from('wallets')
-      .select('*')
-      .eq('id', wallet.id)
-      .eq('user_id', ownerId)
-      .single();
-    throwIfError(refreshError);
-    return withBalance(refreshed);
+  if (error && error.code !== 'PGRST202' && error.code !== 'PGRST203') throwIfError(error);
+  // Never fall back to separate wallet and ledger writes: the RPC is the
+  // atomic financial boundary. An older schema cache must fail safely until
+  // the forward migration is deployed and PostgREST has refreshed its cache.
+  if (error?.code === 'PGRST202' || error?.code === 'PGRST203') {
+    throw new AppError(
+      503,
+      'wallet_opening_balance_unavailable',
+      'Wallet creation is temporarily unavailable while the database is updating. Please try again shortly.',
+      'create_wallet_with_opening_balance_v2 RPC is unavailable in the PostgREST schema cache.',
+    );
   }
   return withBalance(data as Record<string, unknown>);
 }

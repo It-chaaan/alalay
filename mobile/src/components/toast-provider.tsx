@@ -35,8 +35,8 @@ export function useToast() {
 function ToastPresenter({ toast, onDismiss }: { toast: ToastState; onDismiss: () => void }) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-12)).current;
+  const [opacity] = useState(() => new Animated.Value(0));
+  const [translateY] = useState(() => new Animated.Value(-12));
 
   useEffect(() => {
     if (!toast) return;

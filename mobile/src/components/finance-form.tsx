@@ -1347,6 +1347,7 @@ type FinanceFormSheetProps = {
   onAmountChange: (value: string) => void;
   children: ReactNode;
   error?: string;
+  amountError?: string;
   saving?: boolean;
   saveLabel: string;
   onSave: () => void;
@@ -1455,6 +1456,7 @@ export function FinanceFormSheet({
   saveLabel,
   onSave,
   onClose,
+  amountError,
   amountDisplayTwoDecimals = false,
   amountEditable = true,
 }: FinanceFormSheetProps) {
@@ -1492,7 +1494,7 @@ export function FinanceFormSheet({
         <View
           style={[sheetStyles.sheet, financeEntryStyles.sheet, { backgroundColor: colors.surface }]}
         >
-          <View style={sheetStyles.header}>
+          <View style={[sheetStyles.header, { paddingTop: Math.max(18, insets.top + 8) }]}>
             <View>
               <Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
               <Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text>
@@ -1520,6 +1522,7 @@ export function FinanceFormSheet({
               {displayedAmount}
             </Text>
           </Pressable>
+          {amountError ? <Text accessibilityRole="alert" style={[sheetStyles.error, { color: colors.danger }]}>{amountError}</Text> : null}
           <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
             <View
               style={financeEntryStyles.body}
@@ -1605,6 +1608,7 @@ export function FormTextInput({
   onChangeText,
   multiline = false,
   keyboardType = 'default',
+  error,
 }: {
   label?: string;
   placeholder: string;
@@ -1612,6 +1616,7 @@ export function FormTextInput({
   onChangeText: (value: string) => void;
   multiline?: boolean;
   keyboardType?: 'default' | 'number-pad' | 'decimal-pad';
+  error?: string;
 }) {
   const { colors } = useAppTheme();
   const interaction = useContext(FinanceFormInteractionContext);
@@ -1620,6 +1625,7 @@ export function FormTextInput({
       {label ? <Text style={[inputStyles.label, { color: colors.muted }]}>{label}</Text> : null}
       <TextInput
         accessibilityLabel={label ?? placeholder}
+        accessibilityHint={error}
         value={value}
         onFocus={() => interaction?.deactivateAmount()}
         onChangeText={onChangeText}
@@ -1634,6 +1640,7 @@ export function FormTextInput({
         keyboardType={keyboardType}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
+      {error ? <Text accessibilityRole="alert" style={[inputStyles.error, { color: colors.danger }]}>{error}</Text> : null}
     </View>
   );
 }
@@ -1932,8 +1939,8 @@ const dateStyles = StyleSheet.create({
 });
 
 const sheetStyles = StyleSheet.create({
-  overlay: { ...StyleSheet.absoluteFillObject, zIndex: 20, justifyContent: 'flex-end' },
-  dismiss: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(17,35,28,0.30)' },
+  overlay: { ...StyleSheet.absoluteFill, zIndex: 20, justifyContent: 'flex-end' },
+  dismiss: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(17,35,28,0.30)' },
   keyboard: { flex: 1, justifyContent: 'flex-end' },
   sheet: {
     height: '96%',
@@ -1952,10 +1959,10 @@ const sheetStyles = StyleSheet.create({
     paddingBottom: 8,
   },
   eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  title: { marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' },
+  title: { flex: 1, marginTop: 4, paddingRight: 12, color: formPalette.ink, fontSize: 23, fontWeight: '900' },
   closeButton: {
-    width: 42,
-    height: 42,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 21,
@@ -2016,4 +2023,5 @@ const inputStyles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   multiline: { minHeight: 84, paddingTop: 15 },
+  error: { marginTop: 5, fontSize: 12, fontWeight: '700' },
 });
