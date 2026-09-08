@@ -24,8 +24,10 @@ jobs:
       - run: npm --prefix frontend ci
       - run: npm --prefix mobile ci
       - run: npm --prefix backend run build
-      - run: npm --prefix frontend exec tsc --noEmit
-      - run: npm --prefix mobile exec tsc --noEmit
+      - name: Type-check frontend
+        run: npm --prefix frontend run typecheck
+      - name: Type-check mobile
+        run: npm --prefix mobile run typecheck
       - run: npm --prefix mobile run lint
       - run: npm run scan:encoding
       - run: npm --prefix mobile run test:budget-setup
