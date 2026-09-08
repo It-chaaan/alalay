@@ -1108,7 +1108,7 @@ export function TransferForm({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const requestKey = useRef(`mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const requestKey = useRef<string | null>(null);
   const source = wallets.find((wallet) => wallet.id === fromId);
   const destination = wallets.find((wallet) => wallet.id === toId);
   const suggestedFee = source?.default_outgoing_transfer_fee;
@@ -1118,6 +1118,8 @@ export function TransferForm({
     setFee(suggestedFee == null ? '0' : String(suggestedFee));
   }, [source?.id, suggestedFee]);
   const save = async () => {
+    const idempotencyKey = requestKey.current ?? `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     const feeValue = parseAmount(fee);
     if (value === null || value <= 0) {
@@ -1157,7 +1159,7 @@ export function TransferForm({
           fee: feeValue,
           date,
           note: note.trim() || null,
-          idempotency_key: requestKey.current,
+          idempotency_key: idempotencyKey,
         }),
       });
       notifyFinancialMutation();
@@ -1877,8 +1879,10 @@ function InterestForm({
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const requestKey = useRef(`wallet-interest-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const requestKey = useRef<string | null>(null);
   const save = async () => {
+    const idempotencyKey = requestKey.current ?? `wallet-interest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     if (value === null || value <= 0) {
       setError('Enter an interest amount greater than zero.');
@@ -1890,7 +1894,7 @@ function InterestForm({
       await authenticatedApiRequest(`/api/wallets/${wallet.id}/interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: value, date, note: note.trim() || null, idempotency_key: requestKey.current }),
+        body: JSON.stringify({ amount: value, date, note: note.trim() || null, idempotency_key: idempotencyKey }),
       });
       notifyFinancialMutation();
       await onSaved();

@@ -225,16 +225,7 @@ function MfaVerification() {
     }).catch(() => setError('Unable to start verification. Please sign in again.')).finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => {
-    if (code.length !== 6 || loading || verifying || expired || autoSubmittedCode.current === code) return;
-    autoSubmittedCode.current = code;
-    void verify();
-  // verify is intentionally stable for this mounted MFA screen; the guarded
-  // ref prevents duplicate submissions when the code changes.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [code, loading, verifying, expired]);
-
-  const verify = async () => {
+  const verify = useCallback(async () => {
     if (!factorId || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; }
     const client = getSupabaseClient();
     if (!client) { setError('Authentication is unavailable right now.'); return; }
@@ -254,7 +245,13 @@ function MfaVerification() {
       setCode('');
       autoSubmittedCode.current = null;
     } finally { setVerifying(false); }
-  };
+  }, [code, factorId]);
+
+  useEffect(() => {
+    if (code.length !== 6 || loading || verifying || expired || autoSubmittedCode.current === code) return;
+    autoSubmittedCode.current = code;
+    void verify();
+  }, [code, expired, loading, verify, verifying]);
 
   const backToSignIn = async () => { await cancelAllFinancialReminders(); await getSupabaseClient()?.auth.signOut(); router.replace({ pathname: '/auth', params: { mode: 'signin' } }); };
   const canVerify = !loading && !verifying && !expired && code.length === 6;

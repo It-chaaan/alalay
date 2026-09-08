@@ -418,9 +418,11 @@ function CreditPaymentForm({
   const [date, setDate] = useState(todayIso());
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
-  const requestKey = useRef(`mobile-card-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+  const requestKey = useRef<string | null>(null);
   const paymentWallet = eligibleWallets.find((candidate) => candidate.id === paymentWalletId);
   const save = async () => {
+    const idempotencyKey = requestKey.current ?? `mobile-card-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     if (value === null || value <= 0) return setError('Enter a payment amount greater than zero.');
     if (!paymentWallet) return setError('Choose a payment wallet.');
@@ -433,7 +435,7 @@ function CreditPaymentForm({
         payment_wallet_id: paymentWallet.id,
         principal_amount: value,
         payment_date: date,
-        idempotency_key: requestKey.current,
+        idempotency_key: idempotencyKey,
       });
       await onSaved();
     } catch (requestError) {

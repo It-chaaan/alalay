@@ -67,7 +67,7 @@ function FeatureCarousel({ palette }: { palette: Palette }) {
   const [focusedDot, setFocusedDot] = useState<number | null>(null);
   const [isInteracting, setIsInteracting] = useState(false);
   const [isReducedMotion, setIsReducedMotion] = useState(false);
-  const dotWidths = useRef(featureSlides.map((_, index) => new Animated.Value(index === 0 ? PAGINATION_ACTIVE_WIDTH : PAGINATION_DOT_SIZE))).current;
+  const [dotWidths] = useState(() => featureSlides.map((_, index) => new Animated.Value(index === 0 ? PAGINATION_ACTIVE_WIDTH : PAGINATION_DOT_SIZE)));
 
   useEffect(() => {
     let mounted = true;
