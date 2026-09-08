@@ -56,7 +56,7 @@ function logApi(message: string, details?: Record<string, unknown>) {
   if (typeof __DEV__ !== 'undefined' && __DEV__) console.info(`[API] ${message}`, details ?? '');
 }
 
-function requestId() {
+export function createRequestId() {
   return `mobile-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
@@ -113,7 +113,7 @@ export async function authenticatedApiRequest<T>(path: string, init: RequestInit
   }
 
   const url = `${normalizeApiBaseUrl(apiUrl)}${path}`;
-  const clientRequestId = requestId();
+  const clientRequestId = createRequestId();
   const headers = {
     Accept: 'application/json',
     Authorization: `Bearer ${accessToken}`,

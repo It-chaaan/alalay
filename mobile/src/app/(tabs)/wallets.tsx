@@ -44,7 +44,7 @@ import {
   type WalletAccountType,
   type InstitutionType,
 } from '@/constants/institution-registry';
-import { authenticatedApiRequest } from '@/services/api';
+import { authenticatedApiRequest, createRequestId } from '@/services/api';
 import {
   fetchWallets,
   notifyFinancialMutation,
@@ -1118,7 +1118,7 @@ export function TransferForm({
     setFee(suggestedFee == null ? '0' : String(suggestedFee));
   }, [source?.id, suggestedFee]);
   const save = async () => {
-    const idempotencyKey = requestKey.current ?? `mobile-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const idempotencyKey = requestKey.current ?? createRequestId();
     requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     const feeValue = parseAmount(fee);
@@ -1881,7 +1881,7 @@ function InterestForm({
   const [saving, setSaving] = useState(false);
   const requestKey = useRef<string | null>(null);
   const save = async () => {
-    const idempotencyKey = requestKey.current ?? `wallet-interest-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const idempotencyKey = requestKey.current ?? createRequestId();
     requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     if (value === null || value <= 0) {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
@@ -19,6 +19,8 @@ const palette = {
   accentDark: '#08654E', accentPale: '#D8EFE2', expensePale: '#FBE3DC', line: '#DCE8E0',
   danger: '#B42318', warning: '#B7791F', expense: '#D96C55', savings: '#159A8A',
 };
+const ReportStylesContext = createContext<ReturnType<typeof makeStyles> | null>(null);
+function useReportStyles() { const styles = useContext(ReportStylesContext); if (!styles) throw new Error('Report styles are unavailable.'); return styles; }
 
 type ReportPeriod = 'this_month' | 'last_month' | 'one_year';
 type AnalyticsTab = 'spending' | 'cashflow' | 'savings';
@@ -85,12 +87,14 @@ function normalizeReport(input?: ReportInput | null): Report {
 }
 
 function Donut({ categories }: { categories: Category[] }) {
+  const styles = useReportStyles();
   const { colors } = useAppTheme();
   const top = categories[0];
   return <View style={styles.donutWrap}><SegmentedRing size={132} radius={50} strokeWidth={16} trackColor={colors.primarySoft} segments={categories.map((category) => ({ key: category.name, value: category.amount, color: getCategoryMeta(category.name).color }))}><View style={{ alignItems: 'center', width: 78 }}><Text style={styles.donutPercent}>{top ? `${Math.round(top.percent)}%` : '0%'}</Text><Text numberOfLines={1} style={[styles.donutLabel, { maxWidth: 76 }]}>{top?.name ?? 'No spend'}</Text></View></SegmentedRing></View>;
 }
 
 function SpendingByCategory({ categories, embedded = false }: { categories: Category[]; embedded?: boolean }) {
+  const styles = useReportStyles();
   const { colors } = useAppTheme();
   const { width } = useWindowDimensions();
   const [expanded, setExpanded] = useState(false);
@@ -99,6 +103,7 @@ function SpendingByCategory({ categories, embedded = false }: { categories: Cate
 }
 
 function IncomeVsSpending({ report }: { report: Report }) {
+  const styles = useReportStyles();
   const { colors } = useAppTheme();
   const [selected, setSelected] = useState<'income' | 'spending' | null>(null);
   // Do not use monthly_trend here: the card labels are selected-period totals,
@@ -107,7 +112,6 @@ function IncomeVsSpending({ report }: { report: Report }) {
   const period = shortRangeLabel(report.range);
   const selectedAmount = selected === 'income' ? comparison.income : comparison.spending;
   const selectedRatio = selected === 'income' ? comparison.incomeRatio : comparison.spendingRatio;
-  useEffect(() => setSelected(null), [report.range.start, report.range.end]);
   const bar = (key: 'income' | 'spending', label: 'Income' | 'Spending', amount: number, ratio: number, color: string) => (
     <Pressable
       key={key}
@@ -135,6 +139,7 @@ function IncomeVsSpending({ report }: { report: Report }) {
 }
 
 function SavingsProgress({ report, embedded = false }: { report: Report; embedded?: boolean }) {
+  const styles = useReportStyles();
   const { colors } = useAppTheme();
   const savedPercent = Math.max(0, Math.min(100, report.savings_rate));
   const spentPercent = report.total_income > 0 ? Math.max(0, Math.min(100, report.total_expenses / report.total_income * 100)) : 0;
@@ -142,6 +147,7 @@ function SavingsProgress({ report, embedded = false }: { report: Report; embedde
 }
 
 function BudgetProgress({ report }: { report: Report }) {
+  const styles = useReportStyles();
   if (!report.budget.total_budget) return <View style={styles.progressCard}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Budget progress</Text><WalletCards size={17} color={palette.warning} /></View><Text style={styles.emptyCopy}>No budget set for this period.</Text></View>;
   const percent = Math.round(report.budget.spent / report.budget.total_budget * 100);
   const fill = Math.max(0, Math.min(100, report.budget.spent / report.budget.total_budget * 100));
@@ -150,11 +156,13 @@ function BudgetProgress({ report }: { report: Report }) {
 }
 
 function AnalyticsWorkspace({ report, activeTab, onTabChange, onDetails }: { report: Report; activeTab: AnalyticsTab; onTabChange: (tab: AnalyticsTab) => void; onDetails: () => void }) {
+  const styles = useReportStyles();
   const tabs: { key: AnalyticsTab; label: string }[] = [{ key: 'spending', label: 'Spending' }, { key: 'cashflow', label: 'Cash flow' }, { key: 'savings', label: 'Savings' }];
-  return <View style={styles.analyticsCard}><View style={styles.analyticsTabs}>{tabs.map((tab) => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab.key }} onPress={() => onTabChange(tab.key)} style={[styles.analyticsTab, activeTab === tab.key && styles.analyticsTabActive]}><Text style={[styles.analyticsTabText, activeTab === tab.key && styles.analyticsTabTextActive]}>{tab.label}</Text></Pressable>)}</View><View style={styles.analyticsBody}>{activeTab === 'spending' ? <SpendingByCategory categories={report.categories} embedded /> : activeTab === 'cashflow' ? <><View style={styles.sectionHeading}><View><Text style={styles.cardEyebrow}>Income vs spending</Text><Text style={styles.cardSubtitle}>{report.range.days > 45 ? 'Monthly view' : 'Selected period'}</Text></View><Text style={styles.cardHint}>Tap a bar</Text></View><IncomeVsSpending report={report} /></> : <SavingsProgress report={report} embedded />}</View><Pressable accessibilityRole="button" accessibilityLabel={activeTab === 'spending' ? 'View all spending categories' : `View ${activeTab === 'cashflow' ? 'cash flow' : 'savings'} details`} onPress={onDetails} style={({ pressed }) => [styles.detailsButton, { minWidth: 132, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, pressed && styles.detailsButtonPressed]}><Text style={styles.detailsButtonText}>{activeTab === 'spending' ? 'View all categories' : 'View details'} <Text>›</Text></Text></Pressable></View>;
+  return <View style={styles.analyticsCard}><View style={styles.analyticsTabs}>{tabs.map((tab) => <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: activeTab === tab.key }} onPress={() => onTabChange(tab.key)} style={[styles.analyticsTab, activeTab === tab.key && styles.analyticsTabActive]}><Text style={[styles.analyticsTabText, activeTab === tab.key && styles.analyticsTabTextActive]}>{tab.label}</Text></Pressable>)}</View><View style={styles.analyticsBody}>{activeTab === 'spending' ? <SpendingByCategory categories={report.categories} embedded /> : activeTab === 'cashflow' ? <><View style={styles.sectionHeading}><View><Text style={styles.cardEyebrow}>Income vs spending</Text><Text style={styles.cardSubtitle}>{report.range.days > 45 ? 'Monthly view' : 'Selected period'}</Text></View><Text style={styles.cardHint}>Tap a bar</Text></View><IncomeVsSpending key={`${report.range.start}:${report.range.end}`} report={report} /></> : <SavingsProgress report={report} embedded />}</View><Pressable accessibilityRole="button" accessibilityLabel={activeTab === 'spending' ? 'View all spending categories' : `View ${activeTab === 'cashflow' ? 'cash flow' : 'savings'} details`} onPress={onDetails} style={({ pressed }) => [styles.detailsButton, { minWidth: 132, minHeight: 44, alignItems: 'center', justifyContent: 'center' }, pressed && styles.detailsButtonPressed]}><Text style={styles.detailsButtonText}>{activeTab === 'spending' ? 'View all categories' : 'View details'} <Text>›</Text></Text></Pressable></View>;
 }
 
 function AnalyticsDetailsSheet({ report, tab, onClose }: { report: Report; tab: AnalyticsTab | null; onClose: () => void }) {
+  const styles = useReportStyles();
   const { colors } = useAppTheme();
   const comparison = cashFlowComparison(report.total_income, report.total_expenses);
   return <Modal visible={tab !== null} transparent animationType="slide" onRequestClose={onClose}><Pressable style={styles.sheetBackdrop} onPress={onClose}><Pressable onPress={(event) => event.stopPropagation()} style={[styles.sheet, { backgroundColor: colors.surfaceElevated }]}><View style={styles.detailsHandle} /><View style={styles.sheetHeader}><View><Text style={styles.cardEyebrow}>{tab === 'spending' ? 'Spending details' : tab === 'cashflow' ? 'Cash flow details' : 'Savings details'}</Text><Text style={styles.sheetTitle}>{shortRangeLabel(report.range)}</Text></View><Pressable accessibilityRole="button" accessibilityLabel="Close report details" onPress={onClose} style={styles.sheetClose}><Text style={styles.sheetCloseText}>×</Text></Pressable></View><ScrollView contentContainerStyle={styles.sheetContent}>{tab === 'spending' ? <><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Total spending</Text><Text style={styles.sheetRowValue}>{peso(report.total_expenses)}</Text></View>{report.categories.length ? report.categories.map((category) => <View key={category.name} style={styles.sheetRow}><Text style={styles.sheetRowLabel}>{category.name}</Text><Text style={styles.sheetRowValue}>{peso(category.amount)} · {Math.round(category.percent)}%</Text></View>) : <Text style={styles.emptyCopy}>No spending recorded for this period.</Text>}</> : tab === 'cashflow' ? <><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Total income</Text><Text style={styles.sheetRowValue}>{peso(comparison.income)} · {(comparison.incomeRatio * 100).toFixed(1)}%</Text></View><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Total spending</Text><Text style={styles.sheetRowValue}>{peso(comparison.spending)} · {(comparison.spendingRatio * 100).toFixed(1)}%</Text></View><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Net cash flow</Text><Text style={styles.sheetRowValue}>{peso(report.net_savings, true)}</Text></View></> : <><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Net savings</Text><Text style={styles.sheetRowValue}>{peso(report.net_savings, true)}</Text></View><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Savings rate</Text><Text style={styles.sheetRowValue}>{Math.round(report.savings_rate)}%</Text></View><View style={styles.sheetRow}><Text style={styles.sheetRowLabel}>Active savings goals</Text><Text style={styles.sheetRowValue}>{report.savings.active_goals}</Text></View><Text style={styles.smallNote}>Net savings is income minus spending; it is not assumed to be a savings-goal contribution.</Text></>}</ScrollView></Pressable></Pressable></Modal>;
@@ -166,7 +174,7 @@ function SafeAreaView(props: SafeAreaViewProps) { const { colors } = useAppTheme
 
 export default function ReportsScreen() {
   const { colors } = useAppTheme();
-  styles = makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, line: colors.border });
+  const styles = useMemo(() => makeStyles({ ...palette, background: colors.background, surface: colors.surfaceElevated, ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary, accentDark: colors.primary, accentPale: colors.primarySoft, line: colors.border }), [colors]);
   const bottomNavClearance = useBottomNavClearance(); const router = useRouter();
   const [period, setPeriod] = useState<ReportPeriod>('this_month'); const [report, setReport] = useState<Report | null>(null); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [analyticsTab, setAnalyticsTab] = useState<AnalyticsTab>('spending'); const [detailTab, setDetailTab] = useState<AnalyticsTab | null>(null);
   const requestId = useRef(0);
@@ -174,7 +182,7 @@ export default function ReportsScreen() {
   useFocusEffect(useCallback(() => { void refresh(); }, [refresh]));
   const peak = report ? highestSpending(report.charts.daily_spending) : null;
 
-  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}><FinancialScreenHeader title="Reports" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} /><ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
+  return <ReportStylesContext.Provider value={styles}><SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}><FinancialScreenHeader title="Reports" onBack={() => router.back()} rightAction={<NotificationHeaderButton />} /><ScrollView contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance }]} showsVerticalScrollIndicator={false}>
     <View style={styles.filterContainer}><View style={styles.periods}>{periodOptions.map((option) => <Pressable key={option.value} accessibilityRole="tab" accessibilityLabel={`${option.label} reports`} accessibilityState={{ selected: period === option.value }} onPress={() => setPeriod(option.value)} style={[styles.periodChip, period === option.value && styles.periodChipActive]}><Text numberOfLines={1} style={[styles.periodText, period === option.value && styles.periodTextActive]}>{option.label}</Text></Pressable>)}</View></View>
     {loading ? <View style={styles.loadingDashboard}><ActivityIndicator color={colors.primary} /><Text style={styles.muted}>Loading insights…</Text></View> : error ? <View style={styles.card}><Text style={styles.cardTitle}>Reports unavailable</Text><Text style={styles.muted}>{error}</Text><Pressable onPress={() => void refresh()} style={styles.retry}><Text style={styles.retryText}>Try again</Text></Pressable></View> : report ? <>
       <View accessibilityRole="summary" accessibilityLabel={`Selected period ${shortRangeLabel(report.range)}. Income ${peso(report.total_income)}. Spending ${peso(report.total_expenses)}. Net savings ${peso(report.net_savings, true)}.`} style={styles.summaryCard}><Text style={styles.cardEyebrow}>Selected period</Text><Text style={styles.summaryTitle}>{shortRangeLabel(report.range)}</Text><View style={styles.summaryMetrics}><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Income</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.summaryIncome}>{peso(report.total_income)}</Text></View><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Spending</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.summaryExpense}>{peso(report.total_expenses)}</Text></View><View style={styles.summaryMetric}><Text style={styles.metricLabel}>Net savings</Text><Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={[styles.summaryNet, report.net_savings < 0 && styles.warning]}>{peso(report.net_savings, true)}</Text></View></View></View>
@@ -182,7 +190,7 @@ export default function ReportsScreen() {
       <BudgetProgress report={report} />
       {peak ? <View style={styles.peakRow}><TrendingDown size={16} color={colors.primary} /><Text style={styles.peakText}>Peak spending <Text style={styles.peakStrong}>{readableDate(peak.date)} · {peso(peak.amount)}</Text></Text></View> : null}
     </> : <View style={styles.loadingDashboard}><Text style={styles.cardTitle}>No report data yet</Text><Text style={styles.muted}>Add a few financial records to see insights here.</Text></View>}
-  </ScrollView>{report ? <AnalyticsDetailsSheet report={report} tab={detailTab} onClose={() => setDetailTab(null)} /> : null}</SafeAreaView>;
+  </ScrollView>{report ? <AnalyticsDetailsSheet report={report} tab={detailTab} onClose={() => setDetailTab(null)} /> : null}</SafeAreaView></ReportStylesContext.Provider>;
 }
 
 function makeStyles(themePalette: typeof palette) { const p = themePalette; return StyleSheet.create({
@@ -196,4 +204,3 @@ function makeStyles(themePalette: typeof palette) { const p = themePalette; retu
   insightRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12 }, insightIcon: { width: 30, height: 30, alignItems: 'center', justifyContent: 'center', borderRadius: 10, backgroundColor: p.accentPale }, insightCopy: { flex: 1 }, insightTitle: { color: p.ink, fontSize: 11, fontWeight: '900' }, insightText: { marginTop: 2, color: p.muted, fontSize: 10, lineHeight: 15 }, loadingDashboard: { minHeight: 300, alignItems: 'center', justifyContent: 'center', gap: 9 }, muted: { color: p.muted, fontSize: 12, lineHeight: 18 }, retry: { alignSelf: 'flex-start', marginTop: 14, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 16, backgroundColor: p.accentPale }, retryText: { color: p.accent, fontSize: 12, fontWeight: '900' }, detailsButtonPressed: { opacity: 0.68 }, detailsHandle: { alignSelf: 'center', width: 36, height: 4, borderRadius: 2, marginBottom: 14, backgroundColor: p.line }, sheetContent: { paddingBottom: 24 },
 }); }
 
-let styles = makeStyles(palette);

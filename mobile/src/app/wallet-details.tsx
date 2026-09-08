@@ -20,7 +20,7 @@ import { type Wallet } from '@/components/wallet-picker';
 import { WalletPicker } from '@/components/wallet-picker';
 import { DatePickerField, FinanceFormSheet, FormTextInput, parseAmount } from '@/components/finance-form';
 import { fetchWallets, notifyFinancialMutation, repayCreditAccount } from '@/services/finance';
-import { authenticatedApiRequest } from '@/services/api';
+import { authenticatedApiRequest, createRequestId } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
 import { formatCurrency } from '@/utils/currency';
 import { DepositForm, EditWalletSheet, TransferForm } from './(tabs)/wallets';
@@ -421,7 +421,7 @@ function CreditPaymentForm({
   const requestKey = useRef<string | null>(null);
   const paymentWallet = eligibleWallets.find((candidate) => candidate.id === paymentWalletId);
   const save = async () => {
-    const idempotencyKey = requestKey.current ?? `mobile-card-payment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const idempotencyKey = requestKey.current ?? createRequestId();
     requestKey.current = idempotencyKey;
     const value = parseAmount(amount);
     if (value === null || value <= 0) return setError('Enter a payment amount greater than zero.');
