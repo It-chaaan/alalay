@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, FlatList, Pressable, ScrollView, StyleSheet, Text, View, type NativeScrollEvent, type NativeSyntheticEvent } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -42,89 +42,6 @@ const lightPalette: Palette = {
   bill: '#F7FAF7',
 };
 
-const darkPalette: Palette = {
-  background: '#092018',
-  surface: '#102C22',
-  card: '#173D2D',
-  ink: '#F4FAF6',
-  muted: '#B8CAC0',
-  accent: '#23A77F',
-  accentSoft: '#5DAE8A',
-  accentPale: '#1D4C38',
-  line: '#295341', white: '#F7FCF8', face: '#D99D76',
-  bill: '#153326',
-};
-
-function FinanceIllustration({ palette }: { palette: Palette }) {
-  const bars = [28, 46, 34, 62, 42];
-
-  return (
-    <View accessible accessibilityLabel="A preview of your finances in Alalay" style={styles.art}>
-      <View style={[styles.artHalo, { backgroundColor: palette.accentPale }]} />
-      <View style={[styles.artOrb, { backgroundColor: palette.accentSoft }]} />
-
-      <View style={[styles.overviewCard, { backgroundColor: palette.accent }]}>
-        <View style={styles.overviewHeader}>
-          <Text style={styles.overviewLabel}>Overview</Text>
-          <View style={styles.overviewDot} />
-        </View>
-        <View style={styles.balanceLine} />
-        <View style={[styles.balanceLine, styles.balanceLineShort]} />
-        <View style={styles.overviewFooter}>
-          <View style={styles.miniLine} />
-          <View style={[styles.miniLine, styles.miniLineShort]} />
-        </View>
-      </View>
-
-      <View style={[styles.spendingCard, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-        <Text style={[styles.metricLabel, { color: palette.muted }]}>Spending</Text>
-        <View style={styles.barGroup}>
-          {bars.map((height, index) => (
-            <View key={height} style={[styles.bar, { height, backgroundColor: index === 3 ? palette.accent : palette.accentSoft }]} />
-          ))}
-        </View>
-      </View>
-
-      <View style={[styles.billsCard, { backgroundColor: palette.bill, borderColor: palette.line }]}>
-        <Text style={[styles.metricLabel, { color: palette.ink }]}>Upcoming bills</Text>
-        <View style={styles.billRow}>
-          <View style={[styles.billChip, { backgroundColor: palette.accent }]} />
-          <View style={styles.billCopy}>
-            <View style={[styles.billLine, { backgroundColor: palette.line }]} />
-            <View style={[styles.billLine, styles.billLineShort, { backgroundColor: palette.line }]} />
-          </View>
-        </View>
-        <View style={styles.billRow}>
-          <View style={[styles.billChip, { backgroundColor: palette.accentSoft }]} />
-          <View style={styles.billCopy}>
-            <View style={[styles.billLine, { backgroundColor: palette.line }]} />
-            <View style={[styles.billLine, styles.billLineShort, { backgroundColor: palette.line }]} />
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.savingsCard, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-        <Text style={[styles.metricLabel, { color: palette.muted }]}>Savings progress</Text>
-        <View style={styles.progressRow}>
-          <View style={[styles.progressTrack, { backgroundColor: palette.accentPale }]}>
-            <View style={[styles.progressFill, { backgroundColor: palette.accent }]} />
-          </View>
-          <Text style={[styles.progressValue, { color: palette.ink }]}>42%</Text>
-        </View>
-        <View style={[styles.savingsLine, { backgroundColor: palette.line }]} />
-      </View>
-
-      <View style={[styles.person, { backgroundColor: palette.accentPale }]}>
-        <View style={[styles.personHair, { backgroundColor: palette.ink }]} />
-        <View style={[styles.personFace, { backgroundColor: '#D99D76' }]} />
-        <View style={[styles.personShirt, { backgroundColor: palette.accent }]} />
-      </View>
-      <View style={[styles.smallBadge, { backgroundColor: palette.surface, borderColor: palette.line }]}>
-        <Text style={[styles.badgeGlyph, { color: palette.accent }]}>₱</Text>
-      </View>
-    </View>
-  );
-}
 
 type FeatureSlide = {
   key: string;
@@ -134,92 +51,6 @@ type FeatureSlide = {
 
 function HeroSlideArt({ source, label }: { source: number; label: string }) {
   return <Image source={source} contentFit="contain" accessibilityLabel={label} style={styles.heroArt} />;
-}
-
-function PreviewCard({ palette, style, children }: { palette: Palette; style?: object; children: ReactNode }) {
-  return <View style={[styles.previewCard, { backgroundColor: palette.surface, borderColor: palette.line }, style]}>{children}</View>;
-}
-
-function PreviewLabel({ palette, children }: { palette: Palette; children: ReactNode }) {
-  return <Text style={[styles.previewLabel, { color: palette.muted }]}>{children}</Text>;
-}
-
-function BudgetIllustration({ palette }: { palette: Palette }) {
-  return (
-    <View accessible accessibilityLabel="A preview of budget planning" style={styles.art}>
-      <View style={[styles.slideHeading, { backgroundColor: palette.accentPale }]}>
-        <Text style={[styles.slideEyebrow, { color: palette.accent }]}>Plan with confidence</Text>
-        <Text style={[styles.slideTitle, { color: palette.ink }]}>Budget</Text>
-      </View>
-      <PreviewCard palette={palette} style={styles.budgetMainCard}>
-        <PreviewLabel palette={palette}>Monthly plan</PreviewLabel>
-        <Text style={[styles.previewAmount, { color: palette.ink }]}>₱35,000</Text>
-        <Text style={[styles.previewCaption, { color: palette.muted }]}>Total budget</Text>
-        <BudgetBar palette={palette} label="Needs" value="₱18,400" width="72%" color={palette.accent} />
-        <BudgetBar palette={palette} label="Wants" value="₱7,200" width="45%" color={palette.accentSoft} />
-        <BudgetBar palette={palette} label="Savings" value="₱9,400" width="58%" color={palette.accent} />
-      </PreviewCard>
-      <PreviewCard palette={palette} style={styles.budgetSmallCard}>
-        <PreviewLabel palette={palette}>Actual</PreviewLabel>
-        <Text style={[styles.previewSmallAmount, { color: palette.ink }]}>₱25,600</Text>
-        <Text style={[styles.previewCaption, { color: palette.muted }]}>of ₱35,000 planned</Text>
-      </PreviewCard>
-      <View style={[styles.budgetPill, { backgroundColor: palette.accent }]}><Text style={styles.budgetPillText}>On track</Text></View>
-    </View>
-  );
-}
-
-function BudgetBar({ palette, label, value, width, color }: { palette: Palette; label: string; value: string; width: `${number}%`; color: string }) {
-  return (
-    <View style={styles.budgetRow}>
-      <View style={styles.budgetRowHeader}><Text style={[styles.budgetRowLabel, { color: palette.muted }]}>{label}</Text><Text style={[styles.budgetRowValue, { color: palette.ink }]}>{value}</Text></View>
-      <View style={[styles.budgetTrack, { backgroundColor: palette.accentPale }]}><View style={[styles.budgetFill, { width, backgroundColor: color }]} /></View>
-    </View>
-  );
-}
-
-function ReportsIllustration({ palette }: { palette: Palette }) {
-  const points = [42, 36, 48, 29, 40, 22, 31, 16];
-  return (
-    <View accessible accessibilityLabel="A preview of spending reports" style={styles.art}>
-      <View style={[styles.slideHeading, { backgroundColor: palette.accentPale }]}>
-        <Text style={[styles.slideEyebrow, { color: palette.accent }]}>See the bigger picture</Text>
-        <Text style={[styles.slideTitle, { color: palette.ink }]}>Reports</Text>
-      </View>
-      <PreviewCard palette={palette} style={styles.reportCard}>
-        <PreviewLabel palette={palette}>Daily spending trend</PreviewLabel>
-        <View style={[styles.chartArea, { backgroundColor: palette.accentPale }]}>
-          <View style={styles.chartBars}>{points.map((height, index) => <View key={index} style={[styles.chartBar, { height, backgroundColor: index === 5 ? palette.accent : palette.accentSoft }]} />)}</View>
-          <View style={[styles.chartLine, { backgroundColor: palette.accent }]} />
-        </View>
-        <View style={styles.chartLabels}><Text style={[styles.chartLabel, { color: palette.muted }]}>Mon</Text><Text style={[styles.chartLabel, { color: palette.muted }]}>Wed</Text><Text style={[styles.chartLabel, { color: palette.muted }]}>Sun</Text></View>
-      </PreviewCard>
-      <PreviewCard palette={palette} style={styles.categoryCard}>
-        <PreviewLabel palette={palette}>Category breakdown</PreviewLabel>
-        <View style={styles.categoryContent}><View style={[styles.categoryDonut, { borderColor: palette.accent, backgroundColor: palette.accentPale }]}><Text style={[styles.categoryTotal, { color: palette.ink }]}>₱14k</Text></View><View style={styles.categoryLegend}><Text style={[styles.legendText, { color: palette.muted }]}>Needs 42%</Text><Text style={[styles.legendText, { color: palette.muted }]}>Food 26%</Text><Text style={[styles.legendText, { color: palette.muted }]}>Others 32%</Text></View></View>
-      </PreviewCard>
-    </View>
-  );
-}
-
-function AssistantOcrIllustration({ palette }: { palette: Palette }) {
-  return (
-    <View accessible accessibilityLabel="A preview of Ask Alalay and receipt scanning" style={styles.art}>
-      <View style={[styles.slideHeading, { backgroundColor: palette.accentPale }]}>
-        <Text style={[styles.slideEyebrow, { color: palette.accent }]}>A little help, right when you need it</Text>
-        <Text style={[styles.slideTitle, { color: palette.ink }]}>Ask Alalay</Text>
-      </View>
-      <PreviewCard palette={palette} style={styles.chatCard}>
-        <PreviewLabel palette={palette}>AI assistant</PreviewLabel>
-        <View style={[styles.userBubble, { backgroundColor: palette.accentPale }]}><Text style={[styles.bubbleText, { color: palette.ink }]}>How can I make room for my savings goal?</Text></View>
-        <View style={[styles.assistantBubble, { backgroundColor: palette.accent }]}><Text style={styles.assistantBubbleText}>Let’s look at your budget together.</Text></View>
-      </PreviewCard>
-      <PreviewCard palette={palette} style={styles.ocrCard}>
-        <PreviewLabel palette={palette}>OCR scanner</PreviewLabel>
-        <View style={[styles.scanBox, { borderColor: palette.accent, backgroundColor: palette.accentPale }]}><Text style={[styles.scanText, { color: palette.accent }]}>Scan a receipt</Text><Text style={[styles.previewCaption, { color: palette.muted }]}>Review before saving</Text></View>
-      </PreviewCard>
-    </View>
-  );
 }
 
 const featureSlides: FeatureSlide[] = [

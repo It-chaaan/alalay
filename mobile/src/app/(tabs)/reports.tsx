@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { SafeAreaView as NativeSafeAreaView, type SafeAreaViewProps } from 'react-native-safe-area-context';
-import { CheckCircle2, Lightbulb, TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
+import { TrendingDown, TrendingUp, WalletCards } from 'lucide-react-native';
 
 import { authenticatedApiRequest } from '@/services/api';
 import { SegmentedBar, SegmentedRing } from '@/components/segmented-ring';
@@ -147,19 +147,6 @@ function BudgetProgress({ report }: { report: Report }) {
   const fill = Math.max(0, Math.min(100, report.budget.spent / report.budget.total_budget * 100));
   const color = percent > 100 ? palette.danger : percent >= 90 ? palette.expense : percent >= 70 ? palette.warning : palette.savings;
   return <View style={styles.card}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Budget progress</Text><Text style={[styles.budgetPercent, { color }]}>{percent}% used</Text></View><Text style={styles.cardSubtitle}>{peso(report.budget.spent)} of {peso(report.budget.total_budget)}</Text><View style={styles.budgetTrack}><View style={[styles.budgetFill, { width: `${fill}%`, backgroundColor: color }]} /></View><View style={styles.progressMeta}><Text style={styles.metaText}>{report.budget.remaining >= 0 ? `${peso(report.budget.remaining)} remaining` : `${peso(Math.abs(report.budget.remaining))} over`}</Text>{report.budget.over_budget_categories.length ? <Text style={styles.metaText}>{report.budget.over_budget_categories.length} over limit</Text> : <Text style={styles.metaText}>On track</Text>}</View></View>;
-}
-
-function Insights({ report }: { report: Report }) {
-  const insights = useMemo(() => {
-    const rows: { title: string; copy: string; icon: 'category' | 'trend' | 'budget' }[] = [];
-    const top = report.categories[0];
-    if (top) rows.push({ title: `${top.name} leads spending`, copy: `${Math.round(top.percent)}% of your expenses went to this category.`, icon: 'category' });
-    if (report.total_income > 0 && report.net_savings > 0) rows.push({ title: 'You kept money this period', copy: `${Math.round(report.savings_rate)}% of income remained after spending.`, icon: 'trend' });
-    if (report.budget.total_budget) rows.push({ title: report.budget.remaining >= 0 ? 'Budget is still available' : 'Budget needs attention', copy: report.budget.remaining >= 0 ? `${peso(report.budget.remaining)} remains in your selected period.` : `${peso(Math.abs(report.budget.remaining))} is over the planned budget.`, icon: 'budget' });
-    return rows.slice(0, 3);
-  }, [report]);
-  if (!insights.length) return null;
-  return <View style={styles.card}><View style={styles.sectionHeading}><Text style={styles.cardEyebrow}>Top insights</Text><Lightbulb size={17} color={palette.warning} /></View>{insights.map((item) => { const Icon = item.icon === 'category' ? TrendingDown : item.icon === 'budget' ? WalletCards : CheckCircle2; return <View key={item.title} style={styles.insightRow}><View style={styles.insightIcon}><Icon size={15} color={palette.accent} /></View><View style={styles.insightCopy}><Text style={styles.insightTitle}>{item.title}</Text><Text style={styles.insightText}>{item.copy}</Text></View></View>; })}</View>;
 }
 
 function AnalyticsWorkspace({ report, activeTab, onTabChange, onDetails }: { report: Report; activeTab: AnalyticsTab; onTabChange: (tab: AnalyticsTab) => void; onDetails: () => void }) {

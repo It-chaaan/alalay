@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowDownLeft, ArrowUpRight, Check, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
+import { ArrowDownLeft, ArrowUpRight, ChevronRight, Plus, Trash2 } from 'lucide-react-native';
 
 import { DatePickerField, FinanceFormSheet, FormTextInput, parseAmount } from '@/components/finance-form';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
