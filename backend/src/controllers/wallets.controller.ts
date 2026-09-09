@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { createWallet, createWalletDeposit, createWalletInterest, createWalletTransfer, createWalletWithOpeningBalance, deleteWallet, getWallet, getWalletInterestEstimate, listWallets, repayCreditAccount, updateWallet, } from "../services/wallets.service.js";
+import { createCreditCardFinanceCharge, createCreditCardStatement, createWallet, createWalletDeposit, createWalletInterest, createWalletTransfer, createWalletWithOpeningBalance, deleteWallet, getWallet, getWalletInterestEstimate, listWallets, repayCreditAccount, updateWallet, } from "../services/wallets.service.js";
 import { sendSuccess } from "../utils/api.js";
 
 export async function list(req: Request, res: Response) { return sendSuccess(res, await listWallets(req.user!.id)); }
@@ -12,4 +12,6 @@ export async function deposit(req: Request, res: Response) { return sendSuccess(
 export async function transfer(req: Request, res: Response) { return sendSuccess(res, await createWalletTransfer(req.user!.id, req.validated?.body as never), 201); }
 export async function interest(req: Request, res: Response) { return sendSuccess(res, await createWalletInterest(req.user!.id, String(req.params.id), req.validated?.body as never), 201); }
 export async function interestEstimate(req: Request, res: Response) { return sendSuccess(res, await getWalletInterestEstimate(req.user!.id, String(req.params.id))); }
+export async function financeCharge(req: Request, res: Response) { return sendSuccess(res, await createCreditCardFinanceCharge(req.user!.id, String(req.params.id), req.validated?.body as never), 201); }
+export async function statement(req: Request, res: Response) { return sendSuccess(res, await createCreditCardStatement(req.user!.id, String(req.params.id), req.validated?.body as never), 201); }
 export async function repayment(req: Request, res: Response) { return sendSuccess(res, await repayCreditAccount(req.user!.id, String(req.params.id), req.validated?.body as never), 201); }

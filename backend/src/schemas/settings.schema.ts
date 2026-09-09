@@ -3,7 +3,6 @@ import { z } from "zod";
 export const updateProfileSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
-  avatar_url: z.string().url().max(500).nullable().optional(),
   phone: z.string().max(32).nullable().optional(),
   currency: z.enum(["PHP", "USD", "EUR", "JPY", "SGD"]).optional(),
   language: z.enum(["en", "fil"]).optional(),
@@ -12,7 +11,11 @@ export const updateProfileSchema = z.object({
   onboarding_done: z.boolean().optional(),
 }).strict();
 
-export const notificationPreferencesSchema = z.object({
+export const updateAvatarSchema = z.object({
+  avatar_path: z.string().min(1).max(300).nullable(),
+}).strict();
+
+const notificationPreferenceFields = z.object({
   bill_reminders: z.boolean(),
   bill_reminder_days: z.coerce.number().int().min(0).max(30),
   bill_reminder_three_days: z.boolean().optional().default(true),
@@ -28,6 +31,11 @@ export const notificationPreferencesSchema = z.object({
   savings_milestones: z.boolean(),
   login_alerts: z.boolean(),
 }).strict();
+
+export const notificationPreferencesSchema = notificationPreferenceFields.partial().refine(
+  (value) => Object.keys(value).length > 0,
+  'Choose at least one notification preference to update.',
+);
 
 export const overviewCardKeySchema = z.enum(["bills", "spending", "savings", "budget"]);
 

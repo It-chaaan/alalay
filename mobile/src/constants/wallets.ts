@@ -6,6 +6,7 @@ export type WalletPreset = {
   type: InstitutionType;
   color: string;
   group: string;
+  aliases: readonly string[];
 };
 
 export type WalletVisual = { mark: string; watermark: string };
@@ -41,7 +42,7 @@ export function walletVisualFor(key: string): WalletVisual {
 
 const groups: Record<InstitutionType, string> = {
   e_wallet: 'E-wallets',
-  digital_bank: 'Digital banks',
+  digital_bank: 'Digital and app-based banks',
   bank: 'Traditional banks',
   cash: 'Cash',
   other: 'Other',
@@ -53,7 +54,14 @@ export const walletPresets: WalletPreset[] = institutionRegistry.map((institutio
   type: institution.institutionType,
   color: institution.brandColor,
   group: groups[institution.institutionType],
+  aliases: institution.aliases,
 }));
+
+export function matchesWalletPreset(preset: WalletPreset, query: string) {
+  const normalize = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ');
+  const needle = normalize(query);
+  return !needle || [preset.name, preset.key, ...preset.aliases].some((value) => normalize(value).includes(needle));
+}
 
 export function walletInitials(name: string) {
   return name

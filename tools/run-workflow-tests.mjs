@@ -2,15 +2,12 @@ import { readdirSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import process from 'node:process';
-import { pathToFileURL } from 'node:url';
 
 const root = process.cwd();
 const backendDirectory = join(root, 'backend');
 const frontendDirectory = join(root, 'frontend');
 const mobileDirectory = join(root, 'mobile');
-const tsxLoader = pathToFileURL(
-  join(backendDirectory, 'node_modules', 'tsx', 'dist', 'loader.mjs'),
-).href;
+const tsxCli = join(backendDirectory, 'node_modules', 'tsx', 'dist', 'cli.mjs');
 const mode = process.argv[2] ?? 'all';
 
 function findTests(directory) {
@@ -26,20 +23,17 @@ function testCommand(testPath) {
     return {
       cwd: frontendDirectory,
       path: relative(frontendDirectory, testPath).replaceAll('\\', '/'),
-      loader: tsxLoader,
     };
   }
   if (testPath.startsWith(mobileDirectory)) {
     return {
       cwd: mobileDirectory,
       path: relative(mobileDirectory, testPath).replaceAll('\\', '/'),
-      loader: tsxLoader,
     };
   }
   return {
     cwd: backendDirectory,
     path: relative(backendDirectory, testPath).replaceAll('\\', '/'),
-    loader: tsxLoader,
   };
 }
 
@@ -68,13 +62,16 @@ function testArea(testPath) {
 const results = [];
 for (const testPath of selectedTests) {
   const command = testCommand(testPath);
-  const result = spawnSync(process.execPath, ['--import', command.loader, command.path], {
+  const result = spawnSync(process.execPath, [tsxCli, command.path], {
     cwd: command.cwd,
     encoding: 'utf8',
   });
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
-  results.push({ testPath, status: result.status ?? 1 });
+  if (result.error) {
+    process.stderr.write(`HARNESS FAILURE: ${relative(root, testPath)} could not start: ${result.error.message}\n`);
+  }
+  results.push({ testPath, status: result.status ?? 1, harnessError: result.error?.message });
 }
 
 const failed = results.filter((result) => result.status !== 0);
@@ -82,6 +79,8 @@ console.log('\nAPI + FINANCIAL WORKFLOW TEST SUMMARY');
 console.log(`Executed: ${results.length}`);
 console.log(`Passed: ${results.length - failed.length}`);
 console.log(`Failed: ${failed.length}`);
+const harnessFailures = failed.filter((result) => result.harnessError);
+if (harnessFailures.length) console.log(`Harness failures: ${harnessFailures.length}`);
 for (const area of new Set(results.map((result) => testArea(result.testPath)))) {
   const areaResults = results.filter((result) => testArea(result.testPath) === area);
   const areaFailures = areaResults.filter((result) => result.status !== 0).length;

@@ -7,7 +7,8 @@ export type ProfileRecord = {
   email?: string | null;
   phone?: string | null;
   avatar_url?: string | null;
-  avatar_source?: 'profile' | 'provider' | null;
+  avatar_path?: string | null;
+  avatar_source?: 'uploaded' | 'provider' | null;
   provider?: string | null;
 };
 
@@ -17,11 +18,12 @@ export type CurrentProfile = {
   email: string;
   phone: string;
   avatarUrl: string | null;
-  avatarSource: 'profile' | 'provider' | null;
+  avatarSource: 'uploaded' | 'provider' | null;
   provider: string | null;
 };
 
 type ProfileUpdate = { name: string; phone: string | null };
+const avatarBucket = 'profile-avatars';
 
 const cache = new Map<string, CurrentProfile>();
 const pending = new Map<string, Promise<CurrentProfile>>();
@@ -31,9 +33,18 @@ function getInitialsName(value: string) {
   return value.trim() || 'User';
 }
 
-function normalizeProfile(userId: string, email: string, provider: string | null, value: ProfileRecord): CurrentProfile {
+async function avatarUrl(path: string | null | undefined) {
+  if (!path) return null;
+  const storage = getSupabaseClient()?.storage.from(avatarBucket);
+  if (!storage) return null;
+  const { data, error } = await storage.createSignedUrl(path, 60 * 60);
+  return error ? null : data.signedUrl;
+}
+
+async function normalizeProfile(userId: string, email: string, provider: string | null, value: ProfileRecord): Promise<CurrentProfile> {
   const name = getInitialsName(value.name || email.split('@')[0] || 'User');
-  return { userId, name, email, phone: value.phone?.trim() || '', avatarUrl: value.avatar_url || null, avatarSource: value.avatar_source || (value.avatar_url ? 'profile' : null), provider: value.provider || provider };
+  const customUrl = await avatarUrl(value.avatar_path);
+  return { userId, name, email, phone: value.phone?.trim() || '', avatarUrl: customUrl || value.avatar_url || null, avatarSource: customUrl ? 'uploaded' : (value.avatar_source === 'provider' || value.avatar_url ? 'provider' : null), provider: value.provider || provider };
 }
 
 async function resolveUser() {
@@ -53,8 +64,8 @@ export async function loadCurrentProfile(force = false) {
   if (!force && existing) return existing;
 
   const request = authenticatedApiRequest<ProfileRecord>('/api/users/me')
-    .then((value) => {
-      const profile = normalizeProfile(user.id, user.email || value.email || '', provider, value);
+    .then(async (value) => {
+      const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
       cache.set(user.id, profile);
       listeners.forEach((listener) => listener());
       return profile;
@@ -71,9 +82,40 @@ export async function updateCurrentProfile(payload: ProfileUpdate) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  const profile = normalizeProfile(user.id, user.email || value.email || '', provider, value);
+  const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
   cache.set(user.id, profile);
   listeners.forEach((listener) => listener());
+  return profile;
+}
+
+export async function uploadCurrentAvatar(uri: string, mimeType: 'image/jpeg' | 'image/png' | 'image/webp') {
+  const { user } = await resolveUser();
+  const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
+  const path = `${user.id}/avatar/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
+  const response = await fetch(uri);
+  const body = await response.arrayBuffer();
+  if (!body.byteLength || body.byteLength > 2 * 1024 * 1024) throw new Error('Choose an image smaller than 2 MB.');
+  const storage = getSupabaseClient()?.storage.from(avatarBucket);
+  if (!storage) throw new Error('Photo upload is unavailable.');
+  const { error: uploadError } = await storage.upload(path, body, { contentType: mimeType, upsert: false });
+  if (uploadError) throw new Error('Your profile photo could not be uploaded.');
+  try {
+    await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_path: path }) });
+    return loadCurrentProfile(true);
+  } catch (error) {
+    await storage.remove([path]);
+    throw error;
+  }
+}
+
+export async function removeCurrentAvatar() {
+  const { user, provider } = await resolveUser();
+  const current = await authenticatedApiRequest<ProfileRecord>('/api/users/me');
+  const oldPath = current.avatar_path;
+  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_path: null }) });
+  if (oldPath) await getSupabaseClient()?.storage.from(avatarBucket).remove([oldPath]);
+  const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
+  cache.set(user.id, profile); listeners.forEach((listener) => listener());
   return profile;
 }
 

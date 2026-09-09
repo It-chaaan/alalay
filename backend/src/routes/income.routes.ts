@@ -10,9 +10,27 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { resourceRouter } from './resource.routes.js';
 import { nextPayday } from '../services/payday.service.js';
 import { incomeMonthQuerySchema, incomeRecordedQuerySchema } from '../schemas/income.schema.js';
+import { idParamSchema } from '../schemas/common.schema.js';
 import { validateRequest } from '../middleware/validateRequest.js';
+import { writeRateLimit } from '../middleware/rateLimit.js';
+import { retryIncomeScheduleCredit } from '../services/income-scheduler.service.js';
 
 export const incomeRouter = Router();
+
+incomeRouter.post(
+  '/:id/retry-credit',
+  writeRateLimit,
+  validateRequest({ params: idParamSchema }),
+  asyncHandler(async (req, res) => {
+    const result = await retryIncomeScheduleCredit(req.user!.id, String(req.params.id));
+    if (result.processed === 0) {
+      // A concurrent scheduler may have already completed the retry. Return a
+      // safe result; the subsequent refresh is authoritative.
+      return sendSuccess(res, { ...result, message: 'No eligible delayed occurrence remained.' });
+    }
+    return sendSuccess(res, result);
+  }),
+);
 
 /** Posted transactions only; schedule definitions and future projections stay out of Recent Income. */
 incomeRouter.get(

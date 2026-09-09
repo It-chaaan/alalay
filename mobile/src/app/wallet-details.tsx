@@ -39,6 +39,8 @@ type WalletDetail = {
   transactions?: WalletTransaction[];
   transactionError?: string;
   interestEstimate?: { enabled: boolean; annual_interest_rate?: number | string; estimated_daily_interest?: number | string; estimated_accrued_interest?: number | string };
+  creditCardInterestEstimate?: { enabled: boolean; tracking_mode?: 'estimate_only' | 'manual_confirm'; rate?: number | string; rate_basis?: 'annual' | 'monthly'; estimated_finance_charge?: number | string };
+  statements?: Array<{ id: string; statement_balance: number | string; minimum_due: number | string; amount_paid: number | string; remaining_balance: number | string; due_date: string; closing_date?: string; status: string }>;
 };
 
 const peso = (value: number | string) => formatCurrency(Math.round(Number(value) || 0));
@@ -78,6 +80,8 @@ export default function WalletDetailsScreen() {
   const [transferOpen, setTransferOpen] = useState(false);
   const [payCardOpen, setPayCardOpen] = useState(false);
   const [purchaseOpen, setPurchaseOpen] = useState(false);
+  const [statementOpen, setStatementOpen] = useState(false);
+  const [financeChargeOpen, setFinanceChargeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
 
   const load = useCallback(async () => {
@@ -110,6 +114,8 @@ export default function WalletDetailsScreen() {
 
   const wallet = detail?.wallet;
   const interestEstimate = detail?.interestEstimate;
+  const cardInterestEstimate = detail?.creditCardInterestEstimate;
+  const latestStatement = detail?.statements?.[0];
   const transactions = useMemo(
     () => (detail?.transactions ?? []).slice(0, 5),
     [detail?.transactions],
@@ -220,6 +226,12 @@ export default function WalletDetailsScreen() {
                     <CreditCard size={21} color={colors.textOnPrimary} />
                     <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Record purchase</Text>
                   </Pressable>
+                  <Pressable onPress={() => setStatementOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Add statement</Text>
+                  </Pressable>
+                  <Pressable onPress={() => setFinanceChargeOpen(true)} style={({ pressed }) => [styles.action, { backgroundColor: colors.primary }, pressed && styles.pressed]}>
+                    <Text style={[styles.actionText, { color: colors.textOnPrimary }]}>Record actual finance charge</Text>
+                  </Pressable>
                 </>
               ) : (
                 <>
@@ -277,7 +289,21 @@ export default function WalletDetailsScreen() {
                   <InfoRow label="Payment due date" value={dateLabel(wallet.payment_due_date) ?? 'Not configured'} colors={colors} />
                   <InfoRow label="Payment wallet" value={wallets.find((candidate) => candidate.id === wallet.payment_wallet_id)?.name ?? 'Not configured'} colors={colors} />
                   <InfoRow label="Payment rule" value={wallet.payment_rule === 'fixed_amount' ? `Fixed amount${wallet.fixed_payment_amount != null ? ` · ${peso(wallet.fixed_payment_amount)}` : ''}` : wallet.payment_rule === 'full_outstanding' ? 'Full outstanding balance' : wallet.payment_rule === 'minimum_due' ? 'Minimum amount due' : 'Not configured'} colors={colors} />
-                  <InfoRow label="Auto-record payment" value={wallet.auto_record_payment ? 'Enabled' : 'Disabled'} colors={colors} />
+                  <InfoRow label="Automatic posting" value="Unavailable — manual tracking only" colors={colors} />
+                  <InfoRow label="Interest tracking" value={wallet.credit_interest_tracking_mode === 'manual_confirm' ? 'Manual confirmation' : 'Estimate only'} colors={colors} />
+                  <InfoRow label="Card interest rate" value={wallet.credit_interest_rate == null ? 'Not configured' : `${wallet.credit_interest_rate}% ${wallet.credit_interest_rate_basis === 'monthly' ? 'monthly' : 'annually'}`} colors={colors} />
+                  {latestStatement ? <>
+                    <InfoRow label="Latest statement balance" value={peso(latestStatement.statement_balance)} colors={colors} />
+                    <InfoRow label="Minimum due" value={peso(latestStatement.minimum_due)} colors={colors} />
+                    <InfoRow label="Amount paid" value={peso(latestStatement.amount_paid)} colors={colors} />
+                    <InfoRow label="Remaining statement balance" value={peso(latestStatement.remaining_balance)} colors={colors} />
+                    <InfoRow label="Statement due date" value={dateLabel(latestStatement.due_date) ?? 'Not configured'} colors={colors} />
+                    <InfoRow label="Statement status" value={latestStatement.status.replace('_', ' ')} colors={colors} />
+                  </> : <Text style={[styles.reservationHint, { color: colors.textSecondary }]}>No statement has been recorded. Purchases remain current or unbilled until a statement is recorded.</Text>}
+                  {cardInterestEstimate?.enabled ? <>
+                    <InfoRow label="Estimated interest" value={interestLabel(cardInterestEstimate.estimated_finance_charge)} colors={colors} />
+                    <Text style={[styles.reservationHint, { color: colors.textSecondary }]}>Based on your unpaid statement balance and configured rate. Your bank’s actual finance charge may differ.</Text>
+                  </> : null}
                 </>
               ) : null}
               {dateLabel(wallet.created_at) ? (
@@ -385,6 +411,8 @@ export default function WalletDetailsScreen() {
           ) : null}
           {payCardOpen ? <CreditPaymentForm wallet={wallet} wallets={wallets} onClose={() => setPayCardOpen(false)} onSaved={async () => { setPayCardOpen(false); await finishMutation(); }} /> : null}
           {purchaseOpen ? <CreditPurchaseForm wallet={wallet} onClose={() => setPurchaseOpen(false)} onSaved={async () => { setPurchaseOpen(false); await finishMutation(); }} /> : null}
+          {statementOpen ? <CreditStatementForm wallet={wallet} onClose={() => setStatementOpen(false)} onSaved={async () => { setStatementOpen(false); await finishMutation(); }} /> : null}
+          {financeChargeOpen ? <CreditFinanceChargeForm wallet={wallet} statements={detail?.statements ?? []} onClose={() => setFinanceChargeOpen(false)} onSaved={async () => { setFinanceChargeOpen(false); await finishMutation(); }} /> : null}
           {editing ? (
             <EditWalletSheet
               wallet={wallet}
@@ -493,6 +521,54 @@ function CreditPurchaseForm({
       <DatePickerField label="Purchase date" value={date} onChange={setDate} />
     </FinanceFormSheet>
   );
+}
+
+function CreditStatementForm({ wallet, onClose, onSaved }: { wallet: WalletWithDates; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [amount, setAmount] = useState('');
+  const [minimumDue, setMinimumDue] = useState('');
+  const [periodStart, setPeriodStart] = useState(todayIso());
+  const [periodEnd, setPeriodEnd] = useState(todayIso());
+  const [closingDate, setClosingDate] = useState(todayIso());
+  const [dueDate, setDueDate] = useState(todayIso());
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const save = async () => {
+    const statementBalance = parseAmount(amount); const minimum = parseAmount(minimumDue);
+    if (statementBalance === null || minimum === null || statementBalance < 0 || minimum < 0 || minimum > statementBalance) return setError('Enter a valid statement balance and minimum due.');
+    if (periodStart > periodEnd || closingDate < periodEnd || dueDate <= closingDate) return setError('Check the statement period, closing date, and due date.');
+    setSaving(true); setError('');
+    try {
+      await authenticatedApiRequest(`/api/wallets/${wallet.id}/statements`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ period_start: periodStart, period_end: periodEnd, closing_date: closingDate, due_date: dueDate, statement_balance: statementBalance, minimum_due: minimum }) });
+      await onSaved();
+    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not record the statement.'); } finally { setSaving(false); }
+  };
+  return <FinanceFormSheet title="Add statement" eyebrow={wallet.name.toUpperCase()} amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Record statement" onSave={() => void save()} onClose={onClose}>
+    <Text style={styles.formHint}>Enter values from your bank statement. This does not change your card balance.</Text>
+    <FormTextInput label="Minimum amount due" value={minimumDue} onChangeText={setMinimumDue} placeholder="0.00" keyboardType="decimal-pad" />
+    <DatePickerField label="Statement period start" value={periodStart} onChange={setPeriodStart} />
+    <DatePickerField label="Statement period end" value={periodEnd} onChange={setPeriodEnd} />
+    <DatePickerField label="Closing date" value={closingDate} onChange={setClosingDate} />
+    <DatePickerField label="Due date" value={dueDate} onChange={setDueDate} />
+  </FinanceFormSheet>;
+}
+
+function CreditFinanceChargeForm({ wallet, statements, onClose, onSaved }: { wallet: WalletWithDates; statements: NonNullable<WalletDetail['statements']>; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [statementId, setStatementId] = useState<string | null>(statements.find((row) => row.status !== 'paid')?.id ?? null);
+  const [amount, setAmount] = useState(''); const [date, setDate] = useState(todayIso());
+  const [type, setType] = useState<'finance_charge' | 'late_fee'>('finance_charge'); const [error, setError] = useState(''); const [saving, setSaving] = useState(false); const requestKey = useRef<string | null>(null);
+  const save = async () => {
+    const value = parseAmount(amount); if (!statementId) return setError('Choose a statement.'); if (value === null || value <= 0) return setError('Enter the actual amount on your bank statement.');
+    setSaving(true); setError(''); const idempotencyKey = requestKey.current ?? createRequestId(); requestKey.current = idempotencyKey;
+    try { await authenticatedApiRequest(`/api/wallets/${wallet.id}/finance-charges`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ statement_id: statementId, amount: value, date, charge_type: type, idempotency_key: idempotencyKey }) }); notifyFinancialMutation(); await onSaved(); }
+    catch (cause) { setError(cause instanceof Error ? cause.message : 'Could not record the finance charge.'); } finally { setSaving(false); }
+  };
+  return <FinanceFormSheet title="Record actual finance charge" eyebrow={wallet.name.toUpperCase()} amount={amount} onAmountChange={setAmount} error={error} saving={saving} saveLabel="Confirm charge" onSave={() => void save()} onClose={onClose}>
+    <Text style={styles.formHint}>Enter the finance charge shown on your bank statement. Alalay’s estimate may differ from your bank’s actual charge.</Text>
+    <View style={styles.chipRow}>{(['finance_charge', 'late_fee'] as const).map((value) => <Pressable key={value} onPress={() => setType(value)} style={[styles.chip, type === value && styles.chipSelected]}><Text style={styles.chipText}>{value === 'finance_charge' ? 'Finance charge' : 'Late fee'}</Text></Pressable>)}</View>
+    {statements.map((statement) => <Pressable key={statement.id} onPress={() => setStatementId(statement.id)} style={[styles.chip, statementId === statement.id && styles.chipSelected]}><Text style={styles.chipText}>{peso(statement.remaining_balance)} due {dateLabel(statement.due_date) ?? ''}</Text></Pressable>)}
+    {!statements.length ? <Text style={styles.formHint}>Record the related statement first.</Text> : null}
+    <DatePickerField label="Posting date" value={date} onChange={setDate} />
+  </FinanceFormSheet>;
 }
 
 function InfoRow({
@@ -636,5 +712,9 @@ const styles = StyleSheet.create({
   emptyCard: { padding: 18, borderRadius: 18, borderWidth: 1 },
   emptyTitle: { marginBottom: 3, fontSize: 14, fontWeight: '900' },
   formHint: { color: '#5D6C65', fontSize: 12, lineHeight: 18 },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, borderWidth: 1, borderColor: '#C9D8D0', backgroundColor: '#FFFFFF' },
+  chipSelected: { borderColor: '#0F8A6B', backgroundColor: '#E4F5EE' },
+  chipText: { color: '#18352B', fontSize: 12, fontWeight: '800' },
   retryLink: { marginTop: 8, fontSize: 13, fontWeight: '900' },
 });

@@ -8,6 +8,15 @@ assert.equal(institutionFor('gotyme').supportedAccountTypes.length, 2);
 assert.equal(institutionFor('maribank').brandColor, '#FF6B00');
 assert.match(institutionFor('maribank').brandColor, /^#FF/);
 assert.equal(new Set(institutionRegistry.map((item) => item.id)).size, institutionRegistry.length);
+assert.equal(new Set(institutionRegistry.map((item) => item.displayName)).size, institutionRegistry.length);
+for (const key of ['gcash', 'maya', 'gotyme', 'maribank', 'bdo', 'bpi', 'cash'] as const) assert.ok(institutionRegistry.some((item) => item.id === key));
+assert.equal(institutionFor('maya').institutionType, 'e_wallet');
+assert.equal(institutionFor('maya_bank').institutionType, 'digital_bank');
+assert.deepEqual(institutionFor('maya').supportedAccountTypes, []);
+assert.ok(institutionFor('maribank').aliases.includes('seabank'));
+assert.ok(institutionFor('maya').aliases.includes('paymaya'));
+assert.ok(institutionFor('aub').aliases.includes('asia united bank'));
+assert.ok(institutionFor('ofbank').aliases.includes('overseas filipino bank'));
 assert.equal(supportsAccountType('bdo', 'debit'), true);
 assert.equal(supportsAccountType('bdo', 'credit'), true);
 assert.deepEqual(sanitizeWalletMetadata('gcash', {

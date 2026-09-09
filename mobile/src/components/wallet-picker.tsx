@@ -2,9 +2,8 @@ import { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Check, Search, WalletCards, X } from 'lucide-react-native';
 import { formPalette } from './finance-form';
-import { walletPresets, type WalletPreset } from '@/constants/wallets';
+import { matchesWalletPreset, walletPresets, type WalletPreset } from '@/constants/wallets';
 import { BrandLogo } from '@/components/brand-logo';
-import { sortCategoriesByLabel } from '@/utils/category-sorting';
 import { formatCurrency } from '@/utils/currency';
 
 export type Wallet = {
@@ -35,6 +34,9 @@ export type Wallet = {
   auto_record_payment?: boolean;
   payment_rule?: 'full_outstanding' | 'fixed_amount' | 'minimum_due' | null;
   fixed_payment_amount?: number | string | null;
+  credit_interest_tracking_mode?: 'estimate_only' | 'manual_confirm';
+  credit_interest_rate?: number | string | null;
+  credit_interest_rate_basis?: 'annual' | 'monthly' | null;
   is_active?: boolean;
 };
 
@@ -136,7 +138,7 @@ export function WalletPickerModal({
   const [search, setSearch] = useState('');
   const filtered = useMemo(
     () =>
-      walletPresets.filter((preset) => preset.name.toLowerCase().includes(search.toLowerCase())),
+      walletPresets.filter((preset) => matchesWalletPreset(preset, search)),
     [search],
   );
   const choosePreset = (preset: WalletPreset) => {
@@ -196,10 +198,10 @@ export function WalletPickerModal({
                 <Text style={styles.empty}>No wallets found.</Text>
               ))}
             {showPresets &&
-              ['E-wallets', 'Digital banks', 'Traditional banks', 'Cash'].map((group) => (
+              ['E-wallets', 'Digital and app-based banks', 'Traditional banks', 'Cash'].map((group) => (
                 <View key={group}>
                   <Text style={styles.group}>{group}</Text>
-                  {sortCategoriesByLabel(filtered.filter((preset) => preset.group === group), { getLabel: (preset) => preset.name })
+                  {filtered.filter((preset) => preset.group === group)
                     .map((preset) => (
                       <WalletChoice
                         key={preset.key}
@@ -226,6 +228,7 @@ export function WalletPickerModal({
                       type: 'other',
                       color: '#667085',
                       group: 'Other',
+                      aliases: [],
                     })
                   }
                 />

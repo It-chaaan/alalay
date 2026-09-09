@@ -1,4 +1,13 @@
-import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  Children,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import {
@@ -33,7 +42,6 @@ import {
   FormTextInput,
   formPalette,
 } from '@/components/finance-form';
-import { FinancialOverviewCard } from '@/components/financial-overview-card';
 import { SectionAddButton } from '@/components/header-add-button';
 import { ItemManagementSheet } from '@/components/item-management-sheet';
 import { WalletPicker, type Wallet } from '@/components/wallet-picker';
@@ -144,6 +152,13 @@ function suggestedMonthlyAmount(target: number, current: number, deadline: strin
   return Math.max(0, Math.ceil(Math.max(0, target - current) / months));
 }
 
+const SavingsStylesContext = createContext<ReturnType<typeof makeStyles> | null>(null);
+function useSavingsStyles() {
+  const styles = useContext(SavingsStylesContext);
+  if (!styles) throw new Error('Savings styles are unavailable.');
+  return styles;
+}
+
 function SafeAreaView(props: SafeAreaViewProps) {
   const { colors } = useAppTheme();
   const children = Children.toArray(props.children).filter(
@@ -159,7 +174,7 @@ function SafeAreaView(props: SafeAreaViewProps) {
 export default function Goals() {
   const { colors } = useAppTheme();
   const toast = useToast();
-  styles = makeStyles({
+  const styles = useMemo(() => makeStyles({
     ...formPalette,
     background: colors.background,
     surface: colors.surfaceElevated,
@@ -174,7 +189,7 @@ export default function Goals() {
     secondarySurface: colors.accentMuted,
     secondaryText: colors.primary,
     line: colors.border,
-  });
+  }), [colors]);
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -229,7 +244,8 @@ export default function Goals() {
     }
   };
   return (
-    <SafeAreaView style={styles.safe}>
+    <SavingsStylesContext.Provider value={styles}>
+      <SafeAreaView style={styles.safe}>
       <FinancialScreenHeader
         title="Goals"
         onBack={() => router.back()}
@@ -353,178 +369,14 @@ export default function Goals() {
           error={deleteError}
         />
       )}
-    </SafeAreaView>
+      </SafeAreaView>
+    </SavingsStylesContext.Provider>
   );
 }
 
-function LegacySavings() {
-  const { colors } = useAppTheme();
-  styles = makeStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.balance,
-    accentDark: colors.balance,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    progressTrack: colors.primarySoft,
-    progressFill: colors.primary,
-    secondarySurface: colors.accentMuted,
-    secondaryText: colors.primary,
-    line: colors.border,
-  });
-  const [data, setData] = useState<Dashboard | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Goal | null>(null);
-  const [managing, setManaging] = useState<Goal | null>(null);
-  const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState('');
-  const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
-    setError('');
-    try {
-      setData(await authenticatedApiRequest<Dashboard>('/api/savings-goals/summary'));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Savings could not load.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  useEffect(() => {
-    void refresh();
-  }, [refresh]);
-
-  const visibleGoals = data?.goals.filter((goal) => !goal.completed_at) ?? [];
-  const remove = async (goal: Goal) => {
-    setDeleting(true);
-    setDeleteError('');
-    try {
-      await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, { method: 'DELETE' });
-      setManaging(null);
-      await refresh();
-    } catch (e) {
-      setDeleteError(e instanceof Error ? e.message : 'Savings goal could not be deleted.');
-    } finally {
-      setDeleting(false);
-    }
-  };
-
-  return (
-    <SafeAreaView style={styles.safe}>
-      {' '}
-      <FinancialScreenHeader
-        title="Savings"
-        onBack={() => router.back()}
-        rightAction={<NotificationHeaderButton />}
-      />
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={formPalette.accent} />
-          <Text style={styles.muted}>Loading savings…</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Savings unavailable</Text>
-          <Text style={styles.muted}>{error}</Text>
-          <Pressable onPress={() => void refresh()} style={styles.retry}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <FinancialOverviewCard
-            title="SAVINGS OVERVIEW"
-            icon={<PiggyBank size={21} color={colors.textOnPrimaryMuted} strokeWidth={1.8} />}
-            value={peso(data?.overview.totalSavings ?? 0)}
-            supportingInfo={`${peso(data?.overview.monthlyContribution ?? 0)} allocated monthly · ${visibleGoals.length} active goal${visibleGoals.length === 1 ? '' : 's'}`}
-            accessibilityLabel={`Savings overview. Total savings: ${peso(data?.overview.totalSavings ?? 0)}. ${visibleGoals.length} active goal${visibleGoals.length === 1 ? '' : 's'}.`}
-          />
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderCopy}>
-              <Text style={styles.sectionTitle}>Your goals</Text>
-              <Text style={styles.sectionHint}>{visibleGoals.length} active</Text>
-            </View>
-            <SectionAddButton label="Create goal" onPress={() => setOpen(true)} />
-          </View>
-          {visibleGoals.length ? (
-            <View style={styles.goalsGrid}>
-              {visibleGoals.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  onAdd={() => setContributionGoal(goal)}
-                  onManage={() => {
-                    setDeleteError('');
-                    setManaging(goal);
-                  }}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.cardTitle}>
-                {data?.goals?.length ? 'No active savings goals' : 'No savings goals yet'}
-              </Text>
-              <Text style={styles.muted}>Create a goal to start building your plan.</Text>
-            </View>
-          )}
-        </ScrollView>
-      )}
-      {open && (
-        <GoalForm
-          onClose={() => setOpen(false)}
-          onSaved={async () => {
-            setOpen(false);
-            await refresh();
-          }}
-        />
-      )}
-      {editing && (
-        <GoalForm
-          initial={editing}
-          onClose={() => setEditing(null)}
-          onSaved={async () => {
-            setEditing(null);
-            await refresh();
-          }}
-        />
-      )}
-      {contributionGoal && (
-        <ContributionForm
-          goal={contributionGoal}
-          onClose={() => setContributionGoal(null)}
-          onSaved={async () => {
-            setContributionGoal(null);
-            await refresh();
-          }}
-        />
-      )}
-      {managing && (
-        <ItemManagementSheet
-          visible
-          title="Savings goal"
-          itemName={managing.title}
-          deleteDescription="This savings goal will be removed. Your existing financial history and saved amount will not be transferred."
-          onClose={() => setManaging(null)}
-          onEdit={() => setEditing(managing)}
-          onDelete={() => remove(managing)}
-          deleting={deleting}
-          error={deleteError}
-        />
-      )}
-    </SafeAreaView>
-  );
-}
-
-void LegacySavings;
 
 function GoalsLoadingState() {
+  const styles = useSavingsStyles();
   return (
     <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       <View style={styles.summarySkeleton}>
@@ -552,6 +404,7 @@ function GoalsSummaryCard({
   activeGoals: number;
   overallProgress: number;
 }) {
+  const styles = useSavingsStyles();
   return (
     <View
       accessible
@@ -597,6 +450,7 @@ function GoalCard({
   onAdd?: () => void;
   onManage: () => void;
 }) {
+  const styles = useSavingsStyles();
   const saved = Number(goal.current_amount);
   const target = Number(goal.target_amount);
   const percent = goalProgress(goal);
@@ -680,6 +534,7 @@ function GoalEmojiPicker({
   value: string;
   onChange: (value: string) => void;
 }) {
+  const styles = useSavingsStyles();
   return (
     <View style={styles.picker}>
       <Text style={styles.pickerLabel}>Choose an icon</Text>
@@ -715,6 +570,7 @@ function GoalForm({
   onSaved: () => Promise<void>;
   initial?: Goal;
 }) {
+  const styles = useSavingsStyles();
   const toast = useToast();
   const [title, setTitle] = useState(initial?.title ?? '');
   const [target, setTarget] = useState(initial ? String(initial.target_amount) : '');
@@ -841,62 +697,6 @@ function GoalForm({
   );
 }
 
-function ContributionForm({
-  goal,
-  onClose,
-  onSaved,
-}: {
-  goal: Goal;
-  onClose: () => void;
-  onSaved: () => Promise<void>;
-}) {
-  const toast = useToast();
-  const [amount, setAmount] = useState('');
-  const [error, setError] = useState('');
-  const [saving, setSaving] = useState(false);
-  const save = async () => {
-    const value = parseAmount(amount);
-    if (value === null || value <= 0) {
-      setError('Enter a valid amount to add.');
-      return;
-    }
-    setSaving(true);
-    setError('');
-    try {
-      const nextAmount = Number(goal.current_amount) + value;
-      await authenticatedApiRequest(`/api/savings-goals/${goal.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ current_amount: nextAmount }),
-      });
-      notifyFinancialMutation();
-      await onSaved();
-      toast.success('Money reserved for this goal');
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not update this goal.');
-    } finally {
-      setSaving(false);
-    }
-  };
-  return (
-    <FinanceFormSheet
-      title={`Add to ${goal.title}`}
-      eyebrow="SAVINGS GOAL"
-      amount={amount}
-      onAmountChange={setAmount}
-      error={error}
-      saving={saving}
-      saveLabel="Add money"
-      onSave={() => void save()}
-      onClose={onClose}
-    >
-      <Text style={styles.contributionHint}>
-        {peso(Number(goal.current_amount))} saved of {peso(Number(goal.target_amount))}
-      </Text>
-    </FinanceFormSheet>
-  );
-}
-
 function WalletContributionForm({
   goal,
   onClose,
@@ -906,6 +706,7 @@ function WalletContributionForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const styles = useSavingsStyles();
   const toast = useToast();
   const [amount, setAmount] = useState('');
   const [wallets, setWallets] = useState<Wallet[]>([]);
@@ -1220,7 +1021,7 @@ function makeStyles(themePalette: typeof formPalette) {
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: 22,
-      backgroundColor: formPalette.background,
+      backgroundColor: 'transparent',
     },
     track: {
       height: 7,
@@ -1322,8 +1123,3 @@ function makeStyles(themePalette: typeof formPalette) {
     pressed: { opacity: 0.72 },
   });
 }
-let styles = makeStyles(formPalette);
-styles = {
-  ...styles,
-  more: { ...styles.more, width: 44, height: 44, borderRadius: 22, backgroundColor: 'transparent' },
-};

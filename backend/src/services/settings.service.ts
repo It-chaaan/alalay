@@ -6,7 +6,8 @@ export async function getProfile(userId: string, authEmail?: string | null, user
   throwIfError(error);
   if (data) {
     const providerAvatarUrl = getProviderAvatar(userMetadata);
-    return { ...data, email: authEmail || data.email, avatar_url: data.avatar_url || providerAvatarUrl || null, avatar_source: data.avatar_url ? "profile" : providerAvatarUrl ? "provider" : null };
+    const hasCustomAvatar = typeof data.avatar_path === 'string' && data.avatar_path.length > 0;
+    return { ...data, email: authEmail || data.email, avatar_url: hasCustomAvatar ? null : (data.avatar_url || providerAvatarUrl || null), avatar_source: hasCustomAvatar ? "uploaded" : (data.avatar_url || providerAvatarUrl ? "provider" : null) };
   }
 
   throw new Error("Authenticated profile is missing. The auth.users profile trigger must create it before application access.");
@@ -19,9 +20,23 @@ function getProviderAvatar(userMetadata: Record<string, unknown>) {
 export async function updateProfile(userId: string, payload: Record<string, unknown>) {
   // Auth email is controlled by Supabase Auth. Keep the public profile email
   // out of this generic profile mutation so the two identities cannot drift.
-  const editableFields = ["name", "avatar_url", "phone", "currency", "language", "income", "pay_schedule", "onboarding_done"];
+  const editableFields = ["name", "phone", "currency", "language", "income", "pay_schedule", "onboarding_done"];
   const safePayload = Object.fromEntries(Object.entries(payload).filter(([key]) => editableFields.includes(key)));
   const { data, error } = await client().from("users").update(safePayload).eq("id", requireUserId(userId)).select("*").single();
+  throwIfError(error);
+  return data;
+}
+
+export async function updateAvatarPath(userId: string, avatarPath: string | null) {
+  const id = requireUserId(userId);
+  if (avatarPath && !new RegExp(`^${id.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')}/avatar/[A-Za-z0-9._-]+$`).test(avatarPath)) {
+    throw new Error('Avatar path is invalid.');
+  }
+  const { data, error } = await client().from('users').update({
+    avatar_path: avatarPath,
+    avatar_source: avatarPath ? 'uploaded' : null,
+    avatar_updated_at: new Date().toISOString(),
+  }).eq('id', id).is('deleted_at', null).select('*').single();
   throwIfError(error);
   return data;
 }
@@ -60,9 +75,10 @@ export async function getNotificationPreferences(userId: string) {
 
 export async function updateNotificationPreferences(userId: string, payload: Record<string, unknown>) {
   const id = requireUserId(userId);
+  await getNotificationPreferences(id);
   const { data, error } = await client()
     .from("notification_preferences")
-    .upsert({ user_id: id, ...payload }, { onConflict: "user_id" })
+    .update(payload).eq('user_id', id)
     .select("*")
     .single();
   throwIfError(error);

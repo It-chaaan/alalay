@@ -109,6 +109,9 @@ export type WalletRecord = {
   annual_interest_rate?: number | string | null;
   interest_credit_frequency?: string | null;
   credit_limit?: number | string | null;
+  credit_interest_tracking_mode?: 'estimate_only' | 'manual_confirm';
+  credit_interest_rate?: number | string | null;
+  credit_interest_rate_basis?: 'annual' | 'monthly' | null;
   balance: number | string;
   /** Physical wallet amount; goal reservations do not reduce this value. */
   total_balance?: number | string;

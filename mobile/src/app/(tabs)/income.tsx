@@ -85,6 +85,7 @@ type Income = {
   created_at?: string | null;
   updated_at?: string | null;
   transaction_id?: string | null;
+  schedule_id?: string | null;
 };
 type IncomeSummary = {
   this_month: number;
@@ -282,6 +283,7 @@ export default function IncomeScreen() {
             created_at: item.createdAt,
             updated_at: item.updatedAt,
             transaction_id: item.transactionId,
+            schedule_id: item.sourceId,
             })),
         );
         setSummary({
@@ -542,6 +544,11 @@ export default function IncomeScreen() {
           income={details}
           wallets={wallets}
           onClose={() => setDetails(null)}
+          onRetried={async () => {
+            notifyFinancialMutation();
+            await refresh();
+            setDetails(null);
+          }}
         />
       )}
     </SafeAreaView>
@@ -580,10 +587,12 @@ function IncomeDetailsRedesigned({
   income,
   wallets,
   onClose,
+  onRetried,
 }: {
   income: Income;
   wallets: Wallet[];
   onClose: () => void;
+  onRetried: () => Promise<void>;
 }) {
   const styles = useIncomeStyles();
   const walletName = incomeWalletName(income, wallets);
@@ -591,6 +600,22 @@ function IncomeDetailsRedesigned({
   const received = status === 'Received';
   const overdue = status === 'Delayed';
   const expectedDate = income.due_date ?? (received ? income.date : null);
+  const [retrying, setRetrying] = useState(false);
+  const [retryError, setRetryError] = useState('');
+  const retryCredit = async () => {
+    const scheduleId = income.schedule_id;
+    if (!scheduleId) return setRetryError('This delayed occurrence cannot be retried safely. Refresh and try again.');
+    setRetrying(true);
+    setRetryError('');
+    try {
+      await authenticatedApiRequest(`/api/income/${scheduleId}/retry-credit`, { method: 'POST' });
+      await onRetried();
+    } catch (error) {
+      setRetryError(error instanceof Error ? error.message : 'Could not retry this income credit.');
+    } finally {
+      setRetrying(false);
+    }
+  };
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -669,10 +694,15 @@ function IncomeDetailsRedesigned({
               ) : null}
             </View>
             {overdue ? (
-              <Text style={styles.detailsNotice}>
-                This income was expected on {friendlyIncomeDate(expectedDate)} but has not been
-                marked as received.
-              </Text>
+              <>
+                <Text style={styles.detailsNotice}>
+                  Delayed — this income has not been credited yet. It was expected on {friendlyIncomeDate(expectedDate)}.
+                </Text>
+                <Pressable disabled={retrying} onPress={() => void retryCredit()} style={[styles.retry, retrying && styles.pressed]}>
+                  <Text style={styles.retryText}>{retrying ? 'Retrying credit…' : 'Retry credit'}</Text>
+                </Pressable>
+                {retryError ? <Text style={styles.detailsNotice}>{retryError}</Text> : null}
+              </>
             ) : null}
             <Text style={styles.detailsSectionLabel}>Additional details</Text>
             <Detail label="Category" value={titleCase(income.type)} />

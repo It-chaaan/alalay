@@ -17,6 +17,7 @@
     "test:income-screen": "tsx src/utils/income-screen.test.ts",
     "test:expense-screen": "tsx src/utils/expense-screen.test.ts",
     "test:currency": "tsx src/utils/currency.test.ts",
+    "test:wallet-presets": "tsx src/constants/wallets.test.ts",
     "test:receipt-upload": "tsx src/utils/receipt-upload.test.ts"
   },
   "dependencies": {
