@@ -15,6 +15,13 @@ export const updateAvatarSchema = z.object({
   avatar_path: z.string().min(1).max(300).nullable(),
 }).strict();
 
+export const completeOnboardingSchema = z.object({
+  nickname: z.string().trim().min(1, 'Enter the name you want Alalay to use.').max(80, 'Nickname is too long.'),
+  wallet_name: z.string().trim().min(1, 'Enter a wallet name.').max(120),
+  opening_balance: z.coerce.number().finite().min(0, 'Cash balance cannot be negative.').multipleOf(0.01),
+  operation_id: z.string().uuid(),
+}).strict();
+
 const notificationPreferenceFields = z.object({
   bill_reminders: z.boolean(),
   bill_reminder_days: z.coerce.number().int().min(0).max(30),

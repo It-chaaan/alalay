@@ -1,6 +1,6 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, usePathname, useRouter, useSegments } from 'expo-router';
+import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Href, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { Session } from '@supabase/supabase-js';
@@ -17,6 +17,11 @@ import { requiresMfa } from '@/services/mfa';
 import { cancelAllFinancialReminders, reconcileOnAppResume } from '@/services/financial-reminders';
 import { IncomeWorkflowProvider } from '@/context/income-workflow';
 import { DashboardInsightProvider } from '@/context/dashboard-insight';
+import { loadCurrentProfile } from '@/services/profile';
+import { sessionGateDestination } from '@/utils/session-gate';
+import { createRedirectGuard } from '@/utils/redirect-guard';
+
+const stackScreenOptions = { headerShown: false } as const;
 
 export default function RootLayout() {
   return (
@@ -28,6 +33,20 @@ export default function RootLayout() {
 
 function ThemedRoot() {
   const { colors, resolvedTheme, ready } = useAppTheme();
+  const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
+  // This hook must run before the loading return. The previous placement made
+  // the initial theme hydration render use fewer hooks than the ready render.
+  const navigationTheme = useMemo(() => ({
+    ...base,
+    colors: {
+      ...base.colors,
+      background: colors.background,
+      card: colors.surface,
+      text: colors.ink,
+      border: colors.line,
+      primary: colors.accent,
+    },
+  }), [base, colors]);
   if (!ready)
     return (
       <View
@@ -41,18 +60,6 @@ function ThemedRoot() {
         <ActivityIndicator color={colors.accent} />
       </View>
     );
-  const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
-  const navigationTheme = {
-    ...base,
-    colors: {
-      ...base.colors,
-      background: colors.background,
-      card: colors.surface,
-      text: colors.ink,
-      border: colors.line,
-      primary: colors.accent,
-    },
-  };
   return (
     <ThemeProvider value={navigationTheme}>
       <ModalVisibilityProvider>
@@ -89,6 +96,10 @@ function SessionGate() {
   const [session, setSession] = useState<Session | null>(null);
   const [checkingSession, setCheckingSession] = useState(true);
   const [mfaPending, setMfaPending] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+  const [onboardingRequired, setOnboardingRequired] = useState(false);
+  const redirectGuard = useRef(createRedirectGuard()).current;
+  const sessionUserId = session?.user.id ?? null;
 
   useEffect(() => {
     const supabase = getSupabaseClient();
@@ -154,7 +165,32 @@ function SessionGate() {
   }, []);
 
   useEffect(() => {
-    if (!session) return;
+    if (!sessionUserId || mfaPending) {
+      setOnboardingRequired((current) => (current ? false : current));
+      setCheckingOnboarding((current) => (current ? false : current));
+      return;
+    }
+
+    let active = true;
+    setCheckingOnboarding((current) => (current ? current : true));
+    // A user ID, rather than the Session object, is the dependency. Supabase
+    // can replace its Session object during token refresh without changing the
+    // account or the first-run onboarding decision.
+    void loadCurrentProfile(true)
+      .then((profile) => {
+        if (active) setOnboardingRequired((current) => current === profile.onboardingRequired ? current : profile.onboardingRequired);
+      })
+      .catch(() => {
+        if (active) setOnboardingRequired((current) => (current ? false : current));
+      })
+      .finally(() => {
+        if (active) setCheckingOnboarding((current) => (current ? false : current));
+      });
+    return () => { active = false; };
+  }, [mfaPending, sessionUserId]);
+
+  useEffect(() => {
+    if (!sessionUserId) return;
     const reconcileSafely = () => {
       void reconcileOnAppResume().catch((error) => {
         if (__DEV__)
@@ -186,30 +222,37 @@ function SessionGate() {
       subscription.remove();
       responseSubscription.remove();
     };
-  }, [router, session]);
+  }, [router, sessionUserId]);
 
   useEffect(() => {
-    if (checkingSession) return;
-    const inTabs = segments[0] === '(tabs)';
-    const standaloneAppRoute =
-      pathname === '/wallet-details' ||
-      pathname === '/notifications' ||
-      pathname === '/loans' ||
-      pathname === '/auth/callback';
-    if (session && mfaPending && pathname !== '/auth') {
-      router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
-    } else if (session && !mfaPending && !inTabs && !standaloneAppRoute) {
-      router.replace('/(tabs)');
-    } else if (!session && inTabs) {
-      router.replace({ pathname: '/auth', params: { mode: 'signin' } });
+    if (checkingSession || checkingOnboarding) return;
+    const destination = sessionGateDestination({
+      hasSession: Boolean(sessionUserId),
+      mfaPending,
+      onboardingRequired,
+      inTabs: segments[0] === '(tabs)',
+      pathname,
+    });
+    if (!destination) {
+      redirectGuard.reset();
+      return;
     }
-  }, [checkingSession, mfaPending, pathname, router, segments, session]);
+    // Expo Router route groups can share the same URL path. Replacing a
+    // logical destination already requested in this state remounts the tab
+    // tree, which reruns focus effects and was the request flood's feedback
+    // loop. Reset this guard once the route has settled or app state changes.
+    const redirectKey = `${sessionUserId ?? 'anonymous'}:${mfaPending}:${onboardingRequired}:${destination}`;
+    if (!redirectGuard.shouldRedirect(redirectKey)) return;
+    if (destination === '/auth?mode=mfa') router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
+    else if (destination === '/auth?mode=signin') router.replace({ pathname: '/auth', params: { mode: 'signin' } });
+    else router.replace(destination as Href);
+  }, [checkingOnboarding, checkingSession, mfaPending, onboardingRequired, pathname, redirectGuard, router, segments, sessionUserId]);
 
-  if (checkingSession) return <SessionLoadingScreen />;
+  if (checkingSession || checkingOnboarding) return <SessionLoadingScreen />;
 
   return (
     <IncomeWorkflowProvider>
-      <DashboardInsightProvider enabled={Boolean(session && !mfaPending)}>
+      <DashboardInsightProvider enabled={Boolean(sessionUserId && !mfaPending && !onboardingRequired)}>
         <View
           style={[
             styles.appShell,
@@ -219,17 +262,18 @@ function SessionGate() {
               !screenOwnsClearance && { paddingBottom: bottomNavClearance },
           ]}
         >
-          <Stack screenOptions={{ headerShown: false }}>
+          <Stack screenOptions={stackScreenOptions}>
             <Stack.Screen name="index" />
             <Stack.Screen name="auth" />
             <Stack.Screen name="auth/callback" />
+            <Stack.Screen name="onboarding" options={{ gestureEnabled: false }} />
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen name="wallet-details" options={{ headerShown: false }} />
             <Stack.Screen name="loans" options={{ headerShown: false }} />
             <Stack.Screen name="notifications" options={{ headerShown: false }} />
             <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
           </Stack>
-          {session && !mfaPending ? <BottomNav /> : null}
+          {sessionUserId && !mfaPending && !onboardingRequired ? <BottomNav /> : null}
         </View>
       </DashboardInsightProvider>
     </IncomeWorkflowProvider>

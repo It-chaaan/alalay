@@ -61,6 +61,7 @@ import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { StatusBadge } from '@/components/status-badge';
 import { BrandLogo } from '@/components/brand-logo';
 import { cycleIndex, visibleWallets, walletSlotOffset } from '@/utils/wallet-stack';
+import { createRequestGate } from '@/utils/request-gate';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -114,8 +115,9 @@ export default function HomeScreen() {
   const [walletLoading, setWalletLoading] = useState(true);
   const [walletError, setWalletError] = useState('');
   const { profile } = useCurrentProfile();
+  const financeRefreshGate = useRef(createRequestGate<void>()).current;
 
-  const refreshFinance = useCallback(async () => {
+  const refreshFinance = useCallback(() => financeRefreshGate(async () => {
     setFinanceLoading(true);
     setWalletLoading(true);
     setFinanceError('');
@@ -143,7 +145,7 @@ export default function HomeScreen() {
       setFinanceLoading(false);
       setWalletLoading(false);
     }
-  }, []);
+  }), [financeRefreshGate]);
 
   const firstName = profile ? getProfileFirstName(profile.name) : 'there';
 

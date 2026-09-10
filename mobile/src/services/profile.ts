@@ -4,6 +4,8 @@ import { authenticatedApiRequest } from './api';
 export type ProfileRecord = {
   id?: string;
   name?: string | null;
+  nickname?: string | null;
+  onboarding_required?: boolean;
   email?: string | null;
   phone?: string | null;
   avatar_url?: string | null;
@@ -15,6 +17,8 @@ export type ProfileRecord = {
 export type CurrentProfile = {
   userId: string;
   name: string;
+  nickname: string;
+  onboardingRequired: boolean;
   email: string;
   phone: string;
   avatarUrl: string | null;
@@ -22,7 +26,7 @@ export type CurrentProfile = {
   provider: string | null;
 };
 
-type ProfileUpdate = { name: string; phone: string | null };
+type ProfileUpdate = { name: string; nickname?: string; phone: string | null };
 const avatarBucket = 'profile-avatars';
 
 const cache = new Map<string, CurrentProfile>();
@@ -44,7 +48,7 @@ async function avatarUrl(path: string | null | undefined) {
 async function normalizeProfile(userId: string, email: string, provider: string | null, value: ProfileRecord): Promise<CurrentProfile> {
   const name = getInitialsName(value.name || email.split('@')[0] || 'User');
   const customUrl = await avatarUrl(value.avatar_path);
-  return { userId, name, email, phone: value.phone?.trim() || '', avatarUrl: customUrl || value.avatar_url || null, avatarSource: customUrl ? 'uploaded' : (value.avatar_source === 'provider' || value.avatar_url ? 'provider' : null), provider: value.provider || provider };
+  return { userId, name, nickname: value.nickname?.trim() || name, onboardingRequired: Boolean(value.onboarding_required), email, phone: value.phone?.trim() || '', avatarUrl: customUrl || value.avatar_url || null, avatarSource: customUrl ? 'uploaded' : (value.avatar_source === 'provider' || value.avatar_url ? 'provider' : null), provider: value.provider || provider };
 }
 
 async function resolveUser() {
@@ -59,9 +63,12 @@ async function resolveUser() {
 export async function loadCurrentProfile(force = false) {
   const { user, provider } = await resolveUser();
   const cached = cache.get(user.id);
-  if (!force && cached) return cached;
   const existing = pending.get(user.id);
-  if (!force && existing) return existing;
+  // A forced refresh must still join a read already in flight. SessionGate and
+  // useCurrentProfile mount together during startup; allowing both through
+  // creates duplicate /users/me requests and unstable profile notifications.
+  if (existing) return existing;
+  if (!force && cached) return cached;
 
   const request = authenticatedApiRequest<ProfileRecord>('/api/users/me')
     .then(async (value) => {
@@ -85,6 +92,14 @@ export async function updateCurrentProfile(payload: ProfileUpdate) {
   const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
   cache.set(user.id, profile);
   listeners.forEach((listener) => listener());
+  return profile;
+}
+
+export async function completeCurrentOnboarding(payload: { nickname: string; walletName: string; openingBalance: number; operationId: string }) {
+  const { user, provider } = await resolveUser();
+  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/onboarding', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname: payload.nickname, wallet_name: payload.walletName, opening_balance: payload.openingBalance, operation_id: payload.operationId }) });
+  const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
+  cache.set(user.id, profile); listeners.forEach((listener) => listener());
   return profile;
 }
 

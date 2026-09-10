@@ -7,7 +7,7 @@ export async function getProfile(userId: string, authEmail?: string | null, user
   if (data) {
     const providerAvatarUrl = getProviderAvatar(userMetadata);
     const hasCustomAvatar = typeof data.avatar_path === 'string' && data.avatar_path.length > 0;
-    return { ...data, email: authEmail || data.email, avatar_url: hasCustomAvatar ? null : (data.avatar_url || providerAvatarUrl || null), avatar_source: hasCustomAvatar ? "uploaded" : (data.avatar_url || providerAvatarUrl ? "provider" : null) };
+    return { ...data, email: authEmail || data.email, avatar_url: hasCustomAvatar ? null : (data.avatar_url || providerAvatarUrl || null), avatar_source: hasCustomAvatar ? "uploaded" : (data.avatar_url || providerAvatarUrl ? "provider" : null), onboarding_required: !data.onboarding_done };
   }
 
   throw new Error("Authenticated profile is missing. The auth.users profile trigger must create it before application access.");
@@ -20,11 +20,20 @@ function getProviderAvatar(userMetadata: Record<string, unknown>) {
 export async function updateProfile(userId: string, payload: Record<string, unknown>) {
   // Auth email is controlled by Supabase Auth. Keep the public profile email
   // out of this generic profile mutation so the two identities cannot drift.
-  const editableFields = ["name", "phone", "currency", "language", "income", "pay_schedule", "onboarding_done"];
+  const editableFields = ["name", "nickname", "phone", "currency", "language", "income", "pay_schedule"];
   const safePayload = Object.fromEntries(Object.entries(payload).filter(([key]) => editableFields.includes(key)));
   const { data, error } = await client().from("users").update(safePayload).eq("id", requireUserId(userId)).select("*").single();
   throwIfError(error);
   return data;
+}
+
+export async function completeFirstRunOnboarding(userId: string, payload: { nickname: string; wallet_name: string; opening_balance: number; operation_id: string }) {
+  const { data, error } = await client().rpc('complete_first_run_onboarding', {
+    nickname_value: payload.nickname, wallet_name_value: payload.wallet_name,
+    opening_amount: payload.opening_balance, operation_id: payload.operation_id,
+  });
+  throwIfError(error);
+  return getProfile(userId);
 }
 
 export async function updateAvatarPath(userId: string, avatarPath: string | null) {

@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { getNotificationPreferences, getOverviewPreferences, getProfile, updateAvatarPath, updateNotificationPreferences, updateOverviewPreferences, updateProfile } from "../services/settings.service.js";
+import { completeFirstRunOnboarding, getNotificationPreferences, getOverviewPreferences, getProfile, updateAvatarPath, updateNotificationPreferences, updateOverviewPreferences, updateProfile } from "../services/settings.service.js";
 import { sendSuccess } from "../utils/api.js";
 
 export async function me(req: Request, res: Response) {
@@ -12,6 +12,9 @@ export async function updateMe(req: Request, res: Response) {
 export async function updateAvatar(req: Request, res: Response) {
   const body = req.validated?.body as { avatar_path?: string | null };
   return sendSuccess(res, await updateAvatarPath(req.user!.id, body.avatar_path ?? null));
+}
+export async function completeOnboarding(req: Request, res: Response) {
+  return sendSuccess(res, await completeFirstRunOnboarding(req.user!.id, req.validated!.body as { nickname: string; wallet_name: string; opening_balance: number; operation_id: string }));
 }
 
 export async function notificationPreferences(req: Request, res: Response) {
