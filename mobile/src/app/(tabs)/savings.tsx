@@ -54,7 +54,7 @@ import {
 } from '@/services/finance';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
 import { FinancialScreenHeader } from '@/components/financial-screen-header';
-import { BOTTOM_NAV_CLEARANCE } from '@/components/bottom-nav-clearance';
+import { BOTTOM_NAV_CLEARANCE, useBottomNavClearance } from '@/components/bottom-nav-clearance';
 import { useAppTheme } from '@/theme/theme';
 import { formatCurrency } from '@/utils/currency';
 import { useToast } from '@/components/toast-provider';
@@ -174,6 +174,7 @@ function SafeAreaView(props: SafeAreaViewProps) {
 export default function Goals() {
   const { colors } = useAppTheme();
   const toast = useToast();
+  const bottomNavClearance = useBottomNavClearance();
   const styles = useMemo(() => makeStyles({
     ...formPalette,
     background: colors.background,
@@ -262,7 +263,10 @@ export default function Goals() {
           </Pressable>
         </View>
       ) : (
-        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance + 24 }]}
+          showsVerticalScrollIndicator={false}
+        >
           <GoalsSummaryCard
             totalSaved={totalSaved}
             activeGoals={activeGoals.length}
@@ -478,9 +482,11 @@ function GoalCard({
           </Pressable>
         </View>
       </View>
-      <Text style={styles.goalName} numberOfLines={2}>
-        {goal.title}
-      </Text>
+      <View style={styles.goalNameRegion}>
+        <Text style={styles.goalName} numberOfLines={2} ellipsizeMode="tail">
+          {goal.title}
+        </Text>
+      </View>
       <View style={styles.goalDueRow}>
         <CalendarDays size={14} color={formPalette.muted} strokeWidth={1.8} />
         <Text style={styles.goalDue} numberOfLines={1}>
@@ -492,37 +498,38 @@ function GoalCard({
           style={[styles.fill, { width: `${percent}%`, backgroundColor: formPalette.progressFill }]}
         />
       </View>
-      <Text style={styles.goalAmount}>
+      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.goalAmount}>
         {peso(saved)} <Text style={styles.goalTarget}>/ {peso(target)}</Text>
       </Text>
-      {fundingMethod === 'monthly' &&
-      Number(goal.monthly_contribution ?? goal.monthly_target ?? 0) > 0 ? (
-        <Text style={styles.fundingHint}>
-          {peso(Number(goal.monthly_contribution ?? goal.monthly_target ?? 0))}/month planned
+      <View style={styles.fundingRegion}>
+        <Text numberOfLines={2} ellipsizeMode="tail" style={styles.fundingHint}>
+          {fundingMethod === 'monthly' && Number(goal.monthly_contribution ?? goal.monthly_target ?? 0) > 0
+            ? `${peso(Number(goal.monthly_contribution ?? goal.monthly_target ?? 0))}/month planned`
+            : 'Manual funding'}
         </Text>
-      ) : (
-        <Text style={styles.fundingHint}>Manual funding</Text>
-      )}
-      {saved >= target || !onAdd ? (
-        <Text style={styles.reached}>{saved >= target ? 'Goal reached' : 'Completed'}</Text>
-      ) : (
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`Add money to ${goal.title}`}
-          onPress={onAdd}
-          style={({ pressed }) => [
-            styles.money,
-            {
-              backgroundColor: formPalette.secondarySurface,
-              borderColor: formPalette.progressFill,
-            },
-            pressed && styles.pressed,
-          ]}
-        >
-          <Plus size={13} color={formPalette.secondaryText} />
-          <Text style={[styles.moneyText, { color: formPalette.secondaryText }]}>Add money</Text>
-        </Pressable>
-      )}
+      </View>
+      <View style={styles.goalActionRegion}>
+        {saved >= target || !onAdd ? (
+          <Text style={styles.reached}>{saved >= target ? 'Goal reached' : 'Completed'}</Text>
+        ) : (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Add money to ${goal.title}`}
+            onPress={onAdd}
+            style={({ pressed }) => [
+              styles.money,
+              {
+                backgroundColor: formPalette.secondarySurface,
+                borderColor: formPalette.progressFill,
+              },
+              pressed && styles.pressed,
+            ]}
+          >
+            <Plus size={13} color={formPalette.secondaryText} />
+            <Text style={[styles.moneyText, { color: formPalette.secondaryText }]}>Add money</Text>
+          </Pressable>
+        )}
+      </View>
     </View>
   );
 }
@@ -968,7 +975,7 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     sectionTitle: { color: formPalette.ink, fontSize: 18, fontWeight: '900' },
     sectionHint: { marginTop: 3, color: formPalette.muted, fontSize: 11, fontWeight: '700' },
-    goalsGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+    goalsGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'space-between' },
     goalTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     goalTab: {
       flex: 1,
@@ -985,13 +992,15 @@ function makeStyles(themePalette: typeof formPalette) {
     goalTabTextSelected: { color: formPalette.accent },
     goalCard: {
       width: '48.5%',
-      minHeight: 286,
+      minHeight: 320,
       marginBottom: 12,
       padding: 14,
       borderRadius: 20,
+      alignSelf: 'stretch',
       backgroundColor: formPalette.surface,
       borderWidth: 1,
       borderColor: formPalette.line,
+      flexDirection: 'column',
     },
     goalHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     goalHeadRight: { alignItems: 'flex-end', gap: 4 },
@@ -1004,9 +1013,8 @@ function makeStyles(themePalette: typeof formPalette) {
       backgroundColor: formPalette.accentPale,
     },
     emoji: { fontSize: 21 },
+    goalNameRegion: { minHeight: 44, marginTop: 14, justifyContent: 'flex-start' },
     goalName: {
-      minHeight: 42,
-      marginTop: 14,
       color: formPalette.ink,
       fontSize: 15,
       lineHeight: 20,
@@ -1033,12 +1041,15 @@ function makeStyles(themePalette: typeof formPalette) {
     fill: { height: '100%', borderRadius: 4, backgroundColor: formPalette.accent },
     goalAmount: { marginTop: 10, color: formPalette.ink, fontSize: 13, fontWeight: '900' },
     goalTarget: { color: formPalette.muted, fontWeight: '600' },
+    fundingRegion: { minHeight: 32, marginTop: 6, justifyContent: 'flex-start' },
+    goalActionRegion: { minHeight: 44, marginTop: 'auto', justifyContent: 'flex-end' },
     reached: {
-      marginTop: 11,
+      minHeight: 44,
       color: formPalette.accent,
       fontSize: 10,
       fontWeight: '900',
       textAlign: 'center',
+      textAlignVertical: 'center',
     },
     money: {
       flexDirection: 'row',
@@ -1046,7 +1057,6 @@ function makeStyles(themePalette: typeof formPalette) {
       justifyContent: 'center',
       gap: 3,
       minHeight: 44,
-      marginTop: 12,
       borderRadius: 22,
       backgroundColor: formPalette.accentPale,
     },

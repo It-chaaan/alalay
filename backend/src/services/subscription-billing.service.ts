@@ -125,7 +125,7 @@ export async function processSubscriptionBilling(userId?: string, now = new Date
     if (env.BILLING_DEBUG) console.info(`[subscription-billing] ${event}`, { current_date: through, ...details });
   };
   log("started", { user_id: userId ?? "all" });
-  let query = client().from("subscriptions").select("*").is("deleted_at", null).order("renewal_date", { ascending: true });
+  let query = client().from("subscriptions").select("*").eq("auto_renew", true).is("deleted_at", null).order("renewal_date", { ascending: true });
   if (userId) query = query.eq("user_id", requireUserId(userId));
   const { data: subscriptions, error } = await query;
   if (error) log("subscription_query_failed", { error: error.message });

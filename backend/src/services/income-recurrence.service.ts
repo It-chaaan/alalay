@@ -116,6 +116,8 @@ export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): I
       scheduled.push({
         ...row,
         id: `scheduled-${row.id}-${row.date}`,
+        source_id: row.id,
+        occurrence_date: row.date,
         is_scheduled: true,
         recurrence_key: `${row.id}:${row.date}`,
       }),
@@ -141,6 +143,8 @@ export function expandIncomeRows(rows: IncomeRow[], from: string, to: string): I
           ...row,
           id: `scheduled-${row.id}-${date}`,
           date,
+          source_id: row.id,
+          occurrence_date: date,
           is_scheduled: true,
           recurrence_key: `${row.id}:${date}`,
         });

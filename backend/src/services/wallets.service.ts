@@ -388,6 +388,7 @@ export async function getWallet(userId: string, id: string) {
       .map((row) => ({
         ...row,
         kind: 'income',
+        direction: 'inflow',
         label: row.source,
         date: row.date,
         amount: asNumber(row.amount),
@@ -397,6 +398,7 @@ export async function getWallet(userId: string, id: string) {
       .map((row) => ({
         ...row,
         kind: 'expense',
+        direction: 'outflow',
         label: row.merchant,
         date: row.date,
         amount: -asNumber(row.amount),
@@ -408,13 +410,15 @@ export async function getWallet(userId: string, id: string) {
       .map((row) => ({
         ...row,
         kind: 'bill',
+        direction: 'outflow',
         label: row.title,
         date: row.paid_at ?? row.due_date,
         amount: -asNumber(row.amount),
       })),
     ...(adjustments.data ?? []).map((row) => ({
       ...row,
-      kind: row.note === 'Opening balance' ? 'opening_balance' : 'deposit',
+        kind: row.note === 'Opening balance' ? 'opening_balance' : 'deposit',
+        direction: 'inflow',
       label: row.note || 'Wallet deposit',
       date: row.date,
       amount: asNumber(row.amount),
@@ -424,6 +428,7 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...row,
         kind: 'goal_allocation',
+        direction: 'outflow',
         label: `Reserved for ${goal?.title ?? 'Savings goal'}`,
         date: row.contribution_date ?? row.created_at,
         amount: -asNumber(row.amount),
@@ -446,6 +451,7 @@ export async function getWallet(userId: string, id: string) {
         return {
           ...row,
           kind: 'goal_release',
+          direction: 'inflow',
           label: `Released from goal: ${goal?.title ?? 'Savings goal'}`,
           date: row.released_on ?? row.created_at,
           amount: asNumber(row.amount),
@@ -461,6 +467,7 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...loan,
         kind: isLent ? 'loan_lent' : 'loan_borrowed',
+        direction: isLent ? 'outflow' : 'inflow',
         label: isLent ? `Lent to ${loan.counterparty}` : `Borrowed from ${loan.counterparty}`,
         date: loan.start_date,
         amount: isLent ? -asNumber(loan.original_principal) : asNumber(loan.original_principal),
@@ -473,6 +480,7 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...payment,
         kind: isLent ? 'loan_repayment_received' : 'debt_repayment',
+        direction: isLent ? 'inflow' : 'outflow',
         label: isLent
           ? `Repayment from ${loan?.counterparty ?? 'borrower'}`
           : `Repayment to ${loan?.counterparty ?? 'lender'}`,
@@ -497,6 +505,7 @@ export async function getWallet(userId: string, id: string) {
       return {
         ...repayment,
         kind: isCreditWallet ? 'credit_repayment' : 'credit_repayment_funded',
+        direction: 'outflow',
         label: isCreditWallet
           ? `Repayment from ${counterpartName}`
           : `Credit repayment to ${counterpartName}`,

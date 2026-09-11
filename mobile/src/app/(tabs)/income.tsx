@@ -86,6 +86,8 @@ type Income = {
   updated_at?: string | null;
   transaction_id?: string | null;
   schedule_id?: string | null;
+  occurrence_date?: string | null;
+  is_projected?: boolean;
 };
 type IncomeSummary = {
   this_month: number;
@@ -210,6 +212,7 @@ export default function IncomeScreen() {
   const [managing, setManaging] = useState<Income | null>(null);
   const [details, setDetails] = useState<Income | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
+  const deletingRef = useRef(false);
   const [walletSelection, setWalletSelection] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey);
   const refreshRequestRef = useRef(0);
@@ -284,6 +287,8 @@ export default function IncomeScreen() {
             updated_at: item.updatedAt,
             transaction_id: item.transactionId,
             schedule_id: item.sourceId,
+            occurrence_date: item.dueDate,
+            is_projected: item.isProjected,
             })),
         );
         setSummary({
@@ -515,27 +520,72 @@ export default function IncomeScreen() {
           onClose={() => setManaging(null)}
           actions={[
             {
-              label: 'Edit',
+              label: managing.is_projected && managing.is_recurring ? 'Edit recurring income' : 'Edit income',
               onPress: () => {
                 setManaging(null);
-                setEditing(managing);
+                // Projected rows are virtual. Edit their recurring source UUID,
+                // never the source/date UI key used to render the occurrence.
+                setEditing(managing.is_projected ? { ...managing, id: managing.schedule_id ?? managing.id, is_projected: false } : managing);
               },
             },
-            {
-              label: 'Delete',
-              tone: 'destructive',
+            ...(managing.is_projected && managing.is_recurring ? [{
+              label: 'Skip this occurrence',
+              tone: 'destructive' as const,
               confirm: {
-                title: `Delete ${managing.source}?`,
-                message: 'Future occurrences will be cancelled. Any received history is preserved.',
+                title: 'Skip this occurrence?',
+                message: `${managing.source} scheduled for ${shortIncomeDate(managing.occurrence_date ?? managing.date, selectedMonth)} will be removed, but future occurrences will continue.`,
               },
               onPress: async () => {
-                const request = incomeDeleteRequestIntent(managing.id);
-                await authenticatedApiRequest(request.path, { method: request.method });
-                notifyFinancialMutation();
-                await refresh();
-                toast.success('Income deleted; received history preserved.');
+                if (deletingRef.current) return;
+                deletingRef.current = true;
+                try {
+                  await authenticatedApiRequest(`/api/income/recurring/${managing.schedule_id}/occurrences/${managing.occurrence_date}`, { method: 'DELETE' });
+                  notifyFinancialMutation();
+                  await refresh();
+                  toast.success('Scheduled income skipped.');
+                } finally {
+                  deletingRef.current = false;
+                }
               },
-            },
+            }, {
+              label: 'Delete recurring income',
+              tone: 'destructive' as const,
+              confirm: {
+                title: 'Delete recurring income?',
+                message: `This will remove ${managing.source} and all future scheduled occurrences. Previously received income will remain in your records.`,
+              },
+              onPress: async () => {
+                if (deletingRef.current) return;
+                deletingRef.current = true;
+                try {
+                  const request = incomeDeleteRequestIntent(managing.schedule_id!);
+                  await authenticatedApiRequest(request.path, { method: request.method });
+                  notifyFinancialMutation();
+                  await refresh();
+                  toast.success('Recurring income deleted. Received history was kept.');
+                } finally {
+                  deletingRef.current = false;
+                }
+              },
+            }] : [{
+              label: managing.is_recurring ? 'Delete received income' : 'Delete income',
+              tone: 'destructive' as const,
+              confirm: {
+                title: managing.is_recurring ? 'Delete received income?' : `Delete ${managing.source}?`,
+                message: managing.is_recurring ? 'This received income record will be deleted.' : 'This income record will be deleted.',
+              },
+              onPress: async () => {
+                if (deletingRef.current) return;
+                deletingRef.current = true;
+                try {
+                  const request = incomeDeleteRequestIntent(managing.id);
+                  await authenticatedApiRequest(request.path, { method: request.method });
+                  notifyFinancialMutation();
+                  await refresh();
+                  toast.success('Income deleted.');
+                } finally { deletingRef.current = false; }
+              },
+            }]),
           ]}
         />
       )}

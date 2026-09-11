@@ -3,7 +3,6 @@ import { createOwned, getOwned, softDeleteOwned, updateOwned } from './crud.serv
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { materializeBillOccurrence, splitOccurrencesForMonth } from './bill-occurrence.service.js';
-import { reconcileBillReminder } from './notifications.service.js';
 
 export async function listBills(
   userId: string,
@@ -45,16 +44,14 @@ export async function getBill(userId: string, id: string) {
 export async function createBill(userId: string, payload: Record<string, unknown>) {
   const bill = await createOwned('bills', userId, payload);
   await reconcileBillOccurrences(userId);
-  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch((error) => {
-    console.error('Bill reminder reconciliation failed after bill creation:', error instanceof Error ? error.message : String(error));
-  });
+  // Reminder creation is occurrence-based and happens in syncBillReminders.
+  // Calling the template-based path here produced a second identity for the
+  // same occurrence once startup synchronization ran.
   return bill;
 }
 export async function updateBill(userId: string, id: string, payload: Record<string, unknown>) {
   const bill = await updateOwned('bills', userId, id, payload);
-  await reconcileBillReminder(userId, bill as { id: string; title: string; amount: unknown; due_date: string; status?: string; recurring?: boolean; paid_occurrence_date?: string | null }).catch((error) => {
-    console.error('Bill reminder reconciliation failed after bill update:', error instanceof Error ? error.message : String(error));
-  });
+  await reconcileBillOccurrences(userId);
   return bill;
 }
 export async function deleteBill(userId: string, id: string) {

@@ -11,7 +11,7 @@ import { getSupabaseClient } from './supabase';
 export type ReminderKind = 'three_days_before' | 'one_day_before' | 'due_day' | 'overdue';
 type ReminderPreferences = { bill_reminders: boolean; bill_reminder_days: number; bill_reminder_three_days: boolean; bill_reminder_one_day: boolean; bill_reminder_due_day: boolean; bill_overdue_reminders: boolean; bill_reminder_hour: number; bill_reminder_minute: number };
 type StoredReminder = { notificationId: string; databaseNotificationId?: string; eventType: 'bill'; eventId: string; occurrenceDate: string; kind: ReminderKind; name: string; amount: number };
-type PersistedReminder = { id: string; related_bill_id?: string | null; due_date?: string | null; reminder_kind?: string | null };
+type PersistedReminder = { id: string; related_bill_id?: string | null; related_bill_occurrence_id?: string | null; due_date?: string | null; reminder_kind?: string | null };
 
 const defaults: ReminderPreferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, bill_reminder_hour: 9, bill_reminder_minute: 0 };
 const fallbackDelayMs = 5 * 60 * 1000;
@@ -126,7 +126,7 @@ async function reconcileFinancialRemindersInternal(items?: FinanceItem[]): Promi
     logReminderFailure('persist bill reminders', error);
     return { permissionGranted: true, scheduled: 0 };
   }
-  const persistedByKey = new Map(persisted.map((record) => [logicalKey(String(record.related_bill_id), String(record.due_date).slice(0, 10), record.reminder_kind as ReminderKind), record]));
+  const persistedByKey = new Map(persisted.map((record) => [logicalKey(String(record.related_bill_occurrence_id ?? record.related_bill_id), String(record.due_date).slice(0, 10), record.reminder_kind as ReminderKind), record]));
   const current = new Map<string, StoredReminder>(); const now = new Date();
   for (const item of (items ?? await fetchFinanceItems()).filter((value) => value.source === 'bill')) {
     const due = item.dueDate.slice(0, 10);

@@ -1495,9 +1495,11 @@ export function FinanceFormSheet({
           style={[sheetStyles.sheet, financeEntryStyles.sheet, { backgroundColor: colors.surface }]}
         >
           <View style={[sheetStyles.header, { paddingTop: Math.max(18, insets.top + 8) }]}>
-            <View>
+            <View style={sheetStyles.headerCopy}>
               <Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
-              <Text style={[sheetStyles.title, { color: colors.ink }]}>{title}</Text>
+              <Text numberOfLines={2} ellipsizeMode="tail" style={[sheetStyles.title, { color: colors.ink }]}>
+                {title}
+              </Text>
             </View>
             <Pressable
               accessibilityRole="button"
@@ -1953,16 +1955,17 @@ const sheetStyles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 18,
     paddingBottom: 8,
   },
+  headerCopy: { flex: 1, minWidth: 0, paddingRight: 12 },
   eyebrow: { color: formPalette.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 },
-  title: { flex: 1, marginTop: 4, paddingRight: 12, color: formPalette.ink, fontSize: 23, fontWeight: '900' },
+  title: { flexShrink: 1, marginTop: 4, color: formPalette.ink, fontSize: 23, fontWeight: '900' },
   closeButton: {
     width: 48,
     height: 48,
+    flexShrink: 0,
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: 21,

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { addGoalContribution, releaseGoalContribution, makeResourceController, savingsDashboard } from "../controllers/resource.controller.js";
+import { addGoalContribution, releaseGoalContribution, makeResourceController, savingsDashboard, updateSubscriptionStatus } from "../controllers/resource.controller.js";
 import type { TableName } from "../services/db.js";
 import { idParamSchema } from "../schemas/common.schema.js";
 import { createExpenseSchema, expenseQuerySchema, updateExpenseSchema } from "../schemas/expense.schema.js";
@@ -33,6 +33,14 @@ export function resourceRouter(table: TableName) {
     router.get("/summary", asyncHandler(savingsDashboard));
     router.post("/:id/contributions", writeRateLimit, validateRequest({ params: idParamSchema, body: goalContributionSchema }), asyncHandler(addGoalContribution));
     router.post("/:id/releases", writeRateLimit, validateRequest({ params: idParamSchema, body: goalReleaseSchema }), asyncHandler(releaseGoalContribution));
+  }
+  if (table === "subscriptions") {
+    router.patch(
+      "/:id/status",
+      writeRateLimit,
+      validateRequest({ params: idParamSchema, body: z.object({ auto_renew: z.boolean() }).strict() }),
+      asyncHandler(updateSubscriptionStatus),
+    );
   }
 
   router.get("/", validateRequest({ query: schemas.query }), asyncHandler(async (req, res, next) => {

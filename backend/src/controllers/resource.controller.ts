@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import { makeResourceService } from "../services/resource.service.js";
+import { makeResourceService, setSubscriptionStatus } from "../services/resource.service.js";
 import { getSavingsDashboard } from "../services/analytics.service.js";
 import type { TableName } from "../services/db.js";
 import { sendSuccess } from "../utils/api.js";
@@ -33,6 +33,16 @@ export async function releaseGoalContribution(req: Request, res: Response) {
     request_id: body.idempotency_key,
   });
   throwIfError(error);
+  return sendSuccess(res, data);
+}
+
+export async function updateSubscriptionStatus(req: Request, res: Response) {
+  const body = req.validated?.body as { auto_renew: boolean };
+  const data = await setSubscriptionStatus(
+    req.user!.id,
+    (req.validated?.params as { id: string }).id,
+    body.auto_renew,
+  );
   return sendSuccess(res, data);
 }
 

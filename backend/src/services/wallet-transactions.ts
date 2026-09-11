@@ -19,6 +19,7 @@ export function walletTransferPerspective(
   return {
     ...row,
     kind: outgoing ? 'transfer_out' : 'transfer_in',
+    direction: outgoing ? 'outflow' : 'inflow',
     label: outgoing ? `Transfer to ${counterpartName}` : `Transfer from ${counterpartName}`,
     date: row.transferred_at,
     // The canonical fee is its own linked Bank Fees expense. Keeping this row

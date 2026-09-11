@@ -1,4 +1,5 @@
 import { RecordActionSheet } from './record-action-sheet';
+import type { ReactNode } from 'react';
 
 type ItemManagementSheetProps = {
   visible: boolean;
@@ -10,6 +11,7 @@ type ItemManagementSheetProps = {
   onDelete: () => Promise<void>;
   onToggleStatus?: () => Promise<void>;
   toggleStatusLabel?: string;
+  toggleStatusIcon?: ReactNode;
   deleting?: boolean;
   error?: string;
 };
@@ -25,7 +27,10 @@ export function ItemManagementSheet({
   onDelete,
   onToggleStatus,
   toggleStatusLabel = 'Pause',
+  toggleStatusIcon,
 }: ItemManagementSheetProps) {
+  const isPauseAction = toggleStatusLabel.startsWith('Pause');
+  const statusTone = isPauseAction ? 'warning' as const : 'primary' as const;
   return (
     <RecordActionSheet
       visible={visible}
@@ -44,13 +49,22 @@ export function ItemManagementSheet({
           ? [
               {
                 label: toggleStatusLabel,
+                tone: statusTone,
+                icon: toggleStatusIcon,
                 onPress: onToggleStatus,
                 confirm: {
-                  title: `${toggleStatusLabel} ${itemName}?`,
+                  title: isPauseAction
+                    ? `Pause ${itemName} subscription?`
+                    : `Resume ${itemName} subscription?`,
                   message:
-                    toggleStatusLabel === 'Pause'
-                      ? 'Renewal tracking and reminders will stop until you resume it.'
+                    isPauseAction
+                      ? 'Renewal tracking and reminders will stop until you resume this subscription.'
                       : 'Renewal tracking and reminders will resume.',
+                  confirmLabel: toggleStatusLabel,
+                  cancelLabel: isPauseAction ? 'Keep subscription' : 'Keep paused',
+                  loadingLabel: isPauseAction ? 'Pausing…' : 'Resuming…',
+                  tone: statusTone,
+                  icon: toggleStatusIcon,
                 },
               },
             ]

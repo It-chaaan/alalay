@@ -5,13 +5,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '@/theme/theme';
 import { useModalVisibility } from '@/components/modal-visibility';
 
-export type RecordActionTone = 'default' | 'primary' | 'destructive';
+export type RecordActionTone = 'default' | 'primary' | 'warning' | 'destructive';
 
 export type RecordAction = {
   label: string;
   tone?: RecordActionTone;
   onPress: () => void | Promise<void>;
-  confirm?: { title: string; message: string };
+  confirm?: {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    cancelLabel?: string;
+    loadingLabel?: string;
+    tone?: RecordActionTone;
+    icon?: ReactNode;
+  };
   disabled?: boolean;
   icon?: ReactNode;
 };
@@ -68,6 +76,15 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
     void run(action);
   };
 
+  const confirmTone = confirmation?.confirm?.tone ?? confirmation?.tone ?? 'destructive';
+  const confirmColor = confirmTone === 'primary'
+    ? colors.primary
+    : confirmTone === 'warning'
+      ? colors.warning
+      : confirmTone === 'destructive'
+        ? colors.danger
+        : colors.textPrimary;
+
   return <Modal visible={visible} animationType="fade" transparent onRequestClose={close} statusBarTranslucent>
     <View style={styles.overlay}>
       <Pressable accessibilityLabel="Close action sheet" style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={close} />
@@ -76,18 +93,17 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
           <BlurView intensity={42} tint={resolvedTheme} style={StyleSheet.absoluteFill} />
           <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]} />
           <View style={styles.sheet}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>{title}</Text>
-            <Text numberOfLines={2} style={[styles.recordName, { color: colors.textSecondary }]}>{recordName}</Text>
+            <Text numberOfLines={2} style={[styles.title, { color: colors.textPrimary }]}>{confirmation?.confirm?.title ?? title}</Text>
+            {!confirmation ? <Text numberOfLines={2} style={[styles.recordName, { color: colors.textSecondary }]}>{recordName}</Text> : null}
             {confirmation ? <>
-              <Text style={[styles.confirmTitle, { color: colors.textPrimary }]}>{confirmation.confirm?.title}</Text>
               <Text style={[styles.confirmCopy, { color: colors.textSecondary }]}>{confirmation.confirm?.message}</Text>
               {error ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
               <View style={styles.confirmRow}>
-                <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmation(null)} style={[styles.action, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text></Pressable>
-                <Pressable disabled={busy} accessibilityRole="button" onPress={() => void run(confirmation)} style={[styles.action, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}>{busy ? <ActivityIndicator color={colors.danger} /> : <Text style={[styles.actionText, { color: colors.danger }]}>Delete</Text>}</Pressable>
+                <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmation(null)} style={[styles.action, styles.confirmAction, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>{confirmation.confirm?.cancelLabel ?? 'Cancel'}</Text></Pressable>
+                <Pressable disabled={busy} accessibilityRole="button" onPress={() => void run(confirmation)} style={[styles.action, styles.confirmAction, { backgroundColor: confirmTone === 'warning' ? `${colors.warning}18` : colors.surfaceInput }, busy && styles.disabled]}>{busy ? <><ActivityIndicator color={confirmColor} /><Text style={[styles.actionText, { color: confirmColor }]}>{confirmation.confirm?.loadingLabel ?? 'Working…'}</Text></> : <>{confirmation.confirm?.icon}{<Text style={[styles.actionText, { color: confirmColor }]}>{confirmation.confirm?.confirmLabel ?? confirmation.label}</Text>}</>}</Pressable>
               </View>
             </> : <>
-              {actions.map((action) => <Pressable key={action.label} accessibilityRole="button" accessibilityState={{ disabled: action.disabled || busy }} disabled={action.disabled || busy} onPress={() => select(action)} style={({ pressed }) => [styles.action, { backgroundColor: colors.surfaceInput }, pressed && styles.pressed, (action.disabled || busy) && styles.disabled]}>{action.icon}{busy ? null : <Text style={[styles.actionText, { color: action.tone === 'primary' ? colors.primary : action.tone === 'destructive' ? colors.danger : colors.textPrimary }]}>{action.label}</Text>}</Pressable>)}
+              {actions.map((action) => <Pressable key={action.label} accessibilityRole="button" accessibilityState={{ disabled: action.disabled || busy }} disabled={action.disabled || busy} onPress={() => select(action)} style={({ pressed }) => [styles.action, { backgroundColor: colors.surfaceInput }, pressed && styles.pressed, (action.disabled || busy) && styles.disabled]}>{action.icon}{busy ? null : <Text style={[styles.actionText, { color: action.tone === 'primary' ? colors.primary : action.tone === 'warning' ? colors.warning : action.tone === 'destructive' ? colors.danger : colors.textPrimary }]}>{action.label}</Text>}</Pressable>)}
               <Pressable accessibilityRole="button" onPress={close} disabled={busy} style={[styles.action, styles.cancel, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text></Pressable>
             </>}
           </View>
@@ -110,8 +126,8 @@ const styles = StyleSheet.create({
   cancel: { marginTop: 2 },
   pressed: { opacity: 0.74 },
   disabled: { opacity: 0.5 },
-  confirmTitle: { marginTop: 4, fontSize: 17, fontWeight: '900' },
   confirmCopy: { marginBottom: 4, fontSize: 13, lineHeight: 19 },
   error: { fontSize: 12, fontWeight: '800' },
   confirmRow: { flexDirection: 'row', gap: 10, marginTop: 3 },
+  confirmAction: { flex: 1, minWidth: 0 },
 });

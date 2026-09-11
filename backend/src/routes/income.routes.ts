@@ -9,13 +9,19 @@ import { sendSuccess } from '../utils/api.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { resourceRouter } from './resource.routes.js';
 import { nextPayday } from '../services/payday.service.js';
-import { incomeMonthQuerySchema, incomeRecordedQuerySchema } from '../schemas/income.schema.js';
+import { incomeMonthQuerySchema, incomeRecordedQuerySchema, skipIncomeOccurrenceParamsSchema } from '../schemas/income.schema.js';
+import { skipIncomeOccurrence } from '../services/resource.service.js';
 import { idParamSchema } from '../schemas/common.schema.js';
 import { validateRequest } from '../middleware/validateRequest.js';
 import { writeRateLimit } from '../middleware/rateLimit.js';
 import { retryIncomeScheduleCredit } from '../services/income-scheduler.service.js';
 
 export const incomeRouter = Router();
+
+incomeRouter.delete('/recurring/:sourceId/occurrences/:date', writeRateLimit, validateRequest({ params: skipIncomeOccurrenceParamsSchema }), asyncHandler(async (req, res) => {
+  const { sourceId, date } = req.validated!.params as { sourceId: string; date: string };
+  return sendSuccess(res, await skipIncomeOccurrence(req.user!.id, sourceId, date));
+}));
 
 incomeRouter.post(
   '/:id/retry-credit',

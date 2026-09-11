@@ -3,6 +3,7 @@ import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from '
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { expandIncomeRows } from './income-recurrence.service.js';
+import { nextUpcomingRenewal, type SubscriptionBillingCycle } from './subscription-billing.service.js';
 
 export function makeResourceService(table: TableName) {
   return {
@@ -63,11 +64,86 @@ export function makeResourceService(table: TableName) {
         invalidateReportsForUser(userId);
         return data;
       }
+      if (table === 'savings_goals') {
+        const { data, error } = await client().rpc('delete_savings_goal', { target_goal_id: id });
+        if (error) {
+          console.error('[savings-goal.delete] database failure', {
+            operation: 'delete_savings_goal',
+            goalId: id,
+            userId,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+          if (error.code === 'P0002') throw new AppError(404, 'not_found', 'Record not found.');
+          throwIfError(error);
+        }
+        invalidateReportsForUser(userId);
+        return { id: data };
+      }
       const result = await softDeleteOwned(table, userId, id);
       invalidateReportsForUser(userId);
       return result;
     },
   };
+}
+
+export async function skipIncomeOccurrence(userId: string, sourceId: string, date: string) {
+  // The SQL RPC rechecks ownership and schedule/date validity under a row lock.
+  const { data, error } = await client().rpc('skip_income_occurrence', {
+    target_source_id: sourceId,
+    target_date: date,
+  });
+  if (error) {
+    if (error.code === 'P0002') throw new AppError(404, 'not_found', 'Income schedule not found.');
+    if (error.code === '22007') throw new AppError(400, 'validation_error', 'That date is not scheduled income.');
+    throwIfError(error);
+  }
+  invalidateReportsForUser(userId);
+  return data;
+}
+
+/**
+ * Pausing is deliberately separate from the generic subscription editor.
+ * Resuming moves an elapsed renewal forward, so the scheduler cannot create
+ * expenses or reminders for periods while the subscription was paused.
+ */
+export async function setSubscriptionStatus(userId: string, id: string, autoRenew: boolean) {
+  const ownerId = requireUserId(userId);
+  const { data: current, error: lookupError } = await client()
+    .from('subscriptions')
+    .select('id, auto_renew, renewal_date, billing_cycle, wallet_id')
+    .eq('id', id)
+    .eq('user_id', ownerId)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (lookupError) throwIfError(lookupError);
+  if (!current) throw new AppError(404, 'not_found', 'Record not found.');
+  if (autoRenew && !current.wallet_id) {
+    throw new AppError(400, 'validation_error', 'Choose a payment wallet before resuming this subscription.');
+  }
+
+  const cycle: SubscriptionBillingCycle = ['weekly', 'monthly', 'quarterly', 'yearly'].includes(
+    String(current.billing_cycle),
+  )
+    ? current.billing_cycle as SubscriptionBillingCycle
+    : 'monthly';
+  const renewalDate = autoRenew
+    ? nextUpcomingRenewal(String(current.renewal_date), cycle, todayIso())
+    : current.renewal_date;
+  const { data, error } = await client()
+    .from('subscriptions')
+    .update({ auto_renew: autoRenew, renewal_date: renewalDate })
+    .eq('id', id)
+    .eq('user_id', ownerId)
+    .is('deleted_at', null)
+    .select('*')
+    .maybeSingle();
+  if (error) throwIfError(error);
+  if (!data) throw new AppError(404, 'not_found', 'Record not found.');
+  invalidateReportsForUser(ownerId);
+  return data;
 }
 
 async function createIncomeSchedule(userId: string, payload: Record<string, unknown>) {

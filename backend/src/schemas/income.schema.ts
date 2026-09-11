@@ -36,6 +36,11 @@ export const incomeMonthQuerySchema = z
   })
   .strict();
 
+export const skipIncomeOccurrenceParamsSchema = z.object({
+  sourceId: z.string().uuid(),
+  date: safeDate,
+}).strict();
+
 const incomeShape = z
   .object({
     source: z.string().trim().min(1).max(200),

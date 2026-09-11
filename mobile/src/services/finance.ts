@@ -438,7 +438,7 @@ export async function fetchFinanceItems() {
     paid: bill.status === 'paid', wallet_id: bill.wallet_id, credit_wallet_id: bill.credit_wallet_id,
     templateId: bill.bill_id ?? bill.id, isOverdueFromPreviousMonth: true,
   }));
-  const subscriptionItems: FinanceItem[] = subscriptions.map((subscription) => ({
+  const subscriptionItems: FinanceItem[] = subscriptions.filter((subscription) => subscription.auto_renew !== false).map((subscription) => ({
     id: subscription.id,
     source: 'subscription',
     name: subscription.name,

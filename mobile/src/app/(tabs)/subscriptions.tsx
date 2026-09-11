@@ -11,7 +11,7 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import { MoreHorizontal, Search, SlidersHorizontal, X } from 'lucide-react-native';
+import { MoreHorizontal, Pause, Search, SlidersHorizontal, X } from 'lucide-react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import {
@@ -214,7 +214,7 @@ export default function Subscriptions() {
     Boolean(filters.category);
   const toggle = async (row: Sub) => {
     try {
-      await authenticatedApiRequest(`/api/subscriptions/${row.id}`, {
+      await authenticatedApiRequest(`/api/subscriptions/${row.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ auto_renew: !row.auto_renew }),
@@ -222,8 +222,10 @@ export default function Subscriptions() {
       notifyFinancialMutation();
       await refresh();
       toast.success(`Subscription ${row.auto_renew ? 'paused' : 'resumed'}`);
-    } catch {
-      toast.error("Couldn't update subscription. Please try again.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Couldn't update subscription. Please try again.";
+      toast.error(message);
+      throw new Error(message);
     }
   };
   const remove = async (row: Sub) => {
@@ -513,6 +515,7 @@ export default function Subscriptions() {
           onEdit={() => setEditing(managing)}
           onToggleStatus={() => toggle(managing)}
           toggleStatusLabel={managing.auto_renew ? 'Pause subscription' : 'Resume subscription'}
+          toggleStatusIcon={managing.auto_renew ? <Pause size={18} color={colors.warning} /> : undefined}
           onDelete={() => remove(managing)}
           deleting={deleting}
           error={deleteError}

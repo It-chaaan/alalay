@@ -33,7 +33,9 @@ type WalletTransaction = {
   category?: string;
   date: string;
   amount: number;
+  direction: 'inflow' | 'outflow';
 };
+type TransactionFilter = 'all' | 'income' | 'expense';
 type WalletDetail = {
   wallet: WalletWithDates;
   transactions?: WalletTransaction[];
@@ -83,6 +85,7 @@ export default function WalletDetailsScreen() {
   const [statementOpen, setStatementOpen] = useState(false);
   const [financeChargeOpen, setFinanceChargeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
+  const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all');
 
   const load = useCallback(async () => {
     if (!walletId) {
@@ -116,10 +119,11 @@ export default function WalletDetailsScreen() {
   const interestEstimate = detail?.interestEstimate;
   const cardInterestEstimate = detail?.creditCardInterestEstimate;
   const latestStatement = detail?.statements?.[0];
-  const transactions = useMemo(
-    () => (detail?.transactions ?? []).slice(0, 5),
-    [detail?.transactions],
-  );
+  useEffect(() => { setTransactionFilter('all'); }, [walletId]);
+  const filteredTransactions = useMemo(() => (detail?.transactions ?? []).filter((transaction) =>
+    transactionFilter === 'all' || (transactionFilter === 'income' ? transaction.direction === 'inflow' : transaction.direction === 'outflow'),
+  ), [detail?.transactions, transactionFilter]);
+  const transactions = useMemo(() => filteredTransactions.slice(0, 5), [filteredTransactions]);
   const finishMutation = async () => {
     notifyFinancialMutation();
     await load();
@@ -319,8 +323,14 @@ export default function WalletDetailsScreen() {
             </View>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.textPrimary, marginBottom: 0 }]}>
-                Recent transactions
+                Recent transactions{filteredTransactions.length ? ` (${filteredTransactions.length})` : ''}
               </Text>
+            </View>
+            <View accessibilityRole="tablist" accessibilityLabel="Transaction type filter" style={[styles.transactionFilters, { backgroundColor: colors.surfaceSecondary, borderColor: colors.border }]}>
+              {(['all', 'income', 'expense'] as const).map((filter) => {
+                const selected = transactionFilter === filter;
+                return <Pressable key={filter} accessibilityRole="tab" accessibilityState={{ selected }} accessibilityLabel={`${filter === 'all' ? 'All' : filter === 'income' ? 'Income' : 'Expense'} transactions`} onPress={() => setTransactionFilter(filter)} style={({ pressed }) => [styles.transactionFilter, selected && { backgroundColor: colors.primary }, pressed && styles.pressed]}><Text style={[styles.transactionFilterText, { color: selected ? colors.textOnPrimary : colors.textSecondary }]}>{filter === 'all' ? 'All' : filter === 'income' ? 'Income' : 'Expense'}</Text></Pressable>;
+              })}
             </View>
             {detail.transactionError ? (
               <View
@@ -352,7 +362,7 @@ export default function WalletDetailsScreen() {
                 ]}
               >
                 <Text style={[styles.emptyTitle, { color: colors.textPrimary }]}>
-                  No transactions yet
+                  {transactionFilter === 'all' ? 'No transactions yet' : transactionFilter === 'income' ? 'No income transactions' : 'No expense transactions'}
                 </Text>
                 <Text style={[styles.muted, { color: colors.textSecondary }]}>
                   Activity linked to this wallet will appear here.
@@ -637,6 +647,9 @@ function TransactionRow({
 const styles = StyleSheet.create({
   safe: { flex: 1 },
   content: { padding: 16, gap: 16 },
+  transactionFilters: { flexDirection: 'row', minHeight: 46, padding: 4, borderWidth: 1, borderRadius: 14, gap: 4 },
+  transactionFilter: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 10, paddingHorizontal: 8 },
+  transactionFilterText: { fontSize: 13, fontWeight: '800' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 10 },
   title: { fontSize: 20, fontWeight: '900', textAlign: 'center' },
   muted: { fontSize: 12, lineHeight: 18 },

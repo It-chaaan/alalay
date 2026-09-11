@@ -114,6 +114,14 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   // the selected month, while posted-row filtering below remains [start, next).
   const to = lastDayOfMonth(selectedMonth);
   const summary = await incomeForRange(userId, from, to);
+  const sourceIds = summary.sourceRows
+    .filter((row) => row.is_posted === false && isRecurring(row))
+    .map((row) => String(row.id));
+  const { data: skippedRows, error: skippedError } = sourceIds.length
+    ? await client().from('income_skipped_occurrences').select('source_id, occurrence_date').eq('user_id', requireUserId(userId)).in('source_id', sourceIds)
+    : { data: [], error: null };
+  throwIfError(skippedError);
+  const skipped = new Set((skippedRows ?? []).map((row) => `${row.source_id}:${row.occurrence_date}`));
   const sourceRows = summary.sourceRows.filter(
     (row) =>
       row.is_posted === false &&
@@ -162,9 +170,10 @@ export async function myIncomeForMonth(userId: string, month?: string) {
   }
 
   for (const expected of summary.scheduledRows) {
-    const scheduleId = String(expected.recurrence_key ?? '').split(':')[0];
+    const scheduleId = String(expected.source_id ?? '');
     const source = summary.sourceRows.find((row) => String(row.id) === scheduleId);
     if (!source) continue;
+    if (skipped.has(`${scheduleId}:${expected.occurrence_date ?? expected.date}`)) continue;
     const failure = String(source.posting_status ?? source.status ?? '').toLowerCase() === 'failed';
     items.push({
       kind: isRecurring(source) ? 'recurring' : 'one_time',
