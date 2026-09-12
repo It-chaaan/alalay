@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { ShieldCheck } from 'lucide-react-native';
@@ -8,6 +8,7 @@ import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
 import { SettingsHeader, useSettingsStyles } from '@/components/settings-ui';
 import { useAppTheme } from '@/theme/theme';
 import { OtpInput } from '@/components/otp-input';
+import { createLatestRequestGuard } from '@/utils/request-gate';
 
 type Factor = { id: string; friendlyName?: string | null };
 type Enrollment = { id: string; qr: string; secret: string };
@@ -24,8 +25,31 @@ export default function AuthenticatorScreen() {
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
 
-  const load = async () => { setLoading(true); setError(''); try { const state = await getMfaState(); setFactor(state.factor); } catch { setError('Unable to load authenticator status.'); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, []);
+  const [requestGuard] = useState(createLatestRequestGuard);
+  const loadMfaState = useCallback(() => {
+    const generation = requestGuard.begin();
+    return getMfaState()
+      .then((state) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setFactor(state.factor);
+        setError('');
+      })
+      .catch(() => {
+        if (requestGuard.isCurrent(generation)) setError('Unable to load authenticator status.');
+      })
+      .finally(() => {
+        if (requestGuard.isCurrent(generation)) setLoading(false);
+      });
+  }, [requestGuard]);
+  const load = useCallback(() => {
+    setLoading(true);
+    setError('');
+    return loadMfaState();
+  }, [loadMfaState]);
+  useEffect(() => {
+    void loadMfaState();
+    return () => requestGuard.invalidate();
+  }, [loadMfaState, requestGuard]);
   const begin = async () => { if (!client) return; setBusy(true); setError(''); try { const result = await client.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Alalay authenticator' }); if (result.error || !result.data) throw result.error || new Error('Authenticator setup could not start.'); setSetup({ id: result.data.id, qr: result.data.totp.qr_code, secret: result.data.totp.secret }); } catch (e) { setError(e instanceof Error ? e.message : 'Authenticator setup could not start.'); } finally { setBusy(false); } };
   const verify = async () => { if (!client || !setup || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; } setBusy(true); setError(''); try { const result = await client.auth.mfa.challengeAndVerify({ factorId: setup.id, code }); if (result.error) throw result.error; try { await rememberTrustedDevice(); } catch { /* verified AAL2 session remains authoritative */ } setSetup(null); setCode(''); setMessage('Authenticator enabled. This device is verified.'); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'That authenticator code is invalid.'); } finally { setBusy(false); } };
   const disable = () => Alert.alert('Disable authenticator?', 'Your account will no longer require an authenticator code during new sign-ins.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Continue', style: 'destructive', onPress: () => { void disableConfirmed(); } }]);

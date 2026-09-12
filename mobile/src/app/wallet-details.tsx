@@ -23,6 +23,7 @@ import { fetchWallets, notifyFinancialMutation, repayCreditAccount } from '@/ser
 import { authenticatedApiRequest, createRequestId } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
 import { formatCurrency } from '@/utils/currency';
+import { createLatestRequestGuard } from '@/utils/request-gate';
 import { DepositForm, EditWalletSheet, TransferForm } from './(tabs)/wallets';
 
 type WalletWithDates = Wallet & { created_at?: string | null; updated_at?: string | null };
@@ -42,7 +43,7 @@ type WalletDetail = {
   transactionError?: string;
   interestEstimate?: { enabled: boolean; annual_interest_rate?: number | string; estimated_daily_interest?: number | string; estimated_accrued_interest?: number | string };
   creditCardInterestEstimate?: { enabled: boolean; tracking_mode?: 'estimate_only' | 'manual_confirm'; rate?: number | string; rate_basis?: 'annual' | 'monthly'; estimated_finance_charge?: number | string };
-  statements?: Array<{ id: string; statement_balance: number | string; minimum_due: number | string; amount_paid: number | string; remaining_balance: number | string; due_date: string; closing_date?: string; status: string }>;
+  statements?: { id: string; statement_balance: number | string; minimum_due: number | string; amount_paid: number | string; remaining_balance: number | string; due_date: string; closing_date?: string; status: string }[];
 };
 
 const peso = (value: number | string) => formatCurrency(Math.round(Number(value) || 0));
@@ -71,12 +72,16 @@ const todayIso = () => new Intl.DateTimeFormat('en-CA', {
 }).format(new Date());
 
 export default function WalletDetailsScreen() {
-  const { colors } = useAppTheme();
   const { walletId } = useLocalSearchParams<{ walletId?: string }>();
+  return <WalletDetailsContent key={walletId ?? 'missing-wallet'} walletId={walletId} />;
+}
+
+function WalletDetailsContent({ walletId }: { walletId?: string }) {
+  const { colors } = useAppTheme();
   const [detail, setDetail] = useState<WalletDetail | null>(null);
   const [wallets, setWallets] = useState<Wallet[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(Boolean(walletId));
+  const [error, setError] = useState(walletId ? '' : 'This wallet could not be identified.');
   const [actionOpen, setActionOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
@@ -86,40 +91,47 @@ export default function WalletDetailsScreen() {
   const [financeChargeOpen, setFinanceChargeOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [transactionFilter, setTransactionFilter] = useState<TransactionFilter>('all');
+  const [requestGuard] = useState(createLatestRequestGuard);
 
-  const load = useCallback(async () => {
-    if (!walletId) {
-      setError('This wallet could not be identified.');
-      setLoading(false);
-      return;
-    }
+  const loadData = useCallback(() => {
+    if (!walletId) return;
+    const generation = requestGuard.begin();
+    return Promise.all([
+      authenticatedApiRequest<WalletDetail>(`/api/wallets/${walletId}`),
+      fetchWallets(),
+    ])
+      .then(([nextDetail, nextWallets]) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setDetail(nextDetail);
+        setWallets(nextWallets as Wallet[]);
+        setError('');
+      })
+      .catch((requestError) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setError(
+          requestError instanceof Error ? requestError.message : 'Wallet details could not load.',
+        );
+      })
+      .finally(() => {
+        if (requestGuard.isCurrent(generation)) setLoading(false);
+      });
+  }, [requestGuard, walletId]);
+  const load = useCallback(() => {
+    if (!walletId) return;
     setLoading(true);
     setError('');
-    try {
-      const [nextDetail, nextWallets] = await Promise.all([
-        authenticatedApiRequest<WalletDetail>(`/api/wallets/${walletId}`),
-        fetchWallets(),
-      ]);
-      setDetail(nextDetail);
-      setWallets(nextWallets as Wallet[]);
-    } catch (requestError) {
-      setError(
-        requestError instanceof Error ? requestError.message : 'Wallet details could not load.',
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [walletId]);
+    return loadData();
+  }, [loadData, walletId]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (walletId) void loadData();
+    return () => requestGuard.invalidate();
+  }, [loadData, requestGuard, walletId]);
 
   const wallet = detail?.wallet;
   const interestEstimate = detail?.interestEstimate;
   const cardInterestEstimate = detail?.creditCardInterestEstimate;
   const latestStatement = detail?.statements?.[0];
-  useEffect(() => { setTransactionFilter('all'); }, [walletId]);
   const filteredTransactions = useMemo(() => (detail?.transactions ?? []).filter((transaction) =>
     transactionFilter === 'all' || (transactionFilter === 'income' ? transaction.direction === 'inflow' : transaction.direction === 'outflow'),
   ), [detail?.transactions, transactionFilter]);

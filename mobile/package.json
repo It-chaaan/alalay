@@ -18,6 +18,7 @@
     "test:expense-screen": "tsx src/utils/expense-screen.test.ts",
     "test:currency": "tsx src/utils/currency.test.ts",
     "test:wallet-presets": "tsx src/constants/wallets.test.ts",
+    "test:wallet-form-state": "tsx src/utils/wallet-form-state.test.ts",
     "test:receipt-upload": "tsx src/utils/receipt-upload.test.ts",
     "test:request-gate": "tsx src/utils/request-gate.test.ts",
     "test:session-gate": "tsx src/utils/session-gate.test.ts",

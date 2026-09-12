@@ -98,7 +98,7 @@ function SessionGate() {
   const [mfaPending, setMfaPending] = useState(false);
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [onboardingRequired, setOnboardingRequired] = useState(false);
-  const redirectGuard = useRef(createRedirectGuard()).current;
+  const [redirectGuard] = useState(createRedirectGuard);
   const sessionUserId = session?.user.id ?? null;
 
   useEffect(() => {

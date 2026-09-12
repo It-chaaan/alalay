@@ -47,6 +47,7 @@ import { formatCurrency } from '@/utils/currency';
 import { useToast } from '@/components/toast-provider';
 import { filterSubscriptions } from '@/utils/subscription-search';
 import { getCategoryMeta } from '@/constants/categories';
+import { createLatestRequestGuard } from '@/utils/request-gate';
 
 type Sub = {
   id: string;
@@ -136,18 +137,7 @@ export default function Subscriptions() {
   const { colors } = useAppTheme();
   const bottomNavClearance = useBottomNavClearance();
   const toast = useToast();
-  styles = makeStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.primary,
-    accentDark: colors.primary,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    line: colors.border,
-  });
+  const styles = useSubscriptionStyles();
   const [rows, setRows] = useState<Sub[]>([]);
   const [income, setIncome] = useState<Income[]>([]);
   const [loading, setLoading] = useState(true);
@@ -165,30 +155,44 @@ export default function Subscriptions() {
   const [draftFilters, setDraftFilters] = useState<SubscriptionFilters>(emptyFilters);
   const [filterSheetOpen, setFilterSheetOpen] = useState(false);
 
-  const refresh = useCallback(async () => {
+  const [requestGuard] = useState(createLatestRequestGuard);
+  const load = useCallback(() => {
+    const generation = requestGuard.begin();
+    return Promise.all([
+      authenticatedApiRequest<Sub[]>('/api/subscriptions'),
+      authenticatedApiRequest<Income[]>('/api/income'),
+      fetchWallets(),
+    ])
+      .then(([subs, entries, walletRows]) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setRows(subs);
+        setIncome(entries);
+        setWallets(walletRows as Wallet[]);
+        setError('');
+      })
+      .catch((cause) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setError(cause instanceof Error ? cause.message : 'Subscriptions could not load.');
+      })
+      .finally(() => {
+        if (requestGuard.isCurrent(generation)) setLoading(false);
+      });
+  }, [requestGuard]);
+  const refresh = useCallback(() => {
     setLoading(true);
     setError('');
-    try {
-      const [subs, entries, walletRows] = await Promise.all([
-        authenticatedApiRequest<Sub[]>('/api/subscriptions'),
-        authenticatedApiRequest<Income[]>('/api/income'),
-        fetchWallets(),
-      ]);
-      setRows(subs);
-      setIncome(entries);
-      setWallets(walletRows as Wallet[]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Subscriptions could not load.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    return load();
+  }, [load]);
   useEffect(() => {
-    void refresh();
-    return subscribeFinancialMutations(() => {
+    void load();
+    const unsubscribe = subscribeFinancialMutations(() => {
       void refresh();
     });
-  }, [refresh]);
+    return () => {
+      requestGuard.invalidate();
+      unsubscribe();
+    };
+  }, [load, refresh, requestGuard]);
 
   const monthlyTotal = rows.reduce((sum, row) => sum + monthly(row), 0);
   const yearly = monthlyTotal * 12;
@@ -573,6 +577,7 @@ function SubscriptionFilterSheet({
   onClose: () => void;
   onApply: () => void;
 }) {
+  const styles = useSubscriptionStyles();
   const options = (
     <>
       <Text style={styles.sheetLabel}>STATUS</Text>
@@ -708,6 +713,7 @@ function FilterChoice({
   selected: boolean;
   onPress: () => void;
 }) {
+  const styles = useSubscriptionStyles();
   return (
     <Pressable
       accessibilityRole="radio"
@@ -741,6 +747,7 @@ function SubscriptionForm({
   onSaved: () => Promise<void>;
   initial?: Sub;
 }) {
+  const styles = useSubscriptionStyles();
   const toast = useToast();
   const [name, setName] = useState(initial?.name ?? '');
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
@@ -1101,4 +1108,23 @@ function makeStyles(themePalette: typeof formPalette) {
     pressed: { opacity: 0.72 },
   });
 }
-let styles = makeStyles(formPalette);
+
+function useSubscriptionStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(
+    () =>
+      makeStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.primary,
+        accentDark: colors.primary,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        line: colors.border,
+      }),
+    [colors],
+  );
+}

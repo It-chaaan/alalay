@@ -12,6 +12,7 @@ import { fetchWallets, notifyFinancialMutation, type WalletRecord } from '@/serv
 import { authenticatedApiRequest } from '@/services/api';
 import { useAppTheme } from '@/theme/theme';
 import { formatCurrency } from '@/utils/currency';
+import { createLatestRequestGuard } from '@/utils/request-gate';
 
 type Direction = 'lent' | 'borrowed';
 type Tab = 'active' | 'history';
@@ -35,14 +36,29 @@ export default function LoansScreen() {
   const [paymentLoan, setPaymentLoan] = useState<Loan | null>(null);
   const [writeOffLoan, setWriteOffLoan] = useState<Loan | null>(null);
   const [adding, setAdding] = useState(false);
-  const load = useCallback(async () => {
+  const [requestGuard] = useState(createLatestRequestGuard);
+  const loadData = useCallback(() => {
+    const generation = requestGuard.begin();
+    return Promise.all([authenticatedApiRequest<LoansResponse>('/api/loans'), fetchWallets()])
+      .then(([loans, walletRows]) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setData(loans);
+        setWallets(walletRows as WalletRecord[] as Wallet[]);
+        setError('');
+      })
+      .catch((cause) => {
+        if (requestGuard.isCurrent(generation))
+          setError(cause instanceof Error ? cause.message : 'Loans could not load.');
+      });
+  }, [requestGuard]);
+  const load = useCallback(() => {
     setError('');
-    try {
-      const [loans, walletRows] = await Promise.all([authenticatedApiRequest<LoansResponse>('/api/loans'), fetchWallets()]);
-      setData(loans); setWallets(walletRows as WalletRecord[] as Wallet[]);
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'Loans could not load.'); }
-  }, []);
-  useEffect(() => { void load(); }, [load]);
+    return loadData();
+  }, [loadData]);
+  useEffect(() => {
+    void loadData();
+    return () => requestGuard.invalidate();
+  }, [loadData, requestGuard]);
   const amount = (value: number) => peso(value);
   const active = data?.loans.filter((loan) => loan.status === 'active') ?? [];
   const history = data?.loans.filter((loan) => loan.status !== 'active') ?? [];

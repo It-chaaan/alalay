@@ -1,4 +1,4 @@
-import { Children, useCallback, useEffect, useRef, useState } from 'react';
+import { Children, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -65,6 +65,8 @@ import { BrandLogo } from '@/components/brand-logo';
 import { useToast } from '@/components/toast-provider';
 import { useWalletBalanceVisibility } from '@/hooks/use-balance-visibility';
 import { useIncomeWorkflow } from '@/context/income-workflow';
+import { createLatestRequestGuard } from '@/utils/request-gate';
+import { defaultTransferFeeForSource } from '@/utils/wallet-form-state';
 
 type WalletTransaction = {
   id: string;
@@ -156,6 +158,7 @@ function WalletBalanceHero({
   onToggle: () => void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useWalletStyles();
   return (
     <View
       accessible
@@ -189,6 +192,7 @@ function WalletBalanceHero({
 }
 
 function WalletArtwork() {
+  const styles = useWalletStyles();
   return (
     <Svg pointerEvents="none" style={styles.walletArtwork} viewBox="0 0 180 150">
       <Path d="M35 55L110 30L152 51L73 77Z" fill="#176A54" opacity={0.55} />
@@ -238,18 +242,7 @@ export default function WalletsScreen() {
   const bottomNavClearance = useBottomNavClearance();
   const toast = useToast();
   const workflow = useIncomeWorkflow();
-  styles = makeStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.primary,
-    accentDark: colors.primary,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    line: colors.border,
-  });
+  const styles = useWalletStyles();
   const { walletId, openAddWallet, returnTo } = useLocalSearchParams<{
     walletId?: string;
     openAddWallet?: string;
@@ -263,53 +256,77 @@ export default function WalletsScreen() {
     'all' | 'bank' | 'e_wallet' | 'cash' | 'digital_bank' | 'other'
   >('all');
   const [detailError, setDetailError] = useState('');
-  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(Boolean(walletId));
   const [adding, setAdding] = useState(false);
   const [draftPreset, setDraftPreset] = useState<WalletPreset | null>(null);
-  useEffect(() => {
-    if (openAddWallet === '1' && !adding && !draftPreset) setAdding(true);
-  }, [adding, draftPreset, openAddWallet]);
   const [managedWallet, setManagedWallet] = useState<Wallet | null>(null);
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
+  const [listRequestGuard] = useState(createLatestRequestGuard);
+  const [detailRequestGuard] = useState(createLatestRequestGuard);
   const { visible, toggle: toggleBalanceVisibility } = useWalletBalanceVisibility();
   const amountsVisible = visible === true;
   const maskedBalance = '••••••';
 
-  const refresh = useCallback(async () => {
+  const loadWallets = useCallback(() => {
+    const generation = listRequestGuard.begin();
+    return fetchWallets()
+      .then((rows) => {
+        if (!listRequestGuard.isCurrent(generation)) return;
+        setWallets(rows as Wallet[]);
+        setListError('');
+      })
+      .catch((cause) => {
+        if (listRequestGuard.isCurrent(generation))
+          setListError(cause instanceof Error ? cause.message : 'Wallets could not load.');
+      })
+      .finally(() => {
+        if (listRequestGuard.isCurrent(generation)) setLoading(false);
+      });
+  }, [listRequestGuard]);
+  const refresh = useCallback(() => {
     setLoading(true);
     setListError('');
-    try {
-      setWallets((await fetchWallets()) as Wallet[]);
-    } catch (e) {
-      setListError(e instanceof Error ? e.message : 'Wallets could not load.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-  const loadWalletDetail = useCallback(async (id: string) => {
+    return loadWallets();
+  }, [loadWallets]);
+  const loadWalletDetailData = useCallback((id: string) => {
+    const generation = detailRequestGuard.begin();
+    return authenticatedApiRequest<WalletDetail>(`/api/wallets/${id}`)
+      .then((nextDetail) => {
+        if (!detailRequestGuard.isCurrent(generation)) return;
+        setSelected(nextDetail);
+        setDetailError('');
+      })
+      .catch((cause) => {
+        if (detailRequestGuard.isCurrent(generation))
+          setDetailError(cause instanceof Error ? cause.message : 'Wallet details could not load.');
+      })
+      .finally(() => {
+        if (detailRequestGuard.isCurrent(generation)) setDetailLoading(false);
+      });
+  }, [detailRequestGuard]);
+  const loadWalletDetail = useCallback((id: string) => {
     setDetailLoading(true);
     setDetailError('');
-    try {
-      setSelected(await authenticatedApiRequest<WalletDetail>(`/api/wallets/${id}`));
-    } catch (e) {
-      setDetailError(e instanceof Error ? e.message : 'Wallet details could not load.');
-    } finally {
-      setDetailLoading(false);
-    }
-  }, []);
+    return loadWalletDetailData(id);
+  }, [loadWalletDetailData]);
   useEffect(() => {
-    void refresh();
-    return subscribeFinancialMutations(() => {
+    void loadWallets();
+    const unsubscribe = subscribeFinancialMutations(() => {
       void refresh();
     });
-  }, [refresh]);
+    return () => {
+      listRequestGuard.invalidate();
+      unsubscribe();
+    };
+  }, [listRequestGuard, loadWallets, refresh]);
 
   const openWallet = (wallet: Wallet) => {
     router.push({ pathname: '/wallet-details', params: { walletId: wallet.id } });
   };
   useEffect(() => {
-    if (walletId) void loadWalletDetail(walletId);
-  }, [walletId, loadWalletDetail]);
+    if (walletId) void loadWalletDetailData(walletId);
+    return () => detailRequestGuard.invalidate();
+  }, [detailRequestGuard, loadWalletDetailData, walletId]);
   const refreshWalletDetail = async (id: string) => {
     notifyFinancialMutation();
     await refresh();
@@ -503,7 +520,7 @@ export default function WalletsScreen() {
           ]}
         />
       )}
-      {adding && (
+      {(adding || openAddWallet === '1') && !draftPreset && (
         <WalletPickerModal
           visible
           wallets={wallets}
@@ -511,17 +528,20 @@ export default function WalletsScreen() {
           allowUnset={false}
           onClose={() => {
             setAdding(false);
+            if (openAddWallet === '1') router.setParams({ openAddWallet: undefined });
             if (returnTo === 'income') router.replace('/(tabs)/income');
           }}
           onChange={(id) => {
             const wallet = wallets.find((row) => row.id === id);
             if (wallet) {
               setAdding(false);
+              if (openAddWallet === '1') router.setParams({ openAddWallet: undefined });
               void openWallet(wallet);
             }
           }}
           onPreset={(preset) => {
             setAdding(false);
+            if (openAddWallet === '1') router.setParams({ openAddWallet: undefined });
             setDraftPreset(preset);
           }}
         />
@@ -538,6 +558,7 @@ export default function WalletsScreen() {
       )}
       {draftPreset && (
         <AddWalletSheet
+          key={draftPreset.key}
           preset={draftPreset}
           wallets={wallets}
           onClose={() => {
@@ -576,20 +597,15 @@ function WalletDetailSheet({
   onDeposited: () => Promise<void>;
 }) {
   const { colors } = useAppTheme();
+  const styles = useWalletStyles();
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [depositOpen, setDepositOpen] = useState(false);
   const [interestOpen, setInterestOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
-  const [transferWallets, setTransferWallets] = useState<Wallet[]>(wallets);
+  const [loadedTransferWallets, setLoadedTransferWallets] = useState<Wallet[]>([]);
+  const transferWallets = wallets.length ? wallets : loadedTransferWallets;
   const wallet = detail.wallet;
   const transactions = detail.transactions ?? [];
-  useEffect(() => {
-    if (wallets.length) setTransferWallets(wallets);
-  }, [wallets]);
-  useEffect(() => {
-    if (transferOpen && !transferWallets.length)
-      void fetchWallets().then((rows) => setTransferWallets(rows as Wallet[]));
-  }, [transferOpen, transferWallets.length]);
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.detailOverlay}>
@@ -646,7 +662,11 @@ function WalletDetailSheet({
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`Transfer funds from ${wallet.name}`}
-              onPress={() => setTransferOpen(true)}
+              onPress={() => {
+                setTransferOpen(true);
+                if (!wallets.length && !loadedTransferWallets.length)
+                  void fetchWallets().then((rows) => setLoadedTransferWallets(rows as Wallet[]));
+              }}
               style={({ pressed }) => [
                 walletDetailStyles.action,
                 walletDetailStyles.transfer,
@@ -655,7 +675,7 @@ function WalletDetailSheet({
               ]}
             >
               <ArrowDownUp size={17} color={colors.primary} />
-              <Text style={[styles.transferDetailText, { color: colors.primary }]}>Transfer</Text>
+              <Text style={[styles.depositText, { color: colors.primary }]}>Transfer</Text>
             </Pressable>
           </View>
           <Text style={styles.historyTitle}>Linked transactions</Text>
@@ -1097,10 +1117,12 @@ export function TransferForm({
   onClose: () => void;
   onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
+  const styles = useWalletStyles();
   const toast = useToast();
+  const initialSourceId = initialFrom ?? wallets[0]?.id ?? null;
   const [amount, setAmount] = useState('');
-  const [fee, setFee] = useState('0');
-  const [fromId, setFromId] = useState<string | null>(initialFrom ?? wallets[0]?.id ?? null);
+  const [fee, setFee] = useState(() => defaultTransferFeeForSource(wallets, initialSourceId));
+  const [fromId, setFromId] = useState<string | null>(initialSourceId);
   const [toId, setToId] = useState<string | null>(
     wallets.find((wallet) => wallet.id !== (initialFrom ?? wallets[0]?.id))?.id ?? null,
   );
@@ -1111,12 +1133,12 @@ export function TransferForm({
   const requestKey = useRef<string | null>(null);
   const source = wallets.find((wallet) => wallet.id === fromId);
   const destination = wallets.find((wallet) => wallet.id === toId);
-  const suggestedFee = source?.default_outgoing_transfer_fee;
   const transferAmount = parseAmount(amount) ?? 0;
   const transferFee = parseAmount(fee) ?? 0;
-  useEffect(() => {
-    setFee(suggestedFee == null ? '0' : String(suggestedFee));
-  }, [source?.id, suggestedFee]);
+  const selectSource = (sourceId: string | null) => {
+    setFromId(sourceId);
+    setFee(defaultTransferFeeForSource(wallets, sourceId));
+  };
   const save = async () => {
     const idempotencyKey = requestKey.current ?? createRequestId();
     requestKey.current = idempotencyKey;
@@ -1186,7 +1208,7 @@ export function TransferForm({
       <WalletPicker
         wallets={wallets}
         value={fromId}
-        onChange={setFromId}
+        onChange={selectSource}
         required
         label="From wallet"
       />
@@ -1196,7 +1218,7 @@ export function TransferForm({
         accessibilityLabel="Swap source and destination wallets"
         onPress={() => {
           const next = fromId;
-          setFromId(toId);
+          selectSource(toId);
           setToId(next);
         }}
         style={{ alignSelf: 'center', padding: 10 }}
@@ -1247,6 +1269,7 @@ export function DepositForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const styles = useWalletStyles();
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayIso());
   const [note, setNote] = useState('');
@@ -1311,6 +1334,7 @@ function AddWalletSheet({
   onClose: () => void;
   onSaved: (wallet?: Wallet) => Promise<void>;
 }) {
+  const styles = useWalletStyles();
   const [name, setName] = useState(preset.key === 'custom' ? '' : preset.name);
   const [walletCategory, setWalletCategory] = useState(preset.type);
   const [lastFour, setLastFour] = useState('');
@@ -1873,6 +1897,7 @@ function InterestForm({
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
+  const styles = useWalletStyles();
   const toast = useToast();
   const [amount, setAmount] = useState('');
   const [date, setDate] = useState(todayIso());
@@ -1946,6 +1971,7 @@ function CustomWalletSheet({
   onSave: () => void;
 }) {
   const { colors } = useAppTheme();
+  const styles = useWalletStyles();
   return (
     <Modal visible animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.detailOverlay}>
@@ -2424,4 +2450,23 @@ function makeStyles(themePalette: typeof formPalette) {
     },
   });
 }
-let styles: any = makeStyles(formPalette);
+
+function useWalletStyles() {
+  const { colors } = useAppTheme();
+  return useMemo(
+    () =>
+      makeStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.primary,
+        accentDark: colors.primary,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        line: colors.border,
+      }),
+    [colors],
+  );
+}

@@ -58,6 +58,7 @@ import { BOTTOM_NAV_CLEARANCE, useBottomNavClearance } from '@/components/bottom
 import { useAppTheme } from '@/theme/theme';
 import { formatCurrency } from '@/utils/currency';
 import { useToast } from '@/components/toast-provider';
+import { createLatestRequestGuard } from '@/utils/request-gate';
 
 type Goal = {
   id: string;
@@ -201,23 +202,38 @@ export default function Goals() {
   const [deleteError, setDeleteError] = useState('');
   const [contributionGoal, setContributionGoal] = useState<Goal | null>(null);
   const [goalTab, setGoalTab] = useState<'active' | 'completed'>('active');
-  const refresh = useCallback(async () => {
+  const [requestGuard] = useState(createLatestRequestGuard);
+  const load = useCallback(() => {
+    const generation = requestGuard.begin();
+    return authenticatedApiRequest<Dashboard>('/api/savings-goals/summary')
+      .then((nextData) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setData(nextData);
+        setError('');
+      })
+      .catch((cause) => {
+        if (!requestGuard.isCurrent(generation)) return;
+        setError(cause instanceof Error ? cause.message : 'Goals could not load.');
+      })
+      .finally(() => {
+        if (requestGuard.isCurrent(generation)) setLoading(false);
+      });
+  }, [requestGuard]);
+  const refresh = useCallback(() => {
     setLoading(true);
     setError('');
-    try {
-      setData(await authenticatedApiRequest<Dashboard>('/api/savings-goals/summary'));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Goals could not load.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+    return load();
+  }, [load]);
   useEffect(() => {
-    void refresh();
-    return subscribeFinancialMutations(() => {
+    void load();
+    const unsubscribe = subscribeFinancialMutations(() => {
       void refresh();
     });
-  }, [refresh]);
+    return () => {
+      requestGuard.invalidate();
+      unsubscribe();
+    };
+  }, [load, refresh, requestGuard]);
   const activeGoals = useMemo(() => data?.goals.filter((goal) => !goal.completed_at) ?? [], [data]);
   const completedGoals = useMemo(
     () => data?.goals.filter((goal) => Boolean(goal.completed_at)) ?? [],

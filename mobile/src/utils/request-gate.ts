@@ -10,3 +10,20 @@ export function createRequestGate<T>() {
     return inFlight;
   };
 }
+
+/** Identifies the newest request and invalidates pending work on unmount. */
+export function createLatestRequestGuard() {
+  let generation = 0;
+  return {
+    begin() {
+      generation += 1;
+      return generation;
+    },
+    isCurrent(requestGeneration: number) {
+      return requestGeneration === generation;
+    },
+    invalidate() {
+      generation += 1;
+    },
+  };
+}

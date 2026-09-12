@@ -134,7 +134,7 @@ export function AlalayChatHead() {
   const openChat = useCallback(() => {
     hidePopup();
     setChatOpen(true);
-  }, [hidePopup]);
+  }, [hidePopup, setChatOpen]);
 
   const maxTop = Math.max(insets.top + 56, height - CHAT_HEAD_SIZE - insets.bottom - 150);
   const panResponder = useMemo(

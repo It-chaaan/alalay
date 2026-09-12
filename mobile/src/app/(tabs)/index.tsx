@@ -438,9 +438,15 @@ type QuickAction = {
   accessibilityLabel: string;
   icon: Icon;
   iconBackground: string;
-  onPress: () => void;
   active?: boolean;
 };
+
+const navigationQuickActions = [
+  { id: 'expense', label: 'Expense', accessibilityLabel: 'Add expense', icon: BanknoteArrowDown, href: '/(tabs)/expenses' },
+  { id: 'income', label: 'Income', accessibilityLabel: 'Add income', icon: BanknoteArrowUp, href: '/(tabs)/income' },
+  { id: 'bills', label: 'Bills', accessibilityLabel: 'Open bills', icon: ReceiptText, href: '/(tabs)/bills' },
+  { id: 'subscription', label: 'Subscription', accessibilityLabel: 'Open subscriptions', icon: Repeat, href: '/(tabs)/subscriptions' },
+] as const;
 
 function WalletHero({
   accountId,
@@ -744,7 +750,7 @@ function QuickActionsCard() {
   const closeMore = useCallback(() => {
     if (!moreOpen || closing) return;
     setClosing(true);
-    progress.value = withTiming(0, { duration: reduceMotion ? 0 : 150 });
+    progress.set(withTiming(0, { duration: reduceMotion ? 0 : 150 }));
     setTimeout(
       () => {
         setMoreOpen(false);
@@ -758,8 +764,8 @@ function QuickActionsCard() {
     cardRef.current?.measureInWindow((x, y, width, height) => {
       setAnchor({ x, y, width, height });
       setMoreOpen(true);
-      progress.value = 0;
-      progress.value = withTiming(1, { duration: reduceMotion ? 0 : 210 });
+      progress.set(0);
+      progress.set(withTiming(1, { duration: reduceMotion ? 0 : 210 }));
     });
   }, [closeMore, moreOpen, progress, reduceMotion]);
   useEffect(() => {
@@ -771,52 +777,9 @@ function QuickActionsCard() {
     return () => subscription.remove();
   }, [closeMore, moreOpen]);
   const menuAnimation = useAnimatedStyle(() => ({
-    opacity: progress.value,
-    transform: [{ translateY: 10 - progress.value * 10 }, { scale: 0.96 + progress.value * 0.04 }],
+    opacity: progress.get(),
+    transform: [{ translateY: 10 - progress.get() * 10 }, { scale: 0.96 + progress.get() * 0.04 }],
   }));
-  const actions: QuickAction[] = [
-    {
-      id: 'expense',
-      label: 'Expense',
-      accessibilityLabel: 'Add expense',
-      icon: BanknoteArrowDown,
-      iconBackground: colors.surfaceSecondary,
-      onPress: () => router.push('/(tabs)/expenses'),
-    },
-    {
-      id: 'income',
-      label: 'Income',
-      accessibilityLabel: 'Add income',
-      icon: BanknoteArrowUp,
-      iconBackground: colors.surfaceSecondary,
-      onPress: () => router.push('/(tabs)/income'),
-    },
-    {
-      id: 'bills',
-      label: 'Bills',
-      accessibilityLabel: 'Open bills',
-      icon: ReceiptText,
-      iconBackground: colors.surfaceSecondary,
-      onPress: () => router.push('/(tabs)/bills'),
-    },
-    {
-      id: 'subscription',
-      label: 'Subscription',
-      accessibilityLabel: 'Open subscriptions',
-      icon: Repeat,
-      iconBackground: colors.surfaceSecondary,
-      onPress: () => router.push('/(tabs)/subscriptions'),
-    },
-    {
-      id: 'more',
-      label: 'More',
-      accessibilityLabel: 'Open more quick actions',
-      icon: MoreHorizontal,
-      iconBackground: colors.surfaceSecondary,
-      active: moreOpen,
-      onPress: openMore,
-    },
-  ];
   return (
     <View
       ref={cardRef}
@@ -830,9 +793,24 @@ function QuickActionsCard() {
       ]}
     >
       <View style={styles.shortcutRow}>
-        {actions.map((action) => (
-          <Shortcut key={action.id} action={action} />
+        {navigationQuickActions.map((action) => (
+          <Shortcut
+            key={action.id}
+            action={{ ...action, iconBackground: colors.surfaceSecondary }}
+            onPress={() => router.push(action.href)}
+          />
         ))}
+        <Shortcut
+          action={{
+            id: 'more',
+            label: 'More',
+            accessibilityLabel: 'Open more quick actions',
+            icon: MoreHorizontal,
+            iconBackground: colors.surfaceSecondary,
+            active: moreOpen,
+          }}
+          onPress={openMore}
+        />
       </View>
       <Modal
         visible={moreOpen || closing}
@@ -1107,7 +1085,7 @@ function getGreeting() {
   return hour >= 5 && hour < 12 ? 'Good morning,' : hour < 18 ? 'Good afternoon,' : 'Good evening,';
 }
 
-function Shortcut({ action }: { action: QuickAction }) {
+function Shortcut({ action, onPress }: { action: QuickAction; onPress: () => void }) {
   const { colors } = useAppTheme();
   const IconComponent = action.icon;
   return (
@@ -1115,7 +1093,7 @@ function Shortcut({ action }: { action: QuickAction }) {
       accessibilityRole="button"
       accessibilityLabel={action.accessibilityLabel}
       accessibilityState={action.id === 'more' ? { expanded: Boolean(action.active) } : undefined}
-      onPress={action.onPress}
+      onPress={onPress}
       style={({ pressed }) => [styles.shortcut, pressed && styles.shortcutPressed]}
     >
       <View

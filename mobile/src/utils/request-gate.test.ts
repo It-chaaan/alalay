@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 
-import { createRequestGate } from './request-gate';
+import { createLatestRequestGuard, createRequestGate } from './request-gate';
 
 void (async () => {
   let calls = 0;
@@ -26,6 +26,14 @@ void (async () => {
     return 3;
   }), 3);
   assert.equal(calls, 2);
+
+  const latest = createLatestRequestGuard();
+  const firstGeneration = latest.begin();
+  const secondGeneration = latest.begin();
+  assert.equal(latest.isCurrent(firstGeneration), false);
+  assert.equal(latest.isCurrent(secondGeneration), true);
+  latest.invalidate();
+  assert.equal(latest.isCurrent(secondGeneration), false);
 
   console.log('request gate tests passed');
 })();
