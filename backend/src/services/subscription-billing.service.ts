@@ -125,93 +125,20 @@ export async function processSubscriptionBilling(userId?: string, now = new Date
     if (env.BILLING_DEBUG) console.info(`[subscription-billing] ${event}`, { current_date: through, ...details });
   };
   log("started", { user_id: userId ?? "all" });
-  let query = client().from("subscriptions").select("*").eq("auto_renew", true).is("deleted_at", null).order("renewal_date", { ascending: true });
-  if (userId) query = query.eq("user_id", requireUserId(userId));
-  const { data: subscriptions, error } = await query;
-  if (error) log("subscription_query_failed", { error: error.message });
+  const { data, error } = await client().rpc('process_subscription_billing_occurrences', {
+    target_user_id: userId ? requireUserId(userId) : null,
+    target_through: through,
+  });
+  if (error) log('rpc_failed', { error: error.message });
   throwIfError(error);
-
-  let generated = 0;
-  for (const subscription of subscriptions ?? []) {
-    const cycle = cycleOf(subscription.billing_cycle);
-    const occurrences = dueOccurrences(String(subscription.renewal_date), cycle, through);
-    log("subscription_checked", {
-      subscription_id: subscription.id,
-      renewal_date: String(subscription.renewal_date).slice(0, 10),
-      billing_cycle: cycle,
-      due: occurrences.length > 0,
-      occurrences,
-    });
-    if (!occurrences.length) continue;
-
-    for (const occurrence of occurrences) {
-      const { data: existing, error: duplicateError } = await client()
-        .from("expenses")
-        .select("id")
-        .eq("user_id", subscription.user_id)
-        .eq("subscription_id", subscription.id)
-        .eq("occurrence_date", occurrence)
-        .eq("billing_cycle", cycle)
-        .limit(1)
-        .maybeSingle();
-      if (duplicateError) log("duplicate_check_failed", { subscription_id: subscription.id, occurrence_date: occurrence, error: duplicateError.message });
-      throwIfError(duplicateError);
-      log("duplicate_checked", {
-        subscription_id: subscription.id,
-        occurrence_date: occurrence,
-        duplicate: Boolean(existing?.id),
-      });
-      if (existing?.id) continue;
-
-      const recurrenceKey = `${subscription.id}:${occurrence}:${cycle}`;
-      const payload = {
-        user_id: subscription.user_id,
-        amount: asNumber(subscription.amount),
-        category: "Subscriptions",
-        merchant: `${String(subscription.name || "Subscription")} Subscription`,
-        date: occurrence,
-        payment_method: "other",
-        subscription_id: subscription.id,
-        billing_cycle: cycle,
-        occurrence_date: occurrence,
-        generated_by: "subscription",
-        recurrence_key: recurrenceKey,
-        billing_status: "generated",
-        generated_at: new Date().toISOString(),
-        wallet_id: subscription.wallet_id ?? null,
-        deleted_at: null,
-      };
-      const { data, error: insertError } = await client()
-        .from("expenses")
-        .upsert(payload, { onConflict: "user_id,subscription_id,occurrence_date,billing_cycle", ignoreDuplicates: true })
-        .select("id")
-        .maybeSingle();
-      if (insertError) log("expense_insert_failed", { subscription_id: subscription.id, occurrence_date: occurrence, error: insertError.message });
-      throwIfError(insertError);
-      log("expense_inserted", {
-        subscription_id: subscription.id,
-        occurrence_date: occurrence,
-        expense_id: data?.id ?? null,
-        inserted: Boolean(data?.id),
-      });
-      if (data?.id) generated += 1;
-    }
-
-    const nextRenewalDate = addBillingCycle(occurrences[occurrences.length - 1], cycle);
-    const { error: updateError } = await client()
-      .from("subscriptions")
-      .update({ renewal_date: nextRenewalDate })
-      .eq("id", subscription.id)
-      .eq("user_id", subscription.user_id)
-      .is("deleted_at", null);
-    if (updateError) log("renewal_update_failed", { subscription_id: subscription.id, renewal_date: nextRenewalDate, error: updateError.message });
-    throwIfError(updateError);
-    log("renewal_updated", {
-      subscription_id: subscription.id,
-      renewal_date: nextRenewalDate,
-    });
-  }
-
-  log("finished", { processed: subscriptions?.length ?? 0, generated });
-  return { processed: subscriptions?.length ?? 0, generated };
+  const summary = Array.isArray(data) ? data[0] : data;
+  const result = {
+    processed: Number(summary?.processed ?? 0),
+    generated: Number(summary?.expenses_created ?? 0),
+    occurrencesCreated: Number(summary?.occurrences_created ?? 0),
+    duplicatesSkipped: Number(summary?.duplicates_skipped ?? 0),
+    failed: Number(summary?.failed ?? 0),
+  };
+  log('finished', result);
+  return result;
 }

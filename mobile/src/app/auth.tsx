@@ -4,7 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from 'react';
 import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft, CircleAlert, Eye, EyeOff, Lock, Mail, ShieldCheck, User } from 'lucide-react-native';
+import { ArrowLeft, CircleAlert, Eye, EyeOff, Lock, Mail, MailCheck, ShieldCheck, User } from 'lucide-react-native';
 
 import { BrandLockup } from '@/components/brand-lockup';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
@@ -65,7 +65,9 @@ export default function AuthScreen() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [confirmationNotice, setConfirmationNotice] = useState('');
+  const [confirmationNotice, setConfirmationNotice] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [resendStatus, setResendStatus] = useState('');
   const [passwordVisibility, setPasswordVisibility] = useState({ password: false, confirm: false });
   const googleFlowStarted = useRef(false);
   const { colors } = useAppTheme();
@@ -74,6 +76,12 @@ export default function AuthScreen() {
   const isMfa = screen === 'mfa';
   const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const subtitle = useMemo(() => isCreate ? 'Create an account and make every peso count.' : 'Your calmer way to stay on top of money.', [isCreate]);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => setResendCooldown((value) => Math.max(0, value - 1)), 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleGoogle = useCallback(async () => {
     setError('');
@@ -101,7 +109,8 @@ export default function AuthScreen() {
 
   const handleSubmit = async () => {
     setError('');
-    setConfirmationNotice('');
+    setConfirmationNotice(false);
+    setResendStatus('');
     if (!email.trim() || !password) { setError('Enter your email and password to continue.'); return; }
     if (!emailIsValid) { setError('Enter a valid email address.'); return; }
     if (isCreate && !fullName.trim()) { setError('Enter your full name.'); return; }
@@ -114,7 +123,6 @@ export default function AuthScreen() {
       const normalizedEmail = email.trim().toLowerCase();
       if (isCreate) {
         const emailRedirectTo = Linking.createURL('/auth/callback');
-        if (__DEV__) console.info('[Auth] Email confirmation redirect:', emailRedirectTo);
         const { error: signUpError } = await supabase.auth.signUp({
           email: normalizedEmail,
           password,
@@ -124,7 +132,7 @@ export default function AuthScreen() {
           },
         });
         if (signUpError) throw signUpError;
-        setConfirmationNotice('Check your email. If this address can be registered, we sent a confirmation link. If you already have an account, sign in or reset your password.');
+        setConfirmationNotice(true);
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password });
         if (signInError) throw signInError;
@@ -137,6 +145,7 @@ export default function AuthScreen() {
   };
 
   const resendConfirmation = async () => {
+    if (loading || resendCooldown > 0) return;
     const normalizedEmail = email.trim().toLowerCase();
     const supabase = getSupabaseClient();
     if (!supabase || !emailIsValid) {
@@ -145,15 +154,27 @@ export default function AuthScreen() {
       return;
     }
     setLoading(true);
+    setError('');
+    setResendStatus('');
     try {
       const emailRedirectTo = Linking.createURL('/auth/callback');
       const { error: resendError } = await supabase.auth.resend({ type: 'signup', email: normalizedEmail, options: { emailRedirectTo } });
       if (resendError) throw resendError;
-      Alert.alert('Check your email', 'If this address can be registered, a confirmation link was sent.');
+      setResendCooldown(30);
+      setResendStatus('Email resent. Check your inbox.');
     } catch (resendError) {
       setError(getAuthError(resendError instanceof Error ? resendError.message : 'Confirmation could not be resent.'));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEmailApp = async () => {
+    try {
+      if (!(await Linking.canOpenURL('mailto:'))) throw new Error('No email app');
+      await Linking.openURL('mailto:');
+    } catch {
+      Alert.alert('Check your inbox', 'No email app is available. Please check your inbox manually.');
     }
   };
 
@@ -187,25 +208,39 @@ export default function AuthScreen() {
           <BrandLockup color={palette.ink} logoSize={30} textSize={22} />
           <Text style={[styles.formTitle, { color: palette.ink }]}>{isCreate ? 'Let’s get started' : 'Sign in to Alalay'}</Text>
           <Text style={[styles.formDescription, { color: palette.muted }]}>{isCreate ? 'Set up your account in a few steps.' : 'Pick up where you left off.'}</Text>
-          <View style={styles.fields}>
+          {!confirmationNotice && <View style={styles.fields}>
             {isCreate && <AuthInput palette={palette} icon={User} label="Full Name" value={fullName} onChangeText={setFullName} autoCapitalize="words" />}
             <AuthInput palette={palette} icon={Mail} label="Email address" value={email} onChangeText={setEmail} keyboardType="email-address" />
             <AuthInput palette={palette} icon={Lock} label="Password" value={password} onChangeText={setPassword} secureTextEntry={!passwordVisibility.password} onToggleVisibility={() => setPasswordVisibility((state) => ({ ...state, password: !state.password }))} />
             {isCreate && <AuthInput palette={palette} icon={ShieldCheck} label="Confirm Password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry={!passwordVisibility.confirm} onToggleVisibility={() => setPasswordVisibility((state) => ({ ...state, confirm: !state.confirm }))} />}
-          </View>
-          <View style={styles.actionSlot}>
+          </View>}
+          {!confirmationNotice && <View style={styles.actionSlot}>
             {!isCreate && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()} style={styles.forgotButton}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password?</Text></Pressable>}
-          </View>
+          </View>}
           {Boolean(error) && <View accessible accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: palette.accentSoft }]}><CircleAlert size={20} strokeWidth={1.75} color={palette.danger} /><Text style={[styles.errorText, { color: palette.danger }]}>{error}</Text></View>}
-          {confirmationNotice ? <View accessible style={[styles.confirmationBox, { backgroundColor: palette.accentSoft }]}><Text style={[styles.confirmationText, { color: palette.ink }]}>{confirmationNotice}</Text><View style={styles.confirmationActions}><Pressable accessibilityRole="button" onPress={() => { setConfirmationNotice(''); setScreen('signin'); }}><Text style={[styles.linkText, { color: palette.accent }]}>Go to sign in</Text></Pressable><Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password</Text></Pressable><Pressable accessibilityRole="button" disabled={loading} onPress={() => void resendConfirmation()}><Text style={[styles.linkText, { color: palette.accent }]}>{loading ? 'Sending…' : 'Resend confirmation'}</Text></Pressable></View></View> : null}
-          <Pressable accessibilityRole="button" disabled={loading} onPress={handleSubmit} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.accent }, pressed && styles.pressed, loading && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Please wait...' : isCreate ? 'Create Account' : 'Sign In'}</Text></Pressable>
-          <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: palette.line }]} /><Text style={[styles.orText, { color: palette.muted }]}>or</Text><View style={[styles.orLine, { backgroundColor: palette.line }]} /></View>
-          <GoogleSignInButton colors={palette} onPress={handleGoogle} loading={loading} variant="auth" />
-          <Pressable accessibilityRole="button" onPress={() => setScreen(isCreate ? 'signin' : 'create')} style={styles.switchButton}><Text style={[styles.switchText, { color: palette.muted }]}>{isCreate ? 'Already have an account? ' : 'New to Alalay? '}<Text style={{ color: palette.accent, fontWeight: '800' }}>{isCreate ? 'Sign In' : 'Sign Up'}</Text></Text></Pressable>
+          {confirmationNotice ? <ConfirmationCard palette={palette} loading={loading} resendCooldown={resendCooldown} resendStatus={resendStatus} onOpenEmail={() => void openEmailApp()} onResend={() => void resendConfirmation()} onSignIn={() => { setConfirmationNotice(false); setResendStatus(''); setScreen('signin'); }} onChangeEmail={() => { setConfirmationNotice(false); setResendStatus(''); setScreen('create'); }} /> : null}
+          {!confirmationNotice && <Pressable accessibilityRole="button" disabled={loading} onPress={handleSubmit} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.accent }, pressed && styles.pressed, loading && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Please wait...' : isCreate ? 'Create Account' : 'Sign In'}</Text></Pressable>}
+          {!confirmationNotice && <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: palette.line }]} /><Text style={[styles.orText, { color: palette.muted }]}>or</Text><View style={[styles.orLine, { backgroundColor: palette.line }]} /></View>}
+          {!confirmationNotice && <GoogleSignInButton colors={palette} onPress={handleGoogle} loading={loading} variant="auth" />}
+          {!confirmationNotice && <Pressable accessibilityRole="button" onPress={() => setScreen(isCreate ? 'signin' : 'create')} style={styles.switchButton}><Text style={[styles.switchText, { color: palette.muted }]}>{isCreate ? 'Already have an account? ' : 'New to Alalay? '}<Text style={{ color: palette.accent, fontWeight: '800' }}>{isCreate ? 'Sign In' : 'Sign Up'}</Text></Text></Pressable>}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
+}
+
+function ConfirmationCard({ palette, loading, resendCooldown, resendStatus, onOpenEmail, onResend, onSignIn, onChangeEmail }: { palette: Palette; loading: boolean; resendCooldown: number; resendStatus: string; onOpenEmail: () => void; onResend: () => void; onSignIn: () => void; onChangeEmail: () => void }) {
+  const resendDisabled = loading || resendCooldown > 0;
+  return <View style={[styles.confirmationCard, { backgroundColor: palette.accentSoft }]}>
+    <View style={[styles.confirmationIcon, { backgroundColor: palette.accent }]}><MailCheck size={28} color="#FFFFFF" strokeWidth={2} /></View>
+    <Text accessibilityRole="header" accessibilityLiveRegion="polite" style={[styles.confirmationTitle, { color: palette.ink }]}>Check your email</Text>
+    <Text style={[styles.confirmationText, { color: palette.muted }]}>If eligible, we sent a confirmation link to your email.</Text>
+    <Pressable accessibilityRole="button" onPress={onOpenEmail} style={({ pressed }) => [styles.confirmationPrimary, { backgroundColor: palette.accent }, pressed && styles.pressed]}><Text style={styles.primaryText}>Open email app</Text></Pressable>
+    <Pressable accessibilityRole="button" disabled={resendDisabled} accessibilityState={{ disabled: resendDisabled }} onPress={onResend} style={({ pressed }) => [styles.confirmationSecondary, { borderColor: palette.accent }, pressed && styles.pressed, resendDisabled && styles.disabled]}><Text style={[styles.secondaryActionText, { color: palette.accent }]}>{loading ? 'Sending…' : resendCooldown > 0 ? `Resend email (${resendCooldown}s)` : 'Resend email'}</Text></Pressable>
+    {resendStatus ? <Text accessibilityLiveRegion="polite" style={[styles.resendStatus, { color: palette.muted }]}>{resendStatus}</Text> : null}
+    <Pressable accessibilityRole="button" onPress={onSignIn} style={styles.confirmationSignIn}><Text style={[styles.confirmationSignInText, { color: palette.muted }]}>Already have an account? <Text style={{ color: palette.accent, fontWeight: '800' }}>Sign in</Text></Text></Pressable>
+    <Pressable accessibilityRole="button" accessibilityLabel="Change email address" onPress={onChangeEmail} style={styles.changeEmail}><Text style={[styles.linkText, { color: palette.accent }]}>Change email address</Text></Pressable>
+  </View>;
 }
 
 function MfaVerification() {
@@ -287,8 +322,17 @@ const styles = StyleSheet.create({
   errorBox: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 16, padding: 12, borderRadius: 12 },
   errorText: { flex: 1, fontSize: 13, lineHeight: 19, fontWeight: '600' },
   confirmationBox: { marginTop: 16, padding: 14, borderRadius: 12 },
-  confirmationText: { fontSize: 13, lineHeight: 19, fontWeight: '600' },
-  confirmationActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginTop: 10 },
+  confirmationCard: { marginTop: 16, padding: 20, borderRadius: 18, alignItems: 'stretch' },
+  confirmationIcon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
+  confirmationTitle: { marginTop: 14, textAlign: 'center', fontSize: 22, lineHeight: 28, fontWeight: '800' },
+  confirmationText: { marginTop: 8, textAlign: 'center', fontSize: 14, lineHeight: 21, fontWeight: '600' },
+  confirmationPrimary: { minHeight: 52, marginTop: 22, borderRadius: 26, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  confirmationSecondary: { minHeight: 52, marginTop: 12, borderWidth: 1.5, borderRadius: 26, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  secondaryActionText: { fontSize: 15, fontWeight: '800' },
+  resendStatus: { marginTop: 10, textAlign: 'center', fontSize: 12, lineHeight: 18 },
+  confirmationSignIn: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 12, paddingHorizontal: 8 },
+  confirmationSignInText: { textAlign: 'center', fontSize: 13, lineHeight: 19, fontWeight: '600' },
+  changeEmail: { minHeight: 44, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   switchButton: { minHeight: 48, alignItems: 'center', justifyContent: 'center', marginTop: 14 },
   switchText: { fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },

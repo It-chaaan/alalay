@@ -1,8 +1,11 @@
+import Constants from 'expo-constants';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import { Platform } from 'react-native';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { processMobileAuthCallback } from '@/services/mobile-auth-callback';
+import { oauthRedirectUri } from '@/services/oauth-redirect';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -35,7 +38,12 @@ async function signInWithGoogleNativeOnce(supabase: SupabaseClient) {
   // Expo Go resolves this to its generated exp:// callback; native builds use
   // the configured alalay scheme. The same value is sent to Supabase and the
   // auth browser so Supabase cannot fall back to its web Site URL.
-  const redirectTo = Linking.createURL('/auth/callback');
+  const redirectTo = oauthRedirectUri({
+    platform: Platform.OS === 'web' ? 'web' : Platform.OS as 'ios' | 'android',
+    executionEnvironment: Constants.executionEnvironment,
+    webOrigin: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined,
+    createUrl: Linking.createURL,
+  });
   if (__DEV__) console.info('[Mobile OAuth] Generated redirect:', redirectTo);
 
   const { data, error } = await supabase.auth.signInWithOAuth({

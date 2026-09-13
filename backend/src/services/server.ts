@@ -81,7 +81,7 @@ export function createServer() {
         ? { processed: await processIncomeSchedules() }
         : job === 'billing'
           ? await runBillingScheduler()
-          : { processed: await runNotificationScheduler() };
+          : await runNotificationScheduler();
       res.json({ success: true, data: { job, ...result } });
     } catch (error) {
       next(error);

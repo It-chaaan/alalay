@@ -1,6 +1,6 @@
 import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Href, usePathname, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import type { Session } from '@supabase/supabase-js';
@@ -20,6 +20,7 @@ import { DashboardInsightProvider } from '@/context/dashboard-insight';
 import { loadCurrentProfile } from '@/services/profile';
 import { sessionGateDestination } from '@/utils/session-gate';
 import { createRedirectGuard } from '@/utils/redirect-guard';
+import { subscribeFinancialMutations } from '@/services/finance';
 
 const stackScreenOptions = { headerShown: false } as const;
 
@@ -93,18 +94,25 @@ function SessionGate() {
   ].some((route) => pathname === route || pathname.endsWith(route));
   const router = useRouter();
   const segments = useSegments();
+  const supabase = getSupabaseClient();
   const [session, setSession] = useState<Session | null>(null);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [checkingSession, setCheckingSession] = useState(Boolean(supabase));
   const [mfaPending, setMfaPending] = useState(false);
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
-  const [onboardingRequired, setOnboardingRequired] = useState(false);
+  const [onboarding, setOnboarding] = useState<{
+    userId: string;
+    required: boolean;
+  } | null>(null);
   const [redirectGuard] = useState(createRedirectGuard);
   const sessionUserId = session?.user.id ?? null;
+  const checkingOnboarding = Boolean(
+    sessionUserId && !mfaPending && onboarding?.userId !== sessionUserId,
+  );
+  const onboardingRequired = Boolean(
+    sessionUserId && !mfaPending && onboarding?.userId === sessionUserId && onboarding.required,
+  );
 
   useEffect(() => {
-    const supabase = getSupabaseClient();
     if (!supabase) {
-      setCheckingSession(false);
       return;
     }
 
@@ -120,6 +128,7 @@ function SessionGate() {
           void cancelAllFinancialReminders();
         }
         setCheckingSession(true);
+        setOnboarding(null);
         setSession(nextSession);
         void (nextSession ? requiresMfa() : Promise.resolve({ required: false }))
           .then((state) => {
@@ -143,6 +152,7 @@ function SessionGate() {
         if (error && __DEV__) console.warn('[Auth] Could not restore the saved session.', error);
         await cancelAllFinancialReminders();
         if (!mounted) return;
+        setOnboarding(null);
         setSession(data.session);
         const mfaState = data.session ? await requiresMfa() : { required: false };
         setMfaPending(mfaState.required);
@@ -150,6 +160,7 @@ function SessionGate() {
       .catch((error) => {
         if (__DEV__) console.warn('[Auth] Session restore failed.', error);
         if (mounted) {
+          setOnboarding(null);
           setSession(null);
           setMfaPending(false);
         }
@@ -162,29 +173,21 @@ function SessionGate() {
       mounted = false;
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [supabase]);
 
   useEffect(() => {
-    if (!sessionUserId || mfaPending) {
-      setOnboardingRequired((current) => (current ? false : current));
-      setCheckingOnboarding((current) => (current ? false : current));
-      return;
-    }
+    if (!sessionUserId || mfaPending) return;
 
     let active = true;
-    setCheckingOnboarding((current) => (current ? current : true));
     // A user ID, rather than the Session object, is the dependency. Supabase
     // can replace its Session object during token refresh without changing the
     // account or the first-run onboarding decision.
     void loadCurrentProfile(true)
       .then((profile) => {
-        if (active) setOnboardingRequired((current) => current === profile.onboardingRequired ? current : profile.onboardingRequired);
+        if (active) setOnboarding({ userId: sessionUserId, required: profile.onboardingRequired });
       })
       .catch(() => {
-        if (active) setOnboardingRequired((current) => (current ? false : current));
-      })
-      .finally(() => {
-        if (active) setCheckingOnboarding((current) => (current ? false : current));
+        if (active) setOnboarding({ userId: sessionUserId, required: false });
       });
     return () => { active = false; };
   }, [mfaPending, sessionUserId]);
@@ -207,7 +210,7 @@ function SessionGate() {
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {
         const data = response.notification.request.content.data as
-          { eventType?: string; notificationId?: string } | undefined;
+          { eventType?: 'bill' | 'subscription'; notificationId?: string } | undefined;
         if (data?.notificationId)
           void import('@/services/notifications')
             .then(async ({ fetchNotifications, markNotificationRead }) => {
@@ -216,6 +219,7 @@ function SessionGate() {
             })
             .catch(() => undefined);
         if (data?.eventType === 'bill') router.push('/(tabs)/bills');
+        if (data?.eventType === 'subscription') router.push('/(tabs)/subscriptions');
       },
     );
     return () => {
@@ -223,6 +227,11 @@ function SessionGate() {
       responseSubscription.remove();
     };
   }, [router, sessionUserId]);
+
+  useEffect(() => {
+    if (!sessionUserId) return;
+    return subscribeFinancialMutations(() => { void reconcileOnAppResume(); });
+  }, [sessionUserId]);
 
   useEffect(() => {
     if (checkingSession || checkingOnboarding) return;

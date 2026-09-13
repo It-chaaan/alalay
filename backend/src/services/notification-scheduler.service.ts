@@ -2,13 +2,14 @@ import { env } from "../config/env.js";
 import { client, previousMonthRange, todayIso, asNumber, throwIfError } from "./db.js";
 import { getReports } from "./analytics.service.js";
 import { billDueEmail, billOverdueEmail, monthlySummaryEmail, sendEmail, subscriptionFundingWarningEmail, subscriptionRenewalEmail } from "./notification-email.service.js";
-import { addBillingCycle, projectWalletFundingWarnings, type SubscriptionBillingCycle, type UpcomingSubscription } from "./subscription-billing.service.js";
+import { projectWalletFundingWarnings, type SubscriptionBillingCycle, type UpcomingSubscription } from "./subscription-billing.service.js";
 import { createInAppNotification } from "./notifications.service.js";
+import { syncSubscriptionReminders } from './subscription-reminders.service.js';
 
-type Preferences = { bill_reminders: boolean; bill_reminder_days: number; bill_reminder_three_days: boolean; bill_reminder_one_day: boolean; bill_reminder_due_day: boolean; bill_overdue_reminders: boolean; subscription_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
+type Preferences = { bill_reminders: boolean; bill_reminder_days: number; bill_reminder_three_days: boolean; bill_reminder_one_day: boolean; bill_reminder_due_day: boolean; bill_overdue_reminders: boolean; subscription_reminders: boolean; subscription_reminder_three_days: boolean; subscription_reminder_one_day: boolean; subscription_reminder_due_day: boolean; subscription_overdue_reminders: boolean; summaries: boolean; overspending_alerts: boolean };
 type AuthUser = { id: string; email?: string | null; user_metadata?: Record<string, unknown> };
 
-const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, summaries: false, overspending_alerts: true };
+const defaults: Preferences = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, subscription_reminder_three_days: true, subscription_reminder_one_day: true, subscription_reminder_due_day: true, subscription_overdue_reminders: true, summaries: false, overspending_alerts: true };
 
 function dateAfter(date: string, days: number) {
   const value = new Date(`${date}T00:00:00Z`);
@@ -48,8 +49,9 @@ async function logFailure(userId: string, email: string, type: string, related: 
   if (logError) console.error("Unable to log notification failure:", logError.message);
 }
 
-async function sendLogged(user: AuthUser, type: string, email: string, input: { subject: string; html: string }, related: Record<string, unknown>, today: string, periodKey?: string) {
-  const query = client().from("notifications_log").select("id").eq("user_id", user.id).eq("type", type).eq("sent_on", today).eq("status", "sent");
+async function sendLogged(user: AuthUser, type: string, email: string, input: { subject: string; html: string }, related: Record<string, unknown>, today: string, periodKey?: string, createInbox = true, occurrenceScoped = false) {
+  let query = client().from("notifications_log").select("id").eq("user_id", user.id).eq("type", type).eq("status", "sent");
+  if (!occurrenceScoped) query = query.eq("sent_on", today);
   for (const [key, value] of Object.entries(related)) query.eq(key, value);
   if (periodKey) query.eq("period_key", periodKey);
   const { data: existing, error: existingError } = await query.limit(1);
@@ -57,7 +59,7 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
   if (existing?.length) return false;
 
   const relatedId = typeof related.related_bill_id === "string" ? related.related_bill_id : typeof related.related_subscription_id === "string" ? related.related_subscription_id : typeof related.related_wallet_id === "string" ? related.related_wallet_id : "summary";
-  await createInAppNotification({ userId: user.id, type, title: input.subject, body: input.subject, related_bill_id: typeof related.related_bill_id === "string" ? related.related_bill_id : null, related_subscription_id: typeof related.related_subscription_id === "string" ? related.related_subscription_id : null, related_wallet_id: typeof related.related_wallet_id === "string" ? related.related_wallet_id : null, period_key: periodKey ?? null, source_type: related.related_bill_id ? "bill" : related.related_subscription_id ? "subscription" : related.related_wallet_id ? "wallet" : "summary", source_id: relatedId, deduplication_key: `${type}:${user.id}:${relatedId}:${periodKey ?? today}` });
+  if (createInbox) await createInAppNotification({ userId: user.id, type, title: input.subject, body: input.subject, related_bill_id: typeof related.related_bill_id === "string" ? related.related_bill_id : null, related_subscription_id: typeof related.related_subscription_id === "string" ? related.related_subscription_id : null, related_wallet_id: typeof related.related_wallet_id === "string" ? related.related_wallet_id : null, period_key: periodKey ?? null, source_type: related.related_bill_id ? "bill" : related.related_subscription_id ? "subscription" : related.related_wallet_id ? "wallet" : "summary", source_id: relatedId, deduplication_key: `${type}:${user.id}:${relatedId}:${periodKey ?? today}` });
 
   try {
     await sendEmail({ to: email, ...input });
@@ -73,6 +75,11 @@ async function sendLogged(user: AuthUser, type: string, email: string, input: { 
 
 export async function runNotificationScheduler(now = new Date()) {
   const today = todayIso(now);
+  const runId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
+  let subscriptionCandidates = 0;
+  let subscriptionNotifications = 0;
+  let subscriptionFailures = 0;
   const [users, preferencesResult, billsResult, subscriptionsResult, walletsResult] = await Promise.all([
     authUsers(),
     client().from("notification_preferences").select("*"),
@@ -98,17 +105,20 @@ export async function runNotificationScheduler(now = new Date()) {
     await sendLogged(user, reminder.type, user.email, content, { related_bill_id: bill.id }, today);
   }
 
-  for (const subscription of subscriptionsResult.data ?? []) {
-    const user = userMap.get(subscription.user_id);
-    const prefs = preferences.get(subscription.user_id) as Preferences | undefined;
-    if (!user?.email || !prefs) continue;
-    let renewalDate = String(subscription.renewal_date);
-    const cycle = (String(subscription.billing_cycle).toLowerCase() as SubscriptionBillingCycle);
-    while (renewalDate < today) renewalDate = addBillingCycle(renewalDate, cycle);
-    const days = 3;
-    if (prefs.subscription_reminders && shouldSendReminder(true, renewalDate, today, days)) {
-      const wallet = subscription.wallet_id ? walletMap.get(subscription.wallet_id) : undefined;
-      await sendLogged(user, "subscription_renewal", user.email, subscriptionRenewalEmail({ name: subscription.name, amount: asNumber(subscription.amount), renewal_date: renewalDate, wallet_name: wallet?.name }, days), { related_subscription_id: subscription.id }, today, renewalDate);
+  // The inbox source is occurrence based. It includes generated expenses, so a
+  // delayed billing run cannot erase a missed reminder by advancing renewal_date.
+  for (const user of users) {
+    const recipient = userMap.get(user.id);
+    const result = await syncSubscriptionReminders(user.id, now);
+    subscriptionCandidates += result.eligible;
+    subscriptionNotifications += result.created;
+    subscriptionFailures += result.failed;
+    if (!recipient?.email) continue;
+    for (const event of result.events) {
+      if (event.reminder_kind === 'renewal_processed') continue;
+      const wallet = event.wallet_id ? walletMap.get(event.wallet_id) : undefined;
+      const days = event.reminder_kind === 'three_days_before' ? 3 : event.reminder_kind === 'one_day_before' ? 1 : 0;
+      await sendLogged(recipient, 'subscription_renewal', recipient.email, subscriptionRenewalEmail({ name: event.name, amount: event.amount, renewal_date: event.occurrence_date, wallet_name: wallet?.name }, days), { related_subscription_id: event.subscription_id }, today, event.occurrence_date, false, true);
     }
   }
 
@@ -158,6 +168,9 @@ export async function runNotificationScheduler(now = new Date()) {
       }
     }
   }
+  const summary = { run_id: runId, started_at: startedAt, finished_at: new Date().toISOString(), subscription_candidates: subscriptionCandidates, subscription_notifications_created: subscriptionNotifications, subscription_failures: subscriptionFailures };
+  console.info('[notification-scheduler] completed', summary);
+  return summary;
 }
 
 export function startNotificationScheduler() {

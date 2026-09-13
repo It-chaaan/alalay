@@ -3,6 +3,7 @@ import { createRequestGate } from '@/utils/request-gate';
 
 export type InAppNotification = { id: string; type: string; title: string; body: string; read_at: string | null; created_at: string; related_bill_id?: string | null; related_bill_occurrence_id?: string | null; related_subscription_id?: string | null; related_wallet_id?: string | null; source_type?: string | null; source_id?: string | null; reminder_kind?: string | null; due_date?: string | null; amount?: number | null; action?: { route?: string; params?: Record<string, string> } | null };
 export type BillReminderSync = { notifications: InAppNotification[]; eligible: number; created: number; skippedExisting: number; invalid: number; failed: number };
+export type SubscriptionReminderSync = BillReminderSync;
 const unreadCountRequest = createRequestGate<number>();
 
 export function fetchNotifications() {
@@ -26,4 +27,8 @@ export function markNotificationRead(id: string) {
 
 export function syncBillReminders() {
   return authenticatedApiRequest<BillReminderSync>('/api/notifications/sync-bill-reminders', { method: 'POST' });
+}
+
+export function syncSubscriptionReminders() {
+  return authenticatedApiRequest<SubscriptionReminderSync>('/api/notifications/sync-subscription-reminders', { method: 'POST' });
 }

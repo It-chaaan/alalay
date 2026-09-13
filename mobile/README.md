@@ -38,6 +38,10 @@ In Supabase Dashboard → Authentication → URL Configuration:
    Expo Go must use its generated `exp://.../--/auth/callback` URL instead;
    do not force the `alalay://` scheme inside Expo Go.
 
+Keep `https://alalay-orpin.vercel.app` as the Supabase Site URL and retain the
+exact web callback `https://alalay-orpin.vercel.app/auth/callback`. Remove the
+broad `alalay://**` pattern if the dashboard accepts the exact native callback.
+
 Expo Go development URLs can change when the LAN address or Expo server
 changes. A development build is recommended for stable deep-link testing. A
 scheme change requires rebuilding the native app; it cannot be fully applied

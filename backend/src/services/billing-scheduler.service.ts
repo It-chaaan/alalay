@@ -4,12 +4,16 @@ import { client, throwIfError } from './db.js';
 const BILLING_INTERVAL_MS = 60 * 60 * 1000;
 
 export async function runBillingScheduler() {
+  const runId = crypto.randomUUID();
+  const startedAt = new Date().toISOString();
   const [subscriptionResult, occurrencesResult] = await Promise.all([
     processSubscriptionBilling(),
     client().rpc('reconcile_bill_occurrences', { target_user_id: null }),
   ]);
   throwIfError(occurrencesResult.error);
-  return { subscriptionsProcessed: subscriptionResult, billOccurrencesReconciled: true };
+  const summary = { run_id: runId, started_at: startedAt, finished_at: new Date().toISOString(), subscriptionsProcessed: subscriptionResult, billOccurrencesReconciled: true };
+  console.info('[billing-scheduler] completed', summary);
+  return summary;
 }
 
 export function startBillingScheduler() {

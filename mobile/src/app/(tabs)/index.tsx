@@ -6,7 +6,6 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   BackHandler,
-  PanResponder,
   Modal,
   Pressable,
   ScrollView,
@@ -34,6 +33,7 @@ import {
 } from 'lucide-react-native';
 
 import { AlalayChatHead } from '@/components/alalay-chat-head';
+import { useLegacyWalletSwipeResponder } from '@/components/legacy-wallet-swipe-responder';
 import { BalanceVisibilityToggle } from '@/components/balance-visibility-toggle';
 import { ProfileHeaderButton } from '@/components/profile-header-button';
 import { NotificationHeaderButton } from '@/components/notification-header-button';
@@ -517,19 +517,7 @@ function WalletHero({
   const unavailable = Boolean(walletError) || walletLoading || wallets.some(
     (wallet) => wallet.account_type !== 'credit' && (wallet.available_balance === undefined || !Number.isFinite(Number(wallet.available_balance))),
   );
-  const walletSwipeResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_, gestureState) =>
-          wallets.length > 1 &&
-          Math.abs(gestureState.dx) > 8 &&
-          Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
-        onPanResponderRelease: (_, gestureState) => {
-          if (Math.abs(gestureState.dx) > 32) advance(gestureState.dx < 0 ? 1 : -1);
-        },
-      }),
-    [advance, wallets.length],
-  );
+  const walletSwipeResponder = useLegacyWalletSwipeResponder(wallets.length, advance);
   return (
     <View style={styles.walletHero}>
       <View

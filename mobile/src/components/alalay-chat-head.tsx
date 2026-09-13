@@ -1,30 +1,25 @@
 import { Image } from 'expo-image';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Animated,
   KeyboardAvoidingView,
-  PanResponder,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  useWindowDimensions,
   View,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, Bot, Send, X } from 'lucide-react-native';
+import { ArrowLeft, Send } from 'lucide-react-native';
 
 import { authenticatedApiRequest, chatErrorMessage } from '@/services/api';
 import { notifyFinancialMutation } from '@/services/finance';
 import { useAppTheme } from '@/theme/theme';
 import { useModalVisibility } from './modal-visibility';
 import { useDashboardInsight } from '@/context/dashboard-insight';
-
-const CHAT_HEAD_SIZE = 54;
-const DRAG_THRESHOLD = 8;
+import { LegacyChatHeadAnimatedBridge } from './legacy-chat-head-animated-bridge';
 
 type ChatMessage = { id: string; role: 'assistant' | 'user'; content: string };
 type RetryMessage = ChatMessage & { retryPrompt?: string };
@@ -33,6 +28,8 @@ type PendingAction = {
     'create_expense' | 'create_income' | 'create_transfer' | 'create_bill' | 'create_subscription';
   fields: Record<string, unknown>;
 };
+
+const CHAT_HEAD_SIZE = 54;
 
 const initialMessages: ChatMessage[] = [
   {
@@ -63,60 +60,9 @@ function newRequestId() {
 
 export function AlalayChatHead() {
   const { colors } = useAppTheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
-  const { width, height } = useWindowDimensions();
-  const insets = useSafeAreaInsets();
-  // Start docked near the lower right, above the floating nav and away from cards.
-  const initialPosition = useRef({
-    x: Math.max(16, width - CHAT_HEAD_SIZE - 16),
-    y: Math.max(insets.top + 56, height - CHAT_HEAD_SIZE - insets.bottom - 142),
-  }).current;
-  const translation = useRef({ x: 0, y: 0 });
-  const dragStart = useRef({ x: 0, y: 0 });
-  const pan = useRef(new Animated.ValueXY()).current;
-  const popupOpacity = useRef(new Animated.Value(0)).current;
-  const [headPosition, setHeadPosition] = useState(initialPosition);
-  const [popupVisible, setPopupVisible] = useState(false);
   const { insight } = useDashboardInsight();
   const [chatOpen, setChatOpen] = useState(false);
   const { setModalVisible } = useModalVisibility();
-  const hidePopupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const popupStyle = useMemo(() => {
-    const isOnLeft = headPosition.x < width / 2;
-    const top = Math.max(insets.top + 18, headPosition.y - 78);
-    return {
-      top,
-      left: isOnLeft
-        ? Math.min(width - 272, headPosition.x + CHAT_HEAD_SIZE + 10)
-        : Math.max(16, headPosition.x - 256),
-      maxHeight: Math.max(160, height - top - insets.bottom - 96),
-    };
-  }, [headPosition, height, insets.bottom, insets.top, width]);
-
-  const hidePopup = useCallback(() => {
-    if (hidePopupTimer.current) clearTimeout(hidePopupTimer.current);
-    Animated.timing(popupOpacity, { toValue: 0, duration: 160, useNativeDriver: true }).start(() =>
-      setPopupVisible(false),
-    );
-  }, [popupOpacity]);
-
-  const showPopup = useCallback(() => {
-    if (!insight) return;
-    if (hidePopupTimer.current) clearTimeout(hidePopupTimer.current);
-    setPopupVisible(true);
-    Animated.timing(popupOpacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
-    hidePopupTimer.current = setTimeout(hidePopup, 5200);
-  }, [hidePopup, insight, popupOpacity]);
-
-  useEffect(() => {
-    if (!insight) return;
-    const timer = setTimeout(showPopup, 900);
-    return () => {
-      clearTimeout(timer);
-      if (hidePopupTimer.current) clearTimeout(hidePopupTimer.current);
-    };
-  }, [insight, showPopup]);
 
   useEffect(() => {
     if (!chatOpen) return;
@@ -124,117 +70,9 @@ export function AlalayChatHead() {
     return () => setModalVisible(false);
   }, [chatOpen, setModalVisible]);
 
-  useEffect(() => {
-    const listener = pan.addListener((value) => {
-      translation.current = value;
-    });
-    return () => pan.removeListener(listener);
-  }, [pan]);
-
-  const openChat = useCallback(() => {
-    hidePopup();
-    setChatOpen(true);
-  }, [hidePopup, setChatOpen]);
-
-  const maxTop = Math.max(insets.top + 56, height - CHAT_HEAD_SIZE - insets.bottom - 150);
-  const panResponder = useMemo(
-    () =>
-      PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderGrant: () => {
-          hidePopup();
-          pan.stopAnimation((value) => {
-            dragStart.current = value;
-          });
-        },
-        onPanResponderMove: (_event, gesture) => {
-          pan.setValue({
-            x: dragStart.current.x + gesture.dx,
-            y: dragStart.current.y + gesture.dy,
-          });
-        },
-        onPanResponderRelease: (_event, gesture) => {
-          const dragged =
-            Math.abs(gesture.dx) > DRAG_THRESHOLD || Math.abs(gesture.dy) > DRAG_THRESHOLD;
-          if (!dragged) {
-            openChat();
-            return;
-          }
-          const x = initialPosition.x + dragStart.current.x + gesture.dx;
-          const y = initialPosition.y + dragStart.current.y + gesture.dy;
-          const targetX = x + CHAT_HEAD_SIZE / 2 < width / 2 ? 16 : width - CHAT_HEAD_SIZE - 16;
-          const targetY = Math.min(maxTop, Math.max(insets.top + 56, y));
-          const targetTranslation = {
-            x: targetX - initialPosition.x,
-            y: targetY - initialPosition.y,
-          };
-          setHeadPosition({ x: targetX, y: targetY });
-          Animated.spring(pan, {
-            toValue: targetTranslation,
-            useNativeDriver: false,
-            bounciness: 5,
-          }).start();
-        },
-        onPanResponderTerminate: () => {
-          Animated.spring(pan, { toValue: translation.current, useNativeDriver: false }).start();
-        },
-      }),
-    [hidePopup, insets.top, initialPosition, maxTop, openChat, pan, width],
-  );
-
   return (
     <>
-      {popupVisible && (
-        <Animated.View
-          style={[
-            styles.popup,
-            popupStyle,
-            {
-              opacity: popupOpacity,
-              transform: [
-                {
-                  translateY: popupOpacity.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss Alalay insight"
-            onPress={hidePopup}
-            style={styles.popupClose}
-          >
-            <X size={15} color={colors.muted} />
-          </Pressable>
-          <Text style={styles.popupTitle}>Alalay insight</Text>
-          <ScrollView
-            style={styles.popupScroll}
-            contentContainerStyle={styles.popupScrollContent}
-            showsVerticalScrollIndicator
-            nestedScrollEnabled
-          >
-            <Text style={styles.popupCopy}>{insight}</Text>
-          </ScrollView>
-        </Animated.View>
-      )}
-      <Animated.View
-        accessible
-        accessibilityRole="button"
-        accessibilityLabel="Open Alalay assistant"
-        {...panResponder.panHandlers}
-        style={[
-          styles.chatHead,
-          {
-            left: initialPosition.x,
-            top: initialPosition.y,
-            transform: pan.getTranslateTransform(),
-          },
-        ]}
-      >
-        <Bot size={28} color={colors.textOnPrimary} strokeWidth={1.9} />
-      </Animated.View>
+      <LegacyChatHeadAnimatedBridge colors={colors} insight={insight} onOpenChat={() => setChatOpen(true)} />
       {chatOpen && <AlalayChat onClose={() => setChatOpen(false)} />}
     </>
   );

@@ -1362,28 +1362,6 @@ function AddWalletSheet({
   >('monthly');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  useEffect(() => {
-    const nextInstitution = institutionFor(preset.key);
-    setName(preset.key === 'custom' ? '' : preset.name);
-    setWalletCategory(preset.type);
-    setAccountType(
-      nextInstitution.supportedAccountTypes.length === 1
-        ? nextInstitution.supportedAccountTypes[0]
-        : null,
-    );
-    setCreditLimit('');
-    setCurrentBalanceOwed('0');
-    setStatementDate(todayIso());
-    setPaymentDueDate(todayIso());
-    setPaymentWalletId(null);
-    setAutoRecordPayment(false);
-    setPaymentRule('full_outstanding');
-    setFixedPaymentAmount('');
-    setLastFour('');
-    setAccountPurpose('everyday');
-    setEarnsInterest(false);
-    setAnnualInterestRate('');
-  }, [preset.key, preset.name, preset.type]);
   const chooseAccountType = (value: WalletAccountType) => {
     if (
       value === 'credit' &&

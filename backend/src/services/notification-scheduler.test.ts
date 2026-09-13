@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { billReminder, shouldSendMonthlySummary, shouldSendReminder } from "./notification-scheduler.service.js";
 import { billReminderReference, notificationCutoff } from "./notifications.service.js";
 
-const reminderPrefs = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, summaries: false, overspending_alerts: true };
+const reminderPrefs = { bill_reminders: true, bill_reminder_days: 3, bill_reminder_three_days: true, bill_reminder_one_day: true, bill_reminder_due_day: true, bill_overdue_reminders: true, subscription_reminders: true, subscription_reminder_three_days: true, subscription_reminder_one_day: true, subscription_reminder_due_day: true, subscription_overdue_reminders: true, summaries: false, overspending_alerts: true };
 
 assert.equal(shouldSendReminder(false, "2026-08-04", "2026-08-01", 3), false, "disabled reminder must not send");
 assert.equal(shouldSendReminder(true, "2026-08-04", "2026-08-01", 3), true, "enabled reminder sends on its configured date");
