@@ -4,6 +4,7 @@ export const dashboardSidebarSections = [
     items: [
       { label: 'Dashboard', icon: 'dashboard', path: '/app' },
       { label: 'Wallets', icon: 'wallets', path: '/app/wallets' },
+      { label: 'Loans & Debt', icon: 'loans', path: '/app/loans' },
       { label: 'Bills', icon: 'bills', path: '/app/bills' },
       { label: 'Subscriptions', icon: 'subscriptions', path: '/app/subscriptions' },
       { label: 'Expenses', icon: 'expenses', path: '/app/expenses' },

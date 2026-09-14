@@ -13,3 +13,13 @@ export const createLoanSchema = z.object({
 }).and(interest).superRefine((value, ctx) => { if (value.due_date && value.start_date && value.due_date < value.start_date) ctx.addIssue({ code: "custom", path: ["due_date"], message: "Due date cannot be before the start date." }); });
 
 export const loanPaymentSchema = z.object({ wallet_id: z.string().uuid(), principal_amount: currencyAmount, interest_amount: currencyAmount, paid_on: safeDate.optional(), note: z.string().trim().max(1000).nullable().optional(), idempotency_key: z.string().trim().min(16).max(100) }).strict().refine((value) => value.principal_amount + value.interest_amount > 0, "Record a principal or interest amount.");
+
+export const updateLoanSchema = z.object({
+  counterparty: z.string().trim().min(1).max(120), principal: currencyAmount.refine((value) => value > 0),
+  interest_type: z.enum(["none", "fixed", "simple"]), interest_rate: z.coerce.number().positive().max(1000).nullable().optional(), fixed_interest_amount: currencyAmount.refine((value) => value > 0).nullable().optional(),
+  start_date: safeDate, due_date: safeDate.nullable(), notes: z.string().trim().max(1000).nullable().optional(),
+}).strict().superRefine((value, ctx) => {
+  if (value.due_date && value.due_date < value.start_date) ctx.addIssue({ code: "custom", path: ["due_date"], message: "Due date cannot be before the start date." });
+  if (value.interest_type === "fixed" && !value.fixed_interest_amount) ctx.addIssue({ code: "custom", path: ["fixed_interest_amount"], message: "Enter fixed interest." });
+  if (value.interest_type === "simple" && !value.interest_rate) ctx.addIssue({ code: "custom", path: ["interest_rate"], message: "Enter interest rate." });
+});

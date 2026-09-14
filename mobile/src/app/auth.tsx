@@ -9,7 +9,7 @@ import { ArrowLeft, CircleAlert, Eye, EyeOff, Lock, Mail, MailCheck, ShieldCheck
 import { BrandLockup } from '@/components/brand-lockup';
 import { GoogleSignInButton } from '@/components/google-sign-in-button';
 import { OtpInput } from '@/components/otp-input';
-import { getSupabaseClient } from '@/services/supabase';
+import { getSupabaseClient, hasPublicSupabaseConfiguration } from '@/services/supabase';
 import { cancelAllFinancialReminders } from '@/services/financial-reminders';
 import { useAppTheme } from '@/theme/theme';
 import { getMfaState, rememberTrustedDevice } from '@/services/mfa';
@@ -74,6 +74,7 @@ export default function AuthScreen() {
   const palette: Palette = { ...colors, accentSoft: colors.accentPale };
   const isCreate = screen === 'create';
   const isMfa = screen === 'mfa';
+  const authAvailable = hasPublicSupabaseConfiguration();
   const emailIsValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const subtitle = useMemo(() => isCreate ? 'Create an account and make every peso count.' : 'Your calmer way to stay on top of money.', [isCreate]);
 
@@ -86,7 +87,7 @@ export default function AuthScreen() {
   const handleGoogle = useCallback(async () => {
     setError('');
     const supabase = getSupabaseClient();
-    if (!supabase) { setError('Supabase is not configured for this build.'); return; }
+    if (!supabase) { setError('Sign-in is temporarily unavailable. Please try again later.'); return; }
     setLoading(true);
     try {
       await signInWithGoogleNative(supabase);
@@ -111,13 +112,14 @@ export default function AuthScreen() {
     setError('');
     setConfirmationNotice(false);
     setResendStatus('');
+    if (!authAvailable) { setError('Sign-in is temporarily unavailable. Please try again later.'); return; }
     if (!email.trim() || !password) { setError('Enter your email and password to continue.'); return; }
     if (!emailIsValid) { setError('Enter a valid email address.'); return; }
     if (isCreate && !fullName.trim()) { setError('Enter your full name.'); return; }
     if (password.length < 8) { setError('Use at least 8 characters for your password.'); return; }
     if (isCreate && password !== confirmPassword) { setError('Passwords do not match.'); return; }
     const supabase = getSupabaseClient();
-    if (!supabase) { setError('Supabase is not configured for this build.'); return; }
+    if (!supabase) { setError('Sign-in is temporarily unavailable. Please try again later.'); return; }
     setLoading(true);
     try {
       const normalizedEmail = email.trim().toLowerCase();
@@ -217,12 +219,12 @@ export default function AuthScreen() {
           {!confirmationNotice && <View style={styles.actionSlot}>
             {!isCreate && <Pressable accessibilityRole="button" disabled={loading} onPress={() => void handlePasswordReset()} style={styles.forgotButton}><Text style={[styles.linkText, { color: palette.accent }]}>Forgot password?</Text></Pressable>}
           </View>}
-          {Boolean(error) && <View accessible accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: palette.accentSoft }]}><CircleAlert size={20} strokeWidth={1.75} color={palette.danger} /><Text style={[styles.errorText, { color: palette.danger }]}>{error}</Text></View>}
+          {(Boolean(error) || !authAvailable) && <View accessible accessibilityRole="alert" style={[styles.errorBox, { backgroundColor: palette.accentSoft }]}><CircleAlert size={20} strokeWidth={1.75} color={palette.danger} /><Text style={[styles.errorText, { color: palette.danger }]}>{error || 'Sign-in is temporarily unavailable. Please try again later.'}</Text></View>}
           {confirmationNotice ? <ConfirmationCard palette={palette} loading={loading} resendCooldown={resendCooldown} resendStatus={resendStatus} onOpenEmail={() => void openEmailApp()} onResend={() => void resendConfirmation()} onSignIn={() => { setConfirmationNotice(false); setResendStatus(''); setScreen('signin'); }} onChangeEmail={() => { setConfirmationNotice(false); setResendStatus(''); setScreen('create'); }} /> : null}
-          {!confirmationNotice && <Pressable accessibilityRole="button" disabled={loading} onPress={handleSubmit} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.accent }, pressed && styles.pressed, loading && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Please wait...' : isCreate ? 'Create Account' : 'Sign In'}</Text></Pressable>}
+          {!confirmationNotice && <Pressable accessibilityRole="button" disabled={loading || !authAvailable} onPress={handleSubmit} style={({ pressed }) => [styles.primaryButton, { backgroundColor: palette.accent }, pressed && styles.pressed, (loading || !authAvailable) && styles.disabled]}><Text style={styles.primaryText}>{loading ? 'Please wait...' : isCreate ? 'Create Account' : 'Sign In'}</Text></Pressable>}
           {!confirmationNotice && <View style={styles.orRow}><View style={[styles.orLine, { backgroundColor: palette.line }]} /><Text style={[styles.orText, { color: palette.muted }]}>or</Text><View style={[styles.orLine, { backgroundColor: palette.line }]} /></View>}
-          {!confirmationNotice && <GoogleSignInButton colors={palette} onPress={handleGoogle} loading={loading} variant="auth" />}
-          {!confirmationNotice && <Pressable accessibilityRole="button" onPress={() => setScreen(isCreate ? 'signin' : 'create')} style={styles.switchButton}><Text style={[styles.switchText, { color: palette.muted }]}>{isCreate ? 'Already have an account? ' : 'New to Alalay? '}<Text style={{ color: palette.accent, fontWeight: '800' }}>{isCreate ? 'Sign In' : 'Sign Up'}</Text></Text></Pressable>}
+          {!confirmationNotice && <GoogleSignInButton colors={palette} onPress={handleGoogle} loading={loading} disabled={!authAvailable} variant="auth" />}
+          {!confirmationNotice && <Pressable accessibilityRole="button" disabled={!authAvailable} onPress={() => setScreen(isCreate ? 'signin' : 'create')} style={[styles.switchButton, !authAvailable && styles.disabled]}><Text style={[styles.switchText, { color: palette.muted }]}>{isCreate ? 'Already have an account? ' : 'New to Alalay? '}<Text style={{ color: palette.accent, fontWeight: '800' }}>{isCreate ? 'Sign In' : 'Sign Up'}</Text></Text></Pressable>}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

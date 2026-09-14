@@ -10,7 +10,7 @@ import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import { useSavingsGoals } from "../../hooks/useSavingsGoals";
 import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
-import { CategoryBadge } from "../../components/ui/CategoryBadge";
+import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 import { SlideOver } from '../../components/ui/SlideOver';
 import {
@@ -19,6 +19,7 @@ import {
   previousBudgetMonth,
   type BudgetDraftCategory,
 } from '../../utils/budgetSetups';
+import { budgetCategoryStatus, type BudgetCategoryStatus } from '../../utils/budgetCategoryStatus';
 
 function getDisplayName(session: Session) {
   return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
@@ -205,6 +206,15 @@ function HealthRow({ label, amount, percent, color }: { label: string; amount: n
     </div>
   );
 }
+
+const categoryStatusStyle: Record<BudgetCategoryStatus, { bar: string; badge: string; label: string }> = {
+  no_spending: { bar: 'bg-slate-400 dark:bg-slate-500', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200', label: 'No spending yet' },
+  on_track: { bar: 'bg-emerald-600 dark:bg-emerald-400', badge: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200', label: 'On track' },
+  near_limit: { bar: 'bg-amber-500 dark:bg-amber-400', badge: 'bg-amber-50 text-amber-900 dark:bg-amber-950/50 dark:text-amber-200', label: 'Near limit' },
+  fully_used: { bar: 'bg-amber-600 dark:bg-amber-400', badge: 'bg-amber-100 text-amber-950 dark:bg-amber-950/60 dark:text-amber-100', label: 'Fully used' },
+  over_budget: { bar: 'bg-red-600 dark:bg-red-400', badge: 'bg-red-50 text-red-800 dark:bg-red-950/50 dark:text-red-200', label: 'Over budget' },
+  unallocated: { bar: 'bg-slate-300 dark:bg-slate-600', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200', label: 'No budget allocated' },
+};
 
 export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const name = getDisplayName(session);
@@ -467,21 +477,32 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
             <p className="text-sm text-slate-500">No spending categories yet. Add category budgets from Edit Budget.</p>
           ) : null}
           {spendingCategories.map((category) => {
-            const percent = category.percent;
-            const deficit = Math.max(0, category.spent - category.budget);
-            const needsReview = deficit > 0;
+            const budgetState = budgetCategoryStatus(category.spent, category.budget);
+            const style = categoryStatusStyle[budgetState.status];
+            const remainingCopy = budgetState.status === 'over_budget'
+              ? `${formatCurrency(Math.abs(budgetState.remaining))} over budget`
+              : budgetState.status === 'unallocated'
+                ? 'No budget allocated'
+                : `${formatCurrency(Math.max(0, budgetState.remaining))} left${budgetState.status === 'fully_used' ? ' • Fully used' : budgetState.status === 'no_spending' ? ' • No spending yet' : budgetState.status === 'near_limit' ? ' • Near limit' : ' • On track'}`;
 
             return (
-              <div key={category.id}>
-                <div className="mb-2 grid grid-cols-[1fr_auto_auto] items-center gap-4 text-xs">
-                  <CategoryBadge category={category.name} compact />
-                  <span className="font-mono text-slate-500">{formatCurrency(category.spent)} / {formatCurrency(category.budget)}</span>
-                  <span className="font-mono text-[#3f7d16]">{percent}%</span>
+              <div key={category.id} className="rounded-xl border border-slate-200 bg-white px-4 py-4 transition hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:hover:border-slate-600">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                  <div className="flex min-w-0 items-center gap-3 sm:w-48 sm:shrink-0">
+                    <CategoryIcon category={category.name} />
+                    <span className="truncate text-sm font-semibold text-slate-950 dark:text-white">{category.name}</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-3 text-xs sm:hidden"><span className={`rounded-full px-2 py-1 font-semibold ${style.badge}`}>{style.label}</span><span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{budgetState.budget ? `${budgetState.percent}%` : '—'}</span></div>
+                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800" role="progressbar" aria-label={`${category.name}: ${style.label}. ${formatCurrency(budgetState.spent)} spent of ${formatCurrency(budgetState.budget)}.`} aria-valuemin={0} aria-valuemax={Math.max(1, budgetState.budget)} aria-valuenow={Math.min(budgetState.spent, Math.max(1, budgetState.budget))} aria-valuetext={`${budgetState.budget ? `${budgetState.percent}% used` : 'No budget allocated'}. ${remainingCopy}`}>
+                      <div className={`h-full rounded-full ${style.bar}`} style={{ width: `${budgetState.progress}%` }} />
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 sm:w-56 sm:shrink-0 sm:justify-end">
+                    <div className="min-w-0 text-left sm:text-right"><p className="whitespace-nowrap font-mono text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(budgetState.spent)} of {formatCurrency(budgetState.budget)}</p><p className="mt-1 text-xs font-medium text-slate-600 dark:text-slate-300">{remainingCopy}</p></div>
+                    <span className={`hidden rounded-full px-2.5 py-1 text-xs font-semibold sm:inline ${style.badge}`}>{budgetState.budget ? `${budgetState.percent}% · ${style.label}` : style.label}</span>
+                  </div>
                 </div>
-                <div className="h-1.5 rounded-full bg-slate-100">
-                  <div className="h-1.5 rounded-full" style={{ width: `${Math.min(100, percent)}%`, backgroundColor: "#c57a12" }} />
-                </div>
-                {needsReview ? <p className="mt-2 text-[11px] font-medium text-red-600">This category is short by {formatCurrency(deficit)} this month.</p> : null}
               </div>
             );
           })}

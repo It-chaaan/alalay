@@ -6,11 +6,11 @@ import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverv
 import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useIncome } from "../../hooks/useIncome";
-import { useIncomeSummary } from "../../hooks/useIncomeSummary";
+import { incomeMonthEntries, type IncomeMonthEntry } from "../../utils/incomeMonth";
 import type { IncomeEntry } from "../../hooks/types";
 import { formatCurrency, formatDateShort } from "../../utils/formatters";
 import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
-import { aggregateIncomeSources, buildIncomeOccurrences, formatIncomeRecurrence, isIncomeRecurring } from "../../utils/incomeRecurrence";
+import { aggregateIncomeSources, formatIncomeRecurrence } from "../../utils/incomeRecurrence";
 import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Pen, Trash2 } from "lucide-react";
@@ -30,7 +30,10 @@ function getDisplayName(session: Session) {
 }
 
 function getMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit" }).formatToParts(date);
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  return `${year}-${month}`;
 }
 
 function getMonthLabel(date: Date, options: Intl.DateTimeFormatOptions) {
@@ -179,21 +182,17 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
 
 export function IncomePage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const [today, setToday] = useState(() => new Date());
+  const [selectedMonth, setSelectedMonth] = useState(() => getMonthKey(new Date()));
   const name = getDisplayName(session);
   const addIncomeDialog = useActionDialog("add-income");
   const editIncomeDialog = useActionDialog("edit-income");
   const [selectedIncome, setSelectedIncome] = useState<IncomeEntry | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { data: entries, isLoading, isSlowLoading, error, refetch } = useIncome();
-  const { data: incomeSummary } = useIncomeSummary(getMonthKey(today));
+  const { data: incomeMonth, isLoading, isSlowLoading, error, refetch } = useIncome(selectedMonth);
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
-  const rows = entries ?? [];
-  const monthlySeries = buildIncomeMonthlySeries(rows, today);
-  const thisMonthTotal = incomeSummary?.this_month ?? monthlySeries.find((item) => item.current)?.total ?? 0;
-  const thisMonthKey = monthlySeries.find((item) => item.current)?.key ?? getMonthKey(today);
-  const monthEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const thisMonthRows = buildIncomeOccurrences(rows, `${thisMonthKey}-01`, `${thisMonthKey}-${String(monthEnd.getDate()).padStart(2, "0")}`).filter((entry) => entry.date.startsWith(thisMonthKey));
-  const ytd = incomeSummary?.ytd ?? rows.filter((entry) => entry.date.startsWith(String(today.getFullYear()))).reduce((sum, entry) => sum + Number(entry.amount), 0);
+  const rows = incomeMonthEntries(incomeMonth?.items ?? []);
+  const thisMonthTotal = incomeMonth?.overview.projectedAmount ?? 0;
+  const thisMonthRows = rows;
   const bySource = aggregateIncomeSources(rows);
 
   useEffect(() => {
@@ -217,16 +216,18 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     };
   }, []);
 
-  function openEditIncome(income: IncomeEntry) {
+  function openEditIncome(income: IncomeMonthEntry) {
+    if (income.is_projected || !income.transaction_id) return;
     setSelectedIncome(income);
     setOpenMenuId(null);
     editIncomeDialog.open();
   }
 
-  async function deleteIncome(income: IncomeEntry) {
+  async function deleteIncome(income: IncomeMonthEntry) {
+    if (income.is_projected || !income.transaction_id) return;
     if (!window.confirm(`Delete ${income.source}? This removes this recorded income from your totals.`)) return;
     try {
-      await mutate(`/income/${income.id}`, { method: "DELETE" });
+      await mutate(`/income/${income.transaction_id}`, { method: "DELETE" });
       setOpenMenuId(null);
       refetch();
     } catch {
@@ -234,7 +235,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     }
   }
 
-  const monthLabel = getMonthLabel(today, { month: "long", year: "numeric" });
+  const monthLabel = getMonthLabel(new Date(`${selectedMonth}-01T12:00:00`), { month: "long", year: "numeric" });
 
   return (
     <DashboardShell
@@ -244,17 +245,14 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
     >
+      <div className="mb-5 flex justify-end"><label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Month<input type="month" value={selectedMonth} max={getMonthKey(today)} onChange={(event) => setSelectedMonth(event.target.value)} className="ml-3 min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label></div>
 {isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
-      {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
+      {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>{error}</p><button type="button" onClick={refetch} className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-semibold text-red-700">Try again</button></div> : null}
       {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
-      {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records yet. Add an income source to start tracking earnings.</div> : null}
+      {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records for {monthLabel} yet. Add an income source to start tracking earnings.</div> : null}
       {!isLoading && !error && rows.length > 0 ? (
         <>
-      <FinancialOverviewCard label="Income overview" period={monthLabel} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income this month" metrics={[{ label: 'Active sources', value: String(bySource.length) }, { label: 'Year to date', value: formatCurrency(ytd) }, { label: 'Average / month', value: formatCurrency(ytd / Math.max(1, new Date().getMonth() + 1)) }]} />
-
-      <section className="mt-5">
-        <IncomeChart entries={rows} today={today} />
-      </section>
+      <FinancialOverviewCard label="Income overview" period={monthLabel} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income expected this month" metrics={[{ label: 'Received', value: formatCurrency(incomeMonth?.overview.receivedAmount ?? 0) }, { label: 'Upcoming', value: formatCurrency(incomeMonth?.overview.upcomingAmount ?? 0) }, { label: 'Overdue', value: formatCurrency(incomeMonth?.overview.overdueAmount ?? 0) }]} />
 
       <section className="mt-6"><SectionToolbar title="Income activity" description="Manage sources and review recorded income"><button type="button" onClick={addIncomeDialog.open} className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Add income source</button></SectionToolbar></section>
       <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
@@ -286,13 +284,13 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
                 <TrendIcon tone={incomeSourceType(income.type)} />
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold text-slate-950">{income.source}</p>
-                <p className="mt-1 flex items-center gap-2 text-xs text-slate-500"><SourcePill type={incomeSourceType(income.type)} />{income.is_recurring ? "Recurring" : "One-time"}</p>
+                <p className="mt-1 flex items-center gap-2 text-xs text-slate-500"><SourcePill type={incomeSourceType(income.type)} />{income.status === "received" ? "Received" : income.status.replaceAll("_", " ")}</p>
                 </div>
                 <div className="text-right">
                   <p className="font-mono text-sm font-bold text-[#3f7d16]">+{formatCurrency(Number(income.amount))}</p>
                   <p className="text-xs text-slate-400">{formatDateShort(income.date)}</p>
                 </div>
-                <MoreActionsMenu
+                {!income.is_projected ? <MoreActionsMenu
                   isOpen={openMenuId === income.id}
                   onToggle={() => setOpenMenuId((current) => current === income.id ? null : income.id)}
                   ariaLabel={`More actions for ${income.source} income`}
@@ -300,7 +298,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
                 >
                   <MenuAction icon={Pen} label="Edit income" tone="info" onClick={() => openEditIncome(income)} />
                   <MenuAction icon={Trash2} label="Delete income" tone="danger" disabled={isSubmitting} onClick={() => void deleteIncome(income)} />
-                </MoreActionsMenu>
+                </MoreActionsMenu> : null}
               </div>
             ))}
           </div>

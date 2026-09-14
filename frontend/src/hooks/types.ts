@@ -341,6 +341,8 @@ export type Wallet = {
   id: string;
   name: string;
   balance: number | string;
+  available_balance?: number | string;
+  reserved_for_goals?: number | string;
   institution_type: 'e_wallet' | 'digital_bank' | 'bank' | 'cash' | 'other';
   institution_key: string;
   currency?: string;

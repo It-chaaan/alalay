@@ -79,12 +79,51 @@ const sessionStorage = Platform.OS === 'web' ? webStorage : secureStorage;
 
 let client: SupabaseClient | null = null;
 let appStateSubscription: { remove: () => void } | null = null;
+let configurationDiagnosticLogged = false;
+
+function isValidPublicSupabaseUrl(value: string | undefined) {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return (url.protocol === 'https:' || (__DEV__ && url.protocol === 'http:')) && Boolean(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isValidPublicSupabaseKey(value: string | undefined) {
+  if (!value || value.length < 20) return false;
+  // Supabase supports legacy JWT anon keys and newer publishable keys. Do not
+  // log or decode the key in production; service-role credentials are never a
+  // valid mobile configuration value.
+  if (value.startsWith('sb_publishable_')) return true;
+  const parts = value.split('.');
+  if (parts.length !== 3) return false;
+  try {
+    const encodedPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(atob(encodedPayload.padEnd(encodedPayload.length + (4 - encodedPayload.length % 4) % 4, '=')));
+    return payload.role !== 'service_role';
+  } catch {
+    return false;
+  }
+}
+
+export function hasPublicSupabaseConfiguration() {
+  return isValidPublicSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL)
+    && isValidPublicSupabaseKey(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+}
 
 export function getSupabaseClient() {
   const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-  if (!url || !anonKey) return null;
+  if (!url || !anonKey || !hasPublicSupabaseConfiguration()) {
+    if (__DEV__ && !configurationDiagnosticLogged) {
+      configurationDiagnosticLogged = true;
+      console.warn('[Mobile auth] Public authentication configuration is unavailable or invalid.');
+    }
+    return null;
+  }
 
   client ??= createClient(url, anonKey, {
     auth: {

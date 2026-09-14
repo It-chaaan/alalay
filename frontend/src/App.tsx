@@ -19,6 +19,7 @@ import { NotificationsPage } from './pages/dashboard/NotificationsPage';
 import { SubscriptionsPage } from './pages/dashboard/SubscriptionsPage';
 import { WalletsPage } from './pages/dashboard/WalletsPage';
 import { WalletDetailsPage } from './pages/dashboard/WalletDetailsPage';
+import { LoansDebtPage } from './pages/dashboard/LoansDebtPage';
 import { HomePage } from './pages/home/HomePage';
 import { ContactPage } from './pages/public/ContactPage';
 import { PrivacyPage } from './pages/public/PrivacyPage';
@@ -272,6 +273,15 @@ function AppContent() {
       return <AppLoading />;
     }
     return <WalletsPage session={session} onSignOut={handleSignOut} />;
+  }
+
+  if (pathname === '/app/loans') {
+    if (isSessionLoading) return <AppLoading />;
+    if (!session || isMfaPending) {
+      window.location.replace('/login');
+      return <AppLoading />;
+    }
+    return <LoansDebtPage session={session} onSignOut={handleSignOut} />;
   }
 
   const walletDetailsMatch = pathname.match(/^\/app\/wallets\/([^/]+)\/?$/);

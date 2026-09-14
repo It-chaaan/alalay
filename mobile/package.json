@@ -10,6 +10,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
+    "validate:public-env": "node ./scripts/validate-public-supabase-env.mjs",
+    "eas-build-pre-install": "npm run validate:public-env",
     "test:insight": "tsx src/utils/dashboard-insight.test.ts",
     "test:wallet-balance-privacy": "tsx src/utils/wallet-balance-privacy.test.ts",
     "test:category-sorting": "tsx src/utils/category-sorting.test.ts",

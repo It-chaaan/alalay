@@ -175,6 +175,13 @@ Vite variables are client-visible. Do not place service-role keys or provider se
 
 On a physical device, do not use `localhost` for the backend URL; use a reachable LAN address, tunnel, or deployed API URL.
 
+For EAS preview and production APKs, these public values must be configured in
+the matching EAS environment before the build begins. `mobile/.env` is local
+only and is not an EAS deployment mechanism. See
+[`mobile/README.md`](mobile/README.md#public-supabase-build-configuration) for
+the dashboard steps and `eas build` commands. Never add service-role keys or
+other private credentials to `EXPO_PUBLIC_*` values.
+
 ### Backend: `backend/.env`
 
 | Variable                         | Required                             | Description                               | Example format                            |

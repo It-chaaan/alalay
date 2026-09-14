@@ -12,24 +12,25 @@ type GoogleSignInButtonProps = {
   colors: GoogleButtonColors;
   onPress: () => void;
   loading?: boolean;
+  disabled?: boolean;
   variant: 'auth' | 'landing';
 };
 
-export function GoogleSignInButton({ colors, onPress, loading = false, variant }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({ colors, onPress, loading = false, disabled = false, variant }: GoogleSignInButtonProps) {
   const isAuthButton = variant === 'auth';
 
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel="Continue with Google"
-      disabled={loading}
+      disabled={loading || disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.button,
         isAuthButton ? styles.authButton : styles.landingButton,
         { backgroundColor: colors.surface, borderColor: colors.line },
         pressed && styles.pressed,
-        loading && styles.disabled,
+        (loading || disabled) && styles.disabled,
       ]}>
       {isAuthButton ? (
         <View style={[styles.authLogo, { borderColor: colors.line }]}><GoogleLogo size={16} /></View>

@@ -14,6 +14,7 @@ const defaultSubtitles: Record<string, string> = {
   Settings: "Manage your account and preferences",
   Subscriptions: "Manage recurring payments and renewals",
   Wallets: "Manage all your money in one place",
+  "Loans & Debt": "Track money owed to you and what you owe",
 };
 
 export function DashboardShell({

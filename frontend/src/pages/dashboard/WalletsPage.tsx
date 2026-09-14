@@ -1,7 +1,9 @@
 import type { Session } from '@supabase/supabase-js';
 import {
+  ArrowDownToLine,
   ArrowLeftRight,
   ArrowRight,
+  ArrowUpRight,
   BarChart3,
   CreditCard,
   ChevronRight,
@@ -33,13 +35,13 @@ import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 import { useApiMutation } from '../../hooks/useApiMutation';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useBalancePrivacy } from '../../hooks/useBalancePrivacy';
-import type { LoanSummary, Wallet } from '../../hooks/types';
-import { formatCurrency } from '../../utils/formatters';
+import type { Wallet } from '../../hooks/types';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { SearchField } from '../../components/dashboard/BillsComponents';
 import { DeleteWalletDialog, WalletActionsMenu } from '../../components/wallets/WalletActions';
 import { useAppPreferences } from '../../context/AppPreferencesContext';
 
-type Loan = {
+export type Loan = {
   id: string;
   counterparty: string;
   direction: 'lent' | 'borrowed';
@@ -52,10 +54,25 @@ type Loan = {
   interest_rate?: number | null;
   fixed_interest_amount?: number | null;
   status: 'active' | 'paid' | 'written_off';
+  notes?: string | null;
+  loan_payments?: Array<{ id: string; principal_amount: number | string; interest_amount: number | string; paid_on: string; note?: string | null; wallets?: { name: string } | null }>;
 };
-type LoansResponse = { loans: Loan[]; summary: LoanSummary };
+export type LoansResponse = { loans: Loan[]; summary: { owed_to_me: number; i_owe: number; net_position: number; interest_earned_this_month: number; interest_paid_this_month: number } };
 type WalletFormProps = { onClose: () => void; onSaved: () => void };
 type WalletView = 'grid' | 'list';
+type WalletTransaction = {
+  id: string;
+  kind: string;
+  label: string;
+  category?: string | null;
+  date: string;
+  amount: number | string;
+};
+type WalletDetail = {
+  wallet: Wallet;
+  transactions: WalletTransaction[];
+  transactionError?: string;
+};
 type WalletFilters = {
   asset: 'all' | 'liquid' | 'credit';
   institution: 'all' | 'cash' | 'bank' | 'digital_bank' | 'e_wallet';
@@ -107,12 +124,14 @@ function WalletCard({
   onEdit,
   onDelete,
   onRepay,
+  onOpen,
 }: {
   wallet: Wallet;
   isPrivate: boolean;
   onEdit: (wallet: Wallet) => void;
   onDelete: (wallet: Wallet) => void;
   onRepay: (wallet: Wallet) => void;
+  onOpen: (wallet: Wallet) => void;
 }) {
   const { settings } = useAppPreferences();
   const knownInstitution = institutionRegistry.find((item) => item.id === wallet.institution_key);
@@ -123,8 +142,9 @@ function WalletCard({
     : `${wallet.institution_type.replace('_', ' ')} · ${settings.currency}`;
   return (
     <article className={`wallet-card wallet-card-${institutionType} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}>
-      <a
-        href={`/app/wallets/${wallet.id}`}
+      <button
+        type="button"
+        onClick={() => onOpen(wallet)}
         aria-label={`Open ${wallet.name} wallet details`}
         className="absolute inset-0 z-10 rounded-2xl focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
       />
@@ -177,12 +197,14 @@ function WalletList({
   onEdit,
   onDelete,
   onRepay,
+  onOpen,
 }: {
   wallets: Wallet[];
   isPrivate: boolean;
   onEdit: (wallet: Wallet) => void;
   onDelete: (wallet: Wallet) => void;
   onRepay: (wallet: Wallet) => void;
+  onOpen: (wallet: Wallet) => void;
 }) {
   const { settings } = useAppPreferences();
   return (
@@ -204,8 +226,9 @@ function WalletList({
             key={wallet.id}
             className="relative grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-slate-200 px-4 py-4 transition last:border-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60 md:grid-cols-[minmax(0,1.6fr)_minmax(130px,1fr)_minmax(130px,0.8fr)_minmax(120px,0.7fr)_44px] md:items-center md:gap-4 md:px-5"
           >
-            <a
-              href={`/app/wallets/${wallet.id}`}
+            <button
+              type="button"
+              onClick={() => onOpen(wallet)}
               aria-label={`Open ${wallet.name} wallet details`}
               className="absolute inset-0 z-10 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-primary/50"
             />
@@ -335,55 +358,82 @@ function WalletFilterPopover({
   );
 }
 
-function WalletQuickActions({
+function WalletDetailsModal({
+  detail,
+  isLoading,
+  error,
+  isPrivate,
+  onRetry,
   onTransfer,
-  onRecordLoan,
-  onRepayment,
-  onLoansOverview,
+  onRepay,
 }: {
-  onTransfer: () => void;
-  onRecordLoan: () => void;
-  onRepayment: () => void;
-  onLoansOverview: () => void;
+  detail: WalletDetail | null;
+  isLoading: boolean;
+  error: string | null;
+  isPrivate: boolean;
+  onRetry: () => void;
+  onTransfer: (wallet: Wallet) => void;
+  onRepay: (wallet: Wallet) => void;
 }) {
-  const actions = [
-    { label: 'Transfer money', helper: 'Move funds', icon: ArrowLeftRight, onClick: onTransfer },
-    { label: 'Record loan', helper: 'Lend or borrow', icon: HandCoins, onClick: onRecordLoan },
-    { label: 'Make repayment', helper: 'Pay or receive', icon: WalletCards, onClick: onRepayment },
-    {
-      label: 'View all loans & debt',
-      helper: 'Open overview',
-      icon: ArrowRight,
-      onClick: onLoansOverview,
-    },
+  const { settings } = useAppPreferences();
+  if (isLoading) {
+    return <PageSkeleton kind="budget" />;
+  }
+  if (error || !detail) {
+    return (
+      <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" role="alert">
+        <p>{error ?? 'Unable to load this wallet.'}</p>
+        <button type="button" onClick={onRetry} className="mt-3 min-h-10 rounded-lg px-3 font-semibold underline">Try again</button>
+      </div>
+    );
+  }
+  const { wallet, transactions, transactionError } = detail;
+  const institution = institutionFor(wallet.institution_key);
+  const isCredit = wallet.account_type === 'credit';
+  const balance = Number(wallet.balance);
+  const availableCredit = Math.max(0, Number(wallet.credit_limit ?? 0) - balance);
+  const details = [
+    ['Provider', institution.displayName],
+    ['Wallet type', wallet.institution_type.replace('_', ' ')],
+    ['Account type', isCredit ? 'Credit' : wallet.account_type ?? 'Standard'],
+    ['Currency', settings.currency],
+    ...(wallet.interest_rate != null ? [['Interest rate', `${Number(wallet.interest_rate)}%`]] : []),
   ];
   return (
-    <section
-      className="wallet-quick-actions mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-      aria-labelledby="wallet-quick-actions"
-    >
-      <h2 id="wallet-quick-actions" className="font-semibold text-slate-950 dark:text-white">
-        Quick actions
-      </h2>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-        {actions.map(({ label, helper, icon: Icon, onClick }) => (
-          <button
-            key={label}
-            type="button"
-            onClick={onClick}
-            className="flex min-h-16 items-center gap-3 rounded-xl px-3 py-2 text-left transition hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-brand-primary/40 dark:hover:bg-slate-800"
-          >
-            <Icon className="h-5 w-5 shrink-0 text-brand-primary" aria-hidden="true" />
-            <span>
-              <span className="block text-xs font-semibold text-slate-800 dark:text-slate-100">
-                {label}
-              </span>
-              <span className="mt-0.5 block text-[11px] text-slate-500">{helper}</span>
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
+    <div className="space-y-6">
+      <section className="rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-400 p-5 text-white">
+        <div className="flex items-start gap-3">
+          <InstitutionMark wallet={wallet} />
+          <div className="min-w-0 flex-1">
+            <h3 className="truncate text-xl font-bold">{wallet.name}</h3>
+            <p className="mt-1 text-sm capitalize text-white/80">{institution.displayName} · {wallet.institution_type.replace('_', ' ')} · {settings.currency}</p>
+          </div>
+        </div>
+        <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">{isCredit ? 'Outstanding balance' : 'Current balance'}</p>
+        <p className="mt-1 font-mono text-3xl font-bold">{isPrivate ? '••••••' : formatCurrency(balance, true, settings.currency)}</p>
+        {isCredit ? <p className="mt-2 text-sm text-white/80">{isPrivate ? '••••••' : formatCurrency(availableCredit, true, settings.currency)} available credit</p> : null}
+      </section>
+
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-semibold">Wallet details</h3>
+          {isCredit ? <button type="button" onClick={() => onRepay(wallet)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"><CreditCard className="h-4 w-4" /> Make payment</button> : <button type="button" onClick={() => onTransfer(wallet)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"><ArrowLeftRight className="h-4 w-4" /> Transfer</button>}
+        </div>
+        <dl className="mt-3 divide-y divide-slate-200 dark:divide-slate-700">
+          {details.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm"><dt className="text-slate-500">{label}</dt><dd className="text-right font-semibold capitalize">{value}</dd></div>)}
+        </dl>
+      </section>
+
+      <section aria-labelledby="wallet-modal-transactions">
+        <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Activity</p><h3 id="wallet-modal-transactions" className="mt-1 font-semibold">Recent transactions</h3></div><a href={`/app/wallets/${wallet.id}`} className="min-h-10 rounded-lg px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-soft">View all transactions</a></div>
+        {transactionError ? <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"><p>{transactionError}</p><button type="button" onClick={onRetry} className="mt-2 font-semibold underline">Try again</button></div> : transactions.length ? <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">{transactions.slice(0, 8).map((transaction) => {
+          const raw = Number(transaction.amount);
+          const amount = isCredit && (transaction.kind === 'expense' || transaction.kind === 'bill') ? Math.abs(raw) : raw;
+          const incoming = amount >= 0;
+          return <article key={`${transaction.kind}-${transaction.id}`} className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 last:border-0 dark:border-slate-700"><span className={`grid h-10 w-10 place-items-center rounded-xl ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>{transaction.kind.startsWith('transfer') ? <ArrowLeftRight className="h-4 w-4" /> : incoming ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{transaction.label}</p><p className="mt-1 text-xs capitalize text-slate-500">{transaction.category ?? transaction.kind.replaceAll('_', ' ')} · {formatDateShort(transaction.date.slice(0, 10))}</p></div><p className={`shrink-0 font-mono text-sm font-bold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>{isPrivate ? '••••••' : `${incoming ? '+' : '−'}${formatCurrency(Math.abs(amount), true, settings.currency)}`}</p></article>;
+        })}</div> : <div className="mt-3 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm dark:border-slate-700"><p className="font-semibold">No transactions yet.</p><p className="mt-1 text-slate-500">Transactions involving this wallet will appear here.</p></div>}
+      </section>
+    </div>
   );
 }
 
@@ -576,15 +626,45 @@ export function TransferForm({
   const [fromWallet, setFromWallet] = useState(initialFrom);
   const [toWallet, setToWallet] = useState('');
   const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
   const initialFee = wallets.find(
     (wallet) => wallet.id === initialFrom,
   )?.default_outgoing_transfer_fee;
   const [fee, setFee] = useState(initialFee == null ? '' : String(initialFee));
-  const canTransfer = wallets.length > 1;
+  const sourceWallets = wallets.filter((wallet) => wallet.account_type !== 'credit');
+  const canTransfer = sourceWallets.length > 0 && wallets.length > 1;
   const amountValue = Number(amount || 0);
   const feeValue = Number(fee || 0);
+  const source = sourceWallets.find((wallet) => wallet.id === fromWallet);
+  const destination = wallets.find((wallet) => wallet.id === toWallet);
+  const totalOutflow = amountValue + feeValue;
+  const availableBalance = Number(source?.available_balance ?? source?.balance ?? 0);
+  const transferIsValid = Boolean(
+    source && destination && source.id !== destination.id && amountValue > 0 && feeValue >= 0 && date && totalOutflow <= availableBalance,
+  );
+  useEffect(() => {
+    setFromWallet(initialFrom);
+    setToWallet('');
+    setFee(initialFee == null ? '' : String(initialFee));
+    setValidationError(null);
+  }, [initialFee, initialFrom]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!source || !destination || source.id === destination.id) {
+      setValidationError('Choose two different wallets.');
+      return;
+    }
+    if (amountValue <= 0 || feeValue < 0) {
+      setValidationError('Enter a transfer amount greater than zero and a valid fee.');
+      return;
+    }
+    if (totalOutflow > availableBalance) {
+      setValidationError(`Insufficient available balance in ${source.name}.`);
+      return;
+    }
+    setValidationError(null);
     await mutate('/wallets/transfers', {
       method: 'POST',
       body: JSON.stringify({
@@ -592,13 +672,15 @@ export function TransferForm({
         to_wallet_id: toWallet,
         amount: amountValue,
         fee: feeValue,
-        date: new Date().toISOString().slice(0, 10),
+        date,
+        note: note.trim() || undefined,
         transfer_method: 'other',
         idempotency_key: requestKey(),
       }),
     });
     setAmount('');
     setFee('');
+    setNote('');
     onSaved();
     onClose();
   }
@@ -627,7 +709,7 @@ export function TransferForm({
                 className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
               >
                 <option value="">Select wallet</option>
-                {wallets.map((wallet) => (
+                {sourceWallets.map((wallet) => (
                   <option key={wallet.id} value={wallet.id}>
                     {wallet.name}
                   </option>
@@ -644,7 +726,7 @@ export function TransferForm({
                 className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
               >
                 <option value="">Select wallet</option>
-                {wallets.map((wallet) => (
+                {wallets.filter((wallet) => wallet.id !== fromWallet).map((wallet) => (
                   <option key={wallet.id} value={wallet.id}>
                     {wallet.name}
                   </option>
@@ -660,6 +742,10 @@ export function TransferForm({
               onChange={setAmount}
             />
             <CurrencyInput id="transfer-fee" label="Transfer fee" value={fee} onChange={setFee} />
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Transfer date<input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Note <span className="font-normal text-slate-500">(optional)</span><input value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
           </div>
           {amountValue > 0 ? (
             <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-3 dark:bg-slate-800/60">
@@ -677,6 +763,7 @@ export function TransferForm({
               </p>
             </div>
           ) : null}
+          {source && destination ? <p className="text-sm text-slate-500">From <strong className="text-slate-800 dark:text-slate-100">{source.name}</strong> to <strong className="text-slate-800 dark:text-slate-100">{destination.name}</strong>.</p> : null}
         </>
       ) : (
         <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/60">
@@ -684,7 +771,7 @@ export function TransferForm({
         </p>
       )}
       <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
-        {error ? <p className="text-sm text-red-600">{error}</p> : <span />}
+        {error || validationError ? <p className="text-sm text-red-600" role="alert">{validationError ?? error}</p> : <span />}
         <button
           type="button"
           onClick={onClose}
@@ -693,7 +780,7 @@ export function TransferForm({
           Cancel
         </button>
         <button
-          disabled={!canTransfer || isSubmitting}
+          disabled={!canTransfer || !transferIsValid || isSubmitting}
           className="inline-flex min-h-11 items-center gap-2 rounded-full bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-50"
         >
           <Send className="h-4 w-4" />
@@ -997,40 +1084,42 @@ export function DepositForm({
 
 type LoanDirection = 'lent' | 'borrowed';
 
-function LoanRecordForm({
+export function LoanRecordForm({
   wallets,
   onClose,
   onSaved,
+  loan,
 }: {
   wallets: Wallet[];
   onClose: () => void;
   onSaved: () => void;
+  loan?: Loan;
 }) {
   const { mutate, isSubmitting, error } = useApiMutation();
-  const [direction, setDirection] = useState<LoanDirection>('lent');
-  const [counterparty, setCounterparty] = useState('');
-  const [principal, setPrincipal] = useState('');
-  const [walletId, setWalletId] = useState(wallets[0]?.id ?? '');
-  const [interestType, setInterestType] = useState<'none' | 'fixed' | 'simple'>('none');
-  const [interest, setInterest] = useState('');
-  const [dueDate, setDueDate] = useState('');
-  const [notes, setNotes] = useState('');
+  const [direction, setDirection] = useState<LoanDirection>(loan?.direction ?? 'lent');
+  const [counterparty, setCounterparty] = useState(loan?.counterparty ?? '');
+  const [principal, setPrincipal] = useState(loan ? String(loan.original_principal ?? '') : '');
+  const [walletId, setWalletId] = useState(loan?.wallet_id ?? wallets[0]?.id ?? '');
+  const [interestType, setInterestType] = useState<'none' | 'fixed' | 'simple'>(loan?.interest_type ?? 'none');
+  const [interest, setInterest] = useState(loan?.interest_type === 'fixed' ? String(loan.fixed_interest_amount ?? '') : loan?.interest_type === 'simple' ? String(loan.interest_rate ?? '') : '');
+  const [startDate, setStartDate] = useState(loan?.start_date ?? new Date().toISOString().slice(0, 10));
+  const [dueDate, setDueDate] = useState(loan?.due_date ?? '');
+  const [notes, setNotes] = useState(loan?.notes ?? '');
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await mutate('/loans', {
-      method: 'POST',
+    await mutate(loan ? `/loans/${loan.id}` : '/loans', {
+      method: loan ? 'PATCH' : 'POST',
       body: JSON.stringify({
-        wallet_id: walletId,
-        direction,
         counterparty: counterparty.trim(),
         principal: Number(principal),
         interest_type: interestType,
         ...(interestType === 'fixed' ? { fixed_interest_amount: Number(interest) } : {}),
         ...(interestType === 'simple' ? { interest_rate: Number(interest) } : {}),
+        ...(loan ? {} : { wallet_id: walletId, direction, idempotency_key: requestKey() }),
+        start_date: startDate,
         due_date: dueDate || null,
         notes: notes.trim() || null,
-        idempotency_key: requestKey(),
       }),
     });
     onSaved();
@@ -1039,7 +1128,7 @@ function LoanRecordForm({
 
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-5">
-      <fieldset>
+      {!loan ? <fieldset>
         <legend className="text-sm font-semibold">What happened?</legend>
         <div className="mt-2 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Loan direction">
           {(['lent', 'borrowed'] as const).map((value) => (
@@ -1064,7 +1153,7 @@ function LoanRecordForm({
             </label>
           ))}
         </div>
-      </fieldset>
+      </fieldset> : null}
       <label className="block text-sm font-semibold">
         {direction === 'lent' ? 'Borrower' : 'Lender'}
         <input
@@ -1088,6 +1177,7 @@ function LoanRecordForm({
             required
             value={walletId}
             onChange={(event) => setWalletId(event.target.value)}
+            disabled={Boolean(loan)}
             className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
           >
             <option value="">Select wallet</option>
@@ -1111,6 +1201,10 @@ function LoanRecordForm({
             <option value="fixed">Fixed amount</option>
             <option value="simple">Simple rate</option>
           </select>
+        </label>
+        <label className="block text-sm font-semibold">
+          Start date
+          <input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" />
         </label>
         <label className="block text-sm font-semibold">
           Due date <span className="font-normal text-slate-400">(optional)</span>
@@ -1169,7 +1263,7 @@ function LoanRecordForm({
   );
 }
 
-function RepaymentForm({
+export function RepaymentForm({
   loans,
   wallets,
   onClose,
@@ -1186,6 +1280,7 @@ function RepaymentForm({
   const [principal, setPrincipal] = useState('');
   const [interest, setInterest] = useState('');
   const [walletId, setWalletId] = useState(wallets[0]?.id ?? '');
+  const [paidOn, setPaidOn] = useState(new Date().toISOString().slice(0, 10));
   const [note, setNote] = useState('');
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1196,6 +1291,7 @@ function RepaymentForm({
         wallet_id: walletId,
         principal_amount: Number(principal || 0),
         interest_amount: Number(interest || 0),
+        paid_on: paidOn,
         note: note.trim() || null,
         idempotency_key: requestKey(),
       }),
@@ -1275,6 +1371,16 @@ function RepaymentForm({
             </option>
           ))}
         </select>
+      </label>
+      <label className="block text-sm font-semibold">
+        Payment date
+        <input
+          required
+          type="date"
+          value={paidOn}
+          onChange={(event) => setPaidOn(event.target.value)}
+          className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+        />
       </label>
       <label className="block text-sm font-semibold">
         Notes <span className="font-normal text-slate-400">(optional)</span>
@@ -1358,10 +1464,11 @@ function LoansDebtCard({
 
 export function WalletsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const walletsQuery = useApiQuery<Wallet[]>('/wallets');
-  const loansQuery = useApiQuery<LoansResponse>('/loans');
   const [isAddWalletOpen, setIsAddWalletOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
-  const [loanDialog, setLoanDialog] = useState<'record' | 'repayment' | 'overview' | null>(null);
+  const [detailWallet, setDetailWallet] = useState<Wallet | null>(null);
+  const [transferSourceWallet, setTransferSourceWallet] = useState<Wallet | null>(null);
+  const detailQuery = useApiQuery<WalletDetail>(detailWallet ? `/wallets/${detailWallet.id}` : '');
   const [creditRepaymentWallet, setCreditRepaymentWallet] = useState<Wallet | null>(null);
   const { isPrivate, togglePrivacy } = useBalancePrivacy();
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
@@ -1416,10 +1523,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
     });
   }, [filters, search, wallets]);
   const activeFilterCount = Object.values(filters).filter((value) => value !== 'all').length;
-  const activeLoans = (loansQuery.data?.loans ?? []).filter((loan) => loan.status === 'active');
   function refreshFinancials() {
     walletsQuery.refetch();
-    loansQuery.refetch();
   }
 
   async function deleteSelectedWallet() {
@@ -1469,7 +1574,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       ) : null}
       {!walletsQuery.isLoading ? (
         <>
-          <section className="wallet-overview-layout grid gap-4 xl:grid-cols-2">
+          <section className="wallet-overview-layout">
             <article className="wallet-hero relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
               <p className="text-xs font-semibold tracking-[0.14em] text-white/75">
                 TOTAL BALANCE
@@ -1507,18 +1612,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                 />
               </svg>
             </article>
-            <LoansDebtCard
-              data={loansQuery.data}
-              onOpen={() => setLoanDialog('overview')}
-              isPrivate={isPrivate}
-            />
           </section>
-          <WalletQuickActions
-            onTransfer={() => setIsTransferOpen(true)}
-            onRecordLoan={() => setLoanDialog('record')}
-            onRepayment={() => setLoanDialog('repayment')}
-            onLoansOverview={() => setLoanDialog('overview')}
-          />
           <section className="wallet-wallets-section mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
               <h2 className="wallet-section-title font-semibold">Your wallets</h2>
@@ -1591,6 +1685,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                       onEdit={setEditingWallet}
                       onDelete={setDeletingWallet}
                       onRepay={setCreditRepaymentWallet}
+                      onOpen={setDetailWallet}
                     />
                   ))}
                   <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />
@@ -1602,6 +1697,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                   onEdit={setEditingWallet}
                   onDelete={setDeletingWallet}
                   onRepay={setCreditRepaymentWallet}
+                  onOpen={setDetailWallet}
                 />
                 <AddWalletTemplate list onAdd={() => setIsAddWalletOpen(true)} />
               </>
@@ -1623,15 +1719,6 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                 </button>
               </div>
             ) : <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />}
-            <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-4 text-sm text-slate-700 dark:border-emerald-900/60 dark:bg-emerald-950/20 dark:text-slate-300">
-              <p className="font-semibold text-slate-900 dark:text-white">
-                Wallets are where your money or liability lives.
-              </p>
-              <p className="mt-1">
-                Loans &amp; Debt track who owes whom. Keep them separate for clearer financial
-                insights.
-              </p>
-            </div>
           </section>
         </>
       ) : null}
@@ -1643,6 +1730,29 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
         <a href="/app/reports" aria-label="Reports"><BarChart3 /><span>Reports</span></a>
       </nav>
       </div>
+      <SlideOver
+        open={Boolean(detailWallet)}
+        onClose={() => setDetailWallet(null)}
+        title={detailWallet?.name ?? 'Wallet details'}
+        description="Balance, account details, and wallet activity."
+      >
+        <WalletDetailsModal
+          detail={detailQuery.data}
+          isLoading={detailQuery.isLoading}
+          error={detailQuery.error}
+          isPrivate={isPrivate}
+          onRetry={detailQuery.refetch}
+          onTransfer={(wallet) => {
+            setTransferSourceWallet(wallet);
+            setDetailWallet(null);
+            setIsTransferOpen(true);
+          }}
+          onRepay={(wallet) => {
+            setDetailWallet(null);
+            setCreditRepaymentWallet(wallet);
+          }}
+        />
+      </SlideOver>
       <SlideOver
         open={isAddWalletOpen}
         onClose={() => setIsAddWalletOpen(false)}
@@ -1682,14 +1792,25 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       />
       <SlideOver
         open={isTransferOpen}
-        onClose={() => setIsTransferOpen(false)}
+        onClose={() => {
+          setIsTransferOpen(false);
+          setTransferSourceWallet(null);
+        }}
         title="Transfer between wallets"
         description="Move money between your accounts. Fees are tracked separately."
       >
         <TransferForm
-          wallets={liquidWallets}
-          onSaved={walletsQuery.refetch}
-          onClose={() => setIsTransferOpen(false)}
+          key={transferSourceWallet?.id ?? 'wallet-transfer'}
+          wallets={wallets}
+          initialFrom={transferSourceWallet?.id ?? ''}
+          onSaved={() => {
+            walletsQuery.refetch();
+            if (transferSourceWallet) setDetailWallet(transferSourceWallet);
+          }}
+          onClose={() => {
+            setIsTransferOpen(false);
+            setTransferSourceWallet(null);
+          }}
         />
       </SlideOver>
       <SlideOver
@@ -1711,33 +1832,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           />
         ) : null}
       </SlideOver>
-      <SlideOver
-        open={loanDialog === 'record'}
-        onClose={() => setLoanDialog(null)}
-        title="Record loan"
-        description="Record money you lent or borrowed without changing income or spending."
-      >
-        <LoanRecordForm
-          wallets={liquidWallets}
-          onClose={() => setLoanDialog(null)}
-          onSaved={refreshFinancials}
-        />
-      </SlideOver>
-      <SlideOver
-        open={loanDialog === 'repayment'}
-        onClose={() => setLoanDialog(null)}
-        title="Make repayment"
-        description="Apply a principal or interest payment to an active position."
-      >
-        <RepaymentForm
-          loans={activeLoans}
-          wallets={liquidWallets}
-          onClose={() => setLoanDialog(null)}
-          onSaved={refreshFinancials}
-        />
-      </SlideOver>
-      <SlideOver
-        open={loanDialog === 'overview'}
+      {/* Retired wallet-only loan overview. Loans now live at /app/loans. */}
+      {/*
         onClose={() => setLoanDialog(null)}
         title="Loans & Debt"
         description="Track money you lent and money you owe."
@@ -1804,6 +1900,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           </div>
         </div>
       </SlideOver>
+      */}
     </DashboardShell>
   );
 }

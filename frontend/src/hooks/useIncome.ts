@@ -1,6 +1,7 @@
 import { useApiQuery } from "./useApiQuery";
-import type { IncomeEntry } from "./types";
+import type { IncomeMonth } from '../utils/incomeMonth';
+export { incomeMonthEntries, type IncomeMonthEntry, type IncomeMonthItem, type IncomeMonth } from '../utils/incomeMonth';
 
-export function useIncome() {
-  return useApiQuery<IncomeEntry[]>("/income");
+export function useIncome(month: string) {
+  return useApiQuery<IncomeMonth>(`/income/my-income?month=${encodeURIComponent(month)}`);
 }

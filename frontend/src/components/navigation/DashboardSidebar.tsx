@@ -45,6 +45,8 @@ function SidebarIcon({ type }: { type: string }) {
       return <CreditCard {...props} />;
     case 'wallets':
       return <Wallet {...props} />;
+    case 'loans':
+      return <HandCoins {...props} />;
     case 'expenses':
       return <BanknoteArrowDown {...props} />;
     case 'income':
