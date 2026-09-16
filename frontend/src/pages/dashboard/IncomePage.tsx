@@ -245,15 +245,14 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
     >
-      <div className="mb-5 flex justify-end"><label className="text-sm font-semibold text-slate-700 dark:text-slate-200">Month<input type="month" value={selectedMonth} max={getMonthKey(today)} onChange={(event) => setSelectedMonth(event.target.value)} className="ml-3 min-h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-900 dark:text-white" /></label></div>
 {isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>{error}</p><button type="button" onClick={refetch} className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-semibold text-red-700">Try again</button></div> : null}
       {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
-      {!isLoading && !error && rows.length === 0 ? <div className="rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No income records for {monthLabel} yet. Add an income source to start tracking earnings.</div> : null}
-      {!isLoading && !error && rows.length > 0 ? (
+      {!isLoading && !error ? (
         <>
-      <FinancialOverviewCard label="Income overview" period={monthLabel} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income expected this month" metrics={[{ label: 'Received', value: formatCurrency(incomeMonth?.overview.receivedAmount ?? 0) }, { label: 'Upcoming', value: formatCurrency(incomeMonth?.overview.upcomingAmount ?? 0) }, { label: 'Overdue', value: formatCurrency(incomeMonth?.overview.overdueAmount ?? 0) }]} />
+      <FinancialOverviewCard label="Income overview" period={<label className="inline-flex min-h-10 items-center rounded-xl border border-white/35 bg-white/15 px-2 text-white shadow-sm transition focus-within:border-white focus-within:bg-white/20 focus-within:ring-2 focus-within:ring-white/80"><span className="sr-only">Month</span><input type="month" value={selectedMonth} max={getMonthKey(today)} onChange={(event) => setSelectedMonth(event.target.value)} className="w-[142px] bg-transparent text-sm font-semibold text-white outline-none [color-scheme:dark]" /></label>} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income expected this month" metrics={[{ label: 'Received', value: formatCurrency(incomeMonth?.overview.receivedAmount ?? 0) }, { label: 'Upcoming', value: formatCurrency(incomeMonth?.overview.upcomingAmount ?? 0) }, { label: 'Overdue', value: formatCurrency(incomeMonth?.overview.overdueAmount ?? 0) }]} />
 
+      {rows.length === 0 ? <div className="mt-6 rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900">No income records for {monthLabel} yet. Add an income source to start tracking earnings.</div> : <>
       <section className="mt-6"><SectionToolbar title="Income activity" description="Manage sources and review recorded income"><button type="button" onClick={addIncomeDialog.open} className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Add income source</button></SectionToolbar></section>
       <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
         <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
@@ -304,6 +303,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
           </div>
         </article>
       </section>
+      </>}
         </>
       ) : null}
       <IncomeFormPanel

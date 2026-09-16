@@ -20,6 +20,12 @@ import {
   UserRound,
   WalletCards,
   Home,
+  Receipt,
+  TrendingDown,
+  TrendingUp,
+  Lightbulb,
+  Info,
+  LockKeyhole,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { institutionFor, institutionRegistry, sanitizeWalletMetadata } from '@shared/institution-registry';
@@ -35,7 +41,7 @@ import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 import { useApiMutation } from '../../hooks/useApiMutation';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useBalancePrivacy } from '../../hooks/useBalancePrivacy';
-import type { Wallet } from '../../hooks/types';
+import type { Expense, IncomeEntry, Wallet } from '../../hooks/types';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { SearchField } from '../../components/dashboard/BillsComponents';
 import { DeleteWalletDialog, WalletActionsMenu } from '../../components/wallets/WalletActions';
@@ -356,6 +362,20 @@ function WalletFilterPopover({
       </label>
     </div>
   );
+}
+
+function WalletRecentTransactions({ expenses, income, wallets, isPrivate }: { expenses: Expense[]; income: IncomeEntry[]; wallets: Wallet[]; isPrivate: boolean }) {
+  const walletNames = new Map(wallets.map((wallet) => [wallet.id, wallet.name]));
+  const items = [...expenses.map((item) => ({ id: `expense-${item.id}`, label: item.merchant, date: item.date, amount: Number(item.amount), walletId: item.wallet_id, direction: 'out' as const, category: item.category })), ...income.map((item) => ({ id: `income-${item.id}`, label: item.source, date: item.date, amount: Number(item.amount), walletId: item.wallet_id, direction: 'in' as const, category: item.type }))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  return <section className="wallet-support-card" aria-labelledby="wallet-recent-transactions"><div className="flex items-center justify-between gap-3"><h2 id="wallet-recent-transactions" className="text-lg font-semibold text-slate-950 dark:text-white">Recent Transactions</h2><a href="/app/expenses" className="text-sm font-semibold text-brand-primary hover:text-brand-dark">View all</a></div>{items.length ? <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">{items.map((item) => { const incoming = item.direction === 'in'; return <div key={item.id} className="flex items-center gap-3 py-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'}`}>{incoming ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.label}</p><p className="truncate text-xs text-slate-500">{formatDateShort(item.date)} · {walletNames.get(item.walletId ?? '') ?? 'Unassigned wallet'}</p></div><p className={`shrink-0 font-mono text-sm font-semibold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>{isPrivate ? '••••••' : `${incoming ? '+' : '−'}${formatCurrency(item.amount)}`}</p></div>; })}</div> : <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">No recorded wallet transactions yet.</p>}</section>;
+}
+
+function WalletInsights({ wallets, isPrivate }: { wallets: Wallet[]; isPrivate: boolean }) {
+  const eligible = wallets.filter((wallet) => wallet.account_type !== 'credit' && Number(wallet.balance) > 0);
+  const highest = eligible.reduce<Wallet | null>((best, wallet) => !best || Number(wallet.balance) > Number(best.balance) ? wallet : best, null);
+  const lowest = eligible.reduce<Wallet | null>((best, wallet) => !best || Number(wallet.balance) < Number(best.balance) ? wallet : best, null);
+  const insight = (label: string, wallet: Wallet | null) => <div className="wallet-insight-row"><span className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><WalletCards className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="text-xs text-slate-500">{label}</p><p className="truncate text-sm font-semibold text-slate-950 dark:text-white">{wallet?.name ?? 'No eligible wallet'}</p></div>{wallet ? <p className="font-mono text-sm font-semibold text-slate-950 dark:text-white">{isPrivate ? '••••••' : formatCurrency(Number(wallet.balance))}</p> : null}</div>;
+  return <section className="wallet-support-card mt-4" aria-labelledby="wallet-insights"><h2 id="wallet-insights" className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-white"><Lightbulb className="h-5 w-5 text-brand-primary" />Wallet Insights</h2><div className="mt-4 space-y-3">{insight('Wallet with highest balance', highest)}{insight('Wallet with lowest positive balance', lowest)}<div className="rounded-xl bg-brand-soft p-3 text-sm text-brand-dark dark:bg-emerald-950/35 dark:text-emerald-100"><p className="font-semibold">Keep your wallets updated</p><p className="mt-1 text-xs leading-5">Regular balance updates make your available-balance and savings reservations more accurate.</p></div></div></section>;
 }
 
 function WalletDetailsModal({
@@ -1464,6 +1484,8 @@ function LoansDebtCard({
 
 export function WalletsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
   const walletsQuery = useApiQuery<Wallet[]>('/wallets');
+  const { data: expenses } = useApiQuery<Expense[]>('/expenses');
+  const { data: recordedIncome } = useApiQuery<IncomeEntry[]>('/income/recorded');
   const [isAddWalletOpen, setIsAddWalletOpen] = useState(false);
   const [isTransferOpen, setIsTransferOpen] = useState(false);
   const [detailWallet, setDetailWallet] = useState<Wallet | null>(null);
@@ -1471,6 +1493,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
   const detailQuery = useApiQuery<WalletDetail>(detailWallet ? `/wallets/${detailWallet.id}` : '');
   const [creditRepaymentWallet, setCreditRepaymentWallet] = useState<Wallet | null>(null);
   const { isPrivate, togglePrivacy } = useBalancePrivacy();
+  const { settings } = useAppPreferences();
   const [editingWallet, setEditingWallet] = useState<Wallet | null>(null);
   const [deletingWallet, setDeletingWallet] = useState<Wallet | null>(null);
   const deleteMutation = useApiMutation();
@@ -1490,6 +1513,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
     () => liquidWallets.reduce((total, wallet) => total + Number(wallet.balance), 0),
     [liquidWallets],
   );
+  const reservedForGoals = useMemo(() => liquidWallets.reduce((total, wallet) => total + Math.max(0, Number(wallet.reserved_for_goals) || 0), 0), [liquidWallets]);
+  const availableBalance = useMemo(() => liquidWallets.reduce((total, wallet) => total + Math.max(0, wallet.available_balance === undefined ? Number(wallet.balance) - (Number(wallet.reserved_for_goals) || 0) : Number(wallet.available_balance)), 0), [liquidWallets]);
   const visibleWallets = useMemo(() => {
     const query = search.trim().toLowerCase().replace(/[-_]/g, ' ');
     return wallets.filter((wallet) => {
@@ -1574,25 +1599,12 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       ) : null}
       {!walletsQuery.isLoading ? (
         <>
+          <div className="wallet-dashboard-grid">
+          <main className="min-w-0">
           <section className="wallet-overview-layout">
             <article className="wallet-hero relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
-              <p className="text-xs font-semibold tracking-[0.14em] text-white/75">
-                TOTAL BALANCE
-              </p>
-              <div className="mt-5 flex items-center justify-between gap-3">
-                <p className="font-mono text-4xl font-bold">
-                  <BalanceAmount value={liquidBalance} hidden={isPrivate} />
-                </p>
-                <button
-                  type="button"
-                  onClick={togglePrivacy}
-                  className="rounded-lg p-2 text-white/80 hover:bg-white/10"
-                  aria-label={isPrivate ? 'Show wallet balances' : 'Hide wallet balances'}
-                >
-                  {isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-              <div className="wallet-count-pill mt-5 inline-flex items-center gap-2 rounded-full px-4 py-3 text-sm font-semibold"><WalletCards className="h-5 w-5" aria-hidden="true" /> Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'} <ChevronRight className="h-5 w-5" /></div>
+              <div className="wallet-summary-left"><div className="flex items-center gap-3"><p className="text-sm font-semibold text-white/90">Total Balance</p><button type="button" onClick={togglePrivacy} className="rounded-lg p-1 text-white/85 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70" aria-label={isPrivate ? 'Show wallet balances' : 'Hide wallet balances'}>{isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-3 font-mono text-4xl font-bold"><BalanceAmount value={liquidBalance} hidden={isPrivate} /></p><p className="mt-2 text-sm text-white/80">Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'}</p></div>
+              <div className="wallet-summary-right"><span className="wallet-currency-display">{settings.currency} (₱)</span><div className="mt-3 flex items-center gap-2"><p className="text-sm font-medium text-white/90">Available Balance</p><Info className="h-4 w-4 text-white/75" aria-label="Balance available to spend after savings reservations" /></div><p className="mt-1 font-mono text-2xl font-bold">{isPrivate ? '••••••' : formatCurrency(availableBalance)}</p><p className="mt-1 text-xs text-white/75">Amount you can use</p><div className="wallet-available-progress mt-3" aria-label={isPrivate ? 'Available balance hidden' : `${formatCurrency(availableBalance)} available of ${formatCurrency(liquidBalance)}`}><span style={{ width: `${liquidBalance > 0 ? Math.min(100, (availableBalance / liquidBalance) * 100) : 0}%` }} /></div><p className="mt-2 flex items-center gap-2 text-xs text-white/90"><LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />{isPrivate ? '••••••' : formatCurrency(reservedForGoals)} in savings/goals</p></div>
               <svg
                 aria-hidden="true"
                 viewBox="0 0 480 130"
@@ -1615,39 +1627,8 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           </section>
           <section className="wallet-wallets-section mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
-              <h2 className="wallet-section-title font-semibold">Your wallets</h2>
+              <h2 className="wallet-section-title font-semibold">Your wallets <span className="text-base font-medium text-slate-500">({wallets.length})</span></h2>
               <DataToolbar className="justify-end">
-                <SearchField
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search wallets..."
-                  aria-label="Search wallets"
-                  className="min-h-10 sm:max-w-[220px]"
-                />
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={() => setIsFilterOpen((current) => !current)}
-                    aria-expanded={isFilterOpen}
-                    aria-haspopup="dialog"
-                    className={`${controlButtonClass} ${activeFilterCount ? 'border-brand-primary bg-brand-soft text-brand-dark dark:bg-emerald-950/40' : ''}`}
-                  >
-                    <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-                    <span className="hidden sm:inline">Filter</span>
-                    {activeFilterCount ? (
-                      <span aria-label={`${activeFilterCount} active filters`}>
-                        {activeFilterCount}
-                      </span>
-                    ) : null}
-                  </button>
-                  {isFilterOpen ? (
-                    <WalletFilterPopover
-                      filters={filters}
-                      onChange={setFilters}
-                      onClear={() => setFilters(defaultWalletFilters)}
-                    />
-                  ) : null}
-                </div>
                 <div
                   className={`inline-flex ${controlSurfaceClass} p-0.5`}
                   role="group"
@@ -1720,6 +1701,12 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
               </div>
             ) : <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />}
           </section>
+          </main>
+          <aside className="wallet-support-panel">
+            <WalletRecentTransactions expenses={expenses ?? []} income={recordedIncome ?? []} wallets={wallets} isPrivate={isPrivate} />
+            <WalletInsights wallets={wallets} isPrivate={isPrivate} />
+          </aside>
+          </div>
         </>
       ) : null}
       <nav className="wallet-bottom-nav" aria-label="Primary navigation">

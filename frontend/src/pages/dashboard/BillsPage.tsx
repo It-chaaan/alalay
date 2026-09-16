@@ -23,7 +23,6 @@ import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { normalizeExternalUrl, openExternalLink } from '../../utils/linkPreview';
 import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 import { FinancialOverviewCard } from '../../components/dashboard/FinancialOverviewCard';
-import { SectionToolbar } from '../../components/dashboard/SectionToolbar';
 
 type BillFilter = 'all' | 'upcoming' | 'overdue' | 'paid';
 
@@ -187,9 +186,14 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
     >
       <FinancialOverviewCard label="Bills overview" period={new Intl.DateTimeFormat('en', { month: 'long' }).format(new Date())} primary={formatCurrency(unpaid.reduce((sum, bill) => sum + Number(bill.amount), 0))} primaryLabel="Total unpaid" metrics={[{ label: 'Due this week', value: formatCurrency(dueThisWeek.reduce((sum, bill) => sum + Number(bill.amount), 0)), tone: 'text-amber-100' }, { label: 'Overdue', value: formatCurrency(overdue.reduce((sum, bill) => sum + Number(bill.amount), 0)), tone: 'text-red-100' }, { label: 'Paid bills', value: String(counts.paid) }, { label: 'Tracked bills', value: String(rows.length) }]} />
 
-      <div className="mt-6"><SectionToolbar title="Bills" count={rows.length} childrenClassName="w-full flex-nowrap sm:w-auto sm:flex-nowrap"><SearchField value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search bills..." aria-label="Search bills" className="min-w-0 flex-1 sm:w-64 sm:flex-none" /><button type="button" onClick={addBillDialog.open} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-emerald-100"><Plus className="h-4 w-4" />Add bill</button></SectionToolbar></div>
-      <div className="mt-3 flex w-fit max-w-full overflow-x-auto">
-        <div className="inline-flex w-fit rounded-full bg-slate-100 p-1 text-sm">
+      <div className="mt-6 flex w-full flex-nowrap items-center justify-end gap-3">
+        <SearchField value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} placeholder="Search bills..." aria-label="Search bills" className="min-w-0 flex-1 sm:w-64 sm:flex-none" />
+        <button type="button" onClick={addBillDialog.open} className="inline-flex shrink-0 items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark focus:outline-none focus:ring-4 focus:ring-emerald-100"><Plus className="h-4 w-4" />Add bill</button>
+      </div>
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <h2 className="shrink-0 text-lg font-semibold text-slate-950 dark:text-white">Bills <span className="text-sm font-medium text-slate-500">({rows.length})</span></h2>
+        <div className="max-w-full overflow-x-auto pb-1">
+        <div className="inline-flex min-w-max rounded-full bg-slate-100 p-1 text-sm dark:bg-slate-800">
           {[
             { key: 'all', label: 'All', count: counts.all },
             { key: 'upcoming', label: 'Upcoming', count: counts.upcoming },
@@ -202,15 +206,15 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
               onClick={() => setActiveFilter(item.key as BillFilter)}
               className={`rounded-full px-4 py-1.5 transition ${
                 activeFilter === item.key
-                  ? 'bg-white shadow-sm text-slate-950'
-                  : 'text-slate-500 hover:text-slate-700'
+                  ? 'bg-white text-slate-950 shadow-sm dark:bg-slate-700 dark:text-white'
+                  : 'text-slate-500 hover:text-slate-700 dark:text-slate-300 dark:hover:text-white'
               }`}
             >
               {item.label} ({item.count})
             </button>
           ))}
         </div>
-
+        </div>
       </div>
 
       <div className="mt-4 overflow-visible rounded-[14px] border border-slate-200 bg-white shadow-sm">

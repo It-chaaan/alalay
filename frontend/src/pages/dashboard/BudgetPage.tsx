@@ -7,8 +7,7 @@ import { DashboardShell } from "../../components/layout/DashboardShell";
 import { useActionDialog } from "../../hooks/useActionDialog";
 import { useBudget } from "../../hooks/useBudget";
 import { useIncomeSummary } from "../../hooks/useIncomeSummary";
-import { useSavingsGoals } from "../../hooks/useSavingsGoals";
-import type { BudgetSummary, SavingsGoal } from "../../hooks/types";
+import type { BudgetSummary } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
@@ -54,56 +53,6 @@ function addMonthsToMonthKey(monthKey: string, offset: number) {
   const nextMonth = String(date.getMonth() + 1).padStart(2, "0");
 
   return `${date.getFullYear()}-${nextMonth}`;
-}
-
-function getFallbackGoalAllocations(
-  savingsBudget: number,
-  autoDistribute: boolean,
-  goals: SavingsGoal[],
-) {
-  if (!autoDistribute || savingsBudget <= 0) {
-    return [];
-  }
-
-  let remainingBudget = savingsBudget;
-  const allocations = [];
-  const activeGoals = goals
-    .map((goal) => {
-      const currentAmount = Number(goal.current_amount);
-      const targetAmount = Number(goal.target_amount);
-      const remaining = Math.max(0, targetAmount - currentAmount);
-      const monthlyTarget = Number(goal.monthly_target);
-
-      return {
-        goal,
-        currentAmount,
-        targetAmount,
-        remaining,
-        plannedAmount: Math.max(0, monthlyTarget),
-      };
-    })
-    .filter((item) => !item.goal.completed_at && item.remaining > 0 && item.plannedAmount > 0)
-    .sort((left, right) => left.goal.deadline.localeCompare(right.goal.deadline));
-
-  for (const item of activeGoals) {
-    if (remainingBudget <= 0) {
-      break;
-    }
-
-    const amount = Math.min(remainingBudget, item.remaining, item.plannedAmount);
-
-    if (amount > 0) {
-      allocations.push({
-        goal_id: item.goal.id,
-        title: item.goal.title,
-        amount,
-        progress_percent: item.targetAmount ? Math.round((item.currentAmount / item.targetAmount) * 100) : 0,
-      });
-      remainingBudget -= amount;
-    }
-  }
-
-  return allocations;
 }
 
 function MonthPicker({ label, onPrevious, onNext }: { label: string; onPrevious: () => void; onNext: () => void }) {
@@ -193,20 +142,6 @@ function ReplaceBudgetSetupDialog({ open, monthLabel, isConfirming, onClose, onC
   );
 }
 
-function HealthRow({ label, amount, percent, color }: { label: string; amount: number; percent: number; color: string }) {
-  return (
-    <div>
-      <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-        <span className="font-semibold text-slate-700">{label}</span>
-        <span className="font-mono text-slate-500">{formatCurrency(amount)} · {percent}%</span>
-      </div>
-      <div className="h-1.5 rounded-full bg-slate-100">
-        <div className="h-1.5 rounded-full" style={{ width: `${Math.max(0, Math.min(100, percent))}%`, backgroundColor: color }} />
-      </div>
-    </div>
-  );
-}
-
 const categoryStatusStyle: Record<BudgetCategoryStatus, { bar: string; badge: string; label: string }> = {
   no_spending: { bar: 'bg-slate-400 dark:bg-slate-500', badge: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200', label: 'No spending yet' },
   on_track: { bar: 'bg-emerald-600 dark:bg-emerald-400', badge: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200', label: 'On track' },
@@ -224,7 +159,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const previousMonth = previousBudgetMonth(selectedMonth);
   const { data: previousBudgetSummary, isLoading: isLoadingPreviousBudget, error: previousBudgetError } = useBudget(previousMonth);
   const { data: incomeSummary } = useIncomeSummary(selectedMonth);
-  const { data: savingsGoals, refetch: refetchSavingsGoals } = useSavingsGoals();
   const [optimisticBudgetSummary, setOptimisticBudgetSummary] = useState<BudgetSummary | null>(null);
   const [setupPickerOpen, setSetupPickerOpen] = useState(false);
   const [pendingSetup, setPendingSetup] = useState<BudgetSetup | null>(null);
@@ -237,43 +171,13 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
   const [isConfirmingReplacement, setIsConfirmingReplacement] = useState(false);
   const budgetSummary = optimisticBudgetSummary ?? fetchedBudgetSummary;
   const monthLabel = getMonthLabel(selectedMonth);
-  const goals = savingsGoals ?? [];
-  const activeGoals = goals.filter((goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount));
-  const savingsBudget = Number(budgetSummary?.monthly_savings_budget ?? budgetSummary?.savings_allocation ?? 0);
-  const savingsAutoDistribute = Boolean(budgetSummary?.savings_auto_distribute);
-  const backendGoalAllocations = budgetSummary?.goal_allocations ?? [];
-  const goalAllocations = backendGoalAllocations.length > 0
-    ? backendGoalAllocations
-    : getFallbackGoalAllocations(savingsBudget, savingsAutoDistribute, goals);
-  const goalAllocationTotal = goalAllocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0);
-  const remainingSavingsBehavior = budgetSummary?.remaining_savings_behavior ?? "auto_general";
-  const generalSavings = budgetSummary?.general_savings !== undefined
-    ? Number(budgetSummary.general_savings)
-    : remainingSavingsBehavior === "auto_general"
-      ? Math.max(0, savingsBudget - goalAllocationTotal)
-      : 0;
-  const unallocatedSavings = budgetSummary?.unallocated_savings !== undefined
-    ? Number(budgetSummary.unallocated_savings)
-    : remainingSavingsBehavior === "auto_general"
-      ? 0
-      : Math.max(0, savingsBudget - goalAllocationTotal);
-  const remainingSavingsLabel = budgetSummary?.remaining_savings_label ?? "Automatically move remaining savings into General Savings";
   const spendingCategories = budgetSummary?.categories.filter((category) => !category.goal) ?? [];
   const monthlyIncome = Number(incomeSummary?.this_month ?? budgetSummary?.monthly_income ?? 0);
   const budgetAmount = Number(budgetSummary?.budget_amount ?? budgetSummary?.total_budget ?? 0);
   const spentAmount = Number(budgetSummary?.spent_amount ?? budgetSummary?.total_spent ?? 0);
-  const savedAmount = Number(budgetSummary?.saved_amount ?? savingsBudget);
+  const savedAmount = Number(budgetSummary?.saved_amount ?? budgetSummary?.monthly_savings_budget ?? budgetSummary?.savings_allocation ?? 0);
   const remainingBudget = Number(budgetSummary?.remaining_budget ?? budgetSummary?.remaining ?? 0);
   const unallocatedIncome = monthlyIncome - budgetAmount;
-  const budgetHealth = {
-    income: monthlyIncome,
-    budgeted_percent: monthlyIncome ? Math.round((budgetAmount / monthlyIncome) * 100) : 0,
-    spent_percent: monthlyIncome ? Math.round((spentAmount / monthlyIncome) * 100) : budgetAmount ? Math.round((spentAmount / budgetAmount) * 100) : 0,
-    saved_percent: monthlyIncome ? Math.round((savedAmount / monthlyIncome) * 100) : 0,
-    remaining_percent: budgetAmount ? Math.round((Math.max(0, remainingBudget) / budgetAmount) * 100) : 0,
-    unallocated_percent: monthlyIncome ? Math.round((unallocatedIncome / monthlyIncome) * 100) : 0,
-  };
-
   useEffect(() => {
     if (fetchedBudgetSummary && fetchedBudgetSummary.month === selectedMonth) {
       setOptimisticBudgetSummary(null);
@@ -338,7 +242,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
     }
 
     refetch();
-    refetchSavingsGoals();
   }
 
   return (
@@ -390,81 +293,6 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
             </p>
           </div>
         </div>
-      </section>
-
-      <section className="mt-5 rounded-[14px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="mb-5 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-950">Budget health</h2>
-            <p className="text-xs text-slate-500">Monthly cash flow as a percentage of income or planned budget.</p>
-          </div>
-          <p className="text-xs text-slate-500">Income {formatCurrency(budgetHealth.income)}</p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2">
-          <HealthRow label="Budgeted" amount={budgetAmount} percent={budgetHealth.budgeted_percent} color="#0f8a6b" />
-          <HealthRow label="Spent" amount={spentAmount} percent={budgetHealth.spent_percent} color="#e8775d" />
-          <HealthRow label="Saved" amount={savedAmount} percent={budgetHealth.saved_percent} color="#7db59c" />
-          <HealthRow label="Remaining Budget" amount={Math.max(0, remainingBudget)} percent={budgetHealth.remaining_percent} color="#6fa3d2" />
-        </div>
-      </section>
-
-      <section className="mt-5 rounded-[14px] border border-emerald-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-950">Savings allocation</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">
-              Budget plans how much to save. Savings allocation plans where it goes. Goal progress stays on each savings goal card.
-            </p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="font-mono text-xl font-bold text-brand-primary">{formatCurrency(savingsBudget)}</p>
-            <p className="text-xs text-slate-500">planned for {monthLabel}</p>
-          </div>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Monthly Savings Budget</p>
-            <p className="mt-1 font-mono text-sm font-semibold text-slate-950">{formatCurrency(savingsBudget)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Goal Allocation</p>
-            <p className="mt-1 font-mono text-sm font-semibold text-slate-950">{formatCurrency(goalAllocationTotal)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">General Savings</p>
-            <p className="mt-1 font-mono text-sm font-semibold text-slate-950">{formatCurrency(generalSavings)}</p>
-          </div>
-          <div>
-            <p className="text-[11px] uppercase text-slate-400">Auto-distribute</p>
-            <p className="mt-1 text-sm font-semibold text-slate-950">{savingsAutoDistribute ? "On" : "Off"}</p>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-600">
-          {remainingSavingsLabel}
-          {unallocatedSavings > 0 ? `: ${formatCurrency(unallocatedSavings)} is not assigned to General Savings or goals yet.` : null}
-        </div>
-
-        {goalAllocations.length > 0 ? (
-          <div className="mt-5 space-y-3">
-            {goalAllocations.map((allocation) => (
-              <div key={allocation.goal_id}>
-                <div className="mb-2 flex items-center justify-between gap-4 text-xs">
-                  <span className="font-semibold text-slate-700">{allocation.title}</span>
-                  <span className="font-mono text-slate-500">{formatCurrency(allocation.amount)}</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-slate-100">
-                  <div className="h-1.5 rounded-full bg-brand-primary" style={{ width: `${savingsBudget ? Math.min(100, (allocation.amount / savingsBudget) * 100) : 0}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-5 rounded-xl bg-slate-50 px-4 py-3 text-xs text-slate-500">
-            {activeGoals.length > 0 && !savingsAutoDistribute ? "Turn on auto-distribute to plan goal allocations from active savings goals." : "No active savings goals to receive a goal allocation."}
-          </p>
-        )}
       </section>
 
       <section className="mt-5">

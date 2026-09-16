@@ -5,8 +5,14 @@ import {
   ChevronRight,
   Eye,
   EyeOff,
+  BanknoteArrowDown,
+  CircleDollarSign,
+  CreditCard,
   Landmark,
+  Plus,
   Receipt,
+  ReceiptText,
+  Target,
   TrendingDown,
   TrendingUp,
   WalletCards,
@@ -20,6 +26,7 @@ import { useDashboard } from '../../hooks/useDashboard';
 import { useBudget } from '../../hooks/useBudget';
 import { useReports } from '../../hooks/useReports';
 import { useSubscriptions } from '../../hooks/useSubscriptions';
+import { useSavingsDashboard } from '../../hooks/useSavingsGoals';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import type {
   Bill,
@@ -28,6 +35,7 @@ import type {
   LoanSummary,
   ReportsSummary,
   Subscription,
+  SavingsGoal,
   Wallet,
 } from '../../hooks/types';
 import { apiRequest } from '../../lib/apiClient';
@@ -290,6 +298,73 @@ function SummaryCards({
           {item.content}
         </article>
       ))}
+    </section>
+  );
+}
+
+function FinancialOverview({ wallets, isPrivate, onTogglePrivacy }: {
+  wallets: Wallet[];
+  isPrivate: boolean;
+  onTogglePrivacy: () => void;
+}) {
+  // Wallet APIs supply these values after applying the goal-reservation ledger.
+  // Credit wallets are liabilities, so they are deliberately excluded here.
+  const totals = useMemo(() => wallets
+    .filter((wallet) => wallet.account_type !== 'credit')
+    .reduce((result, wallet) => {
+      const balance = Number(wallet.balance) || 0;
+      const reserved = Math.max(0, Number(wallet.reserved_for_goals) || 0);
+      const available = wallet.available_balance === undefined
+        ? Math.max(0, balance - reserved)
+        : Math.max(0, Number(wallet.available_balance) || 0);
+      return { total: result.total + balance, available: result.available + available };
+    }, { total: 0, available: 0 }), [wallets]);
+  const hidden = '••••••';
+
+  return (
+    <section className="relative overflow-hidden rounded-2xl border border-emerald-700/20 bg-brand-primary p-5 text-white shadow-sm sm:p-6" aria-label="Financial overview">
+      <div aria-hidden="true" className="pointer-events-none absolute -right-12 -top-20 h-56 w-56 rounded-full border border-white/15" />
+      <div className="relative">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/75">Financial overview</p>
+          </div>
+          <button type="button" onClick={onTogglePrivacy} className="grid h-9 w-9 place-items-center rounded-full bg-white/15 text-white transition hover:bg-white/25" aria-label={isPrivate ? 'Show balances' : 'Hide balances'}>
+            {isPrivate ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+          </button>
+        </div>
+        <div className="mt-6 grid gap-5 sm:grid-cols-2">
+          <div className="sm:border-r sm:border-white/20 sm:pr-5">
+            <p className="text-xs text-white/70">Total balance</p>
+            <p className="mt-1 font-mono text-3xl font-bold">{isPrivate ? hidden : formatCurrency(totals.total, true)}</p>
+            <p className="mt-2 text-xs leading-5 text-white/70">Across eligible, non-credit wallets.</p>
+          </div>
+          <div>
+            <p className="text-xs text-white/70">Available Balance</p>
+            <p className="mt-1 font-mono text-2xl font-bold">{isPrivate ? hidden : formatCurrency(totals.available, true)}</p>
+            <p className="mt-2 text-xs leading-5 text-white/70">Ready for everyday spending after reservations.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function DashboardQuickActions() {
+  const actions = [
+    { label: 'Expense', href: '/app/expenses?action=log-expense', icon: BanknoteArrowDown, hint: 'Record spending' },
+    { label: 'Income', href: '/app/income?action=add-income', icon: TrendingUp, hint: 'Add earnings' },
+    { label: 'Bills', href: '/app/bills?action=add-bill', icon: ReceiptText, hint: 'Add a bill' },
+    { label: 'Subscriptions', href: '/app/subscriptions?action=add-subscription', icon: CreditCard, hint: 'Add subscription' },
+    { label: 'Goals', href: '/app/goals?action=create-goal', icon: Target, hint: 'View or create' },
+    { label: 'Loans & Debt', href: '/app/loans', icon: CircleDollarSign, hint: 'View or add' },
+  ];
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900" aria-label="Quick actions">
+      <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold text-slate-950 dark:text-white">Quick actions</h2></div>
+      <div className="grid grid-cols-3 gap-1 sm:gap-2 lg:grid-cols-6">
+        {actions.map(({ label, href, icon: Icon }) => <a key={label} href={href} className="group flex min-h-16 flex-col items-center justify-center rounded-xl px-1 text-center transition hover:bg-brand-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary dark:hover:bg-emerald-950/30"><span className="grid h-8 w-8 place-items-center rounded-full bg-brand-soft text-brand-primary transition group-hover:bg-brand-primary group-hover:text-white dark:bg-emerald-950/40"><Icon className="h-4 w-4" /></span><span className="mt-1.5 text-[11px] font-semibold leading-tight text-slate-900 dark:text-white">{label}</span></a>)}
+      </div>
     </section>
   );
 }
@@ -911,9 +986,9 @@ function RecentUpcomingBills({
   }
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="font-semibold text-slate-950">Upcoming Bills</h2>
+        <h2 className="font-semibold text-slate-950 dark:text-white">Upcoming Bills</h2>
         <a
           href="/app/bills"
           className="shrink-0 text-xs font-semibold text-brand-primary hover:text-brand-dark"
@@ -934,13 +1009,13 @@ function RecentUpcomingBills({
                   <div className="flex min-w-0 items-center gap-3">
                     <CategoryIcon category={bill.category} size="md" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-slate-950">{bill.title}</p>
+                      <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">{bill.title}</p>
                       <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
                         <CalendarDays className="h-3.5 w-3.5" aria-hidden="true" />
                         {formatBillListDate(bill.due_date)}
                       </p>
                     </div>
-                    <p className="shrink-0 font-mono text-sm font-bold text-slate-950">
+                    <p className="shrink-0 font-mono text-sm font-bold text-slate-950 dark:text-white">
                       {formatCurrency(Number(bill.amount))}
                     </p>
                     <span className="hidden shrink-0 items-center gap-1.5 text-xs font-medium text-slate-600 sm:inline-flex">
@@ -964,13 +1039,46 @@ function RecentUpcomingBills({
             })}
           </>
         ) : (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500">
+          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">
             No upcoming unpaid bills.
           </p>
         )}
       </div>
     </article>
   );
+}
+
+function UpcomingSubscriptions({ subscriptions, isPrivate }: { subscriptions: Subscription[]; isPrivate: boolean }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const upcoming = useMemo(() => subscriptions
+    .sort((a, b) => (a.next_renewal_date ?? a.renewal_date).localeCompare(b.next_renewal_date ?? b.renewal_date))
+    .slice(0, 2), [subscriptions, today]);
+  return <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-slate-950 dark:text-white">Upcoming Subscriptions</h2><a href="/app/subscriptions" className="shrink-0 text-xs font-semibold text-brand-primary">View all →</a></div>
+    <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">{upcoming.length ? upcoming.map((subscription) => {
+      const due = subscription.next_renewal_date ?? subscription.renewal_date;
+      const days = daysUntil(due, today);
+      const dueLabel = days === 0 ? 'Due today' : days < 0 ? 'Overdue' : `Due in ${days} day${days === 1 ? '' : 's'}`;
+      return <div key={subscription.id} className="flex items-center gap-3 py-3"><span className="grid h-9 w-9 place-items-center rounded-xl bg-violet-50 text-violet-600 dark:bg-violet-950/30"><CreditCard className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{subscription.name}</p><p className="text-xs text-slate-500">{formatBillListDate(due)} · {dueLabel}</p></div><p className="font-mono text-sm font-semibold text-slate-950 dark:text-white">{isPrivate ? '••••••' : formatCurrency(Number(subscription.amount))}</p></div>;
+    }) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">No upcoming subscriptions.</p>}</div>
+  </article>;
+}
+
+function ActiveGoals({ goals, isPrivate }: { goals: SavingsGoal[]; isPrivate: boolean }) {
+  const activeGoals = goals.filter((goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount)).slice(0, 3);
+  return <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div className="flex items-center justify-between gap-3"><h2 className="font-semibold text-slate-950 dark:text-white">Active Goals</h2><a href="/app/goals" className="shrink-0 text-xs font-semibold text-brand-primary">View all →</a></div>
+    <div className="mt-3 space-y-4">{activeGoals.length ? activeGoals.map((goal) => {
+      const current = Number(goal.current_amount) || 0;
+      const target = Number(goal.target_amount) || 0;
+      const progress = target ? Math.min(100, Math.round((current / target) * 100)) : 0;
+      return <div key={goal.id}><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{goal.emoji} {goal.title}</p><span className="font-mono text-xs font-semibold text-brand-primary">{progress}%</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full rounded-full bg-brand-primary" style={{ width: `${progress}%` }} /></div><p className="mt-1.5 text-xs text-slate-500">{isPrivate ? '••••••' : `${formatCurrency(current)} of ${formatCurrency(target)}`}</p></div>;
+    }) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">No active goals yet. Create one to reserve money for what matters.</p>}</div>
+  </article>;
+}
+
+function DashboardError({ message }: { message: string }) {
+  return <article className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200">{message}</article>;
 }
 
 function RecentTransactions({
@@ -1026,10 +1134,10 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
   const { data: report } = useReports({ period: 'ytd' });
   const { data: monthlyReport } = useReports({ period: 'this_month' });
   const { data: budget } = useBudget();
-  const { data: loansResponse } = useApiQuery<{ summary: LoanSummary }>('/loans');
   const { data: wallets } = useApiQuery<Wallet[]>('/wallets');
   const { data: bills, isLoading: billsLoading, error: billsError, refetch: refetchBills } = useBills();
   const { data: subscriptions, isLoading: subscriptionsLoading, error: subscriptionsError } = useSubscriptions();
+  const { data: savingsDashboard, isLoading: goalsLoading, error: goalsError } = useSavingsDashboard();
   const [isPrivate, setIsPrivate] = useState(false);
   const scheduleLoading = billsLoading || subscriptionsLoading;
   const formattedDate = new Intl.DateTimeFormat('en-US', {
@@ -1086,14 +1194,7 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
       ) : null}
       {summary ? (
         <>
-          <SummaryCards
-            summary={summary}
-            wallets={wallets ?? []}
-            report={report ?? undefined}
-            loans={loansResponse?.summary}
-            isPrivate={isPrivate}
-            onTogglePrivacy={() => setIsPrivate((current) => !current)}
-          />
+          <section className="dashboard-top-grid" aria-label="Financial overview and quick actions"><FinancialOverview wallets={wallets ?? []} isPrivate={isPrivate} onTogglePrivacy={() => setIsPrivate((current) => !current)} /><DashboardQuickActions /></section>
 
           <section className="dashboard-columns mt-4" aria-label="Dashboard details">
             <div className="dashboard-stack dashboard-main-stack">
@@ -1105,12 +1206,17 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
                   <DueDatesCalendar bills={bills ?? []} subscriptions={subscriptions ?? []} isLoading={scheduleLoading} error={billsError ?? subscriptionsError} onRetry={refetchBills} />
                 </DashboardWidgetBoundary>
               </div>
+              <div className="dashboard-pair dashboard-upcoming-group">
               <div className="dashboard-card dashboard-upcoming-bills">
                 {scheduleLoading ? (
                   <ListSkeleton rows={2} />
                 ) : (
                   <RecentUpcomingBills bills={bills ?? []} onMarkPaid={markBillPaid} />
                 )}
+              </div>
+              <div className="dashboard-card dashboard-upcoming-subscriptions">
+                {subscriptionsLoading ? <ListSkeleton rows={2} /> : subscriptionsError ? <DashboardError message={subscriptionsError} /> : <UpcomingSubscriptions subscriptions={subscriptions ?? []} isPrivate={isPrivate} />}
+              </div>
               </div>
             </div>
             <div className="dashboard-stack dashboard-secondary-stack">
@@ -1120,8 +1226,13 @@ export function DashboardPage({ session, onSignOut }: DashboardPageProps) {
               <div className="dashboard-card dashboard-top-spending">
                 <TopSpendingCard report={monthlyReport ?? undefined} isPrivate={isPrivate} />
               </div>
+              <div className="dashboard-pair dashboard-activity-group">
               <div className="dashboard-card dashboard-recent-transactions">
                 <RecentTransactions items={summary.recent_activity} isPrivate={isPrivate} />
+              </div>
+              <div className="dashboard-card dashboard-active-goals">
+                {goalsLoading ? <ListSkeleton rows={3} /> : goalsError ? <DashboardError message={goalsError} /> : <ActiveGoals goals={savingsDashboard?.goals ?? []} isPrivate={isPrivate} />}
+              </div>
               </div>
             </div>
           </section>
