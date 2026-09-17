@@ -33,6 +33,10 @@ jobs:
       - run: npm --prefix mobile run test:budget-setup
       - run: npm run test:contracts
       - run: npm run test:workflows
+        env:
+          # Workflow tests are pure contract/unit tests; never start or configure
+          # the credentialed notification scheduler in CI.
+          NOTIFICATION_SCHEDULER_ENABLED: 'false'
       - run: npm audit --omit=dev --audit-level=high
       - run: npm --prefix backend audit --omit=dev --audit-level=high
       - run: npm --prefix mobile audit --omit=dev --audit-level=high

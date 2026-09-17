@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import type { IncomeEntry } from '../../hooks/types';
-import { buildIncomeMonthlySeries } from '../../utils/incomeSeries';
+import { buildIncomeMonthlySeries, getIncomeMonthKey } from '../../utils/incomeSeries';
 
 const entries: IncomeEntry[] = [
   {
@@ -58,5 +58,12 @@ const variedSeries = buildIncomeMonthlySeries(
 assert.equal(variedSeries.find((item) => item.key === '2026-08')?.total, 100000);
 assert.equal(variedSeries.filter((item) => item.current).length, 1);
 assert.equal(variedSeries.find((item) => item.key === '2026-06')?.total, 0);
+
+assert.equal(getIncomeMonthKey(new Date('2026-08-01T00:00:00+08:00')), '2026-08');
+assert.equal(getIncomeMonthKey(new Date('2026-01-01T00:00:00+08:00')), '2026-01');
+assert.deepEqual(
+  buildIncomeMonthlySeries([], new Date('2026-01-15T12:00:00+08:00')).map((item) => item.key),
+  ['2025-08', '2025-09', '2025-10', '2025-11', '2025-12', '2026-01'],
+);
 
 console.log('income monthly series tests passed');

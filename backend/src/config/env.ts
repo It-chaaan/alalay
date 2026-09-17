@@ -102,7 +102,11 @@ const envSchema = z
     }
   });
 
-export const env = envSchema.parse(process.env);
+export function parseEnv(input: NodeJS.ProcessEnv = process.env) {
+  return envSchema.parse(input);
+}
+
+export const env = parseEnv();
 
 export const inProcessSchedulersEnabled =
   env.NODE_ENV !== 'production' && env.IN_PROCESS_SCHEDULERS_ENABLED === true;

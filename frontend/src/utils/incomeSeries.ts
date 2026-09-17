@@ -8,19 +8,34 @@ export type IncomeMonth = {
   current: boolean;
 };
 
-function getMonthKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+function getMonthParts(date: Date) {
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).formatToParts(date);
+  return {
+    year: Number(parts.find((part) => part.type === 'year')?.value),
+    month: Number(parts.find((part) => part.type === 'month')?.value),
+  };
+}
+
+export function getIncomeMonthKey(date: Date) {
+  const { year, month } = getMonthParts(date);
+  return `${year}-${String(month).padStart(2, '0')}`;
+}
+
+function monthDate(year: number, month: number) {
+  return new Date(Date.UTC(year, month - 1, 1, 12));
 }
 
 export function buildIncomeMonthlySeries(entries: IncomeEntry[], today: Date): IncomeMonth[] {
-  const currentKey = getMonthKey(today);
-  const rangeStart = new Date(today.getFullYear(), today.getMonth() - 5, 1);
-  const rangeEnd = new Date(today.getFullYear(), today.getMonth() + 1, 0);
-  const occurrences = buildIncomeOccurrences(entries, getMonthKey(rangeStart) + "-01", getMonthKey(rangeEnd) + `-${String(rangeEnd.getDate()).padStart(2, "0")}`);
+  const { year, month } = getMonthParts(today);
+  const currentKey = getIncomeMonthKey(today);
+  const rangeStart = monthDate(year, month - 5);
+  const rangeEnd = monthDate(year, month);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const occurrences = buildIncomeOccurrences(entries, getIncomeMonthKey(rangeStart) + "-01", getIncomeMonthKey(rangeEnd) + `-${lastDay}`);
 
   return Array.from({ length: 6 }, (_, index) => {
-    const date = new Date(today.getFullYear(), today.getMonth() - (5 - index), 1);
-    const key = getMonthKey(date);
+    const date = monthDate(year, month - (5 - index));
+    const key = getIncomeMonthKey(date);
     const total = occurrences
       .filter((entry) => entry.date.startsWith(key))
       .reduce((sum, entry) => sum + Number(entry.amount), 0);
