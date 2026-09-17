@@ -12,12 +12,16 @@ export class ApiRequestError extends Error {
   }
 }
 
-const configuredApiUrl = import.meta.env.VITE_API_URL;
+// Node-based contract tests import response parsers from hooks that depend on
+// this module. Vite supplies `import.meta.env` in the app, while plain Node
+// intentionally does not; keep the API client import-safe in both runtimes.
+const runtimeEnv = import.meta.env ?? {};
+const configuredApiUrl = runtimeEnv.VITE_API_URL;
 function normalizeApiBaseUrl(value: string) {
   let url: URL;
   try { url = new URL(value); } catch { throw new Error("VITE_API_URL must be an absolute http(s) backend URL, for example http://localhost:3000."); }
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("VITE_API_URL must use the http or https protocol.");
-  if (import.meta.env.PROD && url.protocol !== "https:") throw new Error("VITE_API_URL must use https in production builds.");
+  if (runtimeEnv.PROD && url.protocol !== "https:") throw new Error("VITE_API_URL must use https in production builds.");
   const baseUrl = url.toString().replace(/\/+$/, "");
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
 }
@@ -34,11 +38,11 @@ async function readApiPayload<T>(response: Response, path: string): Promise<ApiS
   const contentType = response.headers.get("content-type");
   const body = await response.text();
   if (!isJsonResponse(response)) {
-    if (import.meta.env.DEV) console.error("API returned a non-JSON response", { path, status: response.status, contentType: contentType ?? "missing", preview: responsePreview(body) });
+    if (runtimeEnv.DEV) console.error("API returned a non-JSON response", { path, status: response.status, contentType: contentType ?? "missing", preview: responsePreview(body) });
     throw new ApiRequestError(`The API returned an unexpected response for ${path} (HTTP ${response.status}).`, "invalid_response", response.headers.get("x-correlation-id") ?? undefined, response.status);
   }
   try { return JSON.parse(body) as ApiSuccess<T> | ApiFailure; } catch {
-    if (import.meta.env.DEV) console.error("API returned invalid JSON", { path, status: response.status, contentType, preview: responsePreview(body) });
+    if (runtimeEnv.DEV) console.error("API returned invalid JSON", { path, status: response.status, contentType, preview: responsePreview(body) });
     throw new ApiRequestError(`The API returned an invalid JSON response for ${path} (HTTP ${response.status}).`, "invalid_response", response.headers.get("x-correlation-id") ?? undefined, response.status);
   }
 }
@@ -55,7 +59,7 @@ export async function apiRequest<T>(path: string, options: RequestInit = {}) {
     if (!response.ok || !payload.success) {
       if (payload.success) throw new ApiRequestError("Request failed.", "request_failed", undefined, response.status);
       const requestError = new ApiRequestError(payload.error.message, payload.error.code, payload.error.correlationId, response.status);
-      if (import.meta.env.DEV) console.error("API request failed", { path, status: response.status, code: requestError.code, correlationId: requestError.correlationId, details: payload.error.details });
+      if (runtimeEnv.DEV) console.error("API request failed", { path, status: response.status, code: requestError.code, correlationId: requestError.correlationId, details: payload.error.details });
       throw requestError;
     }
     return payload.data;

@@ -8,6 +8,11 @@
     "format:check": "prettier --check .",
     "scan:encoding": "node tools/scan-encoding.mjs"
   },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.17.0",
   "dependencies": {
     "@vercel/analytics": "^2.0.1",
     "postcss": "8.5.25"

@@ -121,7 +121,7 @@ The mobile client also uses Supabase directly for authentication and selected da
 
 ## Prerequisites
 
-- Node.js with npm. The repository does not declare an `engines` requirement; use a current LTS release compatible with the installed dependencies.
+- Node.js 24.x and npm 11.x. The repository declares these versions in each workspace and `.nvmrc`; use `nvm use` where available.
 - A Supabase project for hosted development, or the Supabase CLI and Docker for local database work.
 - Expo Go for device testing, or Android Studio/iOS tooling for native emulators and development builds.
 
