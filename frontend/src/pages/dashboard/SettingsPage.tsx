@@ -9,7 +9,7 @@ import { apiRequest } from "../../lib/apiClient";
 import { createCategoryId, readAppSettings, writeAppSettings, type AppCategory, type AppSettings, type CategoryKind, type CurrencyCode, type DateFormat, type ThemeMode } from "../../lib/appSettings";
 import { useProfile } from "../../context/ProfileContext";
 import { UserAvatar } from "../../components/ui/UserAvatar";
-import { uploadProfileAvatar } from "../../lib/profileAvatar";
+import { removeProfileAvatar, uploadProfileAvatar } from "../../lib/profileAvatar";
 import { SettingsSkeleton } from "../../components/ui/Skeleton";
 
 const settingsTabs = ["Profile", "Preferences", "Notifications", "Security"] as const;
@@ -55,7 +55,7 @@ function Card({ title, description, children }: { title: string; description?: s
 }
 
 function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (name: string) => void; notify: (message: string, error?: boolean) => void }) {
-  const { profile, isLoading, updateProfile } = useProfile();
+  const { profile, isLoading, updateProfile, refreshProfile } = useProfile();
   const fileRef = useRef<HTMLInputElement>(null);
   const initialName = profile?.name || getDisplayName(session);
   const initialEmail = profile?.email || session.user.email || "";
@@ -77,7 +77,8 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
   function update(key: keyof typeof form, value: string) { setForm((current) => ({ ...current, [key]: value })); }
   function selectPhoto(file: File | undefined) {
-    if (!file || !file.type.startsWith("image/")) return notify("Choose an image file.", true);
+    if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) return notify("Choose a JPEG, PNG, or WebP image.", true);
+    if (file.size > 2 * 1024 * 1024) return notify("Profile images must be 2 MB or smaller.", true);
     setAvatarFile(file);
     const reader = new FileReader(); reader.onload = () => update("avatar", String(reader.result)); reader.readAsDataURL(file);
   }
@@ -90,16 +91,48 @@ function ProfileTab({ session, onSaved, notify }: { session: Session; onSaved: (
     setErrors(nextErrors); if (Object.keys(nextErrors).length) return;
     setSaving(true);
     try {
-      const avatarUrl = avatarFile ? await uploadProfileAvatar(session.user.id, avatarFile) : form.avatar || null;
-      const savedProfile = await apiRequest<Profile>("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), email: form.email.trim(), phone: form.phone || null, language: form.language, avatar_url: avatarUrl }) });
+      let uploadedPath: string | null = null;
+      if (avatarFile) {
+        const oldPath = profile?.avatar_path;
+        uploadedPath = await uploadProfileAvatar(session.user.id, avatarFile);
+        try {
+          await apiRequest<Profile>("/users/me/avatar", { method: "PATCH", body: JSON.stringify({ avatar_path: uploadedPath }) });
+        } catch (error) {
+          await removeProfileAvatar(uploadedPath);
+          throw error;
+        }
+        if (oldPath && oldPath !== uploadedPath) await removeProfileAvatar(oldPath).catch(() => undefined);
+      }
+      const savedProfile = await apiRequest<Profile>("/users/me", { method: "PATCH", body: JSON.stringify({ name: form.name.trim(), phone: form.phone || null, language: form.language }) });
       window.localStorage.setItem(profileStorageKey(session.user.id), JSON.stringify({ phone: form.phone }));
       updateProfile(savedProfile);
-      const nextForm = { ...form, avatar: savedProfile.avatar_url || avatarUrl || "" };
+      await refreshProfile();
+      const nextForm = { ...form, avatar: uploadedPath ? form.avatar : savedProfile.avatar_url || "" };
       setForm(nextForm); setSaved(nextForm); setAvatarFile(null); onSaved(form.name.trim()); notify("Profile updated");
     } catch (saveError) { notify(saveError instanceof Error ? saveError.message : "Unable to update profile.", true); } finally { setSaving(false); }
   }
 
-  return <Card title="Profile" description="Manage your personal information and account identity."><form onSubmit={submit} className="space-y-5">{isLoading && !profile ? <SettingsSkeleton /> : null}{!isLoading || profile ? <><div className="flex items-center gap-4"><div className="relative"><UserAvatar url={form.avatar} name={form.name} size="large" alt="Profile avatar" /><button type="button" onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-brand-primary text-white" aria-label="Change photo"><ImagePlus className="h-3.5 w-3.5" /></button><input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(event) => selectPhoto(event.target.files?.[0])} /></div><div><p className="font-semibold text-slate-950">{form.name}</p><p className="text-sm text-slate-500">{form.email}</p><button type="button" onClick={() => fileRef.current?.click()} className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-primary"><Upload className="h-3 w-3" />Change photo</button></div></div><div className="grid gap-4 md:grid-cols-2"><Field label="Full name" value={form.name} onChange={(value) => update("name", value)} error={errors.name} /><Field label="Email address" value={form.email} onChange={(value) => update("email", value)} type="email" error={errors.email} /><Field label="Phone number" value={form.phone} onChange={(value) => update("phone", value)} type="tel" placeholder="+63 912 345 6789" error={errors.phone} /></div><fieldset><legend className="text-xs font-semibold text-slate-950">Language</legend><div className="mt-2 inline-flex rounded-xl border border-slate-200 p-1">{([["en", "English"], ["fil", "Filipino"]] as const).map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm ${form.language === value ? "bg-brand-muted font-semibold text-brand-primary" : "text-slate-500"}`}><input type="radio" className="sr-only" checked={form.language === value} onChange={() => update("language", value)} />{label}</label>)}</div></fieldset><div><SaveButton disabled={!dirty} saving={saving}>Save changes</SaveButton></div></> : null}</form></Card>;
+  async function removeCustomPhoto() {
+    const oldPath = profile?.avatar_path;
+    if (!oldPath) return;
+    setSaving(true);
+    try {
+      await apiRequest<Profile>("/users/me/avatar", { method: "PATCH", body: JSON.stringify({ avatar_path: null }) });
+      await removeProfileAvatar(oldPath).catch(() => undefined);
+      await refreshProfile();
+      setAvatarFile(null);
+      notify("Custom profile photo removed");
+    } catch (error) { notify(error instanceof Error ? error.message : "Profile photo could not be removed. Please try again.", true); } finally { setSaving(false); }
+  }
+
+  async function syncProfile() {
+    setSaving(true);
+    try { await refreshProfile(); notify("Profile refreshed"); }
+    catch (error) { notify(error instanceof Error ? error.message : "Profile refresh failed. Please try again.", true); }
+    finally { setSaving(false); }
+  }
+
+  return <Card title="Profile" description="Manage your personal information and account identity."><form onSubmit={submit} className="space-y-5">{isLoading && !profile ? <SettingsSkeleton /> : null}{!isLoading || profile ? <><div className="flex items-center gap-4"><div className="relative"><UserAvatar url={form.avatar} name={form.name} size="large" alt="Profile avatar" /><button type="button" onClick={() => fileRef.current?.click()} className="absolute -bottom-1 -right-1 grid h-7 w-7 place-items-center rounded-full border-2 border-white bg-brand-primary text-white" aria-label={profile?.avatar_path ? "Change photo" : "Upload photo"}><ImagePlus className="h-3.5 w-3.5" /></button><input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(event) => selectPhoto(event.target.files?.[0])} /></div><div><p className="font-semibold text-slate-950">{form.name}</p><p className="text-sm text-slate-500">{form.email}</p><div className="mt-1 flex flex-wrap gap-3"><button type="button" disabled={saving} onClick={() => fileRef.current?.click()} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-primary"><Upload className="h-3 w-3" />{profile?.avatar_path ? "Change photo" : "Upload photo"}</button>{profile?.avatar_path ? <button type="button" disabled={saving} onClick={() => void removeCustomPhoto()} className="text-xs font-semibold text-red-600">Remove custom photo</button> : null}<button type="button" disabled={saving} onClick={() => void syncProfile()} className="text-xs font-semibold text-slate-600">{saving ? "Refreshing…" : "Sync profile"}</button></div><p className="mt-2 text-xs text-slate-500">JPEG, PNG, or WebP up to 2 MB. Uploaded photos take priority over your sign-in provider photo.</p></div></div><div className="grid gap-4 md:grid-cols-2"><Field label="Full name" value={form.name} onChange={(value) => update("name", value)} error={errors.name} /><Field label="Email address" value={form.email} onChange={(value) => update("email", value)} type="email" error={errors.email} /><Field label="Phone number" value={form.phone} onChange={(value) => update("phone", value)} type="tel" placeholder="+63 912 345 6789" error={errors.phone} /></div><fieldset><legend className="text-xs font-semibold text-slate-950">Language</legend><div className="mt-2 inline-flex rounded-xl border border-slate-200 p-1">{([["en", "English"], ["fil", "Filipino"]] as const).map(([value, label]) => <label key={value} className={`cursor-pointer rounded-lg px-3 py-1.5 text-sm ${form.language === value ? "bg-brand-muted font-semibold text-brand-primary" : "text-slate-500"}`}><input type="radio" className="sr-only" checked={form.language === value} onChange={() => update("language", value)} />{label}</label>)}</div></fieldset><div><SaveButton disabled={!dirty} saving={saving}>Save changes</SaveButton></div></> : null}</form></Card>;
 }
 
 function PreferencesTab({ notify }: { notify: (message: string, error?: boolean) => void }) {

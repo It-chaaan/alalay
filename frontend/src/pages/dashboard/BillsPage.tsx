@@ -21,7 +21,7 @@ import { useBills } from '../../hooks/useBills';
 import type { Bill, Wallet } from '../../hooks/types';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { normalizeExternalUrl, openExternalLink } from '../../utils/linkPreview';
-import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
+import { BillsSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 import { FinancialOverviewCard } from '../../components/dashboard/FinancialOverviewCard';
 
 type BillFilter = 'all' | 'upcoming' | 'overdue' | 'paid';
@@ -220,7 +220,7 @@ export function BillsPage({ session, onSignOut }: { session: Session; onSignOut:
       <div className="mt-4 overflow-visible rounded-[14px] border border-slate-200 bg-white shadow-sm">
         {isLoading ? (
           <>
-            <PageSkeleton kind="table" />
+            <BillsSkeleton />
             <SlowLoadNotice show={isSlowLoading} />
           </>
         ) : null}

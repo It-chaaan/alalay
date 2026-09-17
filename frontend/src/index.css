@@ -216,6 +216,10 @@ a {
   text-decoration: none;
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-block { animation: none; }
+}
+
 /* Dashboard uses independent stacks so a tall calendar cannot create a
    matching blank area in the secondary column. */
 .dashboard-columns {

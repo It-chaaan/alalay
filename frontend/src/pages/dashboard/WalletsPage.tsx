@@ -16,7 +16,6 @@ import {
   Plus,
   ScanLine,
   Send,
-  SlidersHorizontal,
   UserRound,
   WalletCards,
   Home,
@@ -32,12 +31,8 @@ import { institutionFor, institutionRegistry, sanitizeWalletMetadata } from '@sh
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { SlideOver } from '../../components/ui/SlideOver';
-import {
-  controlButtonClass,
-  controlSurfaceClass,
-  DataToolbar,
-} from '../../components/ui/ControlSurface';
-import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
+import { controlSurfaceClass, DataToolbar } from '../../components/ui/ControlSurface';
+import { PageSkeleton, SlowLoadNotice, WalletsSkeleton } from '../../components/ui/Skeleton';
 import { useApiMutation } from '../../hooks/useApiMutation';
 import { useApiQuery } from '../../hooks/useApiQuery';
 import { useBalancePrivacy } from '../../hooks/useBalancePrivacy';
@@ -79,17 +74,22 @@ type WalletDetail = {
   transactions: WalletTransaction[];
   transactionError?: string;
 };
-type WalletFilters = {
-  asset: 'all' | 'liquid' | 'credit';
-  institution: 'all' | 'cash' | 'bank' | 'digital_bank' | 'e_wallet';
-  account: 'all' | 'debit' | 'credit';
-};
+type WalletTypeFilter = 'all' | 'cash' | 'bank' | 'digital_bank' | 'e_wallet' | 'credit';
 
-const defaultWalletFilters: WalletFilters = {
-  asset: 'all',
-  institution: 'all',
-  account: 'all',
-};
+const walletTypeOptions: Array<{ value: WalletTypeFilter; label: string }> = [
+  { value: 'all', label: 'All wallets' },
+  { value: 'cash', label: 'Cash' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'digital_bank', label: 'Digital bank' },
+  { value: 'e_wallet', label: 'E-wallet' },
+  { value: 'credit', label: 'Credit card' },
+];
+
+function matchesWalletType(wallet: Wallet, type: WalletTypeFilter) {
+  if (type === 'all') return true;
+  if (type === 'credit') return wallet.account_type === 'credit';
+  return wallet.account_type !== 'credit' && wallet.institution_type === type;
+}
 
 function getName(session: Session) {
   return session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
@@ -282,84 +282,6 @@ function WalletList({
           </div>
         );
       })}
-    </div>
-  );
-}
-
-function WalletFilterPopover({
-  filters,
-  onChange,
-  onClear,
-}: {
-  filters: WalletFilters;
-  onChange: (filters: WalletFilters) => void;
-  onClear: () => void;
-}) {
-  return (
-    <div
-      role="dialog"
-      aria-label="Filter wallets"
-      className="absolute right-0 top-full z-30 mt-2 w-64 rounded-2xl border border-slate-200 bg-white p-4 text-sm shadow-xl dark:border-slate-700 dark:bg-slate-900"
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-          Filter wallets
-        </p>
-        <button
-          type="button"
-          onClick={onClear}
-          className="text-xs font-semibold text-brand-primary hover:text-brand-dark"
-        >
-          Clear
-        </button>
-      </div>
-      <label className="mt-4 block text-xs font-semibold text-slate-600 dark:text-slate-300">
-        Asset type
-        <select
-          value={filters.asset}
-          onChange={(event) =>
-            onChange({ ...filters, asset: event.target.value as WalletFilters['asset'] })
-          }
-          className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
-        >
-          <option value="all">All wallets</option>
-          <option value="liquid">Liquid assets</option>
-          <option value="credit">Credit liabilities</option>
-        </select>
-      </label>
-      <label className="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">
-        Institution
-        <select
-          value={filters.institution}
-          onChange={(event) =>
-            onChange({
-              ...filters,
-              institution: event.target.value as WalletFilters['institution'],
-            })
-          }
-          className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 capitalize dark:border-slate-700 dark:bg-slate-950"
-        >
-          <option value="all">All institutions</option>
-          <option value="cash">Cash</option>
-          <option value="bank">Bank</option>
-          <option value="digital_bank">Digital bank</option>
-          <option value="e_wallet">E-wallet</option>
-        </select>
-      </label>
-      <label className="mt-3 block text-xs font-semibold text-slate-600 dark:text-slate-300">
-        Account classification
-        <select
-          value={filters.account}
-          onChange={(event) =>
-            onChange({ ...filters, account: event.target.value as WalletFilters['account'] })
-          }
-          className="mt-1.5 min-h-10 w-full rounded-xl border border-slate-200 bg-white px-3 capitalize dark:border-slate-700 dark:bg-slate-950"
-        >
-          <option value="all">All accounts</option>
-          <option value="debit">Debit</option>
-          <option value="credit">Credit</option>
-        </select>
-      </label>
     </div>
   );
 }
@@ -1498,8 +1420,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
   const [deletingWallet, setDeletingWallet] = useState<Wallet | null>(null);
   const deleteMutation = useApiMutation();
   const [search, setSearch] = useState('');
-  const [filters, setFilters] = useState<WalletFilters>(defaultWalletFilters);
-  const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [walletType, setWalletType] = useState<WalletTypeFilter>('all');
   const [view, setView] = useState<WalletView>(() => {
     try {
       return window.localStorage.getItem('alalay-wallet-view') === 'list' ? 'list' : 'grid';
@@ -1530,24 +1451,9 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
         .join(' ')
         .toLowerCase()
         .replace(/[-_]/g, ' ');
-      const institutionMatches =
-        filters.institution === 'all' ||
-        (filters.institution === 'bank' && institution.institutionType === 'bank') ||
-        institution.institutionType === filters.institution;
-      const assetMatches =
-        filters.asset === 'all' ||
-        (filters.asset === 'credit' && wallet.account_type === 'credit') ||
-        (filters.asset === 'liquid' && wallet.account_type !== 'credit');
-      const accountMatches = filters.account === 'all' || wallet.account_type === filters.account;
-      return (
-        (!query || searchable.includes(query)) &&
-        institutionMatches &&
-        assetMatches &&
-        accountMatches
-      );
+      return (!query || searchable.includes(query)) && matchesWalletType(wallet, walletType);
     });
-  }, [filters, search, wallets]);
-  const activeFilterCount = Object.values(filters).filter((value) => value !== 'all').length;
+  }, [search, walletType, wallets]);
   function refreshFinancials() {
     walletsQuery.refetch();
   }
@@ -1571,14 +1477,6 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
     }
   }, [view]);
 
-  useEffect(() => {
-    if (!isFilterOpen) return;
-    function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsFilterOpen(false);
-    }
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [isFilterOpen]);
   return (
     <DashboardShell
       activeLabel="Wallets"
@@ -1590,7 +1488,7 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       <div className="wallet-page">
       {walletsQuery.isLoading ? (
         <>
-          <PageSkeleton kind="budget" />
+          <WalletsSkeleton />
           <SlowLoadNotice show={walletsQuery.isSlowLoading} />
         </>
       ) : null}
@@ -1627,8 +1525,27 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
           </section>
           <section className="wallet-wallets-section mt-7">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
-              <h2 className="wallet-section-title font-semibold">Your wallets <span className="text-base font-medium text-slate-500">({wallets.length})</span></h2>
+              <h2 className="wallet-section-title font-semibold">Your wallets <span className="text-base font-medium text-slate-500">({visibleWallets.length})</span></h2>
               <DataToolbar className="justify-end">
+                <SearchField
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search wallets"
+                  aria-label="Search wallets"
+                />
+                <label className={`relative inline-flex min-h-10 items-center ${controlSurfaceClass}`}>
+                  <span className="sr-only">Filter wallets by type</span>
+                  <select
+                    value={walletType}
+                    onChange={(event) => setWalletType(event.target.value as WalletTypeFilter)}
+                    aria-label="Filter wallets by type"
+                    className="min-h-10 max-w-40 cursor-pointer rounded-xl bg-transparent px-3 pr-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50"
+                  >
+                    {walletTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
                 <div
                   className={`inline-flex ${controlSurfaceClass} p-0.5`}
                   role="group"
@@ -1683,22 +1600,27 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
                 <AddWalletTemplate list onAdd={() => setIsAddWalletOpen(true)} />
               </>
             ) : wallets.length ? (
-              <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
-                <p className="font-semibold text-slate-700 dark:text-slate-200">
-                  No wallets match your search.
-                </p>
-                <p className="mt-1">Try another search or clear your filters.</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSearch('');
-                    setFilters(defaultWalletFilters);
-                  }}
-                  className="mt-4 font-semibold text-brand-primary hover:text-brand-dark"
-                >
-                  Clear filters
-                </button>
-              </div>
+              <>
+                <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+                  <p className="font-semibold text-slate-700 dark:text-slate-200">
+                    No wallets match your search or type filter.
+                  </p>
+                  <p className="mt-1">Try another search or clear the current filter.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setWalletType('all');
+                    }}
+                    className="mt-4 font-semibold text-brand-primary hover:text-brand-dark"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+                <div className="mt-4">
+                  <AddWalletTemplate list={view === 'list'} onAdd={() => setIsAddWalletOpen(true)} />
+                </div>
+              </>
             ) : <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />}
           </section>
           </main>

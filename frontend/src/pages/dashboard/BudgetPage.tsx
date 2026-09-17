@@ -10,7 +10,7 @@ import { useIncomeSummary } from "../../hooks/useIncomeSummary";
 import type { BudgetSummary } from "../../hooks/types";
 import { formatCurrency, formatSignedCurrency } from "../../utils/formatters";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
-import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { BudgetSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 import { SlideOver } from '../../components/ui/SlideOver';
 import {
   copyPreviousBudgetCategories,
@@ -252,7 +252,7 @@ export function BudgetPage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
     >
-{isLoading ? <><PageSkeleton kind="budget" /><SlowLoadNotice show={isSlowLoading} /></> : null}
+{isLoading ? <><BudgetSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {!isLoading && !error && !budgetSummary ? (
         <section className="mt-5">

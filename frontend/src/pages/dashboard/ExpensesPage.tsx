@@ -14,7 +14,7 @@ import { Pen, Scan, Trash2 } from "lucide-react";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
 import { CategoryIcon } from "../../components/ui/CategoryIcon";
 import { groupExpensesByDate } from "../../utils/expenseGrouping";
-import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { ExpensesSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
 import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
 
@@ -155,7 +155,7 @@ const isSlowLoading = expensesSlow || billsSlow;
       </div>
 
       <div className="mt-4 space-y-5">
-{isLoading ? <><PageSkeleton kind="list" /><SlowLoadNotice show={isSlowLoading} /></> : null}
+{isLoading ? <><ExpensesSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
         {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
         {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
         {!isLoading && !error && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No expenses yet. Log an expense to start seeing your spending.</div> : null}

@@ -375,6 +375,9 @@ export type Profile = {
   name: string | null;
   email: string | null;
   avatar_url: string | null;
+  avatar_path?: string | null;
+  avatar_source?: 'uploaded' | 'provider' | null;
+  avatar_updated_at?: string | null;
   phone?: string | null;
   currency: string;
   language: 'en' | 'fil';

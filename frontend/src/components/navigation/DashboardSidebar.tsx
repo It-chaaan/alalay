@@ -14,6 +14,7 @@ import {
   Settings,
   TrendingUp,
   Target,
+  ClipboardList,
 } from 'lucide-react';
 import { useProfile } from '../../context/ProfileContext';
 import { UserAvatar } from '../ui/UserAvatar';
@@ -54,7 +55,7 @@ function SidebarIcon({ type }: { type: string }) {
     case 'goals':
       return <Target {...props} />;
     case 'budget':
-      return <Wallet {...props} />;
+      return <ClipboardList {...props} />;
     case 'reports':
       return <Summary {...props} />;
     case 'assistant':

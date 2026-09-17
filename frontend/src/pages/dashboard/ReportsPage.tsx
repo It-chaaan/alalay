@@ -9,7 +9,7 @@ import { formatCurrency, formatDateShort, formatMonthYear, formatSignedCurrency 
 import { buildReportDateTicks, reportDateRatio } from "../../utils/reportChartDates";
 import { getCategoryColor } from "../../utils/categoryColors";
 import { CategoryBadge } from "../../components/ui/CategoryBadge";
-import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { ReportsSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 
 const periodOptions: Array<{ label: string; value: ReportPeriod }> = [
   { label: "This month", value: "this_month" },
@@ -376,7 +376,7 @@ export function ReportsPage({ session, onSignOut }: { session: Session; onSignOu
       name={name}
       onSignOut={onSignOut}
     >
-{isLoading ? <><PageSkeleton kind="report" /><SlowLoadNotice show={isSlowLoading} /></> : null}
+{isLoading ? <><ReportsSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
       {!isLoading && !error && !report ? <EmptyPanel>No report data available yet.</EmptyPanel> : null}
       {report && !hasAnyFinancialData ? <EmptyPanel>No financial records found for {report.range.label}. Add income, expenses, bills, subscriptions, budgets, or savings goals to populate this dashboard.</EmptyPanel> : null}

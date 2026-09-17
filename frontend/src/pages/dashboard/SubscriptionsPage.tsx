@@ -13,7 +13,7 @@ import { useSubscriptions } from '../../hooks/useSubscriptions';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
 import { normalizeExternalUrl, openExternalLink } from '../../utils/linkPreview';
 import { getNextSubscriptionRenewalDate } from '../../utils/subscriptionRenewal';
-import { PageSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
+import { BillsSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
 
 function monthlyAmount(subscription: Subscription) {
   const amount = Number(subscription.amount);
@@ -164,7 +164,7 @@ export function SubscriptionsPage({
     >
       {isLoading ? (
         <>
-          <PageSkeleton kind="list" />
+          <BillsSkeleton />
           <SlowLoadNotice show={isSlowLoading} />
         </>
       ) : null}

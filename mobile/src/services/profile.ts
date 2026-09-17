@@ -105,6 +105,8 @@ export async function completeCurrentOnboarding(payload: { nickname: string; wal
 
 export async function uploadCurrentAvatar(uri: string, mimeType: 'image/jpeg' | 'image/png' | 'image/webp') {
   const { user } = await resolveUser();
+  const current = await authenticatedApiRequest<ProfileRecord>('/api/users/me');
+  const oldPath = current.avatar_path;
   const extension = mimeType === 'image/png' ? 'png' : mimeType === 'image/webp' ? 'webp' : 'jpg';
   const path = `${user.id}/avatar/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
   const response = await fetch(uri);
@@ -116,11 +118,12 @@ export async function uploadCurrentAvatar(uri: string, mimeType: 'image/jpeg' | 
   if (uploadError) throw new Error('Your profile photo could not be uploaded.');
   try {
     await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_path: path }) });
-    return loadCurrentProfile(true);
   } catch (error) {
     await storage.remove([path]);
     throw error;
   }
+  if (oldPath && oldPath !== path) await storage.remove([oldPath]);
+  return loadCurrentProfile(true);
 }
 
 export async function removeCurrentAvatar() {

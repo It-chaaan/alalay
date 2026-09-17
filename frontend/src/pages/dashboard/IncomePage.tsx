@@ -14,7 +14,7 @@ import { aggregateIncomeSources, formatIncomeRecurrence } from "../../utils/inco
 import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
 import { useApiMutation } from "../../hooks/useApiMutation";
 import { Pen, Trash2 } from "lucide-react";
-import { PageSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
+import { IncomeSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
 import { getCategoryMeta } from "../../utils/categoryRegistry";
 
 type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
@@ -245,7 +245,7 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
     >
-{isLoading ? <><PageSkeleton kind="table" /><SlowLoadNotice show={isSlowLoading} /></> : null}
+{isLoading ? <><IncomeSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
       {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>{error}</p><button type="button" onClick={refetch} className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-semibold text-red-700">Try again</button></div> : null}
       {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
       {!isLoading && !error ? (

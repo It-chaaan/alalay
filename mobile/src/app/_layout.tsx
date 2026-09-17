@@ -205,7 +205,10 @@ function SessionGate() {
     };
     reconcileSafely();
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') reconcileSafely();
+      if (state === 'active') {
+        reconcileSafely();
+        void loadCurrentProfile(true);
+      }
     });
     const responseSubscription = Notifications.addNotificationResponseReceivedListener(
       (response) => {

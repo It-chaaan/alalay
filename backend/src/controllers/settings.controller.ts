@@ -7,11 +7,13 @@ export async function me(req: Request, res: Response) {
 }
 
 export async function updateMe(req: Request, res: Response) {
-  return sendSuccess(res, await updateProfile(req.user!.id, req.validated?.body as Record<string, unknown>));
+  await updateProfile(req.user!.id, req.validated?.body as Record<string, unknown>);
+  return sendSuccess(res, await getProfile(req.user!.id, req.user!.email, req.user!.user_metadata));
 }
 export async function updateAvatar(req: Request, res: Response) {
   const body = req.validated?.body as { avatar_path?: string | null };
-  return sendSuccess(res, await updateAvatarPath(req.user!.id, body.avatar_path ?? null));
+  await updateAvatarPath(req.user!.id, body.avatar_path ?? null);
+  return sendSuccess(res, await getProfile(req.user!.id, req.user!.email, req.user!.user_metadata));
 }
 export async function completeOnboarding(req: Request, res: Response) {
   return sendSuccess(res, await completeFirstRunOnboarding(req.user!.id, req.validated!.body as { nickname: string; wallet_name: string; opening_balance: number; operation_id: string }));
