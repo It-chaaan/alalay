@@ -50,7 +50,17 @@ export type CreditCardFinanceChargePayload = {
   charge_type: 'finance_charge' | 'late_fee';
   idempotency_key: string;
 };
-export type CreditCardStatementPayload = { period_start: string; period_end: string; closing_date: string; due_date: string; statement_balance: number; minimum_due: number; rate_used?: number | null; rate_basis_used?: 'annual' | 'monthly' | null; note?: string | null };
+export type CreditCardStatementPayload = {
+  period_start: string;
+  period_end: string;
+  closing_date: string;
+  due_date: string;
+  statement_balance: number;
+  minimum_due: number;
+  rate_used?: number | null;
+  rate_basis_used?: 'annual' | 'monthly' | null;
+  note?: string | null;
+};
 
 function validateAccountType(
   payload: Pick<
@@ -213,7 +223,9 @@ async function withReservedBalances(userId: string, rows: Record<string, unknown
     .eq('user_id', requireUserId(userId))
     .in('wallet_id', ids);
   throwIfError(error);
-  const reservedByWallet = new Map((data ?? []).map((row) => [String(row.wallet_id), asNumber(row.reserved_balance)]));
+  const reservedByWallet = new Map(
+    (data ?? []).map((row) => [String(row.wallet_id), asNumber(row.reserved_balance)]),
+  );
   return rows.map((row) => withBalance(row, reservedByWallet.get(String(row.id))));
 }
 
@@ -319,10 +331,22 @@ export async function getWallet(userId: string, id: string) {
       .order('payment_date', { ascending: false })
       .limit(200),
     wallet.account_type === 'credit'
-      ? client().from('credit_card_statements').select('*').eq('user_id', ownerId).eq('credit_wallet_id', id).order('closing_date', { ascending: false }).limit(24)
+      ? client()
+          .from('credit_card_statements')
+          .select('*')
+          .eq('user_id', ownerId)
+          .eq('credit_wallet_id', id)
+          .order('closing_date', { ascending: false })
+          .limit(24)
       : Promise.resolve({ data: [], error: null }),
     wallet.account_type === 'credit'
-      ? client().from('credit_card_finance_charges').select('*').eq('user_id', ownerId).eq('credit_wallet_id', id).order('charged_on', { ascending: false }).limit(100)
+      ? client()
+          .from('credit_card_finance_charges')
+          .select('*')
+          .eq('user_id', ownerId)
+          .eq('credit_wallet_id', id)
+          .order('charged_on', { ascending: false })
+          .limit(100)
       : Promise.resolve({ data: [], error: null }),
     client()
       .from('goal_contributions')
@@ -333,7 +357,9 @@ export async function getWallet(userId: string, id: string) {
       .limit(200),
     client()
       .from('goal_contribution_releases')
-      .select('id, amount, released_on, created_at, contribution_id, goal_contributions(wallet_id, savings_goals(title))')
+      .select(
+        'id, amount, released_on, created_at, contribution_id, goal_contributions(wallet_id, savings_goals(title))',
+      )
       .eq('user_id', ownerId)
       .order('created_at', { ascending: false })
       .limit(200),
@@ -417,8 +443,8 @@ export async function getWallet(userId: string, id: string) {
       })),
     ...(adjustments.data ?? []).map((row) => ({
       ...row,
-        kind: row.note === 'Opening balance' ? 'opening_balance' : 'deposit',
-        direction: 'inflow',
+      kind: row.note === 'Opening balance' ? 'opening_balance' : 'deposit',
+      direction: 'inflow',
       label: row.note || 'Wallet deposit',
       date: row.date,
       amount: asNumber(row.amount),
@@ -519,9 +545,10 @@ export async function getWallet(userId: string, id: string) {
   const interestEstimate = wallet.earns_interest
     ? await getWalletInterestEstimate(userId, id)
     : { enabled: false, tracking_mode: 'estimate_only' };
-  const creditCardInterestEstimate = wallet.account_type === 'credit'
-    ? await getCreditCardInterestEstimate(userId, id)
-    : { enabled: false, tracking_mode: 'estimate_only' };
+  const creditCardInterestEstimate =
+    wallet.account_type === 'credit'
+      ? await getCreditCardInterestEstimate(userId, id)
+      : { enabled: false, tracking_mode: 'estimate_only' };
   return {
     wallet: walletWithBalances,
     transactions,
@@ -618,35 +645,54 @@ export async function createWalletTransfer(userId: string, payload: WalletTransf
 export async function createWalletInterest(
   userId: string,
   walletId: string,
-  payload: { amount: number; date: string; note?: string | null; idempotency_key: string },
+  payload: {
+    amount: number;
+    date: string;
+    note?: string | null;
+    idempotency_key: string;
+  },
 ) {
   const ownerId = requireUserId(userId);
   const { data, error } = await client().rpc('post_wallet_interest', {
-    target_wallet_id: walletId, received_amount: payload.amount, credited_on_value: payload.date,
-    note_value: payload.note ?? null, request_key: payload.idempotency_key,
+    target_wallet_id: walletId,
+    received_amount: payload.amount,
+    credited_on_value: payload.date,
+    note_value: payload.note ?? null,
+    request_key: payload.idempotency_key,
   });
-  if (error?.message.includes('Wallet not found')) throw new AppError(404, 'not_found', 'Wallet not found.');
+  if (error?.message.includes('Wallet not found'))
+    throw new AppError(404, 'not_found', 'Wallet not found.');
   throwIfError(error);
   return data;
 }
 
 export async function getWalletInterestEstimate(userId: string, walletId: string) {
   requireUserId(userId);
-  const { data, error } = await client().rpc('wallet_interest_estimate', { target_wallet_id: walletId });
-  if (error?.message.includes('Wallet not found')) throw new AppError(404, 'not_found', 'Wallet not found.');
+  const { data, error } = await client().rpc('wallet_interest_estimate', {
+    target_wallet_id: walletId,
+  });
+  if (error?.message.includes('Wallet not found'))
+    throw new AppError(404, 'not_found', 'Wallet not found.');
   throwIfError(error);
   return data;
 }
 
 export async function getCreditCardInterestEstimate(userId: string, walletId: string) {
   requireUserId(userId);
-  const { data, error } = await client().rpc('credit_card_interest_estimate', { target_wallet_id: walletId });
-  if (error?.message.includes('Credit card not found')) throw new AppError(404, 'not_found', 'Credit card not found.');
+  const { data, error } = await client().rpc('credit_card_interest_estimate', {
+    target_wallet_id: walletId,
+  });
+  if (error?.message.includes('Credit card not found'))
+    throw new AppError(404, 'not_found', 'Credit card not found.');
   throwIfError(error);
   return data;
 }
 
-export async function createCreditCardFinanceCharge(userId: string, walletId: string, payload: CreditCardFinanceChargePayload) {
+export async function createCreditCardFinanceCharge(
+  userId: string,
+  walletId: string,
+  payload: CreditCardFinanceChargePayload,
+) {
   requireUserId(userId);
   const { data, error } = await client().rpc('record_credit_card_finance_charge', {
     target_credit_wallet_id: walletId,
@@ -658,25 +704,41 @@ export async function createCreditCardFinanceCharge(userId: string, walletId: st
   });
   if (error) {
     const message = error.message.toLowerCase();
-    if (message.includes('estimate-only') || message.includes('statement not found') || message.includes('positive currency'))
+    if (
+      message.includes('estimate-only') ||
+      message.includes('statement not found') ||
+      message.includes('positive currency')
+    )
       throw new AppError(422, 'credit_card_charge_invalid', error.message, undefined, true);
-    if (message.includes('credit card not found')) throw new AppError(404, 'not_found', 'Credit card not found.');
+    if (message.includes('credit card not found'))
+      throw new AppError(404, 'not_found', 'Credit card not found.');
     throwIfError(error);
   }
   return data;
 }
 
-export async function createCreditCardStatement(userId: string, walletId: string, payload: CreditCardStatementPayload) {
+export async function createCreditCardStatement(
+  userId: string,
+  walletId: string,
+  payload: CreditCardStatementPayload,
+) {
   requireUserId(userId);
   const { data, error } = await client().rpc('create_credit_card_statement', {
-    target_credit_wallet_id: walletId, period_start_value: payload.period_start, period_end_value: payload.period_end,
-    closing_date_value: payload.closing_date, due_date_value: payload.due_date,
-    statement_balance_value: payload.statement_balance, minimum_due_value: payload.minimum_due,
-    rate_used_value: payload.rate_used ?? null, rate_basis_used_value: payload.rate_basis_used ?? null,
+    target_credit_wallet_id: walletId,
+    period_start_value: payload.period_start,
+    period_end_value: payload.period_end,
+    closing_date_value: payload.closing_date,
+    due_date_value: payload.due_date,
+    statement_balance_value: payload.statement_balance,
+    minimum_due_value: payload.minimum_due,
+    rate_used_value: payload.rate_used ?? null,
+    rate_basis_used_value: payload.rate_basis_used ?? null,
     note_value: payload.note ?? null,
   });
-  if (error?.message.includes('Credit card not found')) throw new AppError(404, 'not_found', 'Credit card not found.');
-  if (error?.code === '23505' || error?.message.includes('Invalid statement')) throw new AppError(422, 'credit_card_statement_invalid', error.message, undefined, true);
+  if (error?.message.includes('Credit card not found'))
+    throw new AppError(404, 'not_found', 'Credit card not found.');
+  if (error?.code === '23505' || error?.message.includes('Invalid statement'))
+    throw new AppError(422, 'credit_card_statement_invalid', error.message, undefined, true);
   throwIfError(error);
   return data;
 }

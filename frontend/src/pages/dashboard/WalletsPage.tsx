@@ -27,7 +27,11 @@ import {
   LockKeyhole,
 } from 'lucide-react';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { institutionFor, institutionRegistry, sanitizeWalletMetadata } from '@shared/institution-registry';
+import {
+  institutionFor,
+  institutionRegistry,
+  sanitizeWalletMetadata,
+} from '@shared/institution-registry';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { SlideOver } from '../../components/ui/SlideOver';
@@ -56,9 +60,25 @@ export type Loan = {
   fixed_interest_amount?: number | null;
   status: 'active' | 'paid' | 'written_off';
   notes?: string | null;
-  loan_payments?: Array<{ id: string; principal_amount: number | string; interest_amount: number | string; paid_on: string; note?: string | null; wallets?: { name: string } | null }>;
+  loan_payments?: Array<{
+    id: string;
+    principal_amount: number | string;
+    interest_amount: number | string;
+    paid_on: string;
+    note?: string | null;
+    wallets?: { name: string } | null;
+  }>;
 };
-export type LoansResponse = { loans: Loan[]; summary: { owed_to_me: number; i_owe: number; net_position: number; interest_earned_this_month: number; interest_paid_this_month: number } };
+export type LoansResponse = {
+  loans: Loan[];
+  summary: {
+    owed_to_me: number;
+    i_owe: number;
+    net_position: number;
+    interest_earned_this_month: number;
+    interest_paid_this_month: number;
+  };
+};
 type WalletFormProps = { onClose: () => void; onSaved: () => void };
 type WalletView = 'grid' | 'list';
 type WalletTransaction = {
@@ -98,12 +118,43 @@ function getName(session: Session) {
 function BalanceAmount({ value, hidden }: { value: number; hidden: boolean }) {
   const formatted = formatCurrency(value, true);
   const amount = formatted.replace(/^₱\s?/, '');
-  return hidden ? <span aria-label="Wallet balance hidden">••••••</span> : <span className="inline-flex items-baseline gap-2"><span aria-hidden="true">₱</span><span>{amount}</span></span>;
+  return hidden ? (
+    <span aria-label="Wallet balance hidden">••••••</span>
+  ) : (
+    <span className="inline-flex items-baseline gap-2">
+      <span aria-hidden="true">₱</span>
+      <span>{amount}</span>
+    </span>
+  );
 }
 
 function AddWalletTemplate({ onAdd, list = false }: { onAdd: () => void; list?: boolean }) {
-  if (list) return <button type="button" onClick={onAdd} className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/40 px-5 text-left text-brand-dark transition hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/40"><Plus className="h-5 w-5" aria-hidden="true" /><span><span className="block text-sm font-semibold">Add wallet</span><span className="block text-xs text-slate-500">Create a new wallet</span></span></button>;
-  return <button type="button" onClick={onAdd} aria-label="Add a new wallet" className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/30 p-5 text-center text-brand-dark transition hover:-translate-y-0.5 hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/50"><Plus className="h-8 w-8" aria-hidden="true" /><span className="mt-3 font-semibold">Add wallet</span><span className="mt-1 text-xs text-slate-500">Create a new wallet</span></button>;
+  if (list)
+    return (
+      <button
+        type="button"
+        onClick={onAdd}
+        className="mt-3 flex min-h-14 w-full items-center gap-3 rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/40 px-5 text-left text-brand-dark transition hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/40"
+      >
+        <Plus className="h-5 w-5" aria-hidden="true" />
+        <span>
+          <span className="block text-sm font-semibold">Add wallet</span>
+          <span className="block text-xs text-slate-500">Create a new wallet</span>
+        </span>
+      </button>
+    );
+  return (
+    <button
+      type="button"
+      onClick={onAdd}
+      aria-label="Add a new wallet"
+      className="flex min-h-36 flex-col items-center justify-center rounded-2xl border border-dashed border-brand-primary/50 bg-brand-soft/30 p-5 text-center text-brand-dark transition hover:-translate-y-0.5 hover:bg-brand-soft focus:outline-none focus:ring-2 focus:ring-brand-primary/50"
+    >
+      <Plus className="h-8 w-8" aria-hidden="true" />
+      <span className="mt-3 font-semibold">Add wallet</span>
+      <span className="mt-1 text-xs text-slate-500">Create a new wallet</span>
+    </button>
+  );
 }
 
 function requestKey() {
@@ -147,7 +198,9 @@ function WalletCard({
     ? `${wallet.account_type} · ${settings.currency}`
     : `${wallet.institution_type.replace('_', ' ')} · ${settings.currency}`;
   return (
-    <article className={`wallet-card wallet-card-${institutionType} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}>
+    <article
+      className={`wallet-card wallet-card-${institutionType} relative min-h-36 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-brand-primary/35 hover:shadow-md dark:border-slate-700 dark:bg-slate-900`}
+    >
       <button
         type="button"
         onClick={() => onOpen(wallet)}
@@ -157,7 +210,9 @@ function WalletCard({
       <div className="flex items-start gap-3">
         <InstitutionMark wallet={wallet} />
         <div className="min-w-0 flex-1">
-          <h3 className="wallet-card-name truncate font-semibold text-slate-950 dark:text-white">{wallet.name}</h3>
+          <h3 className="wallet-card-name truncate font-semibold text-slate-950 dark:text-white">
+            {wallet.name}
+          </h3>
           <p className="wallet-card-type mt-1 text-xs capitalize text-slate-500">{label}</p>
         </div>
         <WalletActionsMenu
@@ -169,7 +224,7 @@ function WalletCard({
       </div>
       <div className="wallet-card-balance mt-5">
         <p className="font-mono text-xl font-bold text-slate-950 dark:text-white">
-    {isPrivate ? '••••••' : <BalanceAmount value={Number(wallet.balance)} hidden={false} />}
+          {isPrivate ? '••••••' : <BalanceAmount value={Number(wallet.balance)} hidden={false} />}
         </p>
         <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.13em] text-slate-400">
           {isCredit ? 'Outstanding' : 'Balance'}
@@ -255,7 +310,11 @@ function WalletList({
             <p
               className={`font-mono text-sm font-bold md:text-base ${isCredit ? 'text-rose-600' : 'text-slate-950 dark:text-white'}`}
             >
-              {isPrivate ? '••••••' : <BalanceAmount value={Number(wallet.balance)} hidden={false} />}
+              {isPrivate ? (
+                '••••••'
+              ) : (
+                <BalanceAmount value={Number(wallet.balance)} hidden={false} />
+              )}
             </p>
             <span
               className={`justify-self-end rounded-full px-2.5 py-1 text-[11px] font-semibold md:justify-self-start ${isCredit ? 'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300' : 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300'}`}
@@ -286,18 +345,150 @@ function WalletList({
   );
 }
 
-function WalletRecentTransactions({ expenses, income, wallets, isPrivate }: { expenses: Expense[]; income: IncomeEntry[]; wallets: Wallet[]; isPrivate: boolean }) {
+function WalletRecentTransactions({
+  expenses,
+  income,
+  wallets,
+  isPrivate,
+}: {
+  expenses: Expense[];
+  income: IncomeEntry[];
+  wallets: Wallet[];
+  isPrivate: boolean;
+}) {
   const walletNames = new Map(wallets.map((wallet) => [wallet.id, wallet.name]));
-  const items = [...expenses.map((item) => ({ id: `expense-${item.id}`, label: item.merchant, date: item.date, amount: Number(item.amount), walletId: item.wallet_id, direction: 'out' as const, category: item.category })), ...income.map((item) => ({ id: `income-${item.id}`, label: item.source, date: item.date, amount: Number(item.amount), walletId: item.wallet_id, direction: 'in' as const, category: item.type }))].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
-  return <section className="wallet-support-card" aria-labelledby="wallet-recent-transactions"><div className="flex items-center justify-between gap-3"><h2 id="wallet-recent-transactions" className="text-lg font-semibold text-slate-950 dark:text-white">Recent Transactions</h2><a href="/app/expenses" className="text-sm font-semibold text-brand-primary hover:text-brand-dark">View all</a></div>{items.length ? <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">{items.map((item) => { const incoming = item.direction === 'in'; return <div key={item.id} className="flex items-center gap-3 py-3"><span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'}`}>{incoming ? <TrendingUp className="h-4 w-4" /> : <TrendingDown className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-900 dark:text-white">{item.label}</p><p className="truncate text-xs text-slate-500">{formatDateShort(item.date)} · {walletNames.get(item.walletId ?? '') ?? 'Unassigned wallet'}</p></div><p className={`shrink-0 font-mono text-sm font-semibold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}>{isPrivate ? '••••••' : `${incoming ? '+' : '−'}${formatCurrency(item.amount)}`}</p></div>; })}</div> : <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">No recorded wallet transactions yet.</p>}</section>;
+  const items = [
+    ...expenses.map((item) => ({
+      id: `expense-${item.id}`,
+      label: item.merchant,
+      date: item.date,
+      amount: Number(item.amount),
+      walletId: item.wallet_id,
+      direction: 'out' as const,
+      category: item.category,
+    })),
+    ...income.map((item) => ({
+      id: `income-${item.id}`,
+      label: item.source,
+      date: item.date,
+      amount: Number(item.amount),
+      walletId: item.wallet_id,
+      direction: 'in' as const,
+      category: item.type,
+    })),
+  ]
+    .sort((a, b) => b.date.localeCompare(a.date))
+    .slice(0, 6);
+  return (
+    <section className="wallet-support-card" aria-labelledby="wallet-recent-transactions">
+      <div className="flex items-center justify-between gap-3">
+        <h2
+          id="wallet-recent-transactions"
+          className="text-lg font-semibold text-slate-950 dark:text-white"
+        >
+          Recent Transactions
+        </h2>
+        <a
+          href="/app/expenses"
+          className="text-sm font-semibold text-brand-primary hover:text-brand-dark"
+        >
+          View all
+        </a>
+      </div>
+      {items.length ? (
+        <div className="mt-3 divide-y divide-slate-100 dark:divide-slate-800">
+          {items.map((item) => {
+            const incoming = item.direction === 'in';
+            return (
+              <div key={item.id} className="flex items-center gap-3 py-3">
+                <span
+                  className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-300'}`}
+                >
+                  {incoming ? (
+                    <TrendingUp className="h-4 w-4" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4" />
+                  )}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-white">
+                    {item.label}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">
+                    {formatDateShort(item.date)} ·{' '}
+                    {walletNames.get(item.walletId ?? '') ?? 'Unassigned wallet'}
+                  </p>
+                </div>
+                <p
+                  className={`shrink-0 font-mono text-sm font-semibold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-300'}`}
+                >
+                  {isPrivate ? '••••••' : `${incoming ? '+' : '−'}${formatCurrency(item.amount)}`}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <p className="mt-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800">
+          No recorded wallet transactions yet.
+        </p>
+      )}
+    </section>
+  );
 }
 
 function WalletInsights({ wallets, isPrivate }: { wallets: Wallet[]; isPrivate: boolean }) {
-  const eligible = wallets.filter((wallet) => wallet.account_type !== 'credit' && Number(wallet.balance) > 0);
-  const highest = eligible.reduce<Wallet | null>((best, wallet) => !best || Number(wallet.balance) > Number(best.balance) ? wallet : best, null);
-  const lowest = eligible.reduce<Wallet | null>((best, wallet) => !best || Number(wallet.balance) < Number(best.balance) ? wallet : best, null);
-  const insight = (label: string, wallet: Wallet | null) => <div className="wallet-insight-row"><span className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"><WalletCards className="h-4 w-4" /></span><div className="min-w-0 flex-1"><p className="text-xs text-slate-500">{label}</p><p className="truncate text-sm font-semibold text-slate-950 dark:text-white">{wallet?.name ?? 'No eligible wallet'}</p></div>{wallet ? <p className="font-mono text-sm font-semibold text-slate-950 dark:text-white">{isPrivate ? '••••••' : formatCurrency(Number(wallet.balance))}</p> : null}</div>;
-  return <section className="wallet-support-card mt-4" aria-labelledby="wallet-insights"><h2 id="wallet-insights" className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-white"><Lightbulb className="h-5 w-5 text-brand-primary" />Wallet Insights</h2><div className="mt-4 space-y-3">{insight('Wallet with highest balance', highest)}{insight('Wallet with lowest positive balance', lowest)}<div className="rounded-xl bg-brand-soft p-3 text-sm text-brand-dark dark:bg-emerald-950/35 dark:text-emerald-100"><p className="font-semibold">Keep your wallets updated</p><p className="mt-1 text-xs leading-5">Regular balance updates make your available-balance and savings reservations more accurate.</p></div></div></section>;
+  const eligible = wallets.filter(
+    (wallet) => wallet.account_type !== 'credit' && Number(wallet.balance) > 0,
+  );
+  const highest = eligible.reduce<Wallet | null>(
+    (best, wallet) => (!best || Number(wallet.balance) > Number(best.balance) ? wallet : best),
+    null,
+  );
+  const lowest = eligible.reduce<Wallet | null>(
+    (best, wallet) => (!best || Number(wallet.balance) < Number(best.balance) ? wallet : best),
+    null,
+  );
+  const insight = (label: string, wallet: Wallet | null) => (
+    <div className="wallet-insight-row">
+      <span className="grid h-9 w-9 place-items-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        <WalletCards className="h-4 w-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-slate-500">{label}</p>
+        <p className="truncate text-sm font-semibold text-slate-950 dark:text-white">
+          {wallet?.name ?? 'No eligible wallet'}
+        </p>
+      </div>
+      {wallet ? (
+        <p className="font-mono text-sm font-semibold text-slate-950 dark:text-white">
+          {isPrivate ? '••••••' : formatCurrency(Number(wallet.balance))}
+        </p>
+      ) : null}
+    </div>
+  );
+  return (
+    <section className="wallet-support-card mt-4" aria-labelledby="wallet-insights">
+      <h2
+        id="wallet-insights"
+        className="flex items-center gap-2 text-lg font-semibold text-slate-950 dark:text-white"
+      >
+        <Lightbulb className="h-5 w-5 text-brand-primary" />
+        Wallet Insights
+      </h2>
+      <div className="mt-4 space-y-3">
+        {insight('Wallet with highest balance', highest)}
+        {insight('Wallet with lowest positive balance', lowest)}
+        <div className="rounded-xl bg-brand-soft p-3 text-sm text-brand-dark dark:bg-emerald-950/35 dark:text-emerald-100">
+          <p className="font-semibold">Keep your wallets updated</p>
+          <p className="mt-1 text-xs leading-5">
+            Regular balance updates make your available-balance and savings reservations more
+            accurate.
+          </p>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 function WalletDetailsModal({
@@ -323,9 +514,18 @@ function WalletDetailsModal({
   }
   if (error || !detail) {
     return (
-      <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300" role="alert">
+      <div
+        className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"
+        role="alert"
+      >
         <p>{error ?? 'Unable to load this wallet.'}</p>
-        <button type="button" onClick={onRetry} className="mt-3 min-h-10 rounded-lg px-3 font-semibold underline">Try again</button>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="mt-3 min-h-10 rounded-lg px-3 font-semibold underline"
+        >
+          Try again
+        </button>
       </div>
     );
   }
@@ -337,9 +537,11 @@ function WalletDetailsModal({
   const details = [
     ['Provider', institution.displayName],
     ['Wallet type', wallet.institution_type.replace('_', ' ')],
-    ['Account type', isCredit ? 'Credit' : wallet.account_type ?? 'Standard'],
+    ['Account type', isCredit ? 'Credit' : (wallet.account_type ?? 'Standard')],
     ['Currency', settings.currency],
-    ...(wallet.interest_rate != null ? [['Interest rate', `${Number(wallet.interest_rate)}%`]] : []),
+    ...(wallet.interest_rate != null
+      ? [['Interest rate', `${Number(wallet.interest_rate)}%`]]
+      : []),
   ];
   return (
     <div className="space-y-6">
@@ -348,32 +550,132 @@ function WalletDetailsModal({
           <InstitutionMark wallet={wallet} />
           <div className="min-w-0 flex-1">
             <h3 className="truncate text-xl font-bold">{wallet.name}</h3>
-            <p className="mt-1 text-sm capitalize text-white/80">{institution.displayName} · {wallet.institution_type.replace('_', ' ')} · {settings.currency}</p>
+            <p className="mt-1 text-sm capitalize text-white/80">
+              {institution.displayName} · {wallet.institution_type.replace('_', ' ')} ·{' '}
+              {settings.currency}
+            </p>
           </div>
         </div>
-        <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">{isCredit ? 'Outstanding balance' : 'Current balance'}</p>
-        <p className="mt-1 font-mono text-3xl font-bold">{isPrivate ? '••••••' : formatCurrency(balance, true, settings.currency)}</p>
-        {isCredit ? <p className="mt-2 text-sm text-white/80">{isPrivate ? '••••••' : formatCurrency(availableCredit, true, settings.currency)} available credit</p> : null}
+        <p className="mt-6 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/70">
+          {isCredit ? 'Outstanding balance' : 'Current balance'}
+        </p>
+        <p className="mt-1 font-mono text-3xl font-bold">
+          {isPrivate ? '••••••' : formatCurrency(balance, true, settings.currency)}
+        </p>
+        {isCredit ? (
+          <p className="mt-2 text-sm text-white/80">
+            {isPrivate ? '••••••' : formatCurrency(availableCredit, true, settings.currency)}{' '}
+            available credit
+          </p>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h3 className="font-semibold">Wallet details</h3>
-          {isCredit ? <button type="button" onClick={() => onRepay(wallet)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"><CreditCard className="h-4 w-4" /> Make payment</button> : <button type="button" onClick={() => onTransfer(wallet)} className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"><ArrowLeftRight className="h-4 w-4" /> Transfer</button>}
+          {isCredit ? (
+            <button
+              type="button"
+              onClick={() => onRepay(wallet)}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"
+            >
+              <CreditCard className="h-4 w-4" /> Make payment
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onTransfer(wallet)}
+              className="inline-flex min-h-10 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white hover:bg-brand-dark"
+            >
+              <ArrowLeftRight className="h-4 w-4" /> Transfer
+            </button>
+          )}
         </div>
         <dl className="mt-3 divide-y divide-slate-200 dark:divide-slate-700">
-          {details.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm"><dt className="text-slate-500">{label}</dt><dd className="text-right font-semibold capitalize">{value}</dd></div>)}
+          {details.map(([label, value]) => (
+            <div key={label} className="flex items-center justify-between gap-4 py-3 text-sm">
+              <dt className="text-slate-500">{label}</dt>
+              <dd className="text-right font-semibold capitalize">{value}</dd>
+            </div>
+          ))}
         </dl>
       </section>
 
       <section aria-labelledby="wallet-modal-transactions">
-        <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">Activity</p><h3 id="wallet-modal-transactions" className="mt-1 font-semibold">Recent transactions</h3></div><a href={`/app/wallets/${wallet.id}`} className="min-h-10 rounded-lg px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-soft">View all transactions</a></div>
-        {transactionError ? <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300"><p>{transactionError}</p><button type="button" onClick={onRetry} className="mt-2 font-semibold underline">Try again</button></div> : transactions.length ? <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">{transactions.slice(0, 8).map((transaction) => {
-          const raw = Number(transaction.amount);
-          const amount = isCredit && (transaction.kind === 'expense' || transaction.kind === 'bill') ? Math.abs(raw) : raw;
-          const incoming = amount >= 0;
-          return <article key={`${transaction.kind}-${transaction.id}`} className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 last:border-0 dark:border-slate-700"><span className={`grid h-10 w-10 place-items-center rounded-xl ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}>{transaction.kind.startsWith('transfer') ? <ArrowLeftRight className="h-4 w-4" /> : incoming ? <ArrowDownToLine className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{transaction.label}</p><p className="mt-1 text-xs capitalize text-slate-500">{transaction.category ?? transaction.kind.replaceAll('_', ' ')} · {formatDateShort(transaction.date.slice(0, 10))}</p></div><p className={`shrink-0 font-mono text-sm font-bold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : ''}`}>{isPrivate ? '••••••' : `${incoming ? '+' : '−'}${formatCurrency(Math.abs(amount), true, settings.currency)}`}</p></article>;
-        })}</div> : <div className="mt-3 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm dark:border-slate-700"><p className="font-semibold">No transactions yet.</p><p className="mt-1 text-slate-500">Transactions involving this wallet will appear here.</p></div>}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+              Activity
+            </p>
+            <h3 id="wallet-modal-transactions" className="mt-1 font-semibold">
+              Recent transactions
+            </h3>
+          </div>
+          <a
+            href={`/app/wallets/${wallet.id}`}
+            className="min-h-10 rounded-lg px-3 py-2 text-sm font-semibold text-brand-primary hover:bg-brand-soft"
+          >
+            View all transactions
+          </a>
+        </div>
+        {transactionError ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/30 dark:text-red-300">
+            <p>{transactionError}</p>
+            <button type="button" onClick={onRetry} className="mt-2 font-semibold underline">
+              Try again
+            </button>
+          </div>
+        ) : transactions.length ? (
+          <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-700">
+            {transactions.slice(0, 8).map((transaction) => {
+              const raw = Number(transaction.amount);
+              const amount =
+                isCredit && (transaction.kind === 'expense' || transaction.kind === 'bill')
+                  ? Math.abs(raw)
+                  : raw;
+              const incoming = amount >= 0;
+              return (
+                <article
+                  key={`${transaction.kind}-${transaction.id}`}
+                  className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 last:border-0 dark:border-slate-700"
+                >
+                  <span
+                    className={`grid h-10 w-10 place-items-center rounded-xl ${incoming ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200'}`}
+                  >
+                    {transaction.kind.startsWith('transfer') ? (
+                      <ArrowLeftRight className="h-4 w-4" />
+                    ) : incoming ? (
+                      <ArrowDownToLine className="h-4 w-4" />
+                    ) : (
+                      <ArrowUpRight className="h-4 w-4" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">{transaction.label}</p>
+                    <p className="mt-1 text-xs capitalize text-slate-500">
+                      {transaction.category ?? transaction.kind.replaceAll('_', ' ')} ·{' '}
+                      {formatDateShort(transaction.date.slice(0, 10))}
+                    </p>
+                  </div>
+                  <p
+                    className={`shrink-0 font-mono text-sm font-bold ${incoming ? 'text-emerald-700 dark:text-emerald-300' : ''}`}
+                  >
+                    {isPrivate
+                      ? '••••••'
+                      : `${incoming ? '+' : '−'}${formatCurrency(Math.abs(amount), true, settings.currency)}`}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="mt-3 rounded-2xl border border-dashed border-slate-300 p-6 text-center text-sm dark:border-slate-700">
+            <p className="font-semibold">No transactions yet.</p>
+            <p className="mt-1 text-slate-500">
+              Transactions involving this wallet will appear here.
+            </p>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -389,7 +691,9 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
   const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>('everyday');
   const [earnsInterest, setEarnsInterest] = useState(false);
   const [annualInterestRate, setAnnualInterestRate] = useState('');
-  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>('monthly');
+  const [interestFrequency, setInterestFrequency] = useState<
+    'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'
+  >('monthly');
   const institution = institutionFor(institutionKey);
   const canClassify = institution.supportedAccountTypes.length > 0;
   function selectInstitution(key: string) {
@@ -513,7 +817,11 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
       {accountType === 'debit' ? (
         <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
           Account purpose
-          <select value={accountPurpose} onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
+          <select
+            value={accountPurpose}
+            onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')}
+            className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+          >
             <option value="everyday">Everyday</option>
             <option value="savings">Savings</option>
           </select>
@@ -522,13 +830,43 @@ export function WalletForm({ onClose, onSaved }: WalletFormProps) {
       {accountType === 'debit' && accountPurpose === 'savings' ? (
         <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-slate-800/60">
           <label className="flex items-center gap-2 text-sm font-semibold">
-            <input type="checkbox" checked={earnsInterest} onChange={(event) => setEarnsInterest(event.target.checked)} />
+            <input
+              type="checkbox"
+              checked={earnsInterest}
+              onChange={(event) => setEarnsInterest(event.target.checked)}
+            />
             This account earns interest
           </label>
           {earnsInterest ? (
             <>
-              <label className="block text-sm font-semibold">Annual interest rate (%)<input type="number" min="0" max="100" step="0.01" value={annualInterestRate} onChange={(event) => setAnnualInterestRate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" /></label>
-              <label className="block text-sm font-semibold">Interest credited<select value={interestFrequency} onChange={(event) => setInterestFrequency(event.target.value as typeof interestFrequency)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi_annually">Semi-annually</option><option value="annually">Annually</option><option value="unspecified">Unspecified</option></select></label>
+              <label className="block text-sm font-semibold">
+                Annual interest rate (%)
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  value={annualInterestRate}
+                  onChange={(event) => setAnnualInterestRate(event.target.value)}
+                  className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                />
+              </label>
+              <label className="block text-sm font-semibold">
+                Interest credited
+                <select
+                  value={interestFrequency}
+                  onChange={(event) =>
+                    setInterestFrequency(event.target.value as typeof interestFrequency)
+                  }
+                  className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+                >
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="semi_annually">Semi-annually</option>
+                  <option value="annually">Annually</option>
+                  <option value="unspecified">Unspecified</option>
+                </select>
+              </label>
             </>
           ) : null}
         </div>
@@ -584,7 +922,13 @@ export function TransferForm({
   const totalOutflow = amountValue + feeValue;
   const availableBalance = Number(source?.available_balance ?? source?.balance ?? 0);
   const transferIsValid = Boolean(
-    source && destination && source.id !== destination.id && amountValue > 0 && feeValue >= 0 && date && totalOutflow <= availableBalance,
+    source &&
+    destination &&
+    source.id !== destination.id &&
+    amountValue > 0 &&
+    feeValue >= 0 &&
+    date &&
+    totalOutflow <= availableBalance,
   );
   useEffect(() => {
     setFromWallet(initialFrom);
@@ -668,11 +1012,13 @@ export function TransferForm({
                 className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
               >
                 <option value="">Select wallet</option>
-                {wallets.filter((wallet) => wallet.id !== fromWallet).map((wallet) => (
-                  <option key={wallet.id} value={wallet.id}>
-                    {wallet.name}
-                  </option>
-                ))}
+                {wallets
+                  .filter((wallet) => wallet.id !== fromWallet)
+                  .map((wallet) => (
+                    <option key={wallet.id} value={wallet.id}>
+                      {wallet.name}
+                    </option>
+                  ))}
               </select>
             </label>
           </div>
@@ -686,8 +1032,25 @@ export function TransferForm({
             <CurrencyInput id="transfer-fee" label="Transfer fee" value={fee} onChange={setFee} />
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Transfer date<input required type="date" value={date} onChange={(event) => setDate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
-            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Note <span className="font-normal text-slate-500">(optional)</span><input value={note} onChange={(event) => setNote(event.target.value)} maxLength={500} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950" /></label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Transfer date
+              <input
+                required
+                type="date"
+                value={date}
+                onChange={(event) => setDate(event.target.value)}
+                className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+              Note <span className="font-normal text-slate-500">(optional)</span>
+              <input
+                value={note}
+                onChange={(event) => setNote(event.target.value)}
+                maxLength={500}
+                className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm dark:border-slate-700 dark:bg-slate-950"
+              />
+            </label>
           </div>
           {amountValue > 0 ? (
             <div className="mt-4 grid gap-3 rounded-2xl bg-slate-50 p-4 text-sm sm:grid-cols-3 dark:bg-slate-800/60">
@@ -705,7 +1068,12 @@ export function TransferForm({
               </p>
             </div>
           ) : null}
-          {source && destination ? <p className="text-sm text-slate-500">From <strong className="text-slate-800 dark:text-slate-100">{source.name}</strong> to <strong className="text-slate-800 dark:text-slate-100">{destination.name}</strong>.</p> : null}
+          {source && destination ? (
+            <p className="text-sm text-slate-500">
+              From <strong className="text-slate-800 dark:text-slate-100">{source.name}</strong> to{' '}
+              <strong className="text-slate-800 dark:text-slate-100">{destination.name}</strong>.
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/60">
@@ -713,7 +1081,13 @@ export function TransferForm({
         </p>
       )}
       <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
-        {error || validationError ? <p className="text-sm text-red-600" role="alert">{validationError ?? error}</p> : <span />}
+        {error || validationError ? (
+          <p className="text-sm text-red-600" role="alert">
+            {validationError ?? error}
+          </p>
+        ) : (
+          <span />
+        )}
         <button
           type="button"
           onClick={onClose}
@@ -796,10 +1170,25 @@ export function CreditRepaymentForm({
           ))}
         </select>
       </label>
-      <CurrencyInput id="credit-repayment-principal" label="Principal" value={principal} onChange={setPrincipal} />
+      <CurrencyInput
+        id="credit-repayment-principal"
+        label="Principal"
+        value={principal}
+        onChange={setPrincipal}
+      />
       <div className="grid gap-4 sm:grid-cols-2">
-        <CurrencyInput id="credit-repayment-interest" label="Interest (optional)" value={interest} onChange={setInterest} />
-        <CurrencyInput id="credit-repayment-fee" label="Fee (optional)" value={fee} onChange={setFee} />
+        <CurrencyInput
+          id="credit-repayment-interest"
+          label="Interest (optional)"
+          value={interest}
+          onChange={setInterest}
+        />
+        <CurrencyInput
+          id="credit-repayment-fee"
+          label="Fee (optional)"
+          value={fee}
+          onChange={setFee}
+        />
       </div>
       <label className="block text-sm font-semibold">
         Payment date
@@ -811,15 +1200,34 @@ export function CreditRepaymentForm({
           className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
         />
       </label>
-      {total > 0 ? <p className="text-sm text-slate-500">Total wallet outflow: {formatCurrency(total)}</p> : null}
-      {Number(principal) > outstanding ? (
-        <p className="text-sm text-red-600" role="alert">Principal cannot exceed the outstanding balance.</p>
+      {total > 0 ? (
+        <p className="text-sm text-slate-500">Total wallet outflow: {formatCurrency(total)}</p>
       ) : null}
-      {error ? <p className="text-sm text-red-600" role="alert">{error}</p> : null}
+      {Number(principal) > outstanding ? (
+        <p className="text-sm text-red-600" role="alert">
+          Principal cannot exceed the outstanding balance.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="text-sm text-red-600" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
-        <button type="button" onClick={onClose} className="min-h-11 rounded-xl px-4 text-sm font-semibold">Cancel</button>
         <button
-          disabled={isSubmitting || !paymentWalletId || Number(principal) <= 0 || Number(principal) > outstanding}
+          type="button"
+          onClick={onClose}
+          className="min-h-11 rounded-xl px-4 text-sm font-semibold"
+        >
+          Cancel
+        </button>
+        <button
+          disabled={
+            isSubmitting ||
+            !paymentWalletId ||
+            Number(principal) <= 0 ||
+            Number(principal) > outstanding
+          }
           className="min-h-11 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-60"
         >
           {isSubmitting ? 'Saving…' : 'Save repayment'}
@@ -846,9 +1254,16 @@ export function EditWalletForm({
   const [annualInterestRate, setAnnualInterestRate] = useState(
     wallet.annual_interest_rate == null ? '' : String(wallet.annual_interest_rate),
   );
-  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(wallet.account_purpose ?? 'everyday');
+  const [accountPurpose, setAccountPurpose] = useState<'everyday' | 'savings'>(
+    wallet.account_purpose ?? 'everyday',
+  );
   const [earnsInterest, setEarnsInterest] = useState(wallet.earns_interest === true);
-  const [interestFrequency, setInterestFrequency] = useState<'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'>((wallet.interest_credit_frequency as 'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? 'monthly');
+  const [interestFrequency, setInterestFrequency] = useState<
+    'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified'
+  >(
+    (wallet.interest_credit_frequency as
+      'monthly' | 'quarterly' | 'semi_annually' | 'annually' | 'unspecified') ?? 'monthly',
+  );
   const [transferFee, setTransferFee] = useState(
     wallet.default_outgoing_transfer_fee == null
       ? ''
@@ -913,9 +1328,42 @@ export function EditWalletForm({
       ) : null}
       {wallet.account_type === 'debit' ? (
         <>
-          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">Account purpose<select value={accountPurpose} onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="everyday">Everyday</option><option value="savings">Savings</option></select></label>
-          {accountPurpose === 'savings' ? <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={earnsInterest} onChange={(event) => setEarnsInterest(event.target.checked)} /> This account earns interest</label> : null}
-          {accountPurpose === 'savings' && earnsInterest ? <select value={interestFrequency} onChange={(event) => setInterestFrequency(event.target.value as typeof interestFrequency)} className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="semi_annually">Semi-annually</option><option value="annually">Annually</option><option value="unspecified">Unspecified</option></select> : null}
+          <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+            Account purpose
+            <select
+              value={accountPurpose}
+              onChange={(event) => setAccountPurpose(event.target.value as 'everyday' | 'savings')}
+              className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+            >
+              <option value="everyday">Everyday</option>
+              <option value="savings">Savings</option>
+            </select>
+          </label>
+          {accountPurpose === 'savings' ? (
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={earnsInterest}
+                onChange={(event) => setEarnsInterest(event.target.checked)}
+              />{' '}
+              This account earns interest
+            </label>
+          ) : null}
+          {accountPurpose === 'savings' && earnsInterest ? (
+            <select
+              value={interestFrequency}
+              onChange={(event) =>
+                setInterestFrequency(event.target.value as typeof interestFrequency)
+              }
+              className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+            >
+              <option value="monthly">Monthly</option>
+              <option value="quarterly">Quarterly</option>
+              <option value="semi_annually">Semi-annually</option>
+              <option value="annually">Annually</option>
+              <option value="unspecified">Unspecified</option>
+            </select>
+          ) : null}
         </>
       ) : null}
       <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -1024,6 +1472,79 @@ export function DepositForm({
   );
 }
 
+export function InterestForm({
+  wallet,
+  onSaved,
+  onClose,
+}: {
+  wallet: Wallet;
+  onSaved: () => void;
+  onClose: () => void;
+}) {
+  const { mutate, isSubmitting, error } = useApiMutation();
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [idempotencyKey] = useState(requestKey);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    await mutate(`/wallets/${wallet.id}/interest`, {
+      method: 'POST',
+      body: JSON.stringify({
+        amount: Number(amount),
+        date: new Date().toISOString().slice(0, 10),
+        note: note.trim() || null,
+        idempotency_key: idempotencyKey,
+      }),
+    });
+    onSaved();
+    onClose();
+  }
+
+  return (
+    <form onSubmit={(event) => void submit(event)} className="space-y-5">
+      <div className="rounded-xl bg-emerald-50 p-4 text-sm dark:bg-emerald-950/30">
+        <p className="font-semibold text-slate-900 dark:text-white">{wallet.name}</p>
+        <p className="mt-1 text-xs text-slate-500">
+          This creates one confirmed interest-income record and updates the wallet balance.
+        </p>
+      </div>
+      <CurrencyInput
+        id={`wallet-${wallet.id}-interest`}
+        label="Interest amount"
+        value={amount}
+        onChange={setAmount}
+      />
+      <label className="block text-sm font-semibold text-slate-700 dark:text-slate-200">
+        Note <span className="font-normal text-slate-400">(optional)</span>
+        <input
+          value={note}
+          onChange={(event) => setNote(event.target.value)}
+          maxLength={500}
+          placeholder="Interest credit description"
+          className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 outline-none focus:ring-2 focus:ring-brand-primary dark:border-slate-700 dark:bg-slate-950"
+        />
+      </label>
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <div className="flex justify-end gap-3 border-t border-slate-200 pt-5 dark:border-slate-700">
+        <button
+          type="button"
+          onClick={onClose}
+          className="min-h-11 rounded-xl px-4 text-sm font-semibold hover:bg-slate-100 dark:hover:bg-slate-800"
+        >
+          Cancel
+        </button>
+        <button
+          disabled={isSubmitting || Number(amount) <= 0}
+          className="min-h-11 rounded-xl bg-brand-primary px-5 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {isSubmitting ? 'Recording…' : 'Record interest'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
 type LoanDirection = 'lent' | 'borrowed';
 
 export function LoanRecordForm({
@@ -1042,9 +1563,19 @@ export function LoanRecordForm({
   const [counterparty, setCounterparty] = useState(loan?.counterparty ?? '');
   const [principal, setPrincipal] = useState(loan ? String(loan.original_principal ?? '') : '');
   const [walletId, setWalletId] = useState(loan?.wallet_id ?? wallets[0]?.id ?? '');
-  const [interestType, setInterestType] = useState<'none' | 'fixed' | 'simple'>(loan?.interest_type ?? 'none');
-  const [interest, setInterest] = useState(loan?.interest_type === 'fixed' ? String(loan.fixed_interest_amount ?? '') : loan?.interest_type === 'simple' ? String(loan.interest_rate ?? '') : '');
-  const [startDate, setStartDate] = useState(loan?.start_date ?? new Date().toISOString().slice(0, 10));
+  const [interestType, setInterestType] = useState<'none' | 'fixed' | 'simple'>(
+    loan?.interest_type ?? 'none',
+  );
+  const [interest, setInterest] = useState(
+    loan?.interest_type === 'fixed'
+      ? String(loan.fixed_interest_amount ?? '')
+      : loan?.interest_type === 'simple'
+        ? String(loan.interest_rate ?? '')
+        : '',
+  );
+  const [startDate, setStartDate] = useState(
+    loan?.start_date ?? new Date().toISOString().slice(0, 10),
+  );
   const [dueDate, setDueDate] = useState(loan?.due_date ?? '');
   const [notes, setNotes] = useState(loan?.notes ?? '');
 
@@ -1070,32 +1601,38 @@ export function LoanRecordForm({
 
   return (
     <form onSubmit={(event) => void submit(event)} className="space-y-5">
-      {!loan ? <fieldset>
-        <legend className="text-sm font-semibold">What happened?</legend>
-        <div className="mt-2 grid grid-cols-2 gap-3" role="radiogroup" aria-label="Loan direction">
-          {(['lent', 'borrowed'] as const).map((value) => (
-            <label
-              key={value}
-              className={`cursor-pointer rounded-xl border p-3 ${direction === value ? 'border-brand-primary bg-brand-soft' : 'border-slate-200 dark:border-slate-700'}`}
-            >
-              <input
-                type="radio"
-                name="loan-direction"
-                value={value}
-                checked={direction === value}
-                onChange={() => setDirection(value)}
-                className="sr-only"
-              />
-              <span className="block text-sm font-semibold">
-                {value === 'lent' ? 'I lent money' : 'I borrowed money'}
-              </span>
-              <span className="mt-1 block text-[11px] text-slate-500">
-                {value === 'lent' ? 'Money is owed to me' : 'I owe someone'}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset> : null}
+      {!loan ? (
+        <fieldset>
+          <legend className="text-sm font-semibold">What happened?</legend>
+          <div
+            className="mt-2 grid grid-cols-2 gap-3"
+            role="radiogroup"
+            aria-label="Loan direction"
+          >
+            {(['lent', 'borrowed'] as const).map((value) => (
+              <label
+                key={value}
+                className={`cursor-pointer rounded-xl border p-3 ${direction === value ? 'border-brand-primary bg-brand-soft' : 'border-slate-200 dark:border-slate-700'}`}
+              >
+                <input
+                  type="radio"
+                  name="loan-direction"
+                  value={value}
+                  checked={direction === value}
+                  onChange={() => setDirection(value)}
+                  className="sr-only"
+                />
+                <span className="block text-sm font-semibold">
+                  {value === 'lent' ? 'I lent money' : 'I borrowed money'}
+                </span>
+                <span className="mt-1 block text-[11px] text-slate-500">
+                  {value === 'lent' ? 'Money is owed to me' : 'I owe someone'}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
       <label className="block text-sm font-semibold">
         {direction === 'lent' ? 'Borrower' : 'Lender'}
         <input
@@ -1146,7 +1683,13 @@ export function LoanRecordForm({
         </label>
         <label className="block text-sm font-semibold">
           Start date
-          <input type="date" required value={startDate} onChange={(event) => setStartDate(event.target.value)} className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950" />
+          <input
+            type="date"
+            required
+            value={startDate}
+            onChange={(event) => setStartDate(event.target.value)}
+            className="mt-2 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-950"
+          />
         </label>
         <label className="block text-sm font-semibold">
           Due date <span className="font-normal text-slate-400">(optional)</span>
@@ -1378,10 +1921,14 @@ function LoansDebtCard({
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-        <h2 className="text-xl font-bold">Loans &amp; debt</h2>
-        <p className="mt-1 text-sm text-slate-500">Stay on top of what you owe and what’s owed to you</p>
+          <h2 className="text-xl font-bold">Loans &amp; debt</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Stay on top of what you owe and what’s owed to you
+          </p>
         </div>
-        <span className="hidden text-sm font-semibold text-brand-primary sm:inline-flex">View details</span>
+        <span className="hidden text-sm font-semibold text-brand-primary sm:inline-flex">
+          View details
+        </span>
         <ChevronRight className="h-5 w-5 text-slate-400" />
       </div>
       <div className="mt-5 grid grid-cols-2 gap-3">
@@ -1434,8 +1981,29 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
     () => liquidWallets.reduce((total, wallet) => total + Number(wallet.balance), 0),
     [liquidWallets],
   );
-  const reservedForGoals = useMemo(() => liquidWallets.reduce((total, wallet) => total + Math.max(0, Number(wallet.reserved_for_goals) || 0), 0), [liquidWallets]);
-  const availableBalance = useMemo(() => liquidWallets.reduce((total, wallet) => total + Math.max(0, wallet.available_balance === undefined ? Number(wallet.balance) - (Number(wallet.reserved_for_goals) || 0) : Number(wallet.available_balance)), 0), [liquidWallets]);
+  const reservedForGoals = useMemo(
+    () =>
+      liquidWallets.reduce(
+        (total, wallet) => total + Math.max(0, Number(wallet.reserved_for_goals) || 0),
+        0,
+      ),
+    [liquidWallets],
+  );
+  const availableBalance = useMemo(
+    () =>
+      liquidWallets.reduce(
+        (total, wallet) =>
+          total +
+          Math.max(
+            0,
+            wallet.available_balance === undefined
+              ? Number(wallet.balance) - (Number(wallet.reserved_for_goals) || 0)
+              : Number(wallet.available_balance),
+          ),
+        0,
+      ),
+    [liquidWallets],
+  );
   const visibleWallets = useMemo(() => {
     const query = search.trim().toLowerCase().replace(/[-_]/g, ' ');
     return wallets.filter((wallet) => {
@@ -1486,158 +2054,250 @@ export function WalletsPage({ session, onSignOut }: { session: Session; onSignOu
       onSignOut={onSignOut}
     >
       <div className="wallet-page">
-      {walletsQuery.isLoading ? (
-        <>
-          <WalletsSkeleton />
-          <SlowLoadNotice show={walletsQuery.isSlowLoading} />
-        </>
-      ) : null}
-      {walletsQuery.error ? (
-        <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{walletsQuery.error}</p>
-      ) : null}
-      {!walletsQuery.isLoading ? (
-        <>
-          <div className="wallet-dashboard-grid">
-          <main className="min-w-0">
-          <section className="wallet-overview-layout">
-            <article className="wallet-hero relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
-              <div className="wallet-summary-left"><div className="flex items-center gap-3"><p className="text-sm font-semibold text-white/90">Total Balance</p><button type="button" onClick={togglePrivacy} className="rounded-lg p-1 text-white/85 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70" aria-label={isPrivate ? 'Show wallet balances' : 'Hide wallet balances'}>{isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div><p className="mt-3 font-mono text-4xl font-bold"><BalanceAmount value={liquidBalance} hidden={isPrivate} /></p><p className="mt-2 text-sm text-white/80">Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'}</p></div>
-              <div className="wallet-summary-right"><span className="wallet-currency-display">{settings.currency} (₱)</span><div className="mt-3 flex items-center gap-2"><p className="text-sm font-medium text-white/90">Available Balance</p><Info className="h-4 w-4 text-white/75" aria-label="Balance available to spend after savings reservations" /></div><p className="mt-1 font-mono text-2xl font-bold">{isPrivate ? '••••••' : formatCurrency(availableBalance)}</p><p className="mt-1 text-xs text-white/75">Amount you can use</p><div className="wallet-available-progress mt-3" aria-label={isPrivate ? 'Available balance hidden' : `${formatCurrency(availableBalance)} available of ${formatCurrency(liquidBalance)}`}><span style={{ width: `${liquidBalance > 0 ? Math.min(100, (availableBalance / liquidBalance) * 100) : 0}%` }} /></div><p className="mt-2 flex items-center gap-2 text-xs text-white/90"><LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />{isPrivate ? '••••••' : formatCurrency(reservedForGoals)} in savings/goals</p></div>
-              <svg
-                aria-hidden="true"
-                viewBox="0 0 480 130"
-                preserveAspectRatio="none"
-                className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-25"
-              >
-                <path
-                  d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                />
-                <path
-                  d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20 L480 130 L0 130 Z"
-                  fill="currentColor"
-                  opacity="0.12"
-                />
-              </svg>
-            </article>
-          </section>
-          <section className="wallet-wallets-section mt-7">
-            <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
-              <h2 className="wallet-section-title font-semibold">Your wallets <span className="text-base font-medium text-slate-500">({visibleWallets.length})</span></h2>
-              <DataToolbar className="justify-end">
-                <SearchField
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search wallets"
-                  aria-label="Search wallets"
-                />
-                <label className={`relative inline-flex min-h-10 items-center ${controlSurfaceClass}`}>
-                  <span className="sr-only">Filter wallets by type</span>
-                  <select
-                    value={walletType}
-                    onChange={(event) => setWalletType(event.target.value as WalletTypeFilter)}
-                    aria-label="Filter wallets by type"
-                    className="min-h-10 max-w-40 cursor-pointer rounded-xl bg-transparent px-3 pr-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50"
-                  >
-                    {walletTypeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>{option.label}</option>
-                    ))}
-                  </select>
-                </label>
-                <div
-                  className={`inline-flex ${controlSurfaceClass} p-0.5`}
-                  role="group"
-                  aria-label="Wallet view"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setView('grid')}
-                    aria-label="Grid view"
-                    aria-pressed={view === 'grid'}
-                    className={`grid h-9 w-9 place-items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${view === 'grid' ? 'bg-brand-soft text-brand-primary dark:bg-emerald-950/40' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                  >
-                    <Grid2X2 className="h-4 w-4" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setView('list')}
-                    aria-label="List view"
-                    aria-pressed={view === 'list'}
-                    className={`grid h-9 w-9 place-items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${view === 'list' ? 'bg-brand-soft text-brand-primary dark:bg-emerald-950/40' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
-                  >
-                    <List className="h-4 w-4" />
-                  </button>
-                </div>
-              </DataToolbar>
-            </div>
-            {visibleWallets.length ? (
-              view === 'grid' ? (
-                <div className="wallet-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  {visibleWallets.map((wallet) => (
-                    <WalletCard
-                      key={wallet.id}
-                      wallet={wallet}
-                      isPrivate={isPrivate}
-                      onEdit={setEditingWallet}
-                      onDelete={setDeletingWallet}
-                      onRepay={setCreditRepaymentWallet}
-                      onOpen={setDetailWallet}
-                    />
-                  ))}
-                  <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />
-                </div>
-              ) : <>
-                <WalletList
-                  wallets={visibleWallets}
+        {walletsQuery.isLoading ? (
+          <>
+            <WalletsSkeleton />
+            <SlowLoadNotice show={walletsQuery.isSlowLoading} />
+          </>
+        ) : null}
+        {walletsQuery.error ? (
+          <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{walletsQuery.error}</p>
+        ) : null}
+        {!walletsQuery.isLoading ? (
+          <>
+            <div className="wallet-dashboard-grid">
+              <main className="min-w-0">
+                <section className="wallet-overview-layout">
+                  <article className="wallet-hero relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-dark via-brand-primary to-emerald-300 p-6 text-white shadow-sm">
+                    <div className="wallet-summary-left">
+                      <div className="flex items-center gap-3">
+                        <p className="text-sm font-semibold text-white/90">Total Balance</p>
+                        <button
+                          type="button"
+                          onClick={togglePrivacy}
+                          className="rounded-lg p-1 text-white/85 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/70"
+                          aria-label={isPrivate ? 'Show wallet balances' : 'Hide wallet balances'}
+                        >
+                          {isPrivate ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
+                      <p className="mt-3 font-mono text-4xl font-bold">
+                        <BalanceAmount value={liquidBalance} hidden={isPrivate} />
+                      </p>
+                      <p className="mt-2 text-sm text-white/80">
+                        Across {liquidWallets.length} wallet{liquidWallets.length === 1 ? '' : 's'}
+                      </p>
+                    </div>
+                    <div className="wallet-summary-right">
+                      <span className="wallet-currency-display">{settings.currency} (₱)</span>
+                      <div className="mt-3 flex items-center gap-2">
+                        <p className="text-sm font-medium text-white/90">Available Balance</p>
+                        <Info
+                          className="h-4 w-4 text-white/75"
+                          aria-label="Balance available to spend after savings reservations"
+                        />
+                      </div>
+                      <p className="mt-1 font-mono text-2xl font-bold">
+                        {isPrivate ? '••••••' : formatCurrency(availableBalance)}
+                      </p>
+                      <p className="mt-1 text-xs text-white/75">Amount you can use</p>
+                      <div
+                        className="wallet-available-progress mt-3"
+                        aria-label={
+                          isPrivate
+                            ? 'Available balance hidden'
+                            : `${formatCurrency(availableBalance)} available of ${formatCurrency(liquidBalance)}`
+                        }
+                      >
+                        <span
+                          style={{
+                            width: `${liquidBalance > 0 ? Math.min(100, (availableBalance / liquidBalance) * 100) : 0}%`,
+                          }}
+                        />
+                      </div>
+                      <p className="mt-2 flex items-center gap-2 text-xs text-white/90">
+                        <LockKeyhole className="h-3.5 w-3.5" aria-hidden="true" />
+                        {isPrivate ? '••••••' : formatCurrency(reservedForGoals)} in savings/goals
+                      </p>
+                    </div>
+                    <svg
+                      aria-hidden="true"
+                      viewBox="0 0 480 130"
+                      preserveAspectRatio="none"
+                      className="pointer-events-none absolute inset-x-0 bottom-0 h-28 w-full opacity-25"
+                    >
+                      <path
+                        d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                      />
+                      <path
+                        d="M0 106 C44 118, 76 68, 117 89 S177 114, 213 68 S283 38, 319 66 S378 92, 420 34 S454 42, 480 20 L480 130 L0 130 Z"
+                        fill="currentColor"
+                        opacity="0.12"
+                      />
+                    </svg>
+                  </article>
+                </section>
+                <section className="wallet-wallets-section mt-7">
+                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap">
+                    <h2 className="wallet-section-title font-semibold">
+                      Your wallets{' '}
+                      <span className="text-base font-medium text-slate-500">
+                        ({visibleWallets.length})
+                      </span>
+                    </h2>
+                    <DataToolbar className="justify-end">
+                      <SearchField
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Search wallets"
+                        aria-label="Search wallets"
+                      />
+                      <label
+                        className={`relative inline-flex min-h-10 items-center ${controlSurfaceClass}`}
+                      >
+                        <span className="sr-only">Filter wallets by type</span>
+                        <select
+                          value={walletType}
+                          onChange={(event) =>
+                            setWalletType(event.target.value as WalletTypeFilter)
+                          }
+                          aria-label="Filter wallets by type"
+                          className="min-h-10 max-w-40 cursor-pointer rounded-xl bg-transparent px-3 pr-2 text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50"
+                        >
+                          {walletTypeOptions.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <div
+                        className={`inline-flex ${controlSurfaceClass} p-0.5`}
+                        role="group"
+                        aria-label="Wallet view"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setView('grid')}
+                          aria-label="Grid view"
+                          aria-pressed={view === 'grid'}
+                          className={`grid h-9 w-9 place-items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${view === 'grid' ? 'bg-brand-soft text-brand-primary dark:bg-emerald-950/40' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                        >
+                          <Grid2X2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setView('list')}
+                          aria-label="List view"
+                          aria-pressed={view === 'list'}
+                          className={`grid h-9 w-9 place-items-center rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary/50 ${view === 'list' ? 'bg-brand-soft text-brand-primary dark:bg-emerald-950/40' : 'text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'}`}
+                        >
+                          <List className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </DataToolbar>
+                  </div>
+                  {visibleWallets.length ? (
+                    view === 'grid' ? (
+                      <div className="wallet-grid grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                        {visibleWallets.map((wallet) => (
+                          <WalletCard
+                            key={wallet.id}
+                            wallet={wallet}
+                            isPrivate={isPrivate}
+                            onEdit={setEditingWallet}
+                            onDelete={setDeletingWallet}
+                            onRepay={setCreditRepaymentWallet}
+                            onOpen={setDetailWallet}
+                          />
+                        ))}
+                        <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />
+                      </div>
+                    ) : (
+                      <>
+                        <WalletList
+                          wallets={visibleWallets}
+                          isPrivate={isPrivate}
+                          onEdit={setEditingWallet}
+                          onDelete={setDeletingWallet}
+                          onRepay={setCreditRepaymentWallet}
+                          onOpen={setDetailWallet}
+                        />
+                        <AddWalletTemplate list onAdd={() => setIsAddWalletOpen(true)} />
+                      </>
+                    )
+                  ) : wallets.length ? (
+                    <>
+                      <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
+                        <p className="font-semibold text-slate-700 dark:text-slate-200">
+                          No wallets match your search or type filter.
+                        </p>
+                        <p className="mt-1">Try another search or clear the current filter.</p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSearch('');
+                            setWalletType('all');
+                          }}
+                          className="mt-4 font-semibold text-brand-primary hover:text-brand-dark"
+                        >
+                          Clear filters
+                        </button>
+                      </div>
+                      <div className="mt-4">
+                        <AddWalletTemplate
+                          list={view === 'list'}
+                          onAdd={() => setIsAddWalletOpen(true)}
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />
+                  )}
+                </section>
+              </main>
+              <aside className="wallet-support-panel">
+                <WalletRecentTransactions
+                  expenses={expenses ?? []}
+                  income={recordedIncome ?? []}
+                  wallets={wallets}
                   isPrivate={isPrivate}
-                  onEdit={setEditingWallet}
-                  onDelete={setDeletingWallet}
-                  onRepay={setCreditRepaymentWallet}
-                  onOpen={setDetailWallet}
                 />
-                <AddWalletTemplate list onAdd={() => setIsAddWalletOpen(true)} />
-              </>
-            ) : wallets.length ? (
-              <>
-                <div className="rounded-2xl border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500 dark:border-slate-700">
-                  <p className="font-semibold text-slate-700 dark:text-slate-200">
-                    No wallets match your search or type filter.
-                  </p>
-                  <p className="mt-1">Try another search or clear the current filter.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearch('');
-                      setWalletType('all');
-                    }}
-                    className="mt-4 font-semibold text-brand-primary hover:text-brand-dark"
-                  >
-                    Clear filters
-                  </button>
-                </div>
-                <div className="mt-4">
-                  <AddWalletTemplate list={view === 'list'} onAdd={() => setIsAddWalletOpen(true)} />
-                </div>
-              </>
-            ) : <AddWalletTemplate onAdd={() => setIsAddWalletOpen(true)} />}
-          </section>
-          </main>
-          <aside className="wallet-support-panel">
-            <WalletRecentTransactions expenses={expenses ?? []} income={recordedIncome ?? []} wallets={wallets} isPrivate={isPrivate} />
-            <WalletInsights wallets={wallets} isPrivate={isPrivate} />
-          </aside>
-          </div>
-        </>
-      ) : null}
-      <nav className="wallet-bottom-nav" aria-label="Primary navigation">
-        <a href="/app" aria-label="Home"><Home /><span>Home</span></a>
-        <a href="/app/wallets" className="is-active" aria-current="page" aria-label="Wallet, active"><WalletCards /><span>Wallet</span><i /></a>
-        <a href="/app/ocr-scanner" className="wallet-scan-button" aria-label="Open scanner"><ScanLine /></a>
-        <a href="/app/budget" aria-label="Budget"><PieChart /><span>Budget</span></a>
-        <a href="/app/reports" aria-label="Reports"><BarChart3 /><span>Reports</span></a>
-      </nav>
+                <WalletInsights wallets={wallets} isPrivate={isPrivate} />
+              </aside>
+            </div>
+          </>
+        ) : null}
+        <nav className="wallet-bottom-nav" aria-label="Primary navigation">
+          <a href="/app" aria-label="Home">
+            <Home />
+            <span>Home</span>
+          </a>
+          <a
+            href="/app/wallets"
+            className="is-active"
+            aria-current="page"
+            aria-label="Wallet, active"
+          >
+            <WalletCards />
+            <span>Wallet</span>
+            <i />
+          </a>
+          <a href="/app/ocr-scanner" className="wallet-scan-button" aria-label="Open scanner">
+            <ScanLine />
+          </a>
+          <a href="/app/budget" aria-label="Budget">
+            <PieChart />
+            <span>Budget</span>
+          </a>
+          <a href="/app/reports" aria-label="Reports">
+            <BarChart3 />
+            <span>Reports</span>
+          </a>
+        </nav>
       </div>
       <SlideOver
         open={Boolean(detailWallet)}

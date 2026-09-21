@@ -293,6 +293,7 @@ export const walletInterestSchema = z
     ),
     date: safeDate,
     note: z.string().trim().max(500).nullable().optional(),
+    idempotency_key: z.string().trim().min(8).max(200),
   })
   .strict();
 
@@ -306,22 +307,45 @@ export const creditCardFinanceChargeSchema = z
   })
   .strict();
 
-export const creditCardStatementSchema = z.object({
-  period_start: safeDate,
-  period_end: safeDate,
-  closing_date: safeDate,
-  due_date: safeDate,
-  statement_balance: currencyAmount,
-  minimum_due: currencyAmount,
-  rate_used: z.coerce.number().min(0).max(100).nullable().optional(),
-  rate_basis_used: z.enum(['annual', 'monthly']).nullable().optional(),
-  note: z.string().trim().max(500).nullable().optional(),
-}).strict().superRefine((value, ctx) => {
-  if (value.period_start > value.period_end) ctx.addIssue({ code: 'custom', path: ['period_end'], message: 'Period end must be on or after period start.' });
-  if (value.closing_date < value.period_end) ctx.addIssue({ code: 'custom', path: ['closing_date'], message: 'Closing date must be on or after period end.' });
-  if (value.due_date <= value.closing_date) ctx.addIssue({ code: 'custom', path: ['due_date'], message: 'Due date must be after closing date.' });
-  if (value.minimum_due > value.statement_balance) ctx.addIssue({ code: 'custom', path: ['minimum_due'], message: 'Minimum due cannot exceed statement balance.' });
-});
+export const creditCardStatementSchema = z
+  .object({
+    period_start: safeDate,
+    period_end: safeDate,
+    closing_date: safeDate,
+    due_date: safeDate,
+    statement_balance: currencyAmount,
+    minimum_due: currencyAmount,
+    rate_used: z.coerce.number().min(0).max(100).nullable().optional(),
+    rate_basis_used: z.enum(['annual', 'monthly']).nullable().optional(),
+    note: z.string().trim().max(500).nullable().optional(),
+  })
+  .strict()
+  .superRefine((value, ctx) => {
+    if (value.period_start > value.period_end)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['period_end'],
+        message: 'Period end must be on or after period start.',
+      });
+    if (value.closing_date < value.period_end)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['closing_date'],
+        message: 'Closing date must be on or after period end.',
+      });
+    if (value.due_date <= value.closing_date)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['due_date'],
+        message: 'Due date must be after closing date.',
+      });
+    if (value.minimum_due > value.statement_balance)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['minimum_due'],
+        message: 'Minimum due cannot exceed statement balance.',
+      });
+  });
 
 export const creditRepaymentSchema = z
   .object({

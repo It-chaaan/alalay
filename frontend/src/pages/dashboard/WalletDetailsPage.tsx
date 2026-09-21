@@ -24,7 +24,13 @@ import { useApiQuery } from '../../hooks/useApiQuery';
 import { useBalancePrivacy } from '../../hooks/useBalancePrivacy';
 import type { Wallet } from '../../hooks/types';
 import { formatCurrency, formatDateShort } from '../../utils/formatters';
-import { CreditRepaymentForm, DepositForm, EditWalletForm, TransferForm } from './WalletsPage';
+import {
+  CreditRepaymentForm,
+  DepositForm,
+  EditWalletForm,
+  InterestForm,
+  TransferForm,
+} from './WalletsPage';
 
 type WalletTransaction = {
   id: string;
@@ -402,6 +408,7 @@ export function WalletDetailsPage({
   const { isPrivate, togglePrivacy } = useBalancePrivacy();
   const [editing, setEditing] = useState(false);
   const [depositing, setDepositing] = useState(false);
+  const [recordingInterest, setRecordingInterest] = useState(false);
   const [transferring, setTransferring] = useState(false);
   const [repaying, setRepaying] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -484,6 +491,15 @@ export function WalletDetailsPage({
                     <ArrowDownToLine className="h-4 w-4" aria-hidden="true" /> Deposit
                   </button>
                 ) : null}
+                {wallet.earns_interest && wallet.account_type !== 'credit' ? (
+                  <button
+                    type="button"
+                    onClick={() => setRecordingInterest(true)}
+                    className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border border-brand-primary px-5 text-sm font-semibold text-brand-primary hover:bg-brand-soft sm:flex-none"
+                  >
+                    Record interest
+                  </button>
+                ) : null}
                 {wallet.account_type !== 'credit' && liquidWallets.length > 1 ? (
                   <button
                     type="button"
@@ -528,6 +544,18 @@ export function WalletDetailsPage({
             description={`Add money directly to ${wallet.name}.`}
           >
             <DepositForm wallet={wallet} onClose={() => setDepositing(false)} onSaved={refresh} />
+          </SlideOver>
+          <SlideOver
+            open={recordingInterest}
+            onClose={() => setRecordingInterest(false)}
+            title="Record interest"
+            description={`Record a confirmed interest credit for ${wallet.name}.`}
+          >
+            <InterestForm
+              wallet={wallet}
+              onClose={() => setRecordingInterest(false)}
+              onSaved={refresh}
+            />
           </SlideOver>
           <SlideOver
             open={transferring}

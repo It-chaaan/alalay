@@ -3,7 +3,10 @@ import { createOwned, getOwned, listOwned, softDeleteOwned, updateOwned } from '
 import { AppError } from '../utils/api.js';
 import { invalidateReportsForUser } from './analytics.service.js';
 import { expandIncomeRows } from './income-recurrence.service.js';
-import { nextUpcomingRenewal, type SubscriptionBillingCycle } from './subscription-billing.service.js';
+import {
+  nextUpcomingRenewal,
+  type SubscriptionBillingCycle,
+} from './subscription-billing.service.js';
 
 export function makeResourceService(table: TableName) {
   return {
@@ -16,9 +19,14 @@ export function makeResourceService(table: TableName) {
     },
     get: (userId: string, id: string) => getOwned(table, userId, id),
     create: async (userId: string, payload: Record<string, unknown>) => {
-      const result = table === 'income' && payload.is_recurring === true
-        ? await createIncomeSchedule(userId, payload)
-        : await createOwned(table, userId, table === 'income' ? scheduleIncomePayload(payload) : payload);
+      const result =
+        table === 'income' && payload.is_recurring === true
+          ? await createIncomeSchedule(userId, payload)
+          : await createOwned(
+              table,
+              userId,
+              table === 'income' ? scheduleIncomePayload(payload) : payload,
+            );
       invalidateReportsForUser(userId);
       return result;
     },
@@ -82,6 +90,28 @@ export function makeResourceService(table: TableName) {
         invalidateReportsForUser(userId);
         return { id: data };
       }
+      if (table === 'expenses' || table === 'subscriptions') {
+        const { data, error } = await client().rpc('soft_delete_owned_resource', {
+          target_resource_id: id,
+          target_resource: table,
+        });
+        if (error) {
+          console.error('[resource.delete] database failure', {
+            operation: 'soft_delete_owned_resource',
+            resource: table,
+            resourceId: id,
+            userId,
+            code: error.code,
+            message: error.message,
+            details: error.details,
+            hint: error.hint,
+          });
+          if (error.code === 'P0002') throw new AppError(404, 'not_found', 'Record not found.');
+          throwIfError(error);
+        }
+        invalidateReportsForUser(userId);
+        return { id: data };
+      }
       const result = await softDeleteOwned(table, userId, id);
       invalidateReportsForUser(userId);
       return result;
@@ -97,7 +127,8 @@ export async function skipIncomeOccurrence(userId: string, sourceId: string, dat
   });
   if (error) {
     if (error.code === 'P0002') throw new AppError(404, 'not_found', 'Income schedule not found.');
-    if (error.code === '22007') throw new AppError(400, 'validation_error', 'That date is not scheduled income.');
+    if (error.code === '22007')
+      throw new AppError(400, 'validation_error', 'That date is not scheduled income.');
     throwIfError(error);
   }
   invalidateReportsForUser(userId);
@@ -121,13 +152,17 @@ export async function setSubscriptionStatus(userId: string, id: string, autoRene
   if (lookupError) throwIfError(lookupError);
   if (!current) throw new AppError(404, 'not_found', 'Record not found.');
   if (autoRenew && !current.wallet_id) {
-    throw new AppError(400, 'validation_error', 'Choose a payment wallet before resuming this subscription.');
+    throw new AppError(
+      400,
+      'validation_error',
+      'Choose a payment wallet before resuming this subscription.',
+    );
   }
 
   const cycle: SubscriptionBillingCycle = ['weekly', 'monthly', 'quarterly', 'yearly'].includes(
     String(current.billing_cycle),
   )
-    ? current.billing_cycle as SubscriptionBillingCycle
+    ? (current.billing_cycle as SubscriptionBillingCycle)
     : 'monthly';
   const renewalDate = autoRenew
     ? nextUpcomingRenewal(String(current.renewal_date), cycle, todayIso())
