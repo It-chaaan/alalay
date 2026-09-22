@@ -233,14 +233,6 @@ otp_length = 6
 # Number of seconds before the email OTP expires (defaults to 1 hour).
 otp_expiry = 3600
 
-# Local Auth email is delivered to the Inbucket test server above, never externally.
-# Keep external SMTP credentials out of this repository; use env(...) references if a
-# self-hosted environment needs them.
-[auth.email.smtp]
-enabled = true
-host = "inbucket"
-port = 2500
-
 # Uncomment to customize email template
 # [auth.email.template.invite]
 # subject = "You have been invited"
