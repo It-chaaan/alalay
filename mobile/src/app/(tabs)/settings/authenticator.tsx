@@ -50,9 +50,219 @@ export default function AuthenticatorScreen() {
     void loadMfaState();
     return () => requestGuard.invalidate();
   }, [loadMfaState, requestGuard]);
-  const begin = async () => { if (!client) return; setBusy(true); setError(''); try { const result = await client.auth.mfa.enroll({ factorType: 'totp', friendlyName: 'Alalay authenticator' }); if (result.error || !result.data) throw result.error || new Error('Authenticator setup could not start.'); setSetup({ id: result.data.id, qr: result.data.totp.qr_code, secret: result.data.totp.secret }); } catch (e) { setError(e instanceof Error ? e.message : 'Authenticator setup could not start.'); } finally { setBusy(false); } };
-  const verify = async () => { if (!client || !setup || !/^\d{6}$/.test(code)) { setError('Enter the 6-digit code from your authenticator app.'); return; } setBusy(true); setError(''); try { const result = await client.auth.mfa.challengeAndVerify({ factorId: setup.id, code }); if (result.error) throw result.error; try { await rememberTrustedDevice(); } catch { /* verified AAL2 session remains authoritative */ } setSetup(null); setCode(''); setMessage('Authenticator enabled. This device is verified.'); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'That authenticator code is invalid.'); } finally { setBusy(false); } };
-  const disable = () => Alert.alert('Disable authenticator?', 'Your account will no longer require an authenticator code during new sign-ins.', [{ text: 'Cancel', style: 'cancel' }, { text: 'Continue', style: 'destructive', onPress: () => { void disableConfirmed(); } }]);
-  const disableConfirmed = async () => { if (!client || !factor) return; setBusy(true); setError(''); try { const state = await getMfaState(); if (state.currentLevel !== 'aal2') throw new Error('Complete a two-factor sign-in before disabling the authenticator.'); const result = await client.auth.mfa.unenroll({ factorId: factor.id }); if (result.error) throw result.error; setMessage('Authenticator disabled.'); await load(); } catch (e) { setError(e instanceof Error ? e.message : 'Authenticator could not be disabled.'); } finally { setBusy(false); } };
-  return <SafeAreaView style={[s.safe, { backgroundColor: colors.background }]} edges={['top', 'left', 'right']}><SettingsHeader title="Authenticator" onBack={() => router.back()} /><ScrollView contentContainerStyle={s.content}><View style={[s.card, { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border }]}><ShieldCheck size={30} color={colors.primary} /><Text style={[s.status, { marginTop: 12, color: colors.textSecondary }]}>STEP {setup ? '2 OF 3' : '1 OF 3'}</Text><Text style={[s.formLabel, { marginTop: 10, color: colors.textPrimary }]}>{factor ? 'Two-factor authentication' : 'Protect your account'}</Text>{loading ? <ActivityIndicator color={colors.primary} /> : <><Text style={[s.copy, { color: colors.textSecondary }]}>{factor ? 'Your account is protected with verification codes during fresh sign-ins and new-device access.' : 'Use an authenticator app to add an extra layer of security. You won’t need a code every time you open Alalay on this verified device.'}</Text>{factor ? <><Text style={[s.status, { marginTop: 14, color: colors.success }]}>Enabled</Text><Pressable disabled={busy} onPress={disable} style={[s.button, { backgroundColor: colors.danger + '18', borderWidth: 1, borderColor: colors.danger }, busy && { opacity: 0.6 }]}><Text style={[s.buttonText, { color: colors.danger }]}>{busy ? 'Working…' : 'Disable authenticator'}</Text></Pressable></> : <Pressable disabled={busy} onPress={() => void begin()} style={[s.button, { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}>{busy ? <ActivityIndicator color={colors.textOnPrimary} /> : <Text style={[s.buttonText, { color: colors.textOnPrimary }]}>Continue</Text>}</Pressable>}</>}</View>{setup ? <View style={[s.card, { marginTop: 16, backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}><Text style={[s.status, { color: colors.textSecondary }]}>STEP 3 OF 3</Text><Text style={[s.formLabel, { marginTop: 8, color: colors.textPrimary }]}>Confirm your authenticator</Text><Text style={[s.copy, { color: colors.textSecondary }]}>Scan this QR code, then enter the 6-digit code it generates.</Text><View style={{ alignSelf: 'center', marginVertical: 14, padding: 12, backgroundColor: '#FFFFFF', borderRadius: 12 }}><Image accessibilityLabel="Authenticator setup QR code" source={{ uri: setup.qr }} style={{ width: 190, height: 190 }} /></View><Text style={[s.copy, { color: colors.textSecondary }]}>Can’t scan it? Setup key:</Text><Text selectable style={[s.formLabel, { marginTop: 8, color: colors.textPrimary }]}>{setup.secret}</Text><View style={s.field}><Text style={[s.formLabel, { color: colors.textPrimary }]}>Verification code</Text><OtpInput value={code} onChange={setCode} error={Boolean(error)} autoFocus={!busy} disabled={busy} /></View><Pressable disabled={busy} onPress={() => void verify()} style={[s.button, { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}>{busy ? <ActivityIndicator color={colors.textOnPrimary} /> : <Text style={[s.buttonText, { color: colors.textOnPrimary }]}>Verify & enable</Text>}</Pressable></View> : null}{error ? <Text accessibilityRole="alert" style={[s.error, { color: colors.danger }]}>{error}</Text> : null}{message ? <Text style={[s.success, { color: colors.success }]}>{message}</Text> : null}</ScrollView></SafeAreaView>;
+  const begin = async () => {
+    if (!client) return;
+    setBusy(true);
+    setError('');
+    try {
+      const result = await client.auth.mfa.enroll({
+        factorType: 'totp',
+        friendlyName: 'Alalay authenticator',
+      });
+      if (result.error || !result.data)
+        throw result.error || new Error('Authenticator setup could not start.');
+      setSetup({
+        id: result.data.id,
+        qr: result.data.totp.qr_code,
+        secret: result.data.totp.secret,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Authenticator setup could not start.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const verify = async () => {
+    if (!client || !setup || !/^\d{6}$/.test(code)) {
+      setError('Enter the 6-digit code from your authenticator app.');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const result = await client.auth.mfa.challengeAndVerify({ factorId: setup.id, code });
+      if (result.error) throw result.error;
+      try {
+        await rememberTrustedDevice();
+      } catch {
+        /* verified AAL2 session remains authoritative */
+      }
+      setSetup(null);
+      setCode('');
+      setMessage('Authenticator enabled. This device is verified.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'That authenticator code is invalid.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const disable = () =>
+    Alert.alert(
+      'Disable authenticator?',
+      'Your account will no longer require an authenticator code during new sign-ins.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Continue',
+          style: 'destructive',
+          onPress: () => {
+            void disableConfirmed();
+          },
+        },
+      ],
+    );
+  const disableConfirmed = async () => {
+    if (!client || !factor) return;
+    setBusy(true);
+    setError('');
+    try {
+      const state = await getMfaState();
+      if (state.currentLevel !== 'aal2')
+        throw new Error('Complete a two-factor sign-in before disabling the authenticator.');
+      const result = await client.auth.mfa.unenroll({ factorId: factor.id });
+      if (result.error) throw result.error;
+      setMessage('Authenticator disabled.');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Authenticator could not be disabled.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SafeAreaView
+      style={[s.safe, { backgroundColor: colors.background }]}
+      edges={['top', 'left', 'right']}
+    >
+      <SettingsHeader title="Authenticator" onBack={() => router.back()} />
+      <ScrollView contentContainerStyle={s.content}>
+        <View
+          style={[
+            s.card,
+            { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border },
+          ]}
+        >
+          <ShieldCheck size={30} color={colors.primary} />
+          <Text style={[s.status, { marginTop: 12, color: colors.textSecondary }]}>
+            STEP {setup ? '2 OF 3' : '1 OF 3'}
+          </Text>
+          <Text style={[s.formLabel, { marginTop: 10, color: colors.textPrimary }]}>
+            {factor ? 'Two-factor authentication' : 'Protect your account'}
+          </Text>
+          {loading ? (
+            <ActivityIndicator color={colors.primary} />
+          ) : (
+            <>
+              <Text style={[s.copy, { color: colors.textSecondary }]}>
+                {factor
+                  ? 'Your account is protected with verification codes during fresh sign-ins and new-device access.'
+                  : 'Use an authenticator app to add an extra layer of security. You won’t need a code every time you open Alalay on this verified device.'}
+              </Text>
+              {factor ? (
+                <>
+                  <Text style={[s.status, { marginTop: 14, color: colors.success }]}>Enabled</Text>
+                  <Pressable
+                    disabled={busy}
+                    onPress={disable}
+                    style={[
+                      s.button,
+                      {
+                        backgroundColor: colors.danger + '18',
+                        borderWidth: 1,
+                        borderColor: colors.danger,
+                      },
+                      busy && { opacity: 0.6 },
+                    ]}
+                  >
+                    <Text style={[s.buttonText, { color: colors.danger }]}>
+                      {busy ? 'Working…' : 'Disable authenticator'}
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <Pressable
+                  disabled={busy}
+                  onPress={() => void begin()}
+                  style={[s.button, { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
+                >
+                  {busy ? (
+                    <ActivityIndicator color={colors.textOnPrimary} />
+                  ) : (
+                    <Text style={[s.buttonText, { color: colors.textOnPrimary }]}>Continue</Text>
+                  )}
+                </Pressable>
+              )}
+            </>
+          )}
+        </View>
+        {setup ? (
+          <View
+            style={[
+              s.card,
+              {
+                marginTop: 16,
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text style={[s.status, { color: colors.textSecondary }]}>STEP 3 OF 3</Text>
+            <Text style={[s.formLabel, { marginTop: 8, color: colors.textPrimary }]}>
+              Confirm your authenticator
+            </Text>
+            <Text style={[s.copy, { color: colors.textSecondary }]}>
+              Scan this QR code, then enter the 6-digit code it generates.
+            </Text>
+            <View
+              style={{
+                alignSelf: 'center',
+                marginVertical: 14,
+                padding: 12,
+                backgroundColor: '#FFFFFF',
+                borderRadius: 12,
+              }}
+            >
+              <Image
+                accessibilityLabel="Authenticator setup QR code"
+                source={{ uri: setup.qr }}
+                style={{ width: 190, height: 190 }}
+              />
+            </View>
+            <Text style={[s.copy, { color: colors.textSecondary }]}>Can’t scan it? Setup key:</Text>
+            <Text selectable style={[s.formLabel, { marginTop: 8, color: colors.textPrimary }]}>
+              {setup.secret}
+            </Text>
+            <View style={s.field}>
+              <Text style={[s.formLabel, { color: colors.textPrimary }]}>Verification code</Text>
+              <OtpInput
+                value={code}
+                onChange={setCode}
+                error={Boolean(error)}
+                autoFocus={!busy}
+                disabled={busy}
+              />
+            </View>
+            <Pressable
+              disabled={busy}
+              onPress={() => void verify()}
+              style={[s.button, { backgroundColor: colors.primary }, busy && { opacity: 0.6 }]}
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.textOnPrimary} />
+              ) : (
+                <Text style={[s.buttonText, { color: colors.textOnPrimary }]}>Verify & enable</Text>
+              )}
+            </Pressable>
+          </View>
+        ) : null}
+        {error ? (
+          <Text accessibilityRole="alert" style={[s.error, { color: colors.danger }]}>
+            {error}
+          </Text>
+        ) : null}
+        {message ? <Text style={[s.success, { color: colors.success }]}>{message}</Text> : null}
+      </ScrollView>
+    </SafeAreaView>
+  );
 }

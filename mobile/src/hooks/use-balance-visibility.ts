@@ -14,7 +14,10 @@ const listeners = new Set<(visible: boolean | null) => void>();
 
 async function readVisibility() {
   try {
-    const value = Platform.OS === 'web' ? localStorage.getItem(STORAGE_KEY) : await SecureStore.getItemAsync(STORAGE_KEY);
+    const value =
+      Platform.OS === 'web'
+        ? localStorage.getItem(STORAGE_KEY)
+        : await SecureStore.getItemAsync(STORAGE_KEY);
     return walletBalanceVisibilityFromStoredValue(value);
   } catch {
     return true;
@@ -23,7 +26,8 @@ async function readVisibility() {
 
 async function writeVisibility(visible: boolean) {
   try {
-    if (Platform.OS === 'web') await Promise.resolve(localStorage.setItem(STORAGE_KEY, visible ? 'visible' : 'hidden'));
+    if (Platform.OS === 'web')
+      await Promise.resolve(localStorage.setItem(STORAGE_KEY, visible ? 'visible' : 'hidden'));
     else await SecureStore.setItemAsync(STORAGE_KEY, visible ? 'visible' : 'hidden');
   } catch {
     // Privacy preference persistence is best effort; financial data is never stored here.
@@ -42,7 +46,9 @@ export function useWalletBalanceVisibility() {
         listeners.forEach((listener) => listener(next));
       });
     }
-    return () => { listeners.delete(setVisible); };
+    return () => {
+      listeners.delete(setVisible);
+    };
   }, []);
 
   const toggle = () => {

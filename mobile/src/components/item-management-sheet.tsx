@@ -30,7 +30,7 @@ export function ItemManagementSheet({
   toggleStatusIcon,
 }: ItemManagementSheetProps) {
   const isPauseAction = toggleStatusLabel.startsWith('Pause');
-  const statusTone = isPauseAction ? 'warning' as const : 'primary' as const;
+  const statusTone = isPauseAction ? ('warning' as const) : ('primary' as const);
   return (
     <RecordActionSheet
       visible={visible}
@@ -56,10 +56,9 @@ export function ItemManagementSheet({
                   title: isPauseAction
                     ? `Pause ${itemName} subscription?`
                     : `Resume ${itemName} subscription?`,
-                  message:
-                    isPauseAction
-                      ? 'Renewal tracking and reminders will stop until you resume this subscription.'
-                      : 'Renewal tracking and reminders will resume.',
+                  message: isPauseAction
+                    ? 'Renewal tracking and reminders will stop until you resume this subscription.'
+                    : 'Renewal tracking and reminders will resume.',
                   confirmLabel: toggleStatusLabel,
                   cancelLabel: isPauseAction ? 'Keep subscription' : 'Keep paused',
                   loadingLabel: isPauseAction ? 'Pausing…' : 'Resuming…',

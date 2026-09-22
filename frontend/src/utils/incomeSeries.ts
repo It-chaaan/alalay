@@ -1,5 +1,5 @@
-import type { IncomeEntry } from "../hooks/types";
-import { buildIncomeOccurrences } from "./incomeRecurrence";
+import type { IncomeEntry } from '../hooks/types';
+import { buildIncomeOccurrences } from './incomeRecurrence';
 
 export type IncomeMonth = {
   key: string;
@@ -9,7 +9,11 @@ export type IncomeMonth = {
 };
 
 function getMonthParts(date: Date) {
-  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit' }).formatToParts(date);
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date);
   return {
     year: Number(parts.find((part) => part.type === 'year')?.value),
     month: Number(parts.find((part) => part.type === 'month')?.value),
@@ -31,7 +35,11 @@ export function buildIncomeMonthlySeries(entries: IncomeEntry[], today: Date): I
   const rangeStart = monthDate(year, month - 5);
   const rangeEnd = monthDate(year, month);
   const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const occurrences = buildIncomeOccurrences(entries, getIncomeMonthKey(rangeStart) + "-01", getIncomeMonthKey(rangeEnd) + `-${lastDay}`);
+  const occurrences = buildIncomeOccurrences(
+    entries,
+    getIncomeMonthKey(rangeStart) + '-01',
+    getIncomeMonthKey(rangeEnd) + `-${lastDay}`,
+  );
 
   return Array.from({ length: 6 }, (_, index) => {
     const date = monthDate(year, month - (5 - index));
@@ -42,7 +50,7 @@ export function buildIncomeMonthlySeries(entries: IncomeEntry[], today: Date): I
 
     return {
       key,
-      month: new Intl.DateTimeFormat("en-US", { month: "short" }).format(date),
+      month: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date),
       total,
       current: key === currentKey,
     };

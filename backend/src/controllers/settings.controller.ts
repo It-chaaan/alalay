@@ -1,6 +1,15 @@
-import type { Request, Response } from "express";
-import { completeFirstRunOnboarding, getNotificationPreferences, getOverviewPreferences, getProfile, updateAvatarPath, updateNotificationPreferences, updateOverviewPreferences, updateProfile } from "../services/settings.service.js";
-import { sendSuccess } from "../utils/api.js";
+import type { Request, Response } from 'express';
+import {
+  completeFirstRunOnboarding,
+  getNotificationPreferences,
+  getOverviewPreferences,
+  getProfile,
+  updateAvatarPath,
+  updateNotificationPreferences,
+  updateOverviewPreferences,
+  updateProfile,
+} from '../services/settings.service.js';
+import { sendSuccess } from '../utils/api.js';
 
 export async function me(req: Request, res: Response) {
   return sendSuccess(res, await getProfile(req.user!.id, req.user!.email, req.user!.user_metadata));
@@ -16,7 +25,18 @@ export async function updateAvatar(req: Request, res: Response) {
   return sendSuccess(res, await getProfile(req.user!.id, req.user!.email, req.user!.user_metadata));
 }
 export async function completeOnboarding(req: Request, res: Response) {
-  return sendSuccess(res, await completeFirstRunOnboarding(req.user!.id, req.validated!.body as { nickname: string; wallet_name: string; opening_balance: number; operation_id: string }));
+  return sendSuccess(
+    res,
+    await completeFirstRunOnboarding(
+      req.user!.id,
+      req.validated!.body as {
+        nickname: string;
+        wallet_name: string;
+        opening_balance: number;
+        operation_id: string;
+      },
+    ),
+  );
 }
 
 export async function notificationPreferences(req: Request, res: Response) {
@@ -24,7 +44,13 @@ export async function notificationPreferences(req: Request, res: Response) {
 }
 
 export async function updateNotificationPreferencesController(req: Request, res: Response) {
-  return sendSuccess(res, await updateNotificationPreferences(req.user!.id, req.validated?.body as Record<string, unknown>));
+  return sendSuccess(
+    res,
+    await updateNotificationPreferences(
+      req.user!.id,
+      req.validated?.body as Record<string, unknown>,
+    ),
+  );
 }
 
 export async function overviewPreferences(req: Request, res: Response) {
@@ -32,5 +58,8 @@ export async function overviewPreferences(req: Request, res: Response) {
 }
 
 export async function updateOverviewPreferencesController(req: Request, res: Response) {
-  return sendSuccess(res, await updateOverviewPreferences(req.user!.id, req.validated?.body as Record<string, unknown>));
+  return sendSuccess(
+    res,
+    await updateOverviewPreferences(req.user!.id, req.validated?.body as Record<string, unknown>),
+  );
 }

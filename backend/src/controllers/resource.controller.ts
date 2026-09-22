@@ -1,17 +1,23 @@
-import type { Request, Response } from "express";
-import { makeResourceService, setSubscriptionStatus } from "../services/resource.service.js";
-import { getSavingsDashboard } from "../services/analytics.service.js";
-import type { TableName } from "../services/db.js";
-import { sendSuccess } from "../utils/api.js";
-import { client, throwIfError } from "../services/db.js";
+import type { Request, Response } from 'express';
+import { makeResourceService, setSubscriptionStatus } from '../services/resource.service.js';
+import { getSavingsDashboard } from '../services/analytics.service.js';
+import type { TableName } from '../services/db.js';
+import { sendSuccess } from '../utils/api.js';
+import { client, throwIfError } from '../services/db.js';
 
 export async function savingsDashboard(req: Request, res: Response) {
   return sendSuccess(res, await getSavingsDashboard(req.user!.id));
 }
 
 export async function addGoalContribution(req: Request, res: Response) {
-  const body = req.validated?.body as { wallet_id: string; amount: number; contribution_date: string; note?: string; idempotency_key: string };
-  const { data, error } = await client().rpc("add_goal_contribution", {
+  const body = req.validated?.body as {
+    wallet_id: string;
+    amount: number;
+    contribution_date: string;
+    note?: string;
+    idempotency_key: string;
+  };
+  const { data, error } = await client().rpc('add_goal_contribution', {
     target_goal_id: (req.validated?.params as { id: string }).id,
     source_wallet_id: body.wallet_id,
     contribution_amount: body.amount,
@@ -24,8 +30,14 @@ export async function addGoalContribution(req: Request, res: Response) {
 }
 
 export async function releaseGoalContribution(req: Request, res: Response) {
-  const body = req.validated?.body as { contribution_id: string; amount: number; release_date?: string; note?: string; idempotency_key: string };
-  const { data, error } = await client().rpc("release_goal_contribution", {
+  const body = req.validated?.body as {
+    contribution_id: string;
+    amount: number;
+    release_date?: string;
+    note?: string;
+    idempotency_key: string;
+  };
+  const { data, error } = await client().rpc('release_goal_contribution', {
     target_contribution_id: body.contribution_id,
     release_amount: body.amount,
     released_on_value: body.release_date ?? null,
@@ -51,7 +63,10 @@ export function makeResourceController(table: TableName) {
 
   return {
     list: async (req: Request, res: Response) => {
-      const data = await service.list(req.user!.id, req.validated?.query as Record<string, unknown> | undefined);
+      const data = await service.list(
+        req.user!.id,
+        req.validated?.query as Record<string, unknown> | undefined,
+      );
       return sendSuccess(res, data);
     },
     get: async (req: Request, res: Response) => {
@@ -59,11 +74,18 @@ export function makeResourceController(table: TableName) {
       return sendSuccess(res, data);
     },
     create: async (req: Request, res: Response) => {
-      const data = await service.create(req.user!.id, req.validated?.body as Record<string, unknown>);
+      const data = await service.create(
+        req.user!.id,
+        req.validated?.body as Record<string, unknown>,
+      );
       return sendSuccess(res, data, 201);
     },
     update: async (req: Request, res: Response) => {
-      const data = await service.update(req.user!.id, (req.validated?.params as { id: string }).id, req.validated?.body as Record<string, unknown>);
+      const data = await service.update(
+        req.user!.id,
+        (req.validated?.params as { id: string }).id,
+        req.validated?.body as Record<string, unknown>,
+      );
       return sendSuccess(res, data);
     },
     remove: async (req: Request, res: Response) => {

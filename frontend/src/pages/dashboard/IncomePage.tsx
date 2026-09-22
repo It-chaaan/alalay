@@ -1,58 +1,73 @@
-import { useEffect, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import { IncomeFormPanel } from "../../components/forms/FinancialActionPanels";
-import { DashboardShell } from "../../components/layout/DashboardShell";
-import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
-import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
-import { useActionDialog } from "../../hooks/useActionDialog";
-import { useIncome } from "../../hooks/useIncome";
-import { incomeMonthEntries, type IncomeMonthEntry } from "../../utils/incomeMonth";
-import type { IncomeEntry } from "../../hooks/types";
-import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { buildIncomeMonthlySeries } from "../../utils/incomeSeries";
-import { aggregateIncomeSources, formatIncomeRecurrence } from "../../utils/incomeRecurrence";
-import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
-import { useApiMutation } from "../../hooks/useApiMutation";
-import { Pen, Trash2 } from "lucide-react";
-import { IncomeSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
-import { getCategoryMeta } from "../../utils/categoryRegistry";
+import { useEffect, useState } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { IncomeFormPanel } from '../../components/forms/FinancialActionPanels';
+import { DashboardShell } from '../../components/layout/DashboardShell';
+import { FinancialOverviewCard } from '../../components/dashboard/FinancialOverviewCard';
+import { SectionToolbar } from '../../components/dashboard/SectionToolbar';
+import { useActionDialog } from '../../hooks/useActionDialog';
+import { useIncome } from '../../hooks/useIncome';
+import { incomeMonthEntries, type IncomeMonthEntry } from '../../utils/incomeMonth';
+import type { IncomeEntry } from '../../hooks/types';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { buildIncomeMonthlySeries } from '../../utils/incomeSeries';
+import { aggregateIncomeSources, formatIncomeRecurrence } from '../../utils/incomeRecurrence';
+import { MenuAction, MoreActionsMenu } from '../../components/dashboard/BillsComponents';
+import { useApiMutation } from '../../hooks/useApiMutation';
+import { Pen, Trash2 } from 'lucide-react';
+import { IncomeSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
+import { getCategoryMeta } from '../../utils/categoryRegistry';
 
-type IncomeSourceType = "salary" | "freelance" | "business" | "remittance" | "other";
+type IncomeSourceType = 'salary' | 'freelance' | 'business' | 'remittance' | 'other';
 
 function incomeSourceType(value: string): IncomeSourceType {
-  return ["salary", "freelance", "business", "remittance", "other"].includes(value)
+  return ['salary', 'freelance', 'business', 'remittance', 'other'].includes(value)
     ? (value as IncomeSourceType)
-    : "other";
+    : 'other';
 }
 
 function getDisplayName(session: Session) {
-  return session.user.user_metadata?.name || session.user.user_metadata?.full_name || session.user.email?.split("@")[0] || "Juan";
+  return (
+    session.user.user_metadata?.name ||
+    session.user.user_metadata?.full_name ||
+    session.user.email?.split('@')[0] ||
+    'Juan'
+  );
 }
 
 function getMonthKey(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila", year: "numeric", month: "2-digit" }).formatToParts(date);
-  const year = parts.find((part) => part.type === "year")?.value;
-  const month = parts.find((part) => part.type === "month")?.value;
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+  }).formatToParts(date);
+  const year = parts.find((part) => part.type === 'year')?.value;
+  const month = parts.find((part) => part.type === 'month')?.value;
   return `${year}-${month}`;
 }
 
 function getMonthLabel(date: Date, options: Intl.DateTimeFormatOptions) {
-  return new Intl.DateTimeFormat("en-US", options).format(date);
+  return new Intl.DateTimeFormat('en-US', options).format(date);
 }
-
 
 function TrendIcon({ tone }: { tone: IncomeSourceType }) {
   const toneClass: Record<IncomeSourceType, string> = {
-    salary: "bg-[#e8f1df] text-[#3f7d16]",
-    freelance: "bg-[#eaf3fb] text-[#5e9bc9]",
-    business: "bg-[#fff5e7] text-[#e9ad58]",
-    remittance: "bg-[#e8f1df] text-[#3f7d16]",
-    other: "bg-slate-100 text-slate-500",
+    salary: 'bg-[#e8f1df] text-[#3f7d16]',
+    freelance: 'bg-[#eaf3fb] text-[#5e9bc9]',
+    business: 'bg-[#fff5e7] text-[#e9ad58]',
+    remittance: 'bg-[#e8f1df] text-[#3f7d16]',
+    other: 'bg-slate-100 text-slate-500',
   };
 
   return (
     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-full ${toneClass[tone]}`}>
-      <svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 24 24"
+        className="h-4 w-4"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+      >
         <path d="m6 15 4-4 3 3 5-6" />
         <path d="M15 8h3v3" />
       </svg>
@@ -62,14 +77,18 @@ function TrendIcon({ tone }: { tone: IncomeSourceType }) {
 
 function SourcePill({ type }: { type: IncomeSourceType }) {
   const classes = {
-    salary: "bg-[#e8f1df] text-[#3f7d16]",
-    freelance: "bg-[#eaf3fb] text-[#5e9bc9]",
-    business: "bg-[#fff5e7] text-[#df9f42]",
-    remittance: "bg-[#e8f1df] text-[#3f7d16]",
-    other: "bg-slate-100 text-slate-500",
+    salary: 'bg-[#e8f1df] text-[#3f7d16]',
+    freelance: 'bg-[#eaf3fb] text-[#5e9bc9]',
+    business: 'bg-[#fff5e7] text-[#df9f42]',
+    remittance: 'bg-[#e8f1df] text-[#3f7d16]',
+    other: 'bg-slate-100 text-slate-500',
   };
 
-  return <span className={`rounded px-1.5 py-0.5 text-[10px] ${classes[type]}`}>{type[0].toUpperCase() + type.slice(1)}</span>;
+  return (
+    <span className={`rounded px-1.5 py-0.5 text-[10px] ${classes[type]}`}>
+      {type[0].toUpperCase() + type.slice(1)}
+    </span>
+  );
 }
 
 function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }) {
@@ -85,36 +104,59 @@ function IncomeChart({ entries, today }: { entries: IncomeEntry[]; today: Date }
   return (
     <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-1 flex items-center justify-between gap-4">
-        <h2 className="text-sm font-semibold text-slate-950">Income by source - {today.getFullYear()}</h2>
+        <h2 className="text-sm font-semibold text-slate-950">
+          Income by source - {today.getFullYear()}
+        </h2>
         <div className="flex items-center gap-5 text-xs text-slate-500">
-          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#3f7d16]" />Salary</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#6fa3d2]" />Freelance</span>
-          <span className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-[#f4c37d]" />Business</span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#3f7d16]" />
+            Salary
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#6fa3d2]" />
+            Freelance
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-full bg-[#f4c37d]" />
+            Business
+          </span>
         </div>
       </div>
       <div className="grid grid-cols-[48px_1fr]">
         <div className="flex h-44 flex-col justify-between pb-6 pt-1 text-right text-xs text-slate-500">
-          {yAxisLabels.map((value) => <span key={value}>{formatAxisLabel(value)}</span>)}
+          {yAxisLabels.map((value) => (
+            <span key={value}>{formatAxisLabel(value)}</span>
+          ))}
         </div>
         <div className="relative h-44 border-l-0">
           {[0, 1, 2, 3, 4].map((line) => (
-            <div key={line} className="absolute left-0 right-0 border-t border-dashed border-slate-200" style={{ top: `${line * 25}%` }} />
+            <div
+              key={line}
+              className="absolute left-0 right-0 border-t border-dashed border-slate-200"
+              style={{ top: `${line * 25}%` }}
+            />
           ))}
           <div className="relative z-10 grid h-full min-w-0 grid-cols-6 items-end gap-2 px-2 pb-6 sm:gap-4 sm:px-4">
             {monthly.map((item) => {
               const height = Math.round((item.total / max) * chartHeight);
 
               return (
-                <div key={item.key} className="flex min-w-0 h-full flex-col items-center justify-end gap-2">
+                <div
+                  key={item.key}
+                  className="flex min-w-0 h-full flex-col items-center justify-end gap-2"
+                >
                   <div className="flex h-[150px] w-8 shrink-0 items-end">
                     <div
-                      className={`w-full rounded-t-sm border ${item.current ? "border-[#2d6413] bg-[#3f7d16]" : "border-[#f0c27d] bg-[#f5cf91]"}`}
+                      className={`w-full rounded-t-sm border ${item.current ? 'border-[#2d6413] bg-[#3f7d16]' : 'border-[#f0c27d] bg-[#f5cf91]'}`}
                       style={{ height: `${height}px` }}
                       title={`${item.month}: ${formatCurrency(item.total)}`}
                     />
                   </div>
-                  <span className={`whitespace-nowrap text-center text-xs ${item.current ? "font-semibold text-brand-primary" : "text-slate-500"}`}>
-                    {item.month}{item.current ? " · Current" : ""}
+                  <span
+                    className={`whitespace-nowrap text-center text-xs ${item.current ? 'font-semibold text-brand-primary' : 'text-slate-500'}`}
+                  >
+                    {item.month}
+                    {item.current ? ' · Current' : ''}
                   </span>
                 </div>
               );
@@ -130,7 +172,9 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
   const total = entries.reduce((sum, entry) => sum + Number(entry.amount), 0);
   const types = Array.from(new Set(entries.map((entry) => entry.type)));
   const breakdown = types.map((type) => {
-    const amount = entries.filter((entry) => entry.type === type).reduce((sum, entry) => sum + Number(entry.amount), 0);
+    const amount = entries
+      .filter((entry) => entry.type === type)
+      .reduce((sum, entry) => sum + Number(entry.amount), 0);
     const category = getCategoryMeta(type);
     return {
       label: category.label,
@@ -147,30 +191,40 @@ function BreakdownDonut({ entries }: { entries: IncomeEntry[] }) {
       <div className="flex items-center justify-between gap-4">
         <svg viewBox="0 0 42 42" className="h-20 w-20 shrink-0 -rotate-90">
           <circle cx="21" cy="21" r="15.9" fill="transparent" stroke="#eef0ec" strokeWidth="5" />
-          {hasBreakdownData ? breakdown.map((item) => {
-            if (item.value <= 0) return null;
-            const circle = (
-              <circle
-                key={item.label}
-                cx="21"
-                cy="21"
-                r="15.9"
-                fill="transparent"
-                stroke={item.color}
-                strokeWidth="5"
-                strokeDasharray={`${item.value} ${100 - item.value}`}
-                strokeDashoffset={-offset}
-              />
-            );
-            offset += item.value;
-            return circle;
-          }) : null}
+          {hasBreakdownData
+            ? breakdown.map((item) => {
+                if (item.value <= 0) return null;
+                const circle = (
+                  <circle
+                    key={item.label}
+                    cx="21"
+                    cy="21"
+                    r="15.9"
+                    fill="transparent"
+                    stroke={item.color}
+                    strokeWidth="5"
+                    strokeDasharray={`${item.value} ${100 - item.value}`}
+                    strokeDashoffset={-offset}
+                  />
+                );
+                offset += item.value;
+                return circle;
+              })
+            : null}
         </svg>
         <div className="flex-1 space-y-1.5 text-xs">
-          {!hasBreakdownData ? <p className="mb-2 text-slate-500">No income recorded this month yet.</p> : null}
+          {!hasBreakdownData ? (
+            <p className="mb-2 text-slate-500">No income recorded this month yet.</p>
+          ) : null}
           {breakdown.map((item) => (
             <div key={item.label} className="grid grid-cols-[1fr_auto] items-center gap-5">
-              <span className="inline-flex items-center gap-2 text-slate-600"><span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>
+              <span className="inline-flex items-center gap-2 text-slate-600">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: item.color }}
+                />
+                {item.label}
+              </span>
               <span className="font-mono text-slate-950">{item.value}%</span>
             </div>
           ))}
@@ -184,8 +238,8 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
   const [today, setToday] = useState(() => new Date());
   const [selectedMonth, setSelectedMonth] = useState(() => getMonthKey(new Date()));
   const name = getDisplayName(session);
-  const addIncomeDialog = useActionDialog("add-income");
-  const editIncomeDialog = useActionDialog("edit-income");
+  const addIncomeDialog = useActionDialog('add-income');
+  const editIncomeDialog = useActionDialog('edit-income');
   const [selectedIncome, setSelectedIncome] = useState<IncomeEntry | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const { data: incomeMonth, isLoading, isSlowLoading, error, refetch } = useIncome(selectedMonth);
@@ -202,17 +256,17 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpenMenuId(null);
+      if (event.key === 'Escape') setOpenMenuId(null);
     }
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && !target.closest("[data-actions-menu]")) setOpenMenuId(null);
+      if (target && !target.closest('[data-actions-menu]')) setOpenMenuId(null);
     }
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("click", handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('click', handleClickOutside);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('click', handleClickOutside);
     };
   }, []);
 
@@ -225,9 +279,14 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
 
   async function deleteIncome(income: IncomeMonthEntry) {
     if (income.is_projected || !income.transaction_id) return;
-    if (!window.confirm(`Delete ${income.source}? This removes this recorded income from your totals.`)) return;
+    if (
+      !window.confirm(
+        `Delete ${income.source}? This removes this recorded income from your totals.`,
+      )
+    )
+      return;
     try {
-      await mutate(`/income/${income.transaction_id}`, { method: "DELETE" });
+      await mutate(`/income/${income.transaction_id}`, { method: 'DELETE' });
       setOpenMenuId(null);
       refetch();
     } catch {
@@ -235,7 +294,10 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
     }
   }
 
-  const monthLabel = getMonthLabel(new Date(`${selectedMonth}-01T12:00:00`), { month: "long", year: "numeric" });
+  const monthLabel = getMonthLabel(new Date(`${selectedMonth}-01T12:00:00`), {
+    month: 'long',
+    year: 'numeric',
+  });
 
   return (
     <DashboardShell
@@ -245,65 +307,174 @@ export function IncomePage({ session, onSignOut }: { session: Session; onSignOut
       name={name}
       onSignOut={onSignOut}
     >
-{isLoading ? <><IncomeSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
-      {error ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700"><p>{error}</p><button type="button" onClick={refetch} className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-semibold text-red-700">Try again</button></div> : null}
-      {mutationError ? <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
+      {isLoading ? (
+        <>
+          <IncomeSkeleton />
+          <SlowLoadNotice show={isSlowLoading} />
+        </>
+      ) : null}
+      {error ? (
+        <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          <p>{error}</p>
+          <button
+            type="button"
+            onClick={refetch}
+            className="mt-3 rounded-lg border border-red-300 bg-white px-3 py-2 font-semibold text-red-700"
+          >
+            Try again
+          </button>
+        </div>
+      ) : null}
+      {mutationError ? (
+        <div className="rounded-[14px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          {mutationError}
+        </div>
+      ) : null}
       {!isLoading && !error ? (
         <>
-      <FinancialOverviewCard label="Income overview" period={<label className="inline-flex min-h-10 items-center rounded-xl border border-white/35 bg-white/15 px-2 text-white shadow-sm transition focus-within:border-white focus-within:bg-white/20 focus-within:ring-2 focus-within:ring-white/80"><span className="sr-only">Month</span><input type="month" value={selectedMonth} max={getMonthKey(today)} onChange={(event) => setSelectedMonth(event.target.value)} className="w-[142px] bg-transparent text-sm font-semibold text-white outline-none [color-scheme:dark]" /></label>} primary={formatCurrency(thisMonthTotal)} primaryLabel="Income expected this month" metrics={[{ label: 'Received', value: formatCurrency(incomeMonth?.overview.receivedAmount ?? 0) }, { label: 'Upcoming', value: formatCurrency(incomeMonth?.overview.upcomingAmount ?? 0) }, { label: 'Overdue', value: formatCurrency(incomeMonth?.overview.overdueAmount ?? 0) }]} />
+          <FinancialOverviewCard
+            label="Income overview"
+            period={
+              <label className="inline-flex min-h-10 items-center rounded-xl border border-white/35 bg-white/15 px-2 text-white shadow-sm transition focus-within:border-white focus-within:bg-white/20 focus-within:ring-2 focus-within:ring-white/80">
+                <span className="sr-only">Month</span>
+                <input
+                  type="month"
+                  value={selectedMonth}
+                  max={getMonthKey(today)}
+                  onChange={(event) => setSelectedMonth(event.target.value)}
+                  className="w-[142px] bg-transparent text-sm font-semibold text-white outline-none [color-scheme:dark]"
+                />
+              </label>
+            }
+            primary={formatCurrency(thisMonthTotal)}
+            primaryLabel="Income expected this month"
+            metrics={[
+              {
+                label: 'Received',
+                value: formatCurrency(incomeMonth?.overview.receivedAmount ?? 0),
+              },
+              {
+                label: 'Upcoming',
+                value: formatCurrency(incomeMonth?.overview.upcomingAmount ?? 0),
+              },
+              { label: 'Overdue', value: formatCurrency(incomeMonth?.overview.overdueAmount ?? 0) },
+            ]}
+          />
 
-      {rows.length === 0 ? <div className="mt-6 rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900">No income records for {monthLabel} yet. Add an income source to start tracking earnings.</div> : <>
-      <section className="mt-6"><SectionToolbar title="Income activity" description="Manage sources and review recorded income"><button type="button" onClick={addIncomeDialog.open} className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"><span className="text-xl leading-none">+</span>Add income source</button></SectionToolbar></section>
-      <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
-        <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-950">Income sources</h2>
-          <div className="mt-4 space-y-3">
-            {bySource.map((source) => (
-              <div key={source.id} className="flex items-center gap-3 rounded-2xl bg-[#f8f8f5] p-3">
-                <TrendIcon tone={incomeSourceType(source.type)} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-950">{source.source}</p>
-                <p className="truncate text-xs text-slate-500">{incomeSourceType(source.type)}</p>
-                </div>
-                <div className="text-right">
-                  <p className={`font-mono text-sm font-bold ${source.type === "salary" ? "text-[#3f7d16]" : source.type === "freelance" ? "text-[#5e9bc9]" : source.type === "business" ? "text-[#df9f42]" : "text-slate-400"}`}>{formatCurrency(source.amount)}</p>
-                  {formatIncomeRecurrence(source) ? <p className="text-xs text-slate-500">{formatIncomeRecurrence(source)}</p> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-          <BreakdownDonut entries={thisMonthRows} />
-        </article>
-
-        <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
-          <h2 className="text-sm font-semibold text-slate-950">Recent income</h2>
-          <div className="mt-4">
-            {rows.slice(0, 5).map((income) => (
-              <div key={income.id} className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-0">
-                <TrendIcon tone={incomeSourceType(income.type)} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold text-slate-950">{income.source}</p>
-                <p className="mt-1 flex items-center gap-2 text-xs text-slate-500"><SourcePill type={incomeSourceType(income.type)} />{income.status === "received" ? "Received" : income.status.replaceAll("_", " ")}</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-mono text-sm font-bold text-[#3f7d16]">+{formatCurrency(Number(income.amount))}</p>
-                  <p className="text-xs text-slate-400">{formatDateShort(income.date)}</p>
-                </div>
-                {!income.is_projected ? <MoreActionsMenu
-                  isOpen={openMenuId === income.id}
-                  onToggle={() => setOpenMenuId((current) => current === income.id ? null : income.id)}
-                  ariaLabel={`More actions for ${income.source} income`}
-                  estimatedMenuHeight={96}
+          {rows.length === 0 ? (
+            <div className="mt-6 rounded-[14px] border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              No income records for {monthLabel} yet. Add an income source to start tracking
+              earnings.
+            </div>
+          ) : (
+            <>
+              <section className="mt-6">
+                <SectionToolbar
+                  title="Income activity"
+                  description="Manage sources and review recorded income"
                 >
-                  <MenuAction icon={Pen} label="Edit income" tone="info" onClick={() => openEditIncome(income)} />
-                  <MenuAction icon={Trash2} label="Delete income" tone="danger" disabled={isSubmitting} onClick={() => void deleteIncome(income)} />
-                </MoreActionsMenu> : null}
-              </div>
-            ))}
-          </div>
-        </article>
-      </section>
-      </>}
+                  <button
+                    type="button"
+                    onClick={addIncomeDialog.open}
+                    className="inline-flex items-center gap-2 rounded-xl bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-dark"
+                  >
+                    <span className="text-xl leading-none">+</span>Add income source
+                  </button>
+                </SectionToolbar>
+              </section>
+              <section className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.5fr]">
+                <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-sm font-semibold text-slate-950">Income sources</h2>
+                  <div className="mt-4 space-y-3">
+                    {bySource.map((source) => (
+                      <div
+                        key={source.id}
+                        className="flex items-center gap-3 rounded-2xl bg-[#f8f8f5] p-3"
+                      >
+                        <TrendIcon tone={incomeSourceType(source.type)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-950">
+                            {source.source}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {incomeSourceType(source.type)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p
+                            className={`font-mono text-sm font-bold ${source.type === 'salary' ? 'text-[#3f7d16]' : source.type === 'freelance' ? 'text-[#5e9bc9]' : source.type === 'business' ? 'text-[#df9f42]' : 'text-slate-400'}`}
+                          >
+                            {formatCurrency(source.amount)}
+                          </p>
+                          {formatIncomeRecurrence(source) ? (
+                            <p className="text-xs text-slate-500">
+                              {formatIncomeRecurrence(source)}
+                            </p>
+                          ) : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <BreakdownDonut entries={thisMonthRows} />
+                </article>
+
+                <article className="rounded-[14px] border border-slate-200 bg-white p-4 shadow-sm">
+                  <h2 className="text-sm font-semibold text-slate-950">Recent income</h2>
+                  <div className="mt-4">
+                    {rows.slice(0, 5).map((income) => (
+                      <div
+                        key={income.id}
+                        className="flex items-center gap-3 border-b border-slate-100 py-3 last:border-0"
+                      >
+                        <TrendIcon tone={incomeSourceType(income.type)} />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-950">
+                            {income.source}
+                          </p>
+                          <p className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                            <SourcePill type={incomeSourceType(income.type)} />
+                            {income.status === 'received'
+                              ? 'Received'
+                              : income.status.replaceAll('_', ' ')}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-mono text-sm font-bold text-[#3f7d16]">
+                            +{formatCurrency(Number(income.amount))}
+                          </p>
+                          <p className="text-xs text-slate-400">{formatDateShort(income.date)}</p>
+                        </div>
+                        {!income.is_projected ? (
+                          <MoreActionsMenu
+                            isOpen={openMenuId === income.id}
+                            onToggle={() =>
+                              setOpenMenuId((current) => (current === income.id ? null : income.id))
+                            }
+                            ariaLabel={`More actions for ${income.source} income`}
+                            estimatedMenuHeight={96}
+                          >
+                            <MenuAction
+                              icon={Pen}
+                              label="Edit income"
+                              tone="info"
+                              onClick={() => openEditIncome(income)}
+                            />
+                            <MenuAction
+                              icon={Trash2}
+                              label="Delete income"
+                              tone="danger"
+                              disabled={isSubmitting}
+                              onClick={() => void deleteIncome(income)}
+                            />
+                          </MoreActionsMenu>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                </article>
+              </section>
+            </>
+          )}
         </>
       ) : null}
       <IncomeFormPanel

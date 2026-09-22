@@ -84,7 +84,25 @@ test('my-income accepts a calendar month and never treats it as a resource ID', 
 });
 
 test('skip occurrence requires a UUID source and strict ISO date', () => {
-  assert.equal(skipIncomeOccurrenceParamsSchema.safeParse({ sourceId: baseIncome.wallet_id, date: '2026-09-07' }).success, true);
-  assert.equal(skipIncomeOccurrenceParamsSchema.safeParse({ sourceId: 'schedule:2026-09-07', date: '2026-09-07' }).success, false);
-  assert.equal(skipIncomeOccurrenceParamsSchema.safeParse({ sourceId: baseIncome.wallet_id, date: '09/07/2026' }).success, false);
+  assert.equal(
+    skipIncomeOccurrenceParamsSchema.safeParse({
+      sourceId: baseIncome.wallet_id,
+      date: '2026-09-07',
+    }).success,
+    true,
+  );
+  assert.equal(
+    skipIncomeOccurrenceParamsSchema.safeParse({
+      sourceId: 'schedule:2026-09-07',
+      date: '2026-09-07',
+    }).success,
+    false,
+  );
+  assert.equal(
+    skipIncomeOccurrenceParamsSchema.safeParse({
+      sourceId: baseIncome.wallet_id,
+      date: '09/07/2026',
+    }).success,
+    false,
+  );
 });

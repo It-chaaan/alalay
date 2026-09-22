@@ -1,2 +1,4 @@
 import { useAppTheme } from '@/theme/theme';
-export function useColorScheme() { return useAppTheme().resolvedTheme; }
+export function useColorScheme() {
+  return useAppTheme().resolvedTheme;
+}

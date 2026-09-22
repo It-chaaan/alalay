@@ -3,7 +3,10 @@ import { PanResponder } from 'react-native';
 
 // PanResponder invokes callbacks outside React. Keep this legacy RN bridge
 // isolated so React Compiler can optimize its callers.
-export function useLegacyWalletSwipeResponder(walletCount: number, advance: (steps: number) => void) {
+export function useLegacyWalletSwipeResponder(
+  walletCount: number,
+  advance: (steps: number) => void,
+) {
   return useMemo(
     () =>
       PanResponder.create({

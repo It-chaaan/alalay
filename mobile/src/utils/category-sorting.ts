@@ -20,7 +20,11 @@ export function sortCategoriesByLabel<T extends LabeledPickerItem>(
   items: readonly T[],
   options: SortOptions<T> = {},
 ): T[] {
-  const { getLabel = (item) => ('label' in item && typeof item.label === 'string' ? item.label : ''), isSpecialItem = () => false, otherLast = true } = options;
+  const {
+    getLabel = (item) => ('label' in item && typeof item.label === 'string' ? item.label : ''),
+    isSpecialItem = () => false,
+    otherLast = true,
+  } = options;
   return items
     .map((item, index) => ({ item, index, label: getLabel(item)?.trim() ?? '' }))
     .sort((left, right) => {

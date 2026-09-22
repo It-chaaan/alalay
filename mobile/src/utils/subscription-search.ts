@@ -18,7 +18,11 @@ export function normalizeSubscriptionSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
-export function filterSubscriptions<T extends SubscriptionSearchable>(subscriptions: T[], wallets: WalletLike[], query: string) {
+export function filterSubscriptions<T extends SubscriptionSearchable>(
+  subscriptions: T[],
+  wallets: WalletLike[],
+  query: string,
+) {
   const cleaned = normalizeSubscriptionSearch(query);
   if (!cleaned) return [...subscriptions];
 

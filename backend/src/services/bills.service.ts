@@ -9,10 +9,14 @@ export async function listBills(
   query: { status?: string; due_within_days?: number; category?: string; month?: string },
 ) {
   await reconcileBillOccurrences(userId);
-  const month = query.month && /^\d{4}-\d{2}$/.test(query.month) ? query.month : monthRange().start.slice(0, 7);
-  let request = client().from('bill_occurrences').select('*, bill:bills!inner(*)')
+  const month =
+    query.month && /^\d{4}-\d{2}$/.test(query.month) ? query.month : monthRange().start.slice(0, 7);
+  let request = client()
+    .from('bill_occurrences')
+    .select('*, bill:bills!inner(*)')
     .eq('user_id', requireUserId(userId))
-    .is('bill.deleted_at', null).order('occurrence_date', { ascending: true });
+    .is('bill.deleted_at', null)
+    .order('occurrence_date', { ascending: true });
   const { data, error } = await request;
   throwIfError(error);
   const today = todayIso();
@@ -21,23 +25,36 @@ export async function listBills(
   const rows = (data ?? []).map((row) => materializeBillOccurrence(row, today));
   const currentBills = splitOccurrencesForMonth(rows, month, today);
   const dueThrough = query.due_within_days === undefined ? null : addDaysIso(query.due_within_days);
-  const filter = (bill: typeof rows[number]) => {
+  const filter = (bill: (typeof rows)[number]) => {
     if (query.status && bill.status !== query.status) return false;
     if (query.category && bill.category !== query.category) return false;
     if (dueThrough && (bill.due_date < today || bill.due_date > dueThrough)) return false;
     return true;
   };
   const items = currentBills.items.filter(filter);
-  return { month, items, overdue_items: currentBills.overdue_items.filter(filter), overview: {
-    total: items.reduce((sum, row) => sum + Number(row.amount || 0), 0),
-    unpaid: items.filter((row) => row.status !== 'paid').reduce((sum, row) => sum + Number(row.amount || 0), 0),
-    paid_count: items.filter((row) => row.status === 'paid').length,
-    overdue_count: currentBills.overdue_items.length,
-  } };
+  return {
+    month,
+    items,
+    overdue_items: currentBills.overdue_items.filter(filter),
+    overview: {
+      total: items.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      unpaid: items
+        .filter((row) => row.status !== 'paid')
+        .reduce((sum, row) => sum + Number(row.amount || 0), 0),
+      paid_count: items.filter((row) => row.status === 'paid').length,
+      overdue_count: currentBills.overdue_items.length,
+    },
+  };
 }
 
 export async function getBill(userId: string, id: string) {
-  const { data, error } = await client().from('bill_occurrences').select('*, bill:bills!inner(*)').eq('id', id).eq('user_id', requireUserId(userId)).is('bill.deleted_at', null).single();
+  const { data, error } = await client()
+    .from('bill_occurrences')
+    .select('*, bill:bills!inner(*)')
+    .eq('id', id)
+    .eq('user_id', requireUserId(userId))
+    .is('bill.deleted_at', null)
+    .single();
   throwIfError(error);
   return materializeBillOccurrence(data, todayIso());
 }
@@ -139,7 +156,9 @@ export async function billSummary(userId: string) {
 }
 
 export async function reconcileBillOccurrences(userId: string) {
-  const { data, error } = await client().rpc('reconcile_bill_occurrences', { target_user_id: requireUserId(userId) });
+  const { data, error } = await client().rpc('reconcile_bill_occurrences', {
+    target_user_id: requireUserId(userId),
+  });
   throwIfError(error);
   return data;
 }

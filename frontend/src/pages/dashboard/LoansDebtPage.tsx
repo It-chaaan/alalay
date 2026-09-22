@@ -10,31 +10,165 @@ import type { Wallet } from '../../hooks/types';
 import { formatCurrency } from '../../utils/formatters';
 import { LoanRecordForm, RepaymentForm, type Loan, type LoansResponse } from './WalletsPage';
 
-const nameFor = (session: Session) => session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
+const nameFor = (session: Session) =>
+  session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
 const number = (value: unknown) => Number(value) || 0;
-const dateText = (value?: string | null) => value ? new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(new Date(`${value}T00:00:00`)) : 'No due date';
+const dateText = (value?: string | null) =>
+  value
+    ? new Intl.DateTimeFormat('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }).format(
+        new Date(`${value}T00:00:00`),
+      )
+    : 'No due date';
 function statusFor(loan: Loan) {
   if (loan.status === 'paid') return 'Paid Off';
-  if (loan.status === 'active' && loan.due_date && loan.due_date < new Date().toISOString().slice(0, 10)) return 'Overdue';
+  if (
+    loan.status === 'active' &&
+    loan.due_date &&
+    loan.due_date < new Date().toISOString().slice(0, 10)
+  )
+    return 'Overdue';
   return loan.status === 'written_off' ? 'Written off' : 'Active';
 }
 function statusClass(status: string) {
-  return status === 'Overdue' ? 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300' : status === 'Paid Off' ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300';
+  return status === 'Overdue'
+    ? 'bg-red-100 text-red-700 dark:bg-red-950/50 dark:text-red-300'
+    : status === 'Paid Off'
+      ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+      : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300';
 }
 
-function LoanDetails({ loan, onPay, onEdit, onDelete }: { loan: Loan; onPay: () => void; onEdit: () => void; onDelete: () => void }) {
+function LoanDetails({
+  loan,
+  onPay,
+  onEdit,
+  onDelete,
+}: {
+  loan: Loan;
+  onPay: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
   const payments = loan.loan_payments ?? [];
   const paid = number(loan.original_principal) - number(loan.outstanding_principal);
-  const progress = number(loan.original_principal) ? Math.min(100, paid / number(loan.original_principal) * 100) : 0;
-  return <div className="space-y-6">
-    <div><p className="text-xs font-semibold uppercase tracking-[.14em] text-slate-500">{loan.direction === 'lent' ? 'Owed to you' : 'You owe'}</p><div className="mt-2 flex items-start justify-between gap-4"><div><h3 className="text-xl font-semibold">{loan.counterparty}</h3><p className="mt-1 text-sm text-slate-500">Started {dateText(loan.start_date)} · Due {dateText(loan.due_date)}</p></div><span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(statusFor(loan))}`}>{statusFor(loan)}</span></div></div>
-    <div className="rounded-2xl bg-brand-soft p-5 dark:bg-emerald-950/30"><p className="text-sm text-slate-600 dark:text-slate-300">Remaining balance</p><p className="mt-1 font-mono text-3xl font-bold">{formatCurrency(number(loan.outstanding_principal))}</p><div className="mt-4 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800"><div className="h-full rounded-full bg-brand-primary" style={{ width: `${progress}%` }} /></div><p className="mt-2 text-xs text-slate-500">{formatCurrency(paid)} paid of {formatCurrency(number(loan.original_principal))} · {Math.round(progress)}%</p></div>
-    <div className="grid grid-cols-2 gap-3 text-sm"><div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><p className="text-slate-500">Interest</p><p className="mt-1 font-semibold">{loan.interest_type === 'none' ? 'None' : loan.interest_type === 'fixed' ? formatCurrency(number(loan.fixed_interest_amount)) : `${number(loan.interest_rate)}% simple`}</p></div><div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700"><p className="text-slate-500">Payment frequency</p><p className="mt-1 font-semibold">One-time / as agreed</p></div></div>
-    {loan.notes ? <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">{loan.notes}</p> : null}
-    {loan.status === 'active' ? <button type="button" onClick={onPay} className="min-h-11 w-full rounded-xl bg-brand-primary px-4 font-semibold text-white">{loan.direction === 'lent' ? 'Record payment received' : 'Record repayment'}</button> : null}
-    <div className="flex gap-2"><button type="button" onClick={onEdit} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-slate-700"><Pencil className="h-4 w-4" />Edit</button><button type="button" onClick={onDelete} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 px-3 text-sm font-semibold text-red-700 dark:border-red-900"><Trash2 className="h-4 w-4" />Delete</button></div>
-    <section><h4 className="flex items-center gap-2 text-sm font-semibold"><ReceiptText className="h-4 w-4" />Payment history</h4><div className="mt-3 space-y-2">{payments.length ? payments.map((payment) => <div key={payment.id} className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700"><span><span className="block font-semibold">{dateText(payment.paid_on)}</span><span className="text-xs text-slate-500">{payment.wallets?.name ?? 'Wallet'}{payment.note ? ` · ${payment.note}` : ''}</span></span><span className="font-mono font-semibold">{formatCurrency(number(payment.principal_amount) + number(payment.interest_amount))}</span></div>) : <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/60">No repayments recorded yet.</p>}</div></section>
-  </div>;
+  const progress = number(loan.original_principal)
+    ? Math.min(100, (paid / number(loan.original_principal)) * 100)
+    : 0;
+  return (
+    <div className="space-y-6">
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[.14em] text-slate-500">
+          {loan.direction === 'lent' ? 'Owed to you' : 'You owe'}
+        </p>
+        <div className="mt-2 flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-xl font-semibold">{loan.counterparty}</h3>
+            <p className="mt-1 text-sm text-slate-500">
+              Started {dateText(loan.start_date)} · Due {dateText(loan.due_date)}
+            </p>
+          </div>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass(statusFor(loan))}`}
+          >
+            {statusFor(loan)}
+          </span>
+        </div>
+      </div>
+      <div className="rounded-2xl bg-brand-soft p-5 dark:bg-emerald-950/30">
+        <p className="text-sm text-slate-600 dark:text-slate-300">Remaining balance</p>
+        <p className="mt-1 font-mono text-3xl font-bold">
+          {formatCurrency(number(loan.outstanding_principal))}
+        </p>
+        <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/80 dark:bg-slate-800">
+          <div className="h-full rounded-full bg-brand-primary" style={{ width: `${progress}%` }} />
+        </div>
+        <p className="mt-2 text-xs text-slate-500">
+          {formatCurrency(paid)} paid of {formatCurrency(number(loan.original_principal))} ·{' '}
+          {Math.round(progress)}%
+        </p>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <p className="text-slate-500">Interest</p>
+          <p className="mt-1 font-semibold">
+            {loan.interest_type === 'none'
+              ? 'None'
+              : loan.interest_type === 'fixed'
+                ? formatCurrency(number(loan.fixed_interest_amount))
+                : `${number(loan.interest_rate)}% simple`}
+          </p>
+        </div>
+        <div className="rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          <p className="text-slate-500">Payment frequency</p>
+          <p className="mt-1 font-semibold">One-time / as agreed</p>
+        </div>
+      </div>
+      {loan.notes ? (
+        <p className="rounded-xl bg-slate-50 p-3 text-sm text-slate-600 dark:bg-slate-800/60 dark:text-slate-300">
+          {loan.notes}
+        </p>
+      ) : null}
+      {loan.status === 'active' ? (
+        <button
+          type="button"
+          onClick={onPay}
+          className="min-h-11 w-full rounded-xl bg-brand-primary px-4 font-semibold text-white"
+        >
+          {loan.direction === 'lent' ? 'Record payment received' : 'Record repayment'}
+        </button>
+      ) : null}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-200 px-3 text-sm font-semibold dark:border-slate-700"
+        >
+          <Pencil className="h-4 w-4" />
+          Edit
+        </button>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-red-200 px-3 text-sm font-semibold text-red-700 dark:border-red-900"
+        >
+          <Trash2 className="h-4 w-4" />
+          Delete
+        </button>
+      </div>
+      <section>
+        <h4 className="flex items-center gap-2 text-sm font-semibold">
+          <ReceiptText className="h-4 w-4" />
+          Payment history
+        </h4>
+        <div className="mt-3 space-y-2">
+          {payments.length ? (
+            payments.map((payment) => (
+              <div
+                key={payment.id}
+                className="flex items-center justify-between rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-700"
+              >
+                <span>
+                  <span className="block font-semibold">{dateText(payment.paid_on)}</span>
+                  <span className="text-xs text-slate-500">
+                    {payment.wallets?.name ?? 'Wallet'}
+                    {payment.note ? ` · ${payment.note}` : ''}
+                  </span>
+                </span>
+                <span className="font-mono font-semibold">
+                  {formatCurrency(
+                    number(payment.principal_amount) + number(payment.interest_amount),
+                  )}
+                </span>
+              </div>
+            ))
+          ) : (
+            <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/60">
+              No repayments recorded yet.
+            </p>
+          )}
+        </div>
+      </section>
+    </div>
+  );
 }
 
 export function LoansDebtPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
@@ -45,17 +179,242 @@ export function LoansDebtPage({ session, onSignOut }: { session: Session; onSign
   const [selected, setSelected] = useState<Loan | null>(null);
   const loans = loansQuery.data?.loans ?? [];
   const wallets = (walletsQuery.data ?? []).filter((wallet) => wallet.account_type !== 'credit');
-  const totals = useMemo(() => ({ paid: loans.reduce((sum, loan) => sum + (number(loan.original_principal) - number(loan.outstanding_principal)), 0), remaining: loans.filter((loan) => loan.status === 'active').reduce((sum, loan) => sum + number(loan.outstanding_principal), 0) }), [loans]);
-  const refresh = () => { loansQuery.refetch(); walletsQuery.refetch(); };
-  async function removeLoan() { if (!selected || !window.confirm(`Delete ${selected.counterparty}'s loan? This is only available before repayments are recorded.`)) return; try { await mutation.mutate(`/loans/${selected.id}`, { method: 'DELETE' }); setPanel(null); setSelected(null); refresh(); } catch { /* display domain error in the detail panel */ } }
-  return <DashboardShell activeLabel="Loans & Debt" title="Loans & Debt" subtitle="Track money owed to you and what you owe" name={nameFor(session)} onSignOut={onSignOut} action={<button type="button" onClick={() => setPanel('add')} className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Add loan or debt</button>}>
-    {loansQuery.isLoading || walletsQuery.isLoading ? <><LoansSkeleton /><SlowLoadNotice show={loansQuery.isSlowLoading || walletsQuery.isSlowLoading} /></> : null}
-    {loansQuery.error || walletsQuery.error ? <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">{loansQuery.error || walletsQuery.error}</p> : null}
-    {!loansQuery.isLoading && !walletsQuery.isLoading ? <div className="space-y-6"><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><Summary label="Loaned / owed to me" value={loansQuery.data?.summary.owed_to_me ?? 0} tone="emerald" /><Summary label="Borrowed / I owe" value={loansQuery.data?.summary.i_owe ?? 0} tone="rose" /><Summary label="Total amount paid" value={totals.paid} tone="blue" /><Summary label="Remaining balance" value={totals.remaining} tone="slate" /></section><section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900"><div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700"><div><h2 className="font-semibold">Loans & debt</h2><p className="mt-1 text-sm text-slate-500">Repayment progress and payment history</p></div><HandCoins className="h-5 w-5 text-brand-primary" /></div>{loans.length ? <div className="divide-y divide-slate-200 dark:divide-slate-700">{loans.map((loan) => { const paid = number(loan.original_principal) - number(loan.outstanding_principal); const percent = number(loan.original_principal) ? paid / number(loan.original_principal) * 100 : 0; return <button type="button" key={loan.id} onClick={() => { setSelected(loan); setPanel('detail'); }} className="w-full p-5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"><div className="flex items-start justify-between gap-4"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold">{loan.counterparty}</h3><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(statusFor(loan))}`}>{statusFor(loan)}</span></div><p className="mt-1 text-sm text-slate-500">{loan.direction === 'lent' ? 'Owed to you' : 'You owe'} · Due {dateText(loan.due_date)}</p></div><p className="font-mono font-semibold">{formatCurrency(number(loan.outstanding_principal))}</p></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-full bg-brand-primary" style={{ width: `${Math.min(100, percent)}%` }} /></div></button>; })}</div> : <div className="p-10 text-center"><HandCoins className="mx-auto h-9 w-9 text-slate-400" /><h2 className="mt-3 font-semibold">No loans or debt yet</h2><p className="mt-1 text-sm text-slate-500">Record money you lent or borrowed, then track repayments here.</p><button type="button" onClick={() => setPanel('add')} className="mt-5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white">Add loan or debt</button></div>}</section></div> : null}
-    <SlideOver open={panel === 'add'} onClose={() => setPanel(null)} title="Add loan or debt" description="Record money you lent or borrowed without changing income or spending."><LoanRecordForm wallets={wallets} onClose={() => setPanel(null)} onSaved={refresh} /></SlideOver>
-    <SlideOver open={panel === 'pay'} onClose={() => setPanel('detail')} title="Record repayment" description="Principal and interest continue to update the selected wallet and transaction records."><RepaymentForm loans={selected ? [selected] : loans.filter((loan) => loan.status === 'active')} wallets={wallets} onClose={() => setPanel(null)} onSaved={refresh} /></SlideOver>
-    <SlideOver open={panel === 'detail'} onClose={() => { setPanel(null); setSelected(null); }} title="Loan details">{selected ? <LoanDetails loan={selected} onPay={() => setPanel('pay')} onEdit={() => setPanel('edit')} onDelete={() => void removeLoan()} /> : null}{mutation.error ? <p className="mt-4 text-sm text-red-600">{mutation.error}</p> : null}</SlideOver>
-    <SlideOver open={panel === 'edit'} onClose={() => setPanel('detail')} title="Edit loan or debt" description="Update the loan details before recording repayments.">{selected ? <LoanRecordForm loan={selected} wallets={wallets} onClose={() => { setPanel(null); setSelected(null); }} onSaved={refresh} /> : null}<p className="mt-4 text-xs text-slate-500">Editing is available for records without repayments; payment history is protected once recorded.</p></SlideOver>
-  </DashboardShell>;
+  const totals = useMemo(
+    () => ({
+      paid: loans.reduce(
+        (sum, loan) => sum + (number(loan.original_principal) - number(loan.outstanding_principal)),
+        0,
+      ),
+      remaining: loans
+        .filter((loan) => loan.status === 'active')
+        .reduce((sum, loan) => sum + number(loan.outstanding_principal), 0),
+    }),
+    [loans],
+  );
+  const refresh = () => {
+    loansQuery.refetch();
+    walletsQuery.refetch();
+  };
+  async function removeLoan() {
+    if (
+      !selected ||
+      !window.confirm(
+        `Delete ${selected.counterparty}'s loan? This is only available before repayments are recorded.`,
+      )
+    )
+      return;
+    try {
+      await mutation.mutate(`/loans/${selected.id}`, { method: 'DELETE' });
+      setPanel(null);
+      setSelected(null);
+      refresh();
+    } catch {
+      /* display domain error in the detail panel */
+    }
+  }
+  return (
+    <DashboardShell
+      activeLabel="Loans & Debt"
+      title="Loans & Debt"
+      subtitle="Track money owed to you and what you owe"
+      name={nameFor(session)}
+      onSignOut={onSignOut}
+      action={
+        <button
+          type="button"
+          onClick={() => setPanel('add')}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-white"
+        >
+          <Plus className="h-4 w-4" />
+          Add loan or debt
+        </button>
+      }
+    >
+      {loansQuery.isLoading || walletsQuery.isLoading ? (
+        <>
+          <LoansSkeleton />
+          <SlowLoadNotice show={loansQuery.isSlowLoading || walletsQuery.isSlowLoading} />
+        </>
+      ) : null}
+      {loansQuery.error || walletsQuery.error ? (
+        <p className="rounded-2xl bg-red-50 p-4 text-sm text-red-700">
+          {loansQuery.error || walletsQuery.error}
+        </p>
+      ) : null}
+      {!loansQuery.isLoading && !walletsQuery.isLoading ? (
+        <div className="space-y-6">
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Summary
+              label="Loaned / owed to me"
+              value={loansQuery.data?.summary.owed_to_me ?? 0}
+              tone="emerald"
+            />
+            <Summary
+              label="Borrowed / I owe"
+              value={loansQuery.data?.summary.i_owe ?? 0}
+              tone="rose"
+            />
+            <Summary label="Total amount paid" value={totals.paid} tone="blue" />
+            <Summary label="Remaining balance" value={totals.remaining} tone="slate" />
+          </section>
+          <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <div>
+                <h2 className="font-semibold">Loans & debt</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Repayment progress and payment history
+                </p>
+              </div>
+              <HandCoins className="h-5 w-5 text-brand-primary" />
+            </div>
+            {loans.length ? (
+              <div className="divide-y divide-slate-200 dark:divide-slate-700">
+                {loans.map((loan) => {
+                  const paid = number(loan.original_principal) - number(loan.outstanding_principal);
+                  const percent = number(loan.original_principal)
+                    ? (paid / number(loan.original_principal)) * 100
+                    : 0;
+                  return (
+                    <button
+                      type="button"
+                      key={loan.id}
+                      onClick={() => {
+                        setSelected(loan);
+                        setPanel('detail');
+                      }}
+                      className="w-full p-5 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60"
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold">{loan.counterparty}</h3>
+                            <span
+                              className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(statusFor(loan))}`}
+                            >
+                              {statusFor(loan)}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {loan.direction === 'lent' ? 'Owed to you' : 'You owe'} · Due{' '}
+                            {dateText(loan.due_date)}
+                          </p>
+                        </div>
+                        <p className="font-mono font-semibold">
+                          {formatCurrency(number(loan.outstanding_principal))}
+                        </p>
+                      </div>
+                      <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                        <div
+                          className="h-full bg-brand-primary"
+                          style={{ width: `${Math.min(100, percent)}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="p-10 text-center">
+                <HandCoins className="mx-auto h-9 w-9 text-slate-400" />
+                <h2 className="mt-3 font-semibold">No loans or debt yet</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Record money you lent or borrowed, then track repayments here.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setPanel('add')}
+                  className="mt-5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white"
+                >
+                  Add loan or debt
+                </button>
+              </div>
+            )}
+          </section>
+        </div>
+      ) : null}
+      <SlideOver
+        open={panel === 'add'}
+        onClose={() => setPanel(null)}
+        title="Add loan or debt"
+        description="Record money you lent or borrowed without changing income or spending."
+      >
+        <LoanRecordForm wallets={wallets} onClose={() => setPanel(null)} onSaved={refresh} />
+      </SlideOver>
+      <SlideOver
+        open={panel === 'pay'}
+        onClose={() => setPanel('detail')}
+        title="Record repayment"
+        description="Principal and interest continue to update the selected wallet and transaction records."
+      >
+        <RepaymentForm
+          loans={selected ? [selected] : loans.filter((loan) => loan.status === 'active')}
+          wallets={wallets}
+          onClose={() => setPanel(null)}
+          onSaved={refresh}
+        />
+      </SlideOver>
+      <SlideOver
+        open={panel === 'detail'}
+        onClose={() => {
+          setPanel(null);
+          setSelected(null);
+        }}
+        title="Loan details"
+      >
+        {selected ? (
+          <LoanDetails
+            loan={selected}
+            onPay={() => setPanel('pay')}
+            onEdit={() => setPanel('edit')}
+            onDelete={() => void removeLoan()}
+          />
+        ) : null}
+        {mutation.error ? <p className="mt-4 text-sm text-red-600">{mutation.error}</p> : null}
+      </SlideOver>
+      <SlideOver
+        open={panel === 'edit'}
+        onClose={() => setPanel('detail')}
+        title="Edit loan or debt"
+        description="Update the loan details before recording repayments."
+      >
+        {selected ? (
+          <LoanRecordForm
+            loan={selected}
+            wallets={wallets}
+            onClose={() => {
+              setPanel(null);
+              setSelected(null);
+            }}
+            onSaved={refresh}
+          />
+        ) : null}
+        <p className="mt-4 text-xs text-slate-500">
+          Editing is available for records without repayments; payment history is protected once
+          recorded.
+        </p>
+      </SlideOver>
+    </DashboardShell>
+  );
 }
-function Summary({ label, value, tone }: { label: string; value: number; tone: 'emerald' | 'rose' | 'blue' | 'slate' }) { const themes = { emerald: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30', rose: 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30', blue: 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30', slate: 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60' }; return <article className={`rounded-2xl border p-5 ${themes[tone]}`}><p className="text-sm text-slate-500 dark:text-slate-300">{label}</p><p className="mt-3 font-mono text-2xl font-bold">{formatCurrency(number(value))}</p></article>; }
+function Summary({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: 'emerald' | 'rose' | 'blue' | 'slate';
+}) {
+  const themes = {
+    emerald: 'border-emerald-200 bg-emerald-50 dark:border-emerald-900 dark:bg-emerald-950/30',
+    rose: 'border-rose-200 bg-rose-50 dark:border-rose-900 dark:bg-rose-950/30',
+    blue: 'border-blue-200 bg-blue-50 dark:border-blue-900 dark:bg-blue-950/30',
+    slate: 'border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60',
+  };
+  return (
+    <article className={`rounded-2xl border p-5 ${themes[tone]}`}>
+      <p className="text-sm text-slate-500 dark:text-slate-300">{label}</p>
+      <p className="mt-3 font-mono text-2xl font-bold">{formatCurrency(number(value))}</p>
+    </article>
+  );
+}

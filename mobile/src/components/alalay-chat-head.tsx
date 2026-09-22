@@ -72,13 +72,23 @@ export function AlalayChatHead() {
 
   return (
     <>
-      <LegacyChatHeadAnimatedBridge colors={colors} insight={insight} onOpenChat={() => setChatOpen(true)} />
+      <LegacyChatHeadAnimatedBridge
+        colors={colors}
+        insight={insight}
+        onOpenChat={() => setChatOpen(true)}
+      />
       {chatOpen && <AlalayChat onClose={() => setChatOpen(false)} />}
     </>
   );
 }
 
-export function AlalayChat({ onClose, tabScreen = false }: { onClose?: () => void; tabScreen?: boolean }) {
+export function AlalayChat({
+  onClose,
+  tabScreen = false,
+}: {
+  onClose?: () => void;
+  tabScreen?: boolean;
+}) {
   const { colors } = useAppTheme();
   const { insight, state: insightState, refresh: refreshInsight } = useDashboardInsight();
   const styles = useMemo(() => createStyles(colors), [colors]);
@@ -145,16 +155,30 @@ export function AlalayChat({ onClose, tabScreen = false }: { onClose?: () => voi
   };
 
   return (
-    <SafeAreaView style={tabScreen ? [styles.chatBody, { backgroundColor: colors.background }] : styles.chatScreen} edges={['bottom']}>
+    <SafeAreaView
+      style={
+        tabScreen ? [styles.chatBody, { backgroundColor: colors.background }] : styles.chatScreen
+      }
+      edges={['bottom']}
+    >
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.chatBody}
         keyboardVerticalOffset={0}
       >
         <View style={[styles.chatHeader, { paddingTop: Math.max(12, insets.top) }]}>
-          {onClose ? <Pressable accessibilityRole="button" accessibilityLabel="Close chat" onPress={onClose} style={styles.headerButton}>
-            <ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} />
-          </Pressable> : <View style={styles.headerButton} />}
+          {onClose ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close chat"
+              onPress={onClose}
+              style={styles.headerButton}
+            >
+              <ArrowLeft size={22} color={colors.ink} strokeWidth={1.8} />
+            </Pressable>
+          ) : (
+            <View style={styles.headerButton} />
+          )}
           <View style={styles.chatTitleWrap}>
             <Text style={styles.chatTitle}>Ask Alalay</Text>
             <Text style={styles.chatSubtitle}>Your financial companion</Text>

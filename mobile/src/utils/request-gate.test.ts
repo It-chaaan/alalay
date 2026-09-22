@@ -21,10 +21,13 @@ void (async () => {
   assert.equal(calls, 1);
   resolveRequest?.(1);
   await first;
-  assert.equal(await gate(async () => {
-    calls += 1;
-    return 3;
-  }), 3);
+  assert.equal(
+    await gate(async () => {
+      calls += 1;
+      return 3;
+    }),
+    3,
+  );
   assert.equal(calls, 2);
 
   const latest = createLatestRequestGuard();

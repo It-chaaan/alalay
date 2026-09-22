@@ -1,5 +1,5 @@
-import { asNumber, client, requireUserId } from "./db.js";
-import { createGeminiProvider } from "./ai.providers.js";
+import { asNumber, client, requireUserId } from './db.js';
+import { createGeminiProvider } from './ai.providers.js';
 
 const dashboardInsightCacheTtlMs = 24 * 60 * 60 * 1000;
 const dashboardInsightInFlight = new Map<string, Promise<DashboardInsight>>();
@@ -15,14 +15,15 @@ type DashboardInsightInput = {
 };
 
 export type DashboardInsight = {
-  status: "configured" | "not_configured" | "error";
+  status: 'configured' | 'not_configured' | 'error';
   message: string;
 };
 
 function compactContext(input: DashboardInsightInput) {
-  const budget = input.budget && typeof input.budget === "object"
-    ? input.budget as Record<string, unknown>
-    : null;
+  const budget =
+    input.budget && typeof input.budget === 'object'
+      ? (input.budget as Record<string, unknown>)
+      : null;
 
   return {
     month: input.month,
@@ -30,9 +31,9 @@ function compactContext(input: DashboardInsightInput) {
     expenses: {
       total: Number(input.expenses.reduce((sum, row) => sum + asNumber(row.amount), 0).toFixed(2)),
       transactions: input.expenses.slice(0, 12).map((row) => ({
-        merchant: row.merchant ?? row.description ?? "Expense",
+        merchant: row.merchant ?? row.description ?? 'Expense',
         amount: asNumber(row.amount),
-        category: row.category ?? "Uncategorized",
+        category: row.category ?? 'Uncategorized',
         date: row.date,
       })),
     },
@@ -65,61 +66,74 @@ function compactContext(input: DashboardInsightInput) {
   };
 }
 
-async function generateDashboardInsightUncached(userId: string, input: DashboardInsightInput): Promise<DashboardInsight> {
+async function generateDashboardInsightUncached(
+  userId: string,
+  input: DashboardInsightInput,
+): Promise<DashboardInsight> {
   const profileId = requireUserId(userId);
   const { data: cached, error: cacheReadError } = await client()
-    .from("dashboard_insights")
-    .select("message, generated_at")
-    .eq("user_id", profileId)
+    .from('dashboard_insights')
+    .select('message, generated_at')
+    .eq('user_id', profileId)
     .maybeSingle();
 
   // A missing cache table should not take down the Dashboard; the migration
   // creates it in normal deployments, while this fallback preserves AI output
   // during rolling deployments.
-  if (!cacheReadError && cached && Date.now() - new Date(cached.generated_at).getTime() < dashboardInsightCacheTtlMs) {
-    return { status: "configured", message: cached.message };
+  if (
+    !cacheReadError &&
+    cached &&
+    Date.now() - new Date(cached.generated_at).getTime() < dashboardInsightCacheTtlMs
+  ) {
+    return { status: 'configured', message: cached.message };
   }
 
   const provider = createGeminiProvider();
 
   if (!provider.isConfigured()) {
     return {
-      status: "not_configured",
-      message: "AI insights are temporarily unavailable because the AI provider is not configured.",
+      status: 'not_configured',
+      message: 'AI insights are temporarily unavailable because the AI provider is not configured.',
     };
   }
 
   try {
     const message = await provider.generate({
-      language: "en",
+      language: 'en',
       history: [],
       financialContext: compactContext(input),
       message: [
-        "Create one personalized dashboard insight for this user.",
-        "Use only the supplied financial context.",
-        "Return 1-2 concise sentences, with one concrete action when the data supports it.",
-        "Do not use headings, markdown, greetings, or claims about data that is not present.",
-      ].join(" "),
+        'Create one personalized dashboard insight for this user.',
+        'Use only the supplied financial context.',
+        'Return 1-2 concise sentences, with one concrete action when the data supports it.',
+        'Do not use headings, markdown, greetings, or claims about data that is not present.',
+      ].join(' '),
     });
 
     const { error: cacheWriteError } = await client()
-      .from("dashboard_insights")
-      .upsert({ user_id: profileId, message, generated_at: new Date().toISOString() }, { onConflict: "user_id" });
+      .from('dashboard_insights')
+      .upsert(
+        { user_id: profileId, message, generated_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
     if (cacheWriteError) {
       // Do not hide a successful Gemini response if persistence is temporarily unavailable.
-      console.warn("Unable to persist dashboard AI insight cache:", cacheWriteError.message);
+      console.warn('Unable to persist dashboard AI insight cache:', cacheWriteError.message);
     }
 
-    return { status: "configured", message };
+    return { status: 'configured', message };
   } catch {
     return {
-      status: "error",
-      message: "AI insights are temporarily unavailable. Open Alalay AI to try again.",
+      status: 'error',
+      message: 'AI insights are temporarily unavailable. Open Alalay AI to try again.',
     };
   }
 }
 
-export async function generateDashboardInsight(userId: string, input: DashboardInsightInput): Promise<DashboardInsight> {
+export async function generateDashboardInsight(
+  userId: string,
+  input: DashboardInsightInput,
+): Promise<DashboardInsight> {
   const profileId = requireUserId(userId);
   const existing = dashboardInsightInFlight.get(profileId);
   if (existing) return existing;

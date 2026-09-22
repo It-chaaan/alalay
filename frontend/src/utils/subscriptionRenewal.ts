@@ -1,12 +1,12 @@
-type SubscriptionBillingCycle = "weekly" | "monthly" | "quarterly" | "yearly";
+type SubscriptionBillingCycle = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.split('-').map(Number);
   return new Date(Date.UTC(year, (month || 1) - 1, day || 1));
 }
 
 function toDateOnly(date: Date) {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
 function addMonths(date: Date, months: number) {
@@ -15,29 +15,34 @@ function addMonths(date: Date, months: number) {
 
   next.setUTCDate(1);
   next.setUTCMonth(next.getUTCMonth() + months);
-  next.setUTCDate(Math.min(originalDay, new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate()));
+  next.setUTCDate(
+    Math.min(
+      originalDay,
+      new Date(Date.UTC(next.getUTCFullYear(), next.getUTCMonth() + 1, 0)).getUTCDate(),
+    ),
+  );
 
   return next;
 }
 
 function addCycle(date: Date, cycle: SubscriptionBillingCycle) {
-  if (cycle === "weekly") {
+  if (cycle === 'weekly') {
     const next = new Date(date);
     next.setUTCDate(next.getUTCDate() + 7);
     return next;
   }
-  return addMonths(date, cycle === "quarterly" ? 3 : cycle === "yearly" ? 12 : 1);
+  return addMonths(date, cycle === 'quarterly' ? 3 : cycle === 'yearly' ? 12 : 1);
 }
 
 function todayInManila() {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(new Date());
 
-  return `${parts.find((part) => part.type === "year")?.value}-${parts.find((part) => part.type === "month")?.value}-${parts.find((part) => part.type === "day")?.value}`;
+  return `${parts.find((part) => part.type === 'year')?.value}-${parts.find((part) => part.type === 'month')?.value}-${parts.find((part) => part.type === 'day')?.value}`;
 }
 
 export function getNextSubscriptionRenewalDate(

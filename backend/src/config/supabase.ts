@@ -1,9 +1,9 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import { AsyncLocalStorage } from "node:async_hooks";
-import type { WebSocketLikeConstructor } from "@supabase/realtime-js";
-import ws from "ws";
-import { env } from "./env.js";
-import { AppError } from "../utils/api.js";
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import type { WebSocketLikeConstructor } from '@supabase/realtime-js';
+import ws from 'ws';
+import { env } from './env.js';
+import { AppError } from '../utils/api.js';
 
 let supabaseClient: SupabaseClient | null = null;
 const requestClient = new AsyncLocalStorage<SupabaseClient>();
@@ -20,8 +20,8 @@ export function getServiceSupabase() {
   if (!env.SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
     throw new AppError(
       503,
-      "supabase_not_configured",
-      "Supabase backend is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env.",
+      'supabase_not_configured',
+      'Supabase backend is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in backend/.env.',
     );
   }
 
@@ -40,7 +40,7 @@ export function getServiceSupabase() {
 
 export function runWithUserSupabase(token: string, callback: () => void) {
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
-    throw new AppError(503, "supabase_not_configured", "Authentication service is not configured.");
+    throw new AppError(503, 'supabase_not_configured', 'Authentication service is not configured.');
   }
 
   const scopedClient = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, {

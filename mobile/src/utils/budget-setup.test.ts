@@ -33,7 +33,10 @@ const recommended = recommendedBudgetEntries({
 assert.equal(recommended.find((entry) => entry.name === 'Food')?.budget, 4_321);
 assert.equal(recommended.find((entry) => entry.name === 'Rent')?.budget, 2_469);
 assert.equal(recommended.find((entry) => entry.name === 'Savings')?.budget, 2_469);
-assert.equal(recommended.some((entry) => entry.name === 'Goal allocation'), false);
+assert.equal(
+  recommended.some((entry) => entry.name === 'Goal allocation'),
+  false,
+);
 
 assert.equal(
   canApplyBudgetSetup({ capturedMonth: '2026-08', activeMonth: '2026-08', dialogOpen: true }),

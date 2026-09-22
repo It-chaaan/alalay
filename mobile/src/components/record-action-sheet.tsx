@@ -32,7 +32,13 @@ type RecordActionSheetProps = {
   onClose: () => void;
 };
 
-export function RecordActionSheet({ visible, title, recordName, actions, onClose }: RecordActionSheetProps) {
+export function RecordActionSheet({
+  visible,
+  title,
+  recordName,
+  actions,
+  onClose,
+}: RecordActionSheetProps) {
   const { colors, resolvedTheme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const { setModalVisible } = useModalVisibility();
@@ -60,7 +66,9 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
       setConfirmation(null);
       close();
     } catch (actionError) {
-      setError(actionError instanceof Error ? actionError.message : 'Could not complete this action.');
+      setError(
+        actionError instanceof Error ? actionError.message : 'Could not complete this action.',
+      );
     } finally {
       setBusy(false);
     }
@@ -77,40 +85,175 @@ export function RecordActionSheet({ visible, title, recordName, actions, onClose
   };
 
   const confirmTone = confirmation?.confirm?.tone ?? confirmation?.tone ?? 'destructive';
-  const confirmColor = confirmTone === 'primary'
-    ? colors.primary
-    : confirmTone === 'warning'
-      ? colors.warning
-      : confirmTone === 'destructive'
-        ? colors.danger
-        : colors.textPrimary;
+  const confirmColor =
+    confirmTone === 'primary'
+      ? colors.primary
+      : confirmTone === 'warning'
+        ? colors.warning
+        : confirmTone === 'destructive'
+          ? colors.danger
+          : colors.textPrimary;
 
-  return <Modal visible={visible} animationType="fade" transparent onRequestClose={close} statusBarTranslucent>
-    <View style={styles.overlay}>
-      <Pressable accessibilityLabel="Close action sheet" style={[styles.backdrop, { backgroundColor: colors.overlay }]} onPress={close} />
-      <View style={[styles.sheetWrap, { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 }]}>
-        <View style={[styles.sheetClip, { borderColor: colors.border }]}>
-          <BlurView intensity={42} tint={resolvedTheme} style={StyleSheet.absoluteFill} />
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]} />
-          <View style={styles.sheet}>
-            <Text numberOfLines={2} style={[styles.title, { color: colors.textPrimary }]}>{confirmation?.confirm?.title ?? title}</Text>
-            {!confirmation ? <Text numberOfLines={2} style={[styles.recordName, { color: colors.textSecondary }]}>{recordName}</Text> : null}
-            {confirmation ? <>
-              <Text style={[styles.confirmCopy, { color: colors.textSecondary }]}>{confirmation.confirm?.message}</Text>
-              {error ? <Text accessibilityRole="alert" style={[styles.error, { color: colors.danger }]}>{error}</Text> : null}
-              <View style={styles.confirmRow}>
-                <Pressable disabled={busy} accessibilityRole="button" onPress={() => setConfirmation(null)} style={[styles.action, styles.confirmAction, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>{confirmation.confirm?.cancelLabel ?? 'Cancel'}</Text></Pressable>
-                <Pressable disabled={busy} accessibilityRole="button" onPress={() => void run(confirmation)} style={[styles.action, styles.confirmAction, { backgroundColor: confirmTone === 'warning' ? `${colors.warning}18` : colors.surfaceInput }, busy && styles.disabled]}>{busy ? <><ActivityIndicator color={confirmColor} /><Text style={[styles.actionText, { color: confirmColor }]}>{confirmation.confirm?.loadingLabel ?? 'Working…'}</Text></> : <>{confirmation.confirm?.icon}{<Text style={[styles.actionText, { color: confirmColor }]}>{confirmation.confirm?.confirmLabel ?? confirmation.label}</Text>}</>}</Pressable>
-              </View>
-            </> : <>
-              {actions.map((action) => <Pressable key={action.label} accessibilityRole="button" accessibilityState={{ disabled: action.disabled || busy }} disabled={action.disabled || busy} onPress={() => select(action)} style={({ pressed }) => [styles.action, { backgroundColor: colors.surfaceInput }, pressed && styles.pressed, (action.disabled || busy) && styles.disabled]}>{action.icon}{busy ? null : <Text style={[styles.actionText, { color: action.tone === 'primary' ? colors.primary : action.tone === 'warning' ? colors.warning : action.tone === 'destructive' ? colors.danger : colors.textPrimary }]}>{action.label}</Text>}</Pressable>)}
-              <Pressable accessibilityRole="button" onPress={close} disabled={busy} style={[styles.action, styles.cancel, { backgroundColor: colors.surfaceInput }, busy && styles.disabled]}><Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text></Pressable>
-            </>}
+  return (
+    <Modal
+      visible={visible}
+      animationType="fade"
+      transparent
+      onRequestClose={close}
+      statusBarTranslucent
+    >
+      <View style={styles.overlay}>
+        <Pressable
+          accessibilityLabel="Close action sheet"
+          style={[styles.backdrop, { backgroundColor: colors.overlay }]}
+          onPress={close}
+        />
+        <View
+          style={[
+            styles.sheetWrap,
+            { paddingTop: insets.top + 24, paddingBottom: insets.bottom + 24 },
+          ]}
+        >
+          <View style={[styles.sheetClip, { borderColor: colors.border }]}>
+            <BlurView intensity={42} tint={resolvedTheme} style={StyleSheet.absoluteFill} />
+            <View
+              pointerEvents="none"
+              style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]}
+            />
+            <View style={styles.sheet}>
+              <Text numberOfLines={2} style={[styles.title, { color: colors.textPrimary }]}>
+                {confirmation?.confirm?.title ?? title}
+              </Text>
+              {!confirmation ? (
+                <Text
+                  numberOfLines={2}
+                  style={[styles.recordName, { color: colors.textSecondary }]}
+                >
+                  {recordName}
+                </Text>
+              ) : null}
+              {confirmation ? (
+                <>
+                  <Text style={[styles.confirmCopy, { color: colors.textSecondary }]}>
+                    {confirmation.confirm?.message}
+                  </Text>
+                  {error ? (
+                    <Text
+                      accessibilityRole="alert"
+                      style={[styles.error, { color: colors.danger }]}
+                    >
+                      {error}
+                    </Text>
+                  ) : null}
+                  <View style={styles.confirmRow}>
+                    <Pressable
+                      disabled={busy}
+                      accessibilityRole="button"
+                      onPress={() => setConfirmation(null)}
+                      style={[
+                        styles.action,
+                        styles.confirmAction,
+                        { backgroundColor: colors.surfaceInput },
+                        busy && styles.disabled,
+                      ]}
+                    >
+                      <Text style={[styles.actionText, { color: colors.textSecondary }]}>
+                        {confirmation.confirm?.cancelLabel ?? 'Cancel'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      disabled={busy}
+                      accessibilityRole="button"
+                      onPress={() => void run(confirmation)}
+                      style={[
+                        styles.action,
+                        styles.confirmAction,
+                        {
+                          backgroundColor:
+                            confirmTone === 'warning' ? `${colors.warning}18` : colors.surfaceInput,
+                        },
+                        busy && styles.disabled,
+                      ]}
+                    >
+                      {busy ? (
+                        <>
+                          <ActivityIndicator color={confirmColor} />
+                          <Text style={[styles.actionText, { color: confirmColor }]}>
+                            {confirmation.confirm?.loadingLabel ?? 'Working…'}
+                          </Text>
+                        </>
+                      ) : (
+                        <>
+                          {confirmation.confirm?.icon}
+                          {
+                            <Text style={[styles.actionText, { color: confirmColor }]}>
+                              {confirmation.confirm?.confirmLabel ?? confirmation.label}
+                            </Text>
+                          }
+                        </>
+                      )}
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  {actions.map((action) => (
+                    <Pressable
+                      key={action.label}
+                      accessibilityRole="button"
+                      accessibilityState={{ disabled: action.disabled || busy }}
+                      disabled={action.disabled || busy}
+                      onPress={() => select(action)}
+                      style={({ pressed }) => [
+                        styles.action,
+                        { backgroundColor: colors.surfaceInput },
+                        pressed && styles.pressed,
+                        (action.disabled || busy) && styles.disabled,
+                      ]}
+                    >
+                      {action.icon}
+                      {busy ? null : (
+                        <Text
+                          style={[
+                            styles.actionText,
+                            {
+                              color:
+                                action.tone === 'primary'
+                                  ? colors.primary
+                                  : action.tone === 'warning'
+                                    ? colors.warning
+                                    : action.tone === 'destructive'
+                                      ? colors.danger
+                                      : colors.textPrimary,
+                            },
+                          ]}
+                        >
+                          {action.label}
+                        </Text>
+                      )}
+                    </Pressable>
+                  ))}
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={close}
+                    disabled={busy}
+                    style={[
+                      styles.action,
+                      styles.cancel,
+                      { backgroundColor: colors.surfaceInput },
+                      busy && styles.disabled,
+                    ]}
+                  >
+                    <Text style={[styles.actionText, { color: colors.textSecondary }]}>Cancel</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
           </View>
         </View>
       </View>
-    </View>
-  </Modal>;
+    </Modal>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -121,7 +264,15 @@ const styles = StyleSheet.create({
   sheet: { padding: 22, gap: 10 },
   title: { fontSize: 21, fontWeight: '900' },
   recordName: { marginBottom: 4, fontSize: 16, fontWeight: '600' },
-  action: { minHeight: 54, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 9, borderRadius: 17, paddingHorizontal: 16 },
+  action: {
+    minHeight: 54,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    borderRadius: 17,
+    paddingHorizontal: 16,
+  },
   actionText: { fontSize: 15, fontWeight: '800' },
   cancel: { marginTop: 2 },
   pressed: { opacity: 0.74 },

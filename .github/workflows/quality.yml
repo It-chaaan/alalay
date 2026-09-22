@@ -5,12 +5,18 @@ on:
   push:
     branches: [main]
 
+# This workflow never deploys and receives only the repository-read permission.
+permissions:
+  contents: read
+
 jobs:
   quality:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      # actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      # actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
         with:
           node-version: 24
           cache: npm
@@ -23,9 +29,23 @@ jobs:
       - run: npm --prefix backend ci
       - run: npm --prefix frontend ci
       - run: npm --prefix mobile ci
-      - run: npm --prefix backend run build
+      - run: npm run format:check
+      - name: Build backend production output
+        run: npm --prefix backend run build
       - name: Type-check frontend
         run: npm --prefix frontend run typecheck
+      - name: Build frontend production output
+        run: npm --prefix frontend run build
+      # actions/upload-artifact@v4
+      - name: Retain compiled release candidates
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: alalay-build-output
+          path: |
+            backend/dist
+            frontend/dist
+          if-no-files-found: error
+          retention-days: 7
       - name: Type-check mobile
         run: npm --prefix mobile run typecheck
       - run: npm --prefix mobile run lint
@@ -39,4 +59,36 @@ jobs:
           NOTIFICATION_SCHEDULER_ENABLED: 'false'
       - run: npm audit --omit=dev --audit-level=high
       - run: npm --prefix backend audit --omit=dev --audit-level=high
+      - run: npm --prefix frontend audit --omit=dev --audit-level=high
       - run: npm --prefix mobile audit --omit=dev --audit-level=high
+
+  database:
+    name: Database migrations and SQL/RLS tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      # actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+      # supabase/setup-cli@v1.7.1
+      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1
+        with:
+          version: 2.99.0
+      - name: Start an isolated local Supabase stack
+        run: supabase start
+      - name: Apply migrations from a clean local state
+        run: supabase db reset
+      - name: Run SQL and RLS regression tests
+        run: npm run test:db
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # actions/checkout@v5; full history allows the scanner to inspect commits.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
+        with:
+          fetch-depth: 0
+      # gitleaks/gitleaks-action@v2
+      - uses: gitleaks/gitleaks-action@dcedce43c6f43de0b836d1fe38946645c9c638dc
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

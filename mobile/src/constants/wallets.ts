@@ -58,9 +58,17 @@ export const walletPresets: WalletPreset[] = institutionRegistry.map((institutio
 }));
 
 export function matchesWalletPreset(preset: WalletPreset, query: string) {
-  const normalize = (value: string) => value.toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' ');
+  const normalize = (value: string) =>
+    value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, ' ')
+      .replace(/\s+/g, ' ');
   const needle = normalize(query);
-  return !needle || [preset.name, preset.key, ...preset.aliases].some((value) => normalize(value).includes(needle));
+  return (
+    !needle ||
+    [preset.name, preset.key, ...preset.aliases].some((value) => normalize(value).includes(needle))
+  );
 }
 
 export function walletInitials(name: string) {

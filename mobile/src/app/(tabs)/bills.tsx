@@ -105,7 +105,14 @@ type EditorProps = { item: FinanceItem; onClose: () => void; onSaved: () => Prom
 type BillFilter = 'All' | 'Upcoming' | 'Overdue' | 'Paid';
 function FieldError({ message }: { message?: string }) {
   const { colors } = useAppTheme();
-  return message ? <Text accessibilityRole="alert" style={{ color: colors.danger, fontSize: 12, fontWeight: '700', marginTop: 5 }}>{message}</Text> : null;
+  return message ? (
+    <Text
+      accessibilityRole="alert"
+      style={{ color: colors.danger, fontSize: 12, fontWeight: '700', marginTop: 5 }}
+    >
+      {message}
+    </Text>
+  ) : null;
 }
 
 function currentMonthKey() {
@@ -141,11 +148,21 @@ function useBillStyles() {
   const { colors } = useAppTheme();
   return useMemo(() => {
     const themePalette = {
-      ...palette, background: colors.background, surface: colors.surfaceElevated,
-      ink: colors.textPrimary, muted: colors.textSecondary, accent: colors.primary,
-      accentPale: colors.primarySoft, line: colors.border, danger: colors.danger,
+      ...palette,
+      background: colors.background,
+      surface: colors.surfaceElevated,
+      ink: colors.textPrimary,
+      muted: colors.textSecondary,
+      accent: colors.primary,
+      accentPale: colors.primarySoft,
+      line: colors.border,
+      danger: colors.danger,
     };
-    return { ...makeStyles(themePalette), ...makeFilterStyles(themePalette), more: { ...makeStyles(themePalette).more, backgroundColor: 'transparent' } };
+    return {
+      ...makeStyles(themePalette),
+      ...makeFilterStyles(themePalette),
+      more: { ...makeStyles(themePalette).more, backgroundColor: 'transparent' },
+    };
   }, [colors]);
 }
 
@@ -187,12 +204,12 @@ export default function BillsScreen() {
     useCallback(() => {
       setReferenceDate(dateKeyInManila());
       void refresh();
-    const unsubscribe = subscribeFinancialMutations(() => {
-      void refresh();
-    });
-    return () => {
-      unsubscribe();
-    };
+      const unsubscribe = subscribeFinancialMutations(() => {
+        void refresh();
+      });
+      return () => {
+        unsubscribe();
+      };
     }, [refresh]),
   );
 
@@ -203,7 +220,9 @@ export default function BillsScreen() {
   }, [items, occurrenceId]);
 
   const bills = items.filter((item) => item.source === 'bill' && !item.isOverdueFromPreviousMonth);
-  const overdueBills = items.filter((item) => item.source === 'bill' && item.isOverdueFromPreviousMonth);
+  const overdueBills = items.filter(
+    (item) => item.source === 'bill' && item.isOverdueFromPreviousMonth,
+  );
   const statuses = bills.map((item) => derivedStatus(item));
   const filteredBills = bills.filter((item) => {
     const status = derivedStatus(item);
@@ -218,7 +237,9 @@ export default function BillsScreen() {
   const monthlyStatuses = monthlyBills.map((item) => derivedStatus(item));
   const dueThisWeek = monthlyBills.filter((item) => {
     const days = Math.round(
-      (new Date(`${item.dueDate}T12:00:00`).getTime() - new Date(`${referenceDate}T12:00:00+08:00`).getTime()) / 86400000,
+      (new Date(`${item.dueDate}T12:00:00`).getTime() -
+        new Date(`${referenceDate}T12:00:00+08:00`).getTime()) /
+        86400000,
     );
     return days >= 0 && days <= 7 && derivedStatus(item) !== 'Paid';
   }).length;
@@ -438,18 +459,34 @@ export default function BillsScreen() {
           ]}
         />
       )}
-      {details && <FinancialItemDetailsSheet
-        visible title="Bill details" name={details.name}
-        amount={`₱${Math.round(details.amount).toLocaleString('en-PH')}`}
-        status={derivedStatus(details)} onClose={() => setDetails(null)}
-        details={[
-          { label: 'Category', value: details.custom_category || details.category },
-          { label: 'Due date', value: formatBillDate(details.dueDate) },
-          { label: 'Type', value: details.recurring ? `Recurring${details.frequency ? ` · ${details.frequency}` : ''}` : 'One-time' },
-          { label: 'Payment wallet', value: details.wallet_id ? wallets.find((wallet) => wallet.id === details.wallet_id)?.name ?? 'Payment method unavailable' : 'No payment method' },
-          ...(details.paid ? [{ label: 'Payment status', value: 'Paid' }] : []),
-        ]}
-      />}
+      {details && (
+        <FinancialItemDetailsSheet
+          visible
+          title="Bill details"
+          name={details.name}
+          amount={`₱${Math.round(details.amount).toLocaleString('en-PH')}`}
+          status={derivedStatus(details)}
+          onClose={() => setDetails(null)}
+          details={[
+            { label: 'Category', value: details.custom_category || details.category },
+            { label: 'Due date', value: formatBillDate(details.dueDate) },
+            {
+              label: 'Type',
+              value: details.recurring
+                ? `Recurring${details.frequency ? ` · ${details.frequency}` : ''}`
+                : 'One-time',
+            },
+            {
+              label: 'Payment wallet',
+              value: details.wallet_id
+                ? (wallets.find((wallet) => wallet.id === details.wallet_id)?.name ??
+                  'Payment method unavailable')
+                : 'No payment method',
+            },
+            ...(details.paid ? [{ label: 'Payment status', value: 'Paid' }] : []),
+          ]}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -522,7 +559,17 @@ function BillFilterSheet({
   );
 }
 
-function BillCard({ item, walletName, onManage, onOpenDetails }: { item: FinanceItem; walletName?: string; onManage: () => void; onOpenDetails: () => void }) {
+function BillCard({
+  item,
+  walletName,
+  onManage,
+  onOpenDetails,
+}: {
+  item: FinanceItem;
+  walletName?: string;
+  onManage: () => void;
+  onOpenDetails: () => void;
+}) {
   const styles = useBillStyles();
   const { colors } = useAppTheme();
   const status = derivedStatus(item);
@@ -535,29 +582,44 @@ function BillCard({ item, walletName, onManage, onOpenDetails }: { item: Finance
       onPress={onOpenDetails}
     >
       <View style={styles.billTop}>
-        <BrandLogo name={item.name} entity="bill" category={item.category} customCategory={item.custom_category} icon={item.icon} size={40} />
+        <BrandLogo
+          name={item.name}
+          entity="bill"
+          category={item.category}
+          customCategory={item.custom_category}
+          icon={item.icon}
+          size={40}
+        />
         <View style={styles.billMain}>
           <Text numberOfLines={1} style={styles.billName}>
             {item.name}
           </Text>
-          <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.72} style={styles.billAmount}>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.72}
+            style={styles.billAmount}
+          >
             ₱{Math.round(item.amount).toLocaleString('en-PH')}
           </Text>
           <Text numberOfLines={1} style={styles.billMeta}>
             {metadata}
           </Text>
           <Text numberOfLines={1} style={styles.billPayment}>
-            {item.wallet_id ? walletName ?? 'Payment method unavailable' : 'No payment method'}
+            {item.wallet_id ? (walletName ?? 'Payment method unavailable') : 'No payment method'}
           </Text>
         </View>
         <View style={styles.billActions}>
           <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`More options for ${item.name}`}
-          onPress={(event) => { event.stopPropagation(); onManage(); }}
-          style={styles.more}
-        >
-          <MoreHorizontal size={21} color={colors.textSecondary} />
+            accessibilityRole="button"
+            accessibilityLabel={`More options for ${item.name}`}
+            onPress={(event) => {
+              event.stopPropagation();
+              onManage();
+            }}
+            style={styles.more}
+          >
+            <MoreHorizontal size={21} color={colors.textSecondary} />
           </Pressable>
           <StatusBadge status={status} variant="plain" />
         </View>
@@ -719,14 +781,21 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
   const [walletId, setWalletId] = useState<string | null>(item.wallet_id ?? null);
 
   const save = async () => {
-    const nextErrors = item.source === 'bill' ? validateBillForm({ name, amount, date, category, customCategory, walletId }) : {};
-    if (Object.keys(nextErrors).length) { setFieldErrors(nextErrors); setError('Check the highlighted fields.'); return; }
+    const nextErrors =
+      item.source === 'bill'
+        ? validateBillForm({ name, amount, date, category, customCategory, walletId })
+        : {};
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      setError('Check the highlighted fields.');
+      return;
+    }
     const parsedAmount = Number(amount.replace(/,/g, ''));
     setSaving(true);
     setError('');
     try {
       if (item.source === 'bill')
-                        await authenticatedApiRequest(`/api/bills/${item.templateId ?? item.id}`, {
+        await authenticatedApiRequest(`/api/bills/${item.templateId ?? item.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -771,7 +840,11 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
       title={item.source === 'bill' ? item.name : item.name}
       eyebrow={item.source === 'bill' ? 'EDIT BILL' : 'EDIT SUBSCRIPTION'}
       amount={amount}
-        onAmountChange={(value) => { setAmount(value); setFieldErrors((current) => ({ ...current, amount: undefined })); setError(''); }}
+      onAmountChange={(value) => {
+        setAmount(value);
+        setFieldErrors((current) => ({ ...current, amount: undefined }));
+        setError('');
+      }}
       error={error}
       amountError={fieldErrors.amount}
       saving={saving}
@@ -782,20 +855,36 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
       <FormTextInput
         label="Biller name"
         value={name}
-        onChangeText={(value) => { setName(value); setFieldErrors((current) => ({ ...current, name: undefined })); setError(''); }}
+        onChangeText={(value) => {
+          setName(value);
+          setFieldErrors((current) => ({ ...current, name: undefined }));
+          setError('');
+        }}
         error={fieldErrors.name}
         placeholder="e.g. Maynilad"
       />
       {item.source === 'bill' ? (
         <>
           <CategoryChipRow
-          label="Category *"
-          value={category}
-          onChange={(value) => { setCategory(value); setFieldErrors((current) => ({ ...current, category: undefined, customCategory: undefined })); setError(''); }}
-          options={billCategories}
-          customValue={customCategory}
-          onCustomValueChange={(value) => { setCustomCategory(value); setFieldErrors((current) => ({ ...current, customCategory: undefined })); setError(''); }}
-          customLabel="Specify category *"
+            label="Category *"
+            value={category}
+            onChange={(value) => {
+              setCategory(value);
+              setFieldErrors((current) => ({
+                ...current,
+                category: undefined,
+                customCategory: undefined,
+              }));
+              setError('');
+            }}
+            options={billCategories}
+            customValue={customCategory}
+            onCustomValueChange={(value) => {
+              setCustomCategory(value);
+              setFieldErrors((current) => ({ ...current, customCategory: undefined }));
+              setError('');
+            }}
+            customLabel="Specify category *"
           />
           <FieldError message={fieldErrors.category ?? fieldErrors.customCategory} />
         </>
@@ -805,16 +894,28 @@ function BillEditor({ wallets, item, onClose, onSaved }: EditorProps & { wallets
         onChange={setFrequency}
         includeOneTime={item.source === 'bill'}
       />
-      <DatePickerField label="Due date" value={date} onChange={(value) => { setDate(value); setFieldErrors((current) => ({ ...current, date: undefined })); setError(''); }} />
+      <DatePickerField
+        label="Due date"
+        value={date}
+        onChange={(value) => {
+          setDate(value);
+          setFieldErrors((current) => ({ ...current, date: undefined }));
+          setError('');
+        }}
+      />
       <FieldError message={fieldErrors.date} />
       {item.source === 'bill' ? (
         <>
           <WalletPicker
-          wallets={wallets}
-          value={walletId}
-          onChange={(value) => { setWalletId(value); setFieldErrors((current) => ({ ...current, wallet: undefined })); setError(''); }}
-          required
-          label="Payment method"
+            wallets={wallets}
+            value={walletId}
+            onChange={(value) => {
+              setWalletId(value);
+              setFieldErrors((current) => ({ ...current, wallet: undefined }));
+              setError('');
+            }}
+            required
+            label="Payment method"
           />
           <FieldError message={fieldErrors.wallet} />
         </>
@@ -846,7 +947,11 @@ function NewBillForm({
 
   const save = async () => {
     const nextErrors = validateBillForm({ name, amount, date, category, customCategory, walletId });
-    if (Object.keys(nextErrors).length) { setFieldErrors(nextErrors); setError('Check the highlighted fields.'); return; }
+    if (Object.keys(nextErrors).length) {
+      setFieldErrors(nextErrors);
+      setError('Check the highlighted fields.');
+      return;
+    }
     const value = parseAmount(amount) ?? 0;
     setSaving(true);
     setError('');
@@ -879,7 +984,11 @@ function NewBillForm({
       title="Add bill"
       eyebrow="BILLS"
       amount={amount}
-      onAmountChange={(value) => { setAmount(value); setFieldErrors((current) => ({ ...current, amount: undefined })); setError(''); }}
+      onAmountChange={(value) => {
+        setAmount(value);
+        setFieldErrors((current) => ({ ...current, amount: undefined }));
+        setError('');
+      }}
       error={error}
       amountError={fieldErrors.amount}
       saving={saving}
@@ -890,29 +999,57 @@ function NewBillForm({
       <FormTextInput
         label="Biller name"
         value={name}
-        onChangeText={(value) => { setName(value); setFieldErrors((current) => ({ ...current, name: undefined })); setError(''); }}
+        onChangeText={(value) => {
+          setName(value);
+          setFieldErrors((current) => ({ ...current, name: undefined }));
+          setError('');
+        }}
         error={fieldErrors.name}
         placeholder="e.g. Meralco"
       />
       <CategoryChipRow
         value={category}
-        onChange={(value) => { setCategory(value); setFieldErrors((current) => ({ ...current, category: undefined, customCategory: undefined })); setError(''); }}
+        onChange={(value) => {
+          setCategory(value);
+          setFieldErrors((current) => ({
+            ...current,
+            category: undefined,
+            customCategory: undefined,
+          }));
+          setError('');
+        }}
         options={billCategories}
         label="Category *"
         customValue={customCategory}
-        onCustomValueChange={(value) => { setCustomCategory(value); setFieldErrors((current) => ({ ...current, customCategory: undefined })); setError(''); }}
+        onCustomValueChange={(value) => {
+          setCustomCategory(value);
+          setFieldErrors((current) => ({ ...current, customCategory: undefined }));
+          setError('');
+        }}
         customLabel="Specify category *"
       />
       <FieldError message={fieldErrors.category ?? fieldErrors.customCategory} />
       <WalletPicker
         wallets={wallets}
         value={walletId}
-        onChange={(value) => { setWalletId(value); setFieldErrors((current) => ({ ...current, wallet: undefined })); setError(''); }}
+        onChange={(value) => {
+          setWalletId(value);
+          setFieldErrors((current) => ({ ...current, wallet: undefined }));
+          setError('');
+        }}
         required
         label="Payment method"
       />
       <FieldError message={fieldErrors.wallet} />
-      <DatePickerField label="Due date" value={date} onChange={(value) => { setDate(value); setFieldErrors((current) => ({ ...current, date: undefined })); setError(''); }} />
+      <DatePickerField
+        label="Due date"
+        value={date}
+        onChange={(value) => {
+          setDate(value);
+          setFieldErrors((current) => ({ ...current, date: undefined }));
+          setError('');
+        }}
+      />
       <FieldError message={fieldErrors.date} />
       <FrequencyChips value={frequency} onChange={setFrequency} includeOneTime />
     </FinanceFormSheet>

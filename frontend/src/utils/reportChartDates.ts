@@ -1,11 +1,11 @@
 function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.split('-').map(Number);
   return Date.UTC(year, (month || 1) - 1, day || 1);
 }
 
 function formatDateOnly(timestamp: number) {
   const date = new Date(timestamp);
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
 }
 
 export function buildReportDateTicks(start: string, end: string, count = 3) {

@@ -5,7 +5,11 @@ export type ExpenseListItem = {
   created_at?: string;
 };
 
-export type ExpenseGroup<T extends ExpenseListItem> = { date: string; subtotal: number; items: T[] };
+export type ExpenseGroup<T extends ExpenseListItem> = {
+  date: string;
+  subtotal: number;
+  items: T[];
+};
 
 export function expenseRequestIntent(id?: string) {
   return id

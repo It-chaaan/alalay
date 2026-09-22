@@ -227,7 +227,8 @@ export default function Subscriptions() {
       await refresh();
       toast.success(`Subscription ${row.auto_renew ? 'paused' : 'resumed'}`);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Couldn't update subscription. Please try again.";
+      const message =
+        error instanceof Error ? error.message : "Couldn't update subscription. Please try again.";
       toast.error(message);
       throw new Error(message);
     }
@@ -519,24 +520,42 @@ export default function Subscriptions() {
           onEdit={() => setEditing(managing)}
           onToggleStatus={() => toggle(managing)}
           toggleStatusLabel={managing.auto_renew ? 'Pause subscription' : 'Resume subscription'}
-          toggleStatusIcon={managing.auto_renew ? <Pause size={18} color={colors.warning} /> : undefined}
+          toggleStatusIcon={
+            managing.auto_renew ? <Pause size={18} color={colors.warning} /> : undefined
+          }
           onDelete={() => remove(managing)}
           deleting={deleting}
           error={deleteError}
         />
       )}
-      {details && <FinancialItemDetailsSheet
-        visible title="Subscription details" name={details.name}
-        amount={`${formatCurrency(Math.round(Number(details.amount)))}/${details.billing_cycle === 'yearly' ? 'yr' : details.billing_cycle === 'quarterly' ? 'qtr' : details.billing_cycle === 'weekly' ? 'wk' : 'mo'}`}
-        status={subscriptionStatus(details)} onClose={() => setDetails(null)}
-        details={[
-          { label: 'Category', value: details.custom_category ?? details.category ?? 'Subscription' },
-          { label: 'Renewal date', value: friendlyRenewalDate(details.renewal_date) },
-          { label: 'Payment wallet', value: details.wallet_id ? wallets.find((wallet) => wallet.id === details.wallet_id)?.name ?? 'Payment method unavailable' : 'No payment method' },
-          { label: 'State', value: details.auto_renew ? 'Active' : 'Paused' },
-          ...(details.next_renewal_date ? [{ label: 'Next renewal', value: friendlyRenewalDate(details.next_renewal_date) }] : []),
-        ]}
-      />}
+      {details && (
+        <FinancialItemDetailsSheet
+          visible
+          title="Subscription details"
+          name={details.name}
+          amount={`${formatCurrency(Math.round(Number(details.amount)))}/${details.billing_cycle === 'yearly' ? 'yr' : details.billing_cycle === 'quarterly' ? 'qtr' : details.billing_cycle === 'weekly' ? 'wk' : 'mo'}`}
+          status={subscriptionStatus(details)}
+          onClose={() => setDetails(null)}
+          details={[
+            {
+              label: 'Category',
+              value: details.custom_category ?? details.category ?? 'Subscription',
+            },
+            { label: 'Renewal date', value: friendlyRenewalDate(details.renewal_date) },
+            {
+              label: 'Payment wallet',
+              value: details.wallet_id
+                ? (wallets.find((wallet) => wallet.id === details.wallet_id)?.name ??
+                  'Payment method unavailable')
+                : 'No payment method',
+            },
+            { label: 'State', value: details.auto_renew ? 'Active' : 'Paused' },
+            ...(details.next_renewal_date
+              ? [{ label: 'Next renewal', value: friendlyRenewalDate(details.next_renewal_date) }]
+              : []),
+          ]}
+        />
+      )}
       <SubscriptionFilterSheet
         visible={filterSheetOpen}
         draft={draftFilters}

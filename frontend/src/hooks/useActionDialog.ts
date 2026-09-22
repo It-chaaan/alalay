@@ -1,15 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState } from 'react';
 
 function clearActionParam(actionValue?: string) {
   const url = new URL(window.location.href);
 
-  if (actionValue && url.searchParams.get("action") !== actionValue) {
+  if (actionValue && url.searchParams.get('action') !== actionValue) {
     return;
   }
 
-  url.searchParams.delete("action");
+  url.searchParams.delete('action');
   const nextUrl = `${url.pathname}${url.search}${url.hash}`;
-  window.history.replaceState({}, "", nextUrl);
+  window.history.replaceState({}, '', nextUrl);
 }
 
 export function useActionDialog(actionValue: string) {
@@ -18,7 +18,7 @@ export function useActionDialog(actionValue: string) {
   useEffect(() => {
     const url = new URL(window.location.href);
 
-    if (url.searchParams.get("action") === actionValue) {
+    if (url.searchParams.get('action') === actionValue) {
       setIsOpen(true);
       clearActionParam(actionValue);
     }

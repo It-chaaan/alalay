@@ -115,11 +115,11 @@ function AppContent() {
       setIsSessionLoading(false);
     }
 
-      supabaseClient.auth.getSession().then(({ data }) => {
+    supabaseClient.auth.getSession().then(({ data }) => {
       void syncAuthState(data.session);
     });
 
-      const { data } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = supabaseClient.auth.onAuthStateChange((_event, nextSession) => {
       void syncAuthState(nextSession);
     });
 
@@ -348,7 +348,10 @@ function AppContent() {
 
   if (pathname === '/app/notifications') {
     if (isSessionLoading) return <AppLoading />;
-    if (!session || isMfaPending) { window.location.replace('/login'); return <AppLoading />; }
+    if (!session || isMfaPending) {
+      window.location.replace('/login');
+      return <AppLoading />;
+    }
     return <NotificationsPage session={session} onSignOut={handleSignOut} />;
   }
 

@@ -53,7 +53,7 @@ The web application and backend expose the broadest feature surface. The Expo mo
 | -------------- | ----------------------------------------------------------- | ------------------------------------------------------------------- |
 | Web            | React 19, TypeScript, Vite                                  | Browser application                                                 |
 | Web styling    | Tailwind CSS and project CSS                                | Responsive interface styling                                        |
-| Mobile         | React Native, Expo SDK 54, Expo Router                      | iOS, Android, and Expo web client                                   |
+| Mobile         | React Native, Expo SDK 57, Expo Router                      | iOS, Android, and Expo web client                                   |
 | API            | Express, TypeScript, Zod                                    | Authenticated application API and validation                        |
 | Database       | Supabase PostgreSQL                                         | Shared application data, migrations, RLS, and database functions    |
 | Authentication | Supabase Auth                                               | Email/password, Google OAuth, PKCE, password recovery, and TOTP MFA |
@@ -224,7 +224,7 @@ supabase link --project-ref your-project-ref
 supabase db push
 ```
 
-Review migrations before applying them to production. The schema includes RLS policies, Auth profile triggers, wallet/accounting functions, and financial workflow functions. The configured seed path references `supabase/seed.sql`; no seed file is currently present in this repository.
+Review migrations before applying them to production. The schema includes RLS policies, Auth profile triggers, wallet/accounting functions, and financial workflow functions. `supabase/seed.sql` is intentionally empty so resets and SQL/RLS tests begin without fixture data.
 
 The SQL test runner expects a running local container named `supabase_db_alalay`:
 
@@ -242,6 +242,29 @@ npm run dev
 ```
 
 The backend defaults to `http://localhost:3000`; its health check is `GET /health`.
+
+### Backend container
+
+The backend Dockerfile is provider-neutral and does not include Supabase, the
+frontend, mobile application, or any environment file. Build from the repository
+root so the root [`.dockerignore`](.dockerignore) is applied:
+
+```bash
+docker build -f backend/Dockerfile -t alalay-backend .
+```
+
+Run it by providing runtime values through your shell, an approved secret store,
+or the hosting platform; never pass a committed env file into the image:
+
+```bash
+docker run --rm -p 3000:3000 --env-file backend/.env alalay-backend
+```
+
+The image runs as Node's unprivileged `node` user, listens on `PORT` (default
+`3000`), handles `SIGTERM`/`SIGINT`, and checks the existing `GET /health`
+endpoint. The image must receive production-valid backend configuration; see
+[`backend/.env.example`](backend/.env.example). Docker Compose is intentionally
+not supplied because Supabase's local stack is managed by the Supabase CLI.
 
 Start the web client:
 
@@ -330,13 +353,16 @@ npm run test:contracts
 npm run test:workflows
 npm run test:db
 npm run format:check
+npm run scan:encoding
 ```
 
 Workspace checks:
 
 ```bash
 cd backend
+npm run typecheck
 npm run build
+npm start
 ```
 
 ```bash
@@ -353,9 +379,18 @@ npm run lint
 
 Database tests require the local Supabase container. The repository does not define a separate frontend lint or end-to-end test script.
 
+GitHub Actions runs formatting, all workspace installs, backend and frontend
+production builds, type checks, mobile lint, contract/workflow tests, production
+dependency audits, a local Supabase migration plus SQL/RLS test job, and a secret
+scan. It does not deploy.
+
 ## Build and deployment
 
-Build the web client with `npm run build` from `frontend` and type-check/build the backend with `npm run build` from `backend`. The mobile package provides `expo run:android` and `expo run:ios` for native development builds; no hosted mobile deployment workflow is documented beyond the EAS project identifier in `mobile/app.json`.
+Build the web client with `npm run build` from `frontend`. The backend's `npm run
+build` emits production JavaScript to `backend/dist`, and `npm start` runs it with
+Node; `npm run dev` remains the watch-mode TypeScript workflow. The mobile package
+provides `expo run:android` and `expo run:ios` for native development builds; EAS
+preview and production APK commands are documented in `mobile/README.md`.
 
 Production backend configuration requires HTTPS according to `backend/src/config/env.ts`. Configure `APP_URL`, `CORS_ORIGIN`, Supabase credentials, and server-only provider keys in the deployment environment.
 
@@ -371,6 +406,29 @@ x-scheduler-secret: <INCOME_SCHEDULER_SECRET>
 ```
 
 Run income and billing at least every 15 minutes, and notifications at least hourly. All three endpoints use the Manila calendar date and are safe to retry. Billing writes immutable subscription expense occurrences; notifications derive their identity from those occurrences, so a delayed or out-of-order job can recover a missed renewal for up to seven days after `renewal_date` has advanced. Set a distinct, 24+ character `INCOME_SCHEDULER_SECRET` on the backend. In-process timers remain development-only and are not the production scheduling mechanism. Apply the database migrations before enabling these jobs.
+
+### Release ownership and minimum checklist
+
+The source of truth for each hosted system must be maintained by the release
+owner; this repository does not contain provider credentials or deployment jobs:
+
+- **Frontend (Vercel):** project linkage, preview/production public `VITE_*`
+  variables, and Vercel deployment approvals.
+- **Backend (provider to be selected):** runtime image or compiled Node release,
+  server-only secrets, HTTPS termination, health checks, and CORS configuration.
+- **Supabase:** hosted project, backups, remote migration history, Auth redirect
+  allowlist, and production migration approval.
+- **Scheduler:** exactly one durable scheduler, its private scheduler secret, and
+  delivery monitoring.
+- **Mobile (EAS):** EAS environments, Android signing credentials, and release
+  artifact approval.
+
+Before production release: pass CI; review the migration diff and remote history;
+verify a recoverable database backup; apply migrations before dependent backend
+code; set Vercel public values and backend server-only values in their respective
+platform secret stores; verify HTTPS, `APP_URL`, and `CORS_ORIGIN`; build and
+smoke-test the EAS artifact; then verify the three authenticated scheduler jobs.
+See [`docs/deployment.md`](docs/deployment.md) for the full gated workflow.
 
 ## Troubleshooting
 

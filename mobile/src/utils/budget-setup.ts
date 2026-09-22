@@ -53,9 +53,7 @@ export function recommendedBudgetEntries({
       (entry) => entry.name.toLowerCase() === allocation.label.toLowerCase(),
     );
     return {
-      id:
-        existing?.id ??
-        `budget-${allocation.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      id: existing?.id ?? `budget-${allocation.label.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
       name: existing?.name ?? allocation.label,
       budget: existing?.budget ?? Math.round(monthlyBudget * allocation.weight),
       icon: existing?.icon,

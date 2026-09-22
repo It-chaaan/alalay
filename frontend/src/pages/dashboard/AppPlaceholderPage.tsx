@@ -1,5 +1,5 @@
-import type { Session } from "@supabase/supabase-js";
-import { DashboardShell } from "../../components/layout/DashboardShell";
+import type { Session } from '@supabase/supabase-js';
+import { DashboardShell } from '../../components/layout/DashboardShell';
 
 export function AppPlaceholderPage({
   session,
@@ -10,7 +10,7 @@ export function AppPlaceholderPage({
   onSignOut: () => void;
   label: string;
 }) {
-  const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
+  const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
 
   return (
     <DashboardShell activeLabel={label} title={label} name={name} onSignOut={onSignOut}>

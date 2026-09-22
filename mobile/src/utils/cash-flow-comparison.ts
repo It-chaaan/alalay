@@ -14,7 +14,10 @@ function finiteNonNegative(value: unknown) {
  * The Reports cash-flow labels and bars deliberately share this one model.
  * Values are kept numeric all the way to the final percentage style.
  */
-export function cashFlowComparison(incomeValue: unknown, spendingValue: unknown): CashFlowComparison {
+export function cashFlowComparison(
+  incomeValue: unknown,
+  spendingValue: unknown,
+): CashFlowComparison {
   const income = finiteNonNegative(incomeValue);
   const spending = finiteNonNegative(spendingValue);
   const scaleMax = Math.max(income, spending, 0);

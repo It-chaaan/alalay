@@ -1,22 +1,13 @@
 {
   "generatedAt": "2026-08-19T04:19:16.646Z",
-  "statusModel": [
-    "PARITY",
-    "PARTIAL",
-    "MISSING",
-    "DIFFERENT",
-    "MANUAL_REVIEW"
-  ],
+  "statusModel": ["PARITY", "PARTIAL", "MISSING", "DIFFERENT", "MANUAL_REVIEW"],
   "workflows": [
     {
       "id": "auth.login",
       "feature": "Auth / Profile",
       "status": "PARITY",
       "severity": "P2",
-      "evidence": [
-        "mobile/src/app/auth.tsx",
-        "frontend/src/pages/auth/AuthPage.tsx"
-      ],
+      "evidence": ["mobile/src/app/auth.tsx", "frontend/src/pages/auth/AuthPage.tsx"],
       "missingEvidence": [],
       "missingMarkers": []
     },
@@ -125,10 +116,7 @@
       "feature": "Bills",
       "status": "MANUAL_REVIEW",
       "severity": "P1",
-      "evidence": [
-        "mobile/src/app/(tabs)/bills.tsx",
-        "backend/src/services/bills.service.ts"
-      ],
+      "evidence": ["mobile/src/app/(tabs)/bills.tsx", "backend/src/services/bills.service.ts"],
       "missingEvidence": [],
       "missingMarkers": []
     },
@@ -175,10 +163,7 @@
       "feature": "Expenses",
       "status": "MANUAL_REVIEW",
       "severity": "P0",
-      "evidence": [
-        "mobile/src/app/(tabs)/expenses.tsx",
-        "backend/src/services/crud.service.ts"
-      ],
+      "evidence": ["mobile/src/app/(tabs)/expenses.tsx", "backend/src/services/crud.service.ts"],
       "missingEvidence": [],
       "missingMarkers": []
     },
@@ -251,10 +236,7 @@
       "feature": "Goals",
       "status": "MANUAL_REVIEW",
       "severity": "P1",
-      "evidence": [
-        "mobile/src/app/(tabs)/savings.tsx",
-        "backend/src/services/resource.service.ts"
-      ],
+      "evidence": ["mobile/src/app/(tabs)/savings.tsx", "backend/src/services/resource.service.ts"],
       "missingEvidence": [],
       "missingMarkers": []
     },
@@ -263,10 +245,7 @@
       "feature": "Loans & Debt",
       "status": "PARITY",
       "severity": "P0",
-      "evidence": [
-        "mobile/src/app/loans.tsx",
-        "backend/src/services/loans.service.ts"
-      ],
+      "evidence": ["mobile/src/app/loans.tsx", "backend/src/services/loans.service.ts"],
       "missingEvidence": [],
       "missingMarkers": []
     },
@@ -275,10 +254,7 @@
       "feature": "Loans & Debt",
       "status": "MANUAL_REVIEW",
       "severity": "P1",
-      "evidence": [
-        "mobile/src/app/loans.tsx",
-        "backend/src/services/loans.service.ts"
-      ],
+      "evidence": ["mobile/src/app/loans.tsx", "backend/src/services/loans.service.ts"],
       "missingEvidence": [],
       "missingMarkers": []
     },

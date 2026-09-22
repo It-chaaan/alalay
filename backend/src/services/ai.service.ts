@@ -1,55 +1,83 @@
-import { env } from "../config/env.js";
-import { buildFinancialContext } from "./ai.context.service.js";
-import { type AiMessage, getAiProvider } from "./ai.providers.js";
-import { executeAiAction, aiToolDefinitions } from "./ai.actions.js";
-import { billSummary } from "./bills.service.js";
-import { randomUUID } from "node:crypto";
-import { addDaysIso, todayIso } from "./db.js";
+import { env } from '../config/env.js';
+import { buildFinancialContext } from './ai.context.service.js';
+import { type AiMessage, getAiProvider } from './ai.providers.js';
+import { executeAiAction, aiToolDefinitions } from './ai.actions.js';
+import { billSummary } from './bills.service.js';
+import { randomUUID } from 'node:crypto';
+import { addDaysIso, todayIso } from './db.js';
 
 export type AiChatRequest = {
   userId: string;
   message: string;
   requestId?: string;
-  pendingAction?: { action: "create_expense" | "create_income" | "create_transfer" | "create_bill" | "create_subscription"; fields: Record<string, unknown> } | null;
-  language?: "en" | "fil";
+  pendingAction?: {
+    action:
+      | 'create_expense'
+      | 'create_income'
+      | 'create_transfer'
+      | 'create_bill'
+      | 'create_subscription';
+    fields: Record<string, unknown>;
+  } | null;
+  language?: 'en' | 'fil';
   history?: AiMessage[];
 };
 
-type TransferDraft = { amount?: number; from_wallet_name?: string; to_wallet_name?: string; date?: string };
+type TransferDraft = {
+  amount?: number;
+  from_wallet_name?: string;
+  to_wallet_name?: string;
+  date?: string;
+};
 
 function isCancellation(message: string) {
   return /^(?:never\s+mind|cancel|cancel\s+that|stop|no,?\s+thanks)\s*[.!]?$/i.test(message.trim());
 }
 
 function isTransferContinuation(message: string) {
-  return /\b(?:from|to|transfer|move|send|wallet|account|cash|gcash|maya|today|yesterday|tomorrow|amount|peso|php)\b/i.test(message)
-    || /^\s*(?:₱|php)?\s*\d[\d,]*(?:\.\d{1,2})?\s*$/i.test(message);
+  return (
+    /\b(?:from|to|transfer|move|send|wallet|account|cash|gcash|maya|today|yesterday|tomorrow|amount|peso|php)\b/i.test(
+      message,
+    ) || /^\s*(?:₱|php)?\s*\d[\d,]*(?:\.\d{1,2})?\s*$/i.test(message)
+  );
 }
 
-function transferMutationMessage(message: string, pendingAction: AiChatRequest["pendingAction"]) {
-  if (pendingAction?.action === "create_transfer") return isTransferContinuation(message);
-  return /\b(transfer|move|send)\b/i.test(message) && !/\b(what if|can i|should i|would it)\b/i.test(message);
+function transferMutationMessage(message: string, pendingAction: AiChatRequest['pendingAction']) {
+  if (pendingAction?.action === 'create_transfer') return isTransferContinuation(message);
+  return (
+    /\b(transfer|move|send)\b/i.test(message) &&
+    !/\b(what if|can i|should i|would it)\b/i.test(message)
+  );
 }
 
 function cleanWalletPhrase(value: string) {
   return value
-    .replace(/[,.!?]+$/g, "")
-    .replace(/\s+(?:and\s+)?(?:date|on)\s+(?:today|yesterday|tomorrow|\w+\s+\d{1,2})\b.*$/i, "")
-    .replace(/\b(?:my|the)\b/gi, " ")
-    .replace(/\b(?:e[-\s]?wallet|wallet|account)\b/gi, " ")
-    .replace(/\s+/g, " ")
+    .replace(/[,.!?]+$/g, '')
+    .replace(/\s+(?:and\s+)?(?:date|on)\s+(?:today|yesterday|tomorrow|\w+\s+\d{1,2})\b.*$/i, '')
+    .replace(/\b(?:my|the)\b/gi, ' ')
+    .replace(/\b(?:e[-\s]?wallet|wallet|account)\b/gi, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
 }
 
 export function transferDraftFor(request: AiChatRequest): TransferDraft {
-  const draft: TransferDraft = request.pendingAction?.action === "create_transfer" ? { ...(request.pendingAction.fields as TransferDraft) } : {};
+  const draft: TransferDraft =
+    request.pendingAction?.action === 'create_transfer'
+      ? { ...(request.pendingAction.fields as TransferDraft) }
+      : {};
   const message = request.message.trim();
   const amountMatch = message.match(/(?:₱|php\s*)?([0-9][0-9,]*(?:\.\d{1,2})?)/i);
-  if (amountMatch) draft.amount = Number(amountMatch[1].replace(/,/g, ""));
+  if (amountMatch) draft.amount = Number(amountMatch[1].replace(/,/g, ''));
 
-  const fromTo = message.match(/\bfrom\s+(.+?)\s+to\s+(.+?)(?:\s+(?:and\s+)?(?:date|on)\b|\s+(?:today|yesterday|tomorrow)\b|$)/i);
-  const toFrom = message.match(/\bto\s+(.+?)\s+from\s+(.+?)(?:\s+(?:and\s+)?(?:date|on)\b|\s+(?:today|yesterday|tomorrow)\b|$)/i);
-  const sourceFirst = message.match(/\b(?:transfer|move|send)\b[^\n]*?\b(?:₱|php\s*)?[0-9][0-9,]*(?:\.\d{1,2})?\s+(.+?)\s+to\s+(.+?)(?:\s+(?:today|yesterday|tomorrow)\b|$)/i);
+  const fromTo = message.match(
+    /\bfrom\s+(.+?)\s+to\s+(.+?)(?:\s+(?:and\s+)?(?:date|on)\b|\s+(?:today|yesterday|tomorrow)\b|$)/i,
+  );
+  const toFrom = message.match(
+    /\bto\s+(.+?)\s+from\s+(.+?)(?:\s+(?:and\s+)?(?:date|on)\b|\s+(?:today|yesterday|tomorrow)\b|$)/i,
+  );
+  const sourceFirst = message.match(
+    /\b(?:transfer|move|send)\b[^\n]*?\b(?:₱|php\s*)?[0-9][0-9,]*(?:\.\d{1,2})?\s+(.+?)\s+to\s+(.+?)(?:\s+(?:today|yesterday|tomorrow)\b|$)/i,
+  );
   if (fromTo) {
     draft.from_wallet_name = cleanWalletPhrase(fromTo[1]);
     draft.to_wallet_name = cleanWalletPhrase(fromTo[2]);
@@ -65,51 +93,67 @@ export function transferDraftFor(request: AiChatRequest): TransferDraft {
     const destination = message.match(/\bto\s+([^\n]+?)(?:\s+(?:today|yesterday|tomorrow)\b|$)/i);
     if (destination) draft.to_wallet_name = cleanWalletPhrase(destination[1]);
     const singleWallet = message.match(/^(?:from\s+)?([a-z][a-z\s-]+)$/i);
-    if (singleWallet && request.pendingAction?.action === "create_transfer") {
+    if (singleWallet && request.pendingAction?.action === 'create_transfer') {
       const wallet = cleanWalletPhrase(singleWallet[1]);
-      if (request.pendingAction.fields.missing_role === "source") draft.from_wallet_name = wallet;
-      else if (request.pendingAction.fields.missing_role === "destination") draft.to_wallet_name = wallet;
+      if (request.pendingAction.fields.missing_role === 'source') draft.from_wallet_name = wallet;
+      else if (request.pendingAction.fields.missing_role === 'destination')
+        draft.to_wallet_name = wallet;
       else if (!draft.from_wallet_name) draft.from_wallet_name = wallet;
       else if (!draft.to_wallet_name) draft.to_wallet_name = wallet;
     }
   }
-  if (/\btoday\b/i.test(message)) draft.date = "today";
-  else if (/\byesterday\b/i.test(message)) draft.date = "yesterday";
-  else if (/\btomorrow\b/i.test(message)) draft.date = "tomorrow";
-  draft.date ??= "today";
+  if (/\btoday\b/i.test(message)) draft.date = 'today';
+  else if (/\byesterday\b/i.test(message)) draft.date = 'yesterday';
+  else if (/\btomorrow\b/i.test(message)) draft.date = 'tomorrow';
+  draft.date ??= 'today';
   return draft;
 }
 
 function transferReply(result: Record<string, unknown>, draft: TransferDraft) {
-  if (result.success === true) return `Done — I transferred ₱${Number(result.amount ?? draft.amount).toLocaleString("en-PH")} from ${result.from_wallet} to ${result.to_wallet}.`;
-  return String(result.user_message ?? "I couldn't complete that transfer. Please check the wallet details and try again.");
+  if (result.success === true)
+    return `Done — I transferred ₱${Number(result.amount ?? draft.amount).toLocaleString('en-PH')} from ${result.from_wallet} to ${result.to_wallet}.`;
+  return String(
+    result.user_message ??
+      "I couldn't complete that transfer. Please check the wallet details and try again.",
+  );
 }
 
-function detectLanguage(message: string, requested?: "en" | "fil") {
+function detectLanguage(message: string, requested?: 'en' | 'fil') {
   if (requested) {
     return requested;
   }
 
-  return /\b(ako|ang|ng|mga|ba|bakit|paano|magkano|bayarin|gastos|ipon|kaya)\b/i.test(message) ? "fil" : "en";
+  return /\b(ako|ang|ng|mga|ba|bakit|paano|magkano|bayarin|gastos|ipon|kaya)\b/i.test(message)
+    ? 'fil'
+    : 'en';
 }
 
 function isBillsDueQuestion(message: string) {
-  return /\b(?:what|which|show|list|tell me).{0,24}\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(message)
-    || /\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(message);
+  return (
+    /\b(?:what|which|show|list|tell me).{0,24}\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(
+      message,
+    ) || /\bbills?\b.{0,24}\b(?:due|upcoming|soon)\b/i.test(message)
+  );
 }
 
 function dueBillsReply(summary: Awaited<ReturnType<typeof billSummary>>) {
   const dueSoon = summary.items
-    .filter((bill) => bill.status !== "paid" && String(bill.due_date) >= todayIso())
+    .filter((bill) => bill.status !== 'paid' && String(bill.due_date) >= todayIso())
     .filter((bill) => String(bill.due_date) <= addDaysIso(7))
     .sort((left, right) => String(left.due_date).localeCompare(String(right.due_date)));
 
-  if (!dueSoon.length) return "You have no unpaid bills due in the next 7 days.";
+  if (!dueSoon.length) return 'You have no unpaid bills due in the next 7 days.';
 
-  const money = new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 });
+  const money = new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+    maximumFractionDigits: 2,
+  });
   const total = dueSoon.reduce((sum, bill) => sum + Number(bill.amount || 0), 0);
-  const details = dueSoon.map((bill) => `${bill.title}: ${money.format(Number(bill.amount || 0))} due ${bill.due_date}`).join("; ");
-  return `You have ${dueSoon.length} unpaid bill${dueSoon.length === 1 ? "" : "s"} due in the next 7 days, totaling ${money.format(total)}. ${details}`;
+  const details = dueSoon
+    .map((bill) => `${bill.title}: ${money.format(Number(bill.amount || 0))} due ${bill.due_date}`)
+    .join('; ');
+  return `You have ${dueSoon.length} unpaid bill${dueSoon.length === 1 ? '' : 's'} due in the next 7 days, totaling ${money.format(total)}. ${details}`;
 }
 
 export async function aiStatus() {
@@ -117,56 +161,141 @@ export async function aiStatus() {
   const configured = provider.isConfigured();
 
   return {
-    status: configured ? "configured" : "not_configured",
+    status: configured ? 'configured' : 'not_configured',
     provider: configured ? provider.name : null,
     model: configured ? env.GEMINI_MODEL : null,
     message: configured
       ? `AI Assistant is configured with ${provider.name}.`
-      : "AI Assistant backend is not configured yet. Add an AI provider API key before enabling chat.",
+      : 'AI Assistant backend is not configured yet. Add an AI provider API key before enabling chat.',
   };
 }
 
 export async function chat(request: AiChatRequest) {
   const provider = getAiProvider();
   const language = detectLanguage(request.message, request.language);
-  if (request.pendingAction?.action === "create_transfer" && isCancellation(request.message)) {
-    return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: null, message: "No problem — I cancelled that transfer." };
+  if (request.pendingAction?.action === 'create_transfer' && isCancellation(request.message)) {
+    return {
+      status: 'ok',
+      provider: provider.name,
+      model: env.GEMINI_MODEL,
+      language,
+      financialMutation: false,
+      pendingAction: null,
+      message: 'No problem — I cancelled that transfer.',
+    };
   }
-  const pendingTransferContinues = request.pendingAction?.action === "create_transfer" && transferMutationMessage(request.message, request.pendingAction);
+  const pendingTransferContinues =
+    request.pendingAction?.action === 'create_transfer' &&
+    transferMutationMessage(request.message, request.pendingAction);
   if (transferMutationMessage(request.message, request.pendingAction)) {
     const draft = transferDraftFor(request);
-    const pendingBase = { action: "create_transfer" as const, fields: draft as Record<string, unknown> };
-    if (!draft.amount) return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: pendingBase, message: "How much would you like me to transfer?" };
-    if (!draft.from_wallet_name) return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: { ...pendingBase, fields: { ...draft, missing_role: "source" } }, message: `Which wallet would you like me to transfer the ₱${draft.amount.toLocaleString("en-PH")} from?` };
-    if (!draft.to_wallet_name) return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: { ...pendingBase, fields: { ...draft, missing_role: "destination" } }, message: "Which wallet should receive the transfer?" };
-    const result = await executeAiAction({ userId: request.userId, requestId: request.requestId ?? randomUUID(), name: "create_transfer", args: draft });
-    const failedWalletRole = result.success === false && (result.code === "wallet_not_found" || result.code === "wallet_ambiguous")
-      ? (String(result.user_message).toLowerCase().includes(String(draft.from_wallet_name).toLowerCase()) ? "source" : "destination")
-      : undefined;
-    return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: result.success === true, pendingAction: result.success === true ? null : { ...pendingBase, fields: { ...draft, ...(failedWalletRole ? { missing_role: failedWalletRole } : {}) } }, message: transferReply(result, draft) };
+    const pendingBase = {
+      action: 'create_transfer' as const,
+      fields: draft as Record<string, unknown>,
+    };
+    if (!draft.amount)
+      return {
+        status: 'ok',
+        provider: provider.name,
+        model: env.GEMINI_MODEL,
+        language,
+        financialMutation: false,
+        pendingAction: pendingBase,
+        message: 'How much would you like me to transfer?',
+      };
+    if (!draft.from_wallet_name)
+      return {
+        status: 'ok',
+        provider: provider.name,
+        model: env.GEMINI_MODEL,
+        language,
+        financialMutation: false,
+        pendingAction: { ...pendingBase, fields: { ...draft, missing_role: 'source' } },
+        message: `Which wallet would you like me to transfer the ₱${draft.amount.toLocaleString('en-PH')} from?`,
+      };
+    if (!draft.to_wallet_name)
+      return {
+        status: 'ok',
+        provider: provider.name,
+        model: env.GEMINI_MODEL,
+        language,
+        financialMutation: false,
+        pendingAction: { ...pendingBase, fields: { ...draft, missing_role: 'destination' } },
+        message: 'Which wallet should receive the transfer?',
+      };
+    const result = await executeAiAction({
+      userId: request.userId,
+      requestId: request.requestId ?? randomUUID(),
+      name: 'create_transfer',
+      args: draft,
+    });
+    const failedWalletRole =
+      result.success === false &&
+      (result.code === 'wallet_not_found' || result.code === 'wallet_ambiguous')
+        ? String(result.user_message)
+            .toLowerCase()
+            .includes(String(draft.from_wallet_name).toLowerCase())
+          ? 'source'
+          : 'destination'
+        : undefined;
+    return {
+      status: 'ok',
+      provider: provider.name,
+      model: env.GEMINI_MODEL,
+      language,
+      financialMutation: result.success === true,
+      pendingAction:
+        result.success === true
+          ? null
+          : {
+              ...pendingBase,
+              fields: { ...draft, ...(failedWalletRole ? { missing_role: failedWalletRole } : {}) },
+            },
+      message: transferReply(result, draft),
+    };
   }
   if (isBillsDueQuestion(request.message)) {
     const summary = await billSummary(request.userId);
-    return { status: "ok", provider: provider.name, model: env.GEMINI_MODEL, language, financialMutation: false, pendingAction: null, message: dueBillsReply(summary) };
+    return {
+      status: 'ok',
+      provider: provider.name,
+      model: env.GEMINI_MODEL,
+      language,
+      financialMutation: false,
+      pendingAction: null,
+      message: dueBillsReply(summary),
+    };
   }
   const financialContext = await buildFinancialContext(request.userId, request.message);
   let financialMutation = false;
-  let pendingAction: AiChatRequest["pendingAction"] = null;
-  const reply = await provider.generate({
-    message: request.message,
-    language,
-    history: request.history ?? [],
-    financialContext,
-    pendingAction: pendingTransferContinues ? request.pendingAction : null,
-  }, { tools: aiToolDefinitions, executeTool: async (name, args) => {
-    const result = await executeAiAction({ userId: request.userId, requestId: request.requestId ?? randomUUID(), name, args });
-    financialMutation = financialMutation || result.success === true;
-    if (result.pendingAction && typeof result.pendingAction === "object") pendingAction = result.pendingAction as AiChatRequest["pendingAction"];
-    return result;
-  } });
+  let pendingAction: AiChatRequest['pendingAction'] = null;
+  const reply = await provider.generate(
+    {
+      message: request.message,
+      language,
+      history: request.history ?? [],
+      financialContext,
+      pendingAction: pendingTransferContinues ? request.pendingAction : null,
+    },
+    {
+      tools: aiToolDefinitions,
+      executeTool: async (name, args) => {
+        const result = await executeAiAction({
+          userId: request.userId,
+          requestId: request.requestId ?? randomUUID(),
+          name,
+          args,
+        });
+        financialMutation = financialMutation || result.success === true;
+        if (result.pendingAction && typeof result.pendingAction === 'object')
+          pendingAction = result.pendingAction as AiChatRequest['pendingAction'];
+        return result;
+      },
+    },
+  );
 
   return {
-    status: "ok",
+    status: 'ok',
     provider: provider.name,
     model: env.GEMINI_MODEL,
     language,
@@ -176,7 +305,10 @@ export async function chat(request: AiChatRequest) {
   };
 }
 
-export async function streamChat(request: AiChatRequest, onToken: (token: string) => void | Promise<void>) {
+export async function streamChat(
+  request: AiChatRequest,
+  onToken: (token: string) => void | Promise<void>,
+) {
   const provider = getAiProvider();
   const language = detectLanguage(request.message, request.language);
   const financialContext = await buildFinancialContext(request.userId, request.message);

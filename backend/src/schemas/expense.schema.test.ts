@@ -1,22 +1,22 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { createExpenseSchema } from "./expense.schema.js";
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createExpenseSchema } from './expense.schema.js';
 
 const baseExpense = {
-  merchant: "Mercury Drug",
+  merchant: 'Mercury Drug',
   amount: 43,
-  category: "Essentials",
-  date: "2026-08-18",
-  wallet_id: "57d26237-af65-4e71-9f43-97aa9fbc7919",
+  category: 'Essentials',
+  date: '2026-08-18',
+  wallet_id: '57d26237-af65-4e71-9f43-97aa9fbc7919',
 };
 
-test("expenses use the selected wallet as their payment source", () => {
+test('expenses use the selected wallet as their payment source', () => {
   const result = createExpenseSchema.safeParse(baseExpense);
 
   assert.equal(result.success, true);
 });
 
-test("expenses reject requests without a payment wallet", () => {
+test('expenses reject requests without a payment wallet', () => {
   const result = createExpenseSchema.safeParse(baseExpense);
 
   assert.equal(result.success, true);

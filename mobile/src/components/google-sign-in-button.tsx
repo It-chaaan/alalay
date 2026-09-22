@@ -16,7 +16,13 @@ type GoogleSignInButtonProps = {
   variant: 'auth' | 'landing';
 };
 
-export function GoogleSignInButton({ colors, onPress, loading = false, disabled = false, variant }: GoogleSignInButtonProps) {
+export function GoogleSignInButton({
+  colors,
+  onPress,
+  loading = false,
+  disabled = false,
+  variant,
+}: GoogleSignInButtonProps) {
   const isAuthButton = variant === 'auth';
 
   return (
@@ -31,22 +37,42 @@ export function GoogleSignInButton({ colors, onPress, loading = false, disabled 
         { backgroundColor: colors.surface, borderColor: colors.line },
         pressed && styles.pressed,
         (loading || disabled) && styles.disabled,
-      ]}>
+      ]}
+    >
       {isAuthButton ? (
-        <View style={[styles.authLogo, { borderColor: colors.line }]}><GoogleLogo size={16} /></View>
+        <View style={[styles.authLogo, { borderColor: colors.line }]}>
+          <GoogleLogo size={16} />
+        </View>
       ) : (
-        <View style={styles.landingLogo}><GoogleLogo size={18} /></View>
+        <View style={styles.landingLogo}>
+          <GoogleLogo size={18} />
+        </View>
       )}
-      <Text style={[styles.label, { color: colors.ink }]}>{loading ? 'Connecting...' : 'Continue with Google'}</Text>
+      <Text style={[styles.label, { color: colors.ink }]}>
+        {loading ? 'Connecting...' : 'Continue with Google'}
+      </Text>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  button: { minHeight: 52, borderRadius: 27, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  button: {
+    minHeight: 52,
+    borderRadius: 27,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   authButton: { flexDirection: 'row', gap: 10, paddingHorizontal: 18 },
   landingButton: { paddingHorizontal: 52 },
-  authLogo: { width: 25, height: 25, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  authLogo: {
+    width: 25,
+    height: 25,
+    borderRadius: 13,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   landingLogo: { position: 'absolute', left: 22 },
   label: { fontSize: 14, fontWeight: '700' },
   pressed: { opacity: 0.78, transform: [{ scale: 0.985 }] },

@@ -24,16 +24,32 @@ export type SharedCategoryMeta = {
 };
 
 function hashCategoryKey(value: string) {
-  return [...value].reduce((hash, character) => ((hash * 31) + character.charCodeAt(0)) >>> 0, 7);
+  return [...value].reduce((hash, character) => (hash * 31 + character.charCodeAt(0)) >>> 0, 7);
 }
 
 function hslToHex(hue: number, saturation: number, lightness: number) {
-  const chroma = (1 - Math.abs((2 * lightness) - 1)) * saturation;
+  const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
   const x = chroma * (1 - Math.abs(((hue / 60) % 2) - 1));
-  const match = lightness - (chroma / 2);
-  const rgb = hue < 60 ? [chroma, x, 0] : hue < 120 ? [x, chroma, 0] : hue < 180 ? [0, chroma, x]
-    : hue < 240 ? [0, x, chroma] : hue < 300 ? [x, 0, chroma] : [chroma, 0, x];
-  return `#${rgb.map((value) => Math.round((value + match) * 255).toString(16).padStart(2, '0')).join('')}`;
+  const match = lightness - chroma / 2;
+  const rgb =
+    hue < 60
+      ? [chroma, x, 0]
+      : hue < 120
+        ? [x, chroma, 0]
+        : hue < 180
+          ? [0, chroma, x]
+          : hue < 240
+            ? [0, x, chroma]
+            : hue < 300
+              ? [x, 0, chroma]
+              : [chroma, 0, x];
+  return `#${rgb
+    .map((value) =>
+      Math.round((value + match) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')}`;
 }
 
 function categoryColor(key: string) {

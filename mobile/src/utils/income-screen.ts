@@ -45,7 +45,9 @@ export function canApplyIncomeResponse({
 }
 
 export function incomeRequestIntent(id?: string): IncomeRequestIntent {
-  return id ? { path: `/api/income/${id}`, method: 'PATCH' } : { path: '/api/income', method: 'POST' };
+  return id
+    ? { path: `/api/income/${id}`, method: 'PATCH' }
+    : { path: '/api/income', method: 'POST' };
 }
 
 export function canStartIncomeSave(isSaving: boolean) {

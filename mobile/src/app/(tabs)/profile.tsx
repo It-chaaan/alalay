@@ -9,18 +9,199 @@ import { useAppTheme } from '@/theme/theme';
 import { clearMobileTrust } from '@/services/mfa';
 import { cancelAllFinancialReminders } from '@/services/financial-reminders';
 
-const p = { background: '#F4F7F1', surface: '#FFFFFF', ink: '#11231C', muted: '#5D6C65', accent: '#0F8A6B', accentPale: '#D8EFE2', line: '#DCE8E0', danger: '#B42318' };
+const p = {
+  background: '#F4F7F1',
+  surface: '#FFFFFF',
+  ink: '#11231C',
+  muted: '#5D6C65',
+  accent: '#0F8A6B',
+  accentPale: '#D8EFE2',
+  line: '#DCE8E0',
+  danger: '#B42318',
+};
 
 export default function ProfileScreen() {
   const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { colors } = useAppTheme();
   const { profile } = useCurrentProfile();
   const name = profile?.name || 'Profile';
-  const signOut = async () => { await cancelAllFinancialReminders(); await clearMobileTrust(); await getSupabaseClient()?.auth.signOut(); router.replace('/auth'); };
-  const goBack = () => returnTo ? router.replace(returnTo as Href) : router.back();
-  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}><View style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.line }]}><Pressable accessibilityLabel="Back" onPress={goBack} style={styles.back}><ArrowLeft size={22} color={colors.ink} /></Pressable><Text style={[styles.headerTitle, { color: colors.ink }]}>Profile</Text></View><ScrollView contentContainerStyle={styles.content}><View style={styles.profileHeader}>{profile?.avatarUrl ? <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} /> : <View style={[styles.avatarFallback, { backgroundColor: colors.accent }]}><Text style={styles.initials}>{getProfileInitials(name)}</Text></View>}<Pressable accessibilityRole="button" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} style={[styles.edit, { backgroundColor: colors.accentPale }]}><Text style={[styles.editText, { color: colors.accent }]}>Edit</Text></Pressable><Text style={[styles.name, { color: colors.ink }]}>{name}</Text><Text style={[styles.email, { color: colors.muted }]}>{profile?.email || 'Loading your profile...'}</Text></View><Text style={[styles.groupLabel, { color: colors.muted }]}>ACCOUNT</Text><View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.line }]}><Row icon={UserCircle} label="Profile" value="Personal information" onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)} /><Row icon={Bell} label="Notifications" value="View updates and reminders" onPress={() => router.push('/(tabs)/notifications')} /><Row icon={Settings} label="Settings" value="Preferences and security" onPress={() => router.push('/(tabs)/settings')} /></View><Pressable onPress={() => void signOut()} style={[styles.signOut, { backgroundColor: colors.surface, borderColor: colors.line }]}><LogOut size={19} color={colors.danger} /><Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text></Pressable></ScrollView></SafeAreaView>;
+  const signOut = async () => {
+    await cancelAllFinancialReminders();
+    await clearMobileTrust();
+    await getSupabaseClient()?.auth.signOut();
+    router.replace('/auth');
+  };
+  const goBack = () => (returnTo ? router.replace(returnTo as Href) : router.back());
+  return (
+    <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
+      <View
+        style={[styles.header, { backgroundColor: colors.surface, borderBottomColor: colors.line }]}
+      >
+        <Pressable accessibilityLabel="Back" onPress={goBack} style={styles.back}>
+          <ArrowLeft size={22} color={colors.ink} />
+        </Pressable>
+        <Text style={[styles.headerTitle, { color: colors.ink }]}>Profile</Text>
+      </View>
+      <ScrollView contentContainerStyle={styles.content}>
+        <View style={styles.profileHeader}>
+          {profile?.avatarUrl ? (
+            <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatarFallback, { backgroundColor: colors.accent }]}>
+              <Text style={styles.initials}>{getProfileInitials(name)}</Text>
+            </View>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)}
+            style={[styles.edit, { backgroundColor: colors.accentPale }]}
+          >
+            <Text style={[styles.editText, { color: colors.accent }]}>Edit</Text>
+          </Pressable>
+          <Text style={[styles.name, { color: colors.ink }]}>{name}</Text>
+          <Text style={[styles.email, { color: colors.muted }]}>
+            {profile?.email || 'Loading your profile...'}
+          </Text>
+        </View>
+        <Text style={[styles.groupLabel, { color: colors.muted }]}>ACCOUNT</Text>
+        <View style={[styles.group, { backgroundColor: colors.surface, borderColor: colors.line }]}>
+          <Row
+            icon={UserCircle}
+            label="Profile"
+            value="Personal information"
+            onPress={() => router.push('/(tabs)/settings/edit-profile' as Href)}
+          />
+          <Row
+            icon={Bell}
+            label="Notifications"
+            value="View updates and reminders"
+            onPress={() => router.push('/(tabs)/notifications')}
+          />
+          <Row
+            icon={Settings}
+            label="Settings"
+            value="Preferences and security"
+            onPress={() => router.push('/(tabs)/settings')}
+          />
+        </View>
+        <Pressable
+          onPress={() => void signOut()}
+          style={[styles.signOut, { backgroundColor: colors.surface, borderColor: colors.line }]}
+        >
+          <LogOut size={19} color={colors.danger} />
+          <Text style={[styles.signOutText, { color: colors.danger }]}>Sign out</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
 
-function Row({ icon: Icon, label, value, onPress }: { icon: typeof UserCircle; label: string; value: string; onPress: () => void }) { const { colors } = useAppTheme(); return <Pressable onPress={onPress} style={[styles.row, { borderBottomColor: colors.line }]}><View style={[styles.rowIcon, { backgroundColor: colors.accentPale }]}><Icon size={20} color={colors.accent} /></View><View style={styles.rowCopy}><Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text><Text style={[styles.rowValue, { color: colors.muted }]}>{value}</Text></View><ChevronRight size={18} color={colors.muted} /></Pressable>; }
+function Row({
+  icon: Icon,
+  label,
+  value,
+  onPress,
+}: {
+  icon: typeof UserCircle;
+  label: string;
+  value: string;
+  onPress: () => void;
+}) {
+  const { colors } = useAppTheme();
+  return (
+    <Pressable onPress={onPress} style={[styles.row, { borderBottomColor: colors.line }]}>
+      <View style={[styles.rowIcon, { backgroundColor: colors.accentPale }]}>
+        <Icon size={20} color={colors.accent} />
+      </View>
+      <View style={styles.rowCopy}>
+        <Text style={[styles.rowLabel, { color: colors.ink }]}>{label}</Text>
+        <Text style={[styles.rowValue, { color: colors.muted }]}>{value}</Text>
+      </View>
+      <ChevronRight size={18} color={colors.muted} />
+    </Pressable>
+  );
+}
 
-const styles = StyleSheet.create({ safe: { flex: 1, backgroundColor: p.background }, header: { flexDirection: 'row', alignItems: 'center', padding: 18, backgroundColor: p.surface, borderBottomWidth: 1, borderBottomColor: p.line }, back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' }, headerTitle: { marginLeft: 8, color: p.ink, fontSize: 23, fontWeight: '900' }, content: { padding: 20, paddingBottom: 38 }, profileHeader: { alignItems: 'center', paddingVertical: 12 }, avatar: { width: 92, height: 92, borderRadius: 46 }, avatarFallback: { width: 92, height: 92, alignItems: 'center', justifyContent: 'center', borderRadius: 46, backgroundColor: p.accent }, initials: { color: '#FFFFFF', fontSize: 28, fontWeight: '900' }, edit: { marginTop: -14, marginLeft: 66, paddingHorizontal: 11, paddingVertical: 6, borderRadius: 14, backgroundColor: p.accentPale }, editText: { color: p.accent, fontSize: 11, fontWeight: '900' }, name: { marginTop: 12, color: p.ink, fontSize: 22, fontWeight: '900' }, email: { marginTop: 4, color: p.muted, fontSize: 13 }, groupLabel: { marginTop: 18, marginBottom: 8, color: p.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1.2 }, group: { overflow: 'hidden', borderRadius: 18, backgroundColor: p.surface, borderWidth: 1, borderColor: p.line }, row: { minHeight: 68, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 15, borderBottomWidth: 1, borderBottomColor: p.line }, rowIcon: { width: 38, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, backgroundColor: p.accentPale }, rowCopy: { flex: 1, marginLeft: 12 }, rowLabel: { color: p.ink, fontSize: 14, fontWeight: '900' }, rowValue: { marginTop: 3, color: p.muted, fontSize: 11 }, signOut: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, minHeight: 50, marginTop: 22, borderRadius: 25, borderWidth: 1, borderColor: '#F2C6C2', backgroundColor: '#FFF7F6' }, signOutText: { color: p.danger, fontWeight: '900' } });
+const styles = StyleSheet.create({
+  safe: { flex: 1, backgroundColor: p.background },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 18,
+    backgroundColor: p.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: p.line,
+  },
+  back: { width: 42, height: 42, alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { marginLeft: 8, color: p.ink, fontSize: 23, fontWeight: '900' },
+  content: { padding: 20, paddingBottom: 38 },
+  profileHeader: { alignItems: 'center', paddingVertical: 12 },
+  avatar: { width: 92, height: 92, borderRadius: 46 },
+  avatarFallback: {
+    width: 92,
+    height: 92,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 46,
+    backgroundColor: p.accent,
+  },
+  initials: { color: '#FFFFFF', fontSize: 28, fontWeight: '900' },
+  edit: {
+    marginTop: -14,
+    marginLeft: 66,
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 14,
+    backgroundColor: p.accentPale,
+  },
+  editText: { color: p.accent, fontSize: 11, fontWeight: '900' },
+  name: { marginTop: 12, color: p.ink, fontSize: 22, fontWeight: '900' },
+  email: { marginTop: 4, color: p.muted, fontSize: 13 },
+  groupLabel: {
+    marginTop: 18,
+    marginBottom: 8,
+    color: p.muted,
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.2,
+  },
+  group: {
+    overflow: 'hidden',
+    borderRadius: 18,
+    backgroundColor: p.surface,
+    borderWidth: 1,
+    borderColor: p.line,
+  },
+  row: {
+    minHeight: 68,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: p.line,
+  },
+  rowIcon: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    backgroundColor: p.accentPale,
+  },
+  rowCopy: { flex: 1, marginLeft: 12 },
+  rowLabel: { color: p.ink, fontSize: 14, fontWeight: '900' },
+  rowValue: { marginTop: 3, color: p.muted, fontSize: 11 },
+  signOut: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    minHeight: 50,
+    marginTop: 22,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: '#F2C6C2',
+    backgroundColor: '#FFF7F6',
+  },
+  signOutText: { color: p.danger, fontWeight: '900' },
+});

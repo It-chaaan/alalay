@@ -1,18 +1,18 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useRef, useState } from "react";
-import { useForm } from "react-hook-form";
-import { Eye, EyeOff } from "lucide-react";
-import { z } from "zod";
-import { Button } from "../../components/ui/Button";
-import { TextInput } from "../../components/ui/TextInput";
-import { OtpInput } from "../../components/auth/OtpInput";
-import alalayLogo from "../../assets/logo-symbol-white.svg";
-import alalayLogoFullColor from "../../assets/logo-symbol-full-color.svg";
-import { authCopy, authStats } from "../../constants/auth";
-import { getSupabaseClient } from "../../lib/supabase";
-import { apiRequest } from "../../lib/apiClient";
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
+import { Eye, EyeOff } from 'lucide-react';
+import { z } from 'zod';
+import { Button } from '../../components/ui/Button';
+import { TextInput } from '../../components/ui/TextInput';
+import { OtpInput } from '../../components/auth/OtpInput';
+import alalayLogo from '../../assets/logo-symbol-white.svg';
+import alalayLogoFullColor from '../../assets/logo-symbol-full-color.svg';
+import { authCopy, authStats } from '../../constants/auth';
+import { getSupabaseClient } from '../../lib/supabase';
+import { apiRequest } from '../../lib/apiClient';
 
-type AuthMode = "login" | "register" | "forgot" | "reset";
+type AuthMode = 'login' | 'register' | 'forgot' | 'reset';
 
 type AuthPageProps = {
   mode: AuthMode;
@@ -25,7 +25,7 @@ type AuthValues = {
   confirmPassword: string;
 };
 
-type LoginStep = "credentials" | "mfa";
+type LoginStep = 'credentials' | 'mfa';
 
 type TOTPFactor = {
   id: string;
@@ -61,10 +61,22 @@ function GoogleIcon() {
   );
 }
 
-function BrandMark({ className = "h-10 w-10", dark = false }: { className?: string; dark?: boolean }) {
+function BrandMark({
+  className = 'h-10 w-10',
+  dark = false,
+}: {
+  className?: string;
+  dark?: boolean;
+}) {
   return (
-    <span className={`grid place-items-center overflow-hidden rounded-2xl bg-brand-soft/20 ring-1 ring-white/20 ${className}`}>
-      <img src={dark ? alalayLogo : alalayLogoFullColor} alt="" className="h-7 w-7 object-contain" />
+    <span
+      className={`grid place-items-center overflow-hidden rounded-2xl bg-brand-soft/20 ring-1 ring-white/20 ${className}`}
+    >
+      <img
+        src={dark ? alalayLogo : alalayLogoFullColor}
+        alt=""
+        className="h-7 w-7 object-contain"
+      />
     </span>
   );
 }
@@ -91,7 +103,10 @@ function AuthBrandPanel() {
           <p className="mt-5 leading-7 text-white/85">{authCopy.insightText}</p>
           <div className="mt-5 grid grid-cols-3 gap-2">
             {authStats.map((stat) => (
-              <div key={stat.label} className="rounded-2xl bg-white/10 px-3 py-3 text-center ring-1 ring-white/10">
+              <div
+                key={stat.label}
+                className="rounded-2xl bg-white/10 px-3 py-3 text-center ring-1 ring-white/10"
+              >
                 <div className="text-sm font-bold">{stat.value}</div>
                 <div className="mt-1 text-[11px] leading-tight text-white/65">{stat.label}</div>
               </div>
@@ -104,47 +119,54 @@ function AuthBrandPanel() {
 }
 
 export function AuthPage({ mode }: AuthPageProps) {
-  const isLogin = mode === "login";
-  const isRegister = mode === "register";
-  const isForgotPassword = mode === "forgot";
-  const isResetPassword = mode === "reset";
+  const isLogin = mode === 'login';
+  const isRegister = mode === 'register';
+  const isForgotPassword = mode === 'forgot';
+  const isResetPassword = mode === 'reset';
 
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [authError, setAuthError] = useState("");
-  const [authNotice, setAuthNotice] = useState("");
+  const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
   const [isRecoveryReady, setIsRecoveryReady] = useState(!isResetPassword);
   const [hasRecoverySession, setHasRecoverySession] = useState(false);
-  const [loginStep, setLoginStep] = useState<LoginStep>("credentials");
-  const [mfaCode, setMfaCode] = useState("");
+  const [loginStep, setLoginStep] = useState<LoginStep>('credentials');
+  const [mfaCode, setMfaCode] = useState('');
   const [mfaFactor, setMfaFactor] = useState<TOTPFactor | null>(null);
   const [trustDevice, setTrustDevice] = useState(false);
   const [isMfaStateLoading, setIsMfaStateLoading] = useState(isLogin);
   const [isVerifyingMfa, setIsVerifyingMfa] = useState(false);
   const mfaVerificationInFlight = useRef(false);
   const autoSubmittedMfaCode = useRef<string | null>(null);
-  const showingMfaStep = isLogin && loginStep === "mfa";
+  const showingMfaStep = isLogin && loginStep === 'mfa';
 
   const resolverSchema = authSchema.superRefine((values, context) => {
     const addError = (path: [keyof AuthValues], message: string) => {
-      context.addIssue({ code: "custom", path, message });
+      context.addIssue({ code: 'custom', path, message });
     };
 
-    if (isRegister && values.name.trim().length < 2) addError(["name"], "Name is required");
+    if (isRegister && values.name.trim().length < 2) addError(['name'], 'Name is required');
 
     if (!isResetPassword) {
-      if (!values.email.trim()) addError(["email"], "Email address is required");
-      else if (!z.string().email().safeParse(values.email).success) addError(["email"], "Enter a valid email address");
+      if (!values.email.trim()) addError(['email'], 'Email address is required');
+      else if (!z.string().email().safeParse(values.email).success)
+        addError(['email'], 'Enter a valid email address');
     }
 
     if (!isForgotPassword) {
-      if (!values.password) addError(["password"], "Password is required");
-      else if ((isRegister || isResetPassword) && values.password.length < 8) addError(["password"], "Password must be at least 8 characters");
+      if (!values.password) addError(['password'], 'Password is required');
+      else if ((isRegister || isResetPassword) && values.password.length < 8)
+        addError(['password'], 'Password must be at least 8 characters');
     }
 
     if (isRegister || isResetPassword) {
-      if (!values.confirmPassword) addError(["confirmPassword"], isResetPassword ? "Confirm your new password" : "Confirm your password");
-      else if (values.password !== values.confirmPassword) addError(["confirmPassword"], "Passwords do not match");
+      if (!values.confirmPassword)
+        addError(
+          ['confirmPassword'],
+          isResetPassword ? 'Confirm your new password' : 'Confirm your password',
+        );
+      else if (values.password !== values.confirmPassword)
+        addError(['confirmPassword'], 'Passwords do not match');
     }
   });
 
@@ -154,14 +176,14 @@ export function AuthPage({ mode }: AuthPageProps) {
     formState: { errors, isSubmitting },
   } = useForm<AuthValues>({
     resolver: zodResolver(resolverSchema),
-    defaultValues: { name: "", email: "", password: "", confirmPassword: "" },
+    defaultValues: { name: '', email: '', password: '', confirmPassword: '' },
   });
 
   async function resolvePendingMfaSession() {
     const supabase = getSupabaseClient();
 
     if (!supabase) {
-      setLoginStep("credentials");
+      setLoginStep('credentials');
       setMfaFactor(null);
       setIsMfaStateLoading(false);
       return false;
@@ -170,16 +192,17 @@ export function AuthPage({ mode }: AuthPageProps) {
     const { data: sessionData } = await supabase.auth.getSession();
 
     if (!sessionData.session) {
-      setLoginStep("credentials");
+      setLoginStep('credentials');
       setMfaFactor(null);
       setIsMfaStateLoading(false);
       return false;
     }
 
-    const { data: aalData, error: aalError } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    const { data: aalData, error: aalError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
-    if (aalError || aalData?.nextLevel !== "aal2" || aalData.currentLevel === "aal2") {
-      setLoginStep("credentials");
+    if (aalError || aalData?.nextLevel !== 'aal2' || aalData.currentLevel === 'aal2') {
+      setLoginStep('credentials');
       setMfaFactor(null);
       setIsMfaStateLoading(false);
       return false;
@@ -188,8 +211,10 @@ export function AuthPage({ mode }: AuthPageProps) {
     const { data: factorData, error: factorError } = await supabase.auth.mfa.listFactors();
 
     if (factorError || !factorData.totp.length) {
-      setAuthError("Two-factor authentication is enabled, but no verified authenticator was found.");
-      setLoginStep("credentials");
+      setAuthError(
+        'Two-factor authentication is enabled, but no verified authenticator was found.',
+      );
+      setLoginStep('credentials');
       setMfaFactor(null);
       setIsMfaStateLoading(false);
       return false;
@@ -198,7 +223,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     const factor = factorData.totp[0];
     setMfaFactor({ id: factor.id });
     setTrustDevice(false);
-    setLoginStep("mfa");
+    setLoginStep('mfa');
     setIsMfaStateLoading(false);
     return true;
   }
@@ -215,7 +240,7 @@ export function AuthPage({ mode }: AuthPageProps) {
       const resolved = await resolvePendingMfaSession();
       if (!active) return;
       if (!resolved) {
-        setLoginStep("credentials");
+        setLoginStep('credentials');
       }
     }
 
@@ -268,7 +293,7 @@ export function AuthPage({ mode }: AuthPageProps) {
     });
 
     const { data } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY" || event === "SIGNED_IN" || event === "TOKEN_REFRESHED") {
+      if (event === 'PASSWORD_RECOVERY' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         syncRecoveryState(Boolean(session));
       }
     });
@@ -280,17 +305,19 @@ export function AuthPage({ mode }: AuthPageProps) {
   }, [isResetPassword]);
 
   async function handleGoogleAuth() {
-    setAuthError("");
-    setAuthNotice("");
+    setAuthError('');
+    setAuthNotice('');
     const supabase = getSupabaseClient();
 
     if (!supabase) {
-      setAuthError("Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+      setAuthError(
+        'Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
+      );
       return;
     }
 
     const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
+      provider: 'google',
       options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
 
@@ -302,18 +329,18 @@ export function AuthPage({ mode }: AuthPageProps) {
   async function handleMfaVerification() {
     if (mfaVerificationInFlight.current) return;
 
-    setAuthError("");
-    setAuthNotice("");
+    setAuthError('');
+    setAuthNotice('');
 
     const supabase = getSupabaseClient();
 
     if (!supabase || !mfaFactor) {
-      setAuthError("Two-factor verification is unavailable right now.");
+      setAuthError('Two-factor verification is unavailable right now.');
       return;
     }
 
     if (!/^\d{6}$/.test(mfaCode)) {
-      setAuthError("Enter the 6-digit code from your authenticator app.");
+      setAuthError('Enter the 6-digit code from your authenticator app.');
       return;
     }
 
@@ -332,16 +359,18 @@ export function AuthPage({ mode }: AuthPageProps) {
 
       if (trustDevice) {
         try {
-          await apiRequest<{ trusted: boolean }>("/trusted-device", { method: "POST" });
-          setAuthNotice("This device will not ask for a code again for 30 days.");
+          await apiRequest<{ trusted: boolean }>('/trusted-device', { method: 'POST' });
+          setAuthNotice('This device will not ask for a code again for 30 days.');
         } catch {
-          setAuthNotice("Verified successfully, but this device could not be remembered.");
+          setAuthNotice('Verified successfully, but this device could not be remembered.');
         }
       }
 
-      window.location.assign("/app");
+      window.location.assign('/app');
     } catch (verifyError) {
-      setAuthError(verifyError instanceof Error ? verifyError.message : "Invalid authenticator code.");
+      setAuthError(
+        verifyError instanceof Error ? verifyError.message : 'Invalid authenticator code.',
+      );
     } finally {
       mfaVerificationInFlight.current = false;
       setIsVerifyingMfa(false);
@@ -350,7 +379,7 @@ export function AuthPage({ mode }: AuthPageProps) {
 
   async function hasTrustedDevice() {
     try {
-      const result = await apiRequest<{ trusted: boolean }>("/trusted-device");
+      const result = await apiRequest<{ trusted: boolean }>('/trusted-device');
       return result.trusted;
     } catch {
       return false;
@@ -358,12 +387,14 @@ export function AuthPage({ mode }: AuthPageProps) {
   }
 
   async function onSubmit(values: AuthValues) {
-    setAuthError("");
-    setAuthNotice("");
+    setAuthError('');
+    setAuthNotice('');
     const supabase = getSupabaseClient();
 
     if (!supabase) {
-      setAuthError("Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+      setAuthError(
+        'Supabase is not configured yet. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.',
+      );
       return;
     }
 
@@ -377,13 +408,13 @@ export function AuthPage({ mode }: AuthPageProps) {
         return;
       }
 
-      setAuthNotice("If that email is registered, we sent a password reset link.");
+      setAuthNotice('If that email is registered, we sent a password reset link.');
       return;
     }
 
     if (isResetPassword) {
       if (!hasRecoverySession) {
-        setAuthError("This password reset link is invalid or has expired. Request a new one.");
+        setAuthError('This password reset link is invalid or has expired. Request a new one.');
         return;
       }
 
@@ -395,9 +426,9 @@ export function AuthPage({ mode }: AuthPageProps) {
       }
 
       await supabase.auth.signOut();
-      setAuthNotice("Password updated. Log in with your new password.");
+      setAuthNotice('Password updated. Log in with your new password.');
       window.setTimeout(() => {
-        window.location.assign("/login");
+        window.location.assign('/login');
       }, 1200);
       return;
     }
@@ -417,30 +448,30 @@ export function AuthPage({ mode }: AuthPageProps) {
       setAuthError(
         isRegister
           ? result.error.message
-          : "Incorrect email or password. If this account was created using Google, sign in with Google, or set a password in Settings after signing in with Google.",
+          : 'Incorrect email or password. If this account was created using Google, sign in with Google, or set a password in Settings after signing in with Google.',
       );
       return;
     }
 
     if (isRegister && !result.data.session) {
-      setAuthNotice("Account created. Check your email to confirm your signup before logging in.");
+      setAuthNotice('Account created. Check your email to confirm your signup before logging in.');
       return;
     }
 
     if (isLogin) {
       setIsMfaStateLoading(true);
       if (await hasTrustedDevice()) {
-        window.location.assign("/app");
+        window.location.assign('/app');
         return;
       }
       const requiresMfa = await resolvePendingMfaSession();
       if (requiresMfa) {
-        setMfaCode("");
+        setMfaCode('');
         return;
       }
     }
 
-    window.location.assign("/app");
+    window.location.assign('/app');
   }
 
   return (
@@ -450,21 +481,25 @@ export function AuthPage({ mode }: AuthPageProps) {
       <section className="flex min-h-screen flex-1 flex-col bg-app-background lg:h-screen">
         <header className="flex items-center justify-between px-5 py-6 sm:px-8 lg:px-12">
           <a
-            href={showingMfaStep ? "/login" : "/"}
+            href={showingMfaStep ? '/login' : '/'}
             className="inline-flex min-h-11 items-center rounded-full px-1 text-sm font-medium text-slate-500 transition hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-primary"
           >
-            <span aria-hidden="true" className="mr-2">&lsaquo;</span>
-            {showingMfaStep ? "Back to login" : "Back to home"}
+            <span aria-hidden="true" className="mr-2">
+              &lsaquo;
+            </span>
+            {showingMfaStep ? 'Back to login' : 'Back to home'}
           </a>
-          {!showingMfaStep ? <p className="text-sm text-slate-500">
-            {isRegister ? "Already joined?" : isLogin ? "New here?" : "Remembered your details?"}{" "}
-            <a
-              href={isRegister ? "/login" : isLogin ? "/register" : "/login"}
-              className="font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
-            >
-              {isRegister ? "Log in" : isLogin ? "Create account" : "Log in"}
-            </a>
-          </p> : null}
+          {!showingMfaStep ? (
+            <p className="text-sm text-slate-500">
+              {isRegister ? 'Already joined?' : isLogin ? 'New here?' : 'Remembered your details?'}{' '}
+              <a
+                href={isRegister ? '/login' : isLogin ? '/register' : '/login'}
+                className="font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
+              >
+                {isRegister ? 'Log in' : isLogin ? 'Create account' : 'Log in'}
+              </a>
+            </p>
+          ) : null}
         </header>
 
         <div className="flex flex-1 items-center justify-center px-5 pb-12 sm:px-8 lg:px-12">
@@ -475,8 +510,17 @@ export function AuthPage({ mode }: AuthPageProps) {
             </div>
 
             {showingMfaStep ? (
-              <div className="mb-5 grid h-12 w-12 place-items-center rounded-full bg-brand-soft text-brand-primary" aria-hidden="true">
-                <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <div
+                className="mb-5 grid h-12 w-12 place-items-center rounded-full bg-brand-soft text-brand-primary"
+                aria-hidden="true"
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  className="h-6 w-6"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                >
                   <path d="M12 3 19 6v5c0 4.5-2.8 8.4-7 10-4.2-1.6-7-5.5-7-10V6l7-3Z" />
                   <path d="m9.5 12 1.7 1.7 3.5-3.5" />
                 </svg>
@@ -484,25 +528,32 @@ export function AuthPage({ mode }: AuthPageProps) {
             ) : null}
             <h1 id="auth-heading" className="text-4xl font-bold text-slate-950">
               {isRegister
-                ? "Create account"
+                ? 'Create account'
                 : isForgotPassword
-                  ? "Forgot password?"
+                  ? 'Forgot password?'
                   : isResetPassword
-                    ? "Set a new password"
+                    ? 'Set a new password'
                     : showingMfaStep
-                      ? "Two-factor verification"
-                      : "Welcome back"}
+                      ? 'Two-factor verification'
+                      : 'Welcome back'}
             </h1>
             <p className="mt-3 text-slate-500">
-              {isRegister
-                ? "Start your Alalay account"
-                : isForgotPassword
-                  ? "Enter your email and we’ll send a reset link."
-                  : isResetPassword
-                    ? "Choose a new password for your Alalay account."
-                    : showingMfaStep
-                      ? <><span className="block">Enter the 6-digit code from your authenticator app.</span><span className="mt-1 block">Open your authenticator app and enter the current code below.</span></>
-                      : "Log in to your Alalay account"}
+              {isRegister ? (
+                'Start your Alalay account'
+              ) : isForgotPassword ? (
+                'Enter your email and we’ll send a reset link.'
+              ) : isResetPassword ? (
+                'Choose a new password for your Alalay account.'
+              ) : showingMfaStep ? (
+                <>
+                  <span className="block">Enter the 6-digit code from your authenticator app.</span>
+                  <span className="mt-1 block">
+                    Open your authenticator app and enter the current code below.
+                  </span>
+                </>
+              ) : (
+                'Log in to your Alalay account'
+              )}
             </p>
 
             {isLogin && !showingMfaStep ? (
@@ -511,7 +562,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                   <a
                     href="/login"
                     className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
-                      isLogin ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                      isLogin ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'
                     }`}
                   >
                     Log In
@@ -519,7 +570,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                   <a
                     href="/register"
                     className={`grid min-h-11 place-items-center rounded-full text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-brand-primary ${
-                      isRegister ? "bg-white text-slate-950 shadow-sm" : "text-slate-500"
+                      isRegister ? 'bg-white text-slate-950 shadow-sm' : 'text-slate-500'
                     }`}
                   >
                     Sign Up
@@ -576,20 +627,26 @@ export function AuthPage({ mode }: AuthPageProps) {
             ) : !showingMfaStep ? (
               <div className="mt-8 rounded-2xl border border-slate-200 bg-white/70 px-4 py-3 text-sm text-slate-500">
                 {isForgotPassword
-                  ? "We’ll send the reset link to your email address."
+                  ? 'We’ll send the reset link to your email address.'
                   : isResetPassword
-                    ? "Open the reset link from your email, then enter your new password here."
+                    ? 'Open the reset link from your email, then enter your new password here.'
                     : null}
               </div>
             ) : null}
 
             {authError ? (
-              <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700" role="alert">
+              <div
+                className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                role="alert"
+              >
                 {authError}
               </div>
             ) : null}
             {authNotice ? (
-              <div className="mb-5 rounded-2xl border border-brand-muted bg-brand-soft px-4 py-3 text-sm text-brand-dark" role="status">
+              <div
+                className="mb-5 rounded-2xl border border-brand-muted bg-brand-soft px-4 py-3 text-sm text-brand-dark"
+                role="status"
+              >
                 {authNotice}
               </div>
             ) : null}
@@ -598,7 +655,7 @@ export function AuthPage({ mode }: AuthPageProps) {
               <div className="space-y-5">
                 <OtpInput
                   value={mfaCode}
-                  onChange={(code) => setMfaCode(code.replace(/\D/g, "").slice(0, 6))}
+                  onChange={(code) => setMfaCode(code.replace(/\D/g, '').slice(0, 6))}
                   disabled={isVerifyingMfa}
                 />
                 <Button
@@ -610,12 +667,29 @@ export function AuthPage({ mode }: AuthPageProps) {
                 >
                   Verify and log in
                 </Button>
-                <div className="flex gap-3 rounded-2xl border border-brand-muted bg-brand-soft px-4 py-3 text-sm leading-6 text-brand-dark" role="note">
-                  <span aria-hidden="true" className="mt-0.5 shrink-0 font-bold">ⓘ</span>
-                  <span>Codes refresh every 30 seconds. Never share your code with anyone — Alalay will never ask for it.</span>
+                <div
+                  className="flex gap-3 rounded-2xl border border-brand-muted bg-brand-soft px-4 py-3 text-sm leading-6 text-brand-dark"
+                  role="note"
+                >
+                  <span aria-hidden="true" className="mt-0.5 shrink-0 font-bold">
+                    ⓘ
+                  </span>
+                  <span>
+                    Codes refresh every 30 seconds. Never share your code with anyone — Alalay will
+                    never ask for it.
+                  </span>
                 </div>
-                <label htmlFor="trust-device" className="flex items-center gap-3 text-sm font-medium text-slate-600">
-                  <input id="trust-device" type="checkbox" checked={trustDevice} onChange={(event) => setTrustDevice(event.target.checked)} className="h-4 w-4 rounded border-slate-300 text-brand-primary accent-brand-primary focus:ring-brand-primary" />
+                <label
+                  htmlFor="trust-device"
+                  className="flex items-center gap-3 text-sm font-medium text-slate-600"
+                >
+                  <input
+                    id="trust-device"
+                    type="checkbox"
+                    checked={trustDevice}
+                    onChange={(event) => setTrustDevice(event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-brand-primary accent-brand-primary focus:ring-brand-primary"
+                  />
                   Trust this device for 30 days
                 </label>
               </div>
@@ -628,7 +702,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                     placeholder="Juan Dela Cruz"
                     autoComplete="name"
                     error={errors.name?.message}
-                    {...register("name")}
+                    {...register('name')}
                   />
                 ) : null}
 
@@ -640,7 +714,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                     placeholder="juan@email.com"
                     autoComplete="email"
                     error={errors.email?.message}
-                    {...register("email")}
+                    {...register('email')}
                   />
                 ) : null}
 
@@ -648,7 +722,7 @@ export function AuthPage({ mode }: AuthPageProps) {
                   <div>
                     <div className="mb-2 flex items-center justify-between">
                       <label htmlFor="password" className="text-sm font-semibold text-slate-800">
-                        {isResetPassword ? "New password" : "Password"}
+                        {isResetPassword ? 'New password' : 'Password'}
                       </label>
                       {isLogin ? (
                         <a
@@ -661,23 +735,31 @@ export function AuthPage({ mode }: AuthPageProps) {
                     </div>
                     <TextInput
                       id="password"
-                      label={isResetPassword ? "New password" : "Password"}
+                      label={isResetPassword ? 'New password' : 'Password'}
                       labelClassName="sr-only"
-                      type={showPassword ? "text" : "password"}
-                      placeholder={isResetPassword ? "Enter your new password" : "Enter your password"}
-                      autoComplete={isRegister || isResetPassword ? "new-password" : "current-password"}
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder={
+                        isResetPassword ? 'Enter your new password' : 'Enter your password'
+                      }
+                      autoComplete={
+                        isRegister || isResetPassword ? 'new-password' : 'current-password'
+                      }
                       error={errors.password?.message}
                       rightSlot={
                         <button
                           type="button"
-                          aria-label={showPassword ? "Hide password" : "Show password"}
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
                           onClick={() => setShowPassword((value) => !value)}
                           className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
                         >
-                          {showPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                          {showPassword ? (
+                            <EyeOff className="h-4 w-4" aria-hidden="true" />
+                          ) : (
+                            <Eye className="h-4 w-4" aria-hidden="true" />
+                          )}
                         </button>
                       }
-                      {...register("password")}
+                      {...register('password')}
                     />
                   </div>
                 ) : null}
@@ -685,22 +767,32 @@ export function AuthPage({ mode }: AuthPageProps) {
                 {isRegister || isResetPassword ? (
                   <TextInput
                     id="confirmPassword"
-                    label={isResetPassword ? "Confirm new password" : "Confirm password"}
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder={isResetPassword ? "Confirm your new password" : "Confirm your password"}
+                    label={isResetPassword ? 'Confirm new password' : 'Confirm password'}
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    placeholder={
+                      isResetPassword ? 'Confirm your new password' : 'Confirm your password'
+                    }
                     autoComplete="new-password"
                     error={errors.confirmPassword?.message}
                     rightSlot={
                       <button
                         type="button"
-                        aria-label={showConfirmPassword ? "Hide password confirmation" : "Show password confirmation"}
+                        aria-label={
+                          showConfirmPassword
+                            ? 'Hide password confirmation'
+                            : 'Show password confirmation'
+                        }
                         onClick={() => setShowConfirmPassword((value) => !value)}
                         className="min-h-11 px-1 text-sm font-semibold text-brand-primary transition hover:text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-primary"
                       >
-                          {showConfirmPassword ? <EyeOff className="h-4 w-4" aria-hidden="true" /> : <Eye className="h-4 w-4" aria-hidden="true" />}
+                        {showConfirmPassword ? (
+                          <EyeOff className="h-4 w-4" aria-hidden="true" />
+                        ) : (
+                          <Eye className="h-4 w-4" aria-hidden="true" />
+                        )}
                       </button>
                     }
-                    {...register("confirmPassword")}
+                    {...register('confirmPassword')}
                   />
                 ) : null}
 
@@ -734,15 +826,18 @@ export function AuthPage({ mode }: AuthPageProps) {
                   type="submit"
                   className="w-full"
                   isLoading={isSubmitting}
-                  disabled={(isResetPassword && (!isRecoveryReady || !hasRecoverySession)) || isMfaStateLoading}
+                  disabled={
+                    (isResetPassword && (!isRecoveryReady || !hasRecoverySession)) ||
+                    isMfaStateLoading
+                  }
                 >
                   {isRegister
-                    ? "Create Alalay account"
+                    ? 'Create Alalay account'
                     : isForgotPassword
-                      ? "Send reset link"
+                      ? 'Send reset link'
                       : isResetPassword
-                        ? "Update password"
-                        : "Log in to Alalay"}
+                        ? 'Update password'
+                        : 'Log in to Alalay'}
                 </Button>
               </form>
             )}

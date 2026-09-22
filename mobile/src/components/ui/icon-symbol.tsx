@@ -1,7 +1,8 @@
 import { ChevronRight, Code, House, Send, type LucideIcon } from 'lucide-react-native';
 import { type StyleProp, type ViewStyle } from 'react-native';
 
-type IconSymbolName = 'house.fill' | 'paperplane.fill' | 'chevron.left.forwardslash.chevron.right' | 'chevron.right';
+type IconSymbolName =
+  'house.fill' | 'paperplane.fill' | 'chevron.left.forwardslash.chevron.right' | 'chevron.right';
 
 const MAPPING: Record<IconSymbolName, LucideIcon> = {
   'house.fill': House,

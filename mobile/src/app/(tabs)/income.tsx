@@ -142,12 +142,16 @@ function shortIncomeDate(value: string | null | undefined, selectedMonth: string
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return value;
   const [year, month, day] = date.split('-').map(Number);
   return new Intl.DateTimeFormat('en-PH', {
-    timeZone: 'Asia/Manila', month: 'short', day: 'numeric',
+    timeZone: 'Asia/Manila',
+    month: 'short',
+    day: 'numeric',
     ...(year === Number(selectedMonth.slice(0, 4)) ? {} : { year: 'numeric' }),
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }
 
-function incomeCardStatus(row: Income): 'Received' | 'Needs attention' | 'Delayed' | 'Expected today' | 'Upcoming' | 'Inactive' {
+function incomeCardStatus(
+  row: Income,
+): 'Received' | 'Needs attention' | 'Delayed' | 'Expected today' | 'Upcoming' | 'Inactive' {
   if (row.status === 'received' || row.is_posted) return 'Received';
   if (row.status === 'failed') return 'Needs attention';
   if (row.status === 'overdue') return 'Delayed';
@@ -268,27 +272,27 @@ export default function IncomeScreen() {
               ),
             )
             .map((item) => ({
-            // A projected occurrence has no database ID. Its source/date key
-            // remains stable for rendering but is never used for mutations.
-            id: item.occurrenceId ?? item.occurrenceKey ?? item.transactionId ?? item.sourceId,
-            source: item.name,
-            type: item.category,
-            amount: item.amount,
-            date: item.receivedDate ?? item.dueDate ?? selectedMonth,
-            is_recurring: item.kind === 'recurring',
-            is_posted: item.status === 'received',
-            is_scheduled: item.status !== 'received',
-            frequency: item.frequency,
-            wallet_id: item.walletId,
-            status: item.status,
-            due_date: item.dueDate,
-            received_at: item.receivedAt,
-            created_at: item.createdAt,
-            updated_at: item.updatedAt,
-            transaction_id: item.transactionId,
-            schedule_id: item.sourceId,
-            occurrence_date: item.dueDate,
-            is_projected: item.isProjected,
+              // A projected occurrence has no database ID. Its source/date key
+              // remains stable for rendering but is never used for mutations.
+              id: item.occurrenceId ?? item.occurrenceKey ?? item.transactionId ?? item.sourceId,
+              source: item.name,
+              type: item.category,
+              amount: item.amount,
+              date: item.receivedDate ?? item.dueDate ?? selectedMonth,
+              is_recurring: item.kind === 'recurring',
+              is_posted: item.status === 'received',
+              is_scheduled: item.status !== 'received',
+              frequency: item.frequency,
+              wallet_id: item.walletId,
+              status: item.status,
+              due_date: item.dueDate,
+              received_at: item.receivedAt,
+              created_at: item.createdAt,
+              updated_at: item.updatedAt,
+              transaction_id: item.transactionId,
+              schedule_id: item.sourceId,
+              occurrence_date: item.dueDate,
+              is_projected: item.isProjected,
             })),
         );
         setSummary({
@@ -351,7 +355,10 @@ export default function IncomeScreen() {
       ? `${summary.actual_transactions} received · ${summary.expected_today_transactions} expected today · ${summary.upcoming_transactions} upcoming · ${summary.monthly_sources} recurring source${summary.monthly_sources === 1 ? '' : 's'}`
       : 'No income recorded this month';
   const financialBreakdown =
-    summary.actual_transactions || summary.expected_today_transactions || summary.upcoming_transactions || summary.overdue_transactions
+    summary.actual_transactions ||
+    summary.expected_today_transactions ||
+    summary.upcoming_transactions ||
+    summary.overdue_transactions
       ? `₱${Math.round(summary.projected_amount - summary.upcoming_amount - summary.expected_today_amount - summary.overdue_amount).toLocaleString('en-PH')} received · ₱${Math.round(summary.expected_today_amount).toLocaleString('en-PH')} expected today · ₱${Math.round(summary.upcoming_amount).toLocaleString('en-PH')} upcoming${summary.overdue_amount ? ` · ₱${Math.round(summary.overdue_amount).toLocaleString('en-PH')} overdue` : ''}`
       : supportingText;
 
@@ -434,39 +441,47 @@ export default function IncomeScreen() {
                 const received = status === 'Received';
                 const date = received ? (row.received_at ?? row.date) : (row.due_date ?? row.date);
                 return (
-                <Pressable
-                  key={row.id}
-                  style={styles.row}
-                  onPress={() => setDetails(row)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`View details for ${row.source}`}
-                >
-                  <View style={styles.icon}>
-                    <ArrowUpRight size={18} color={colors.primary} />
-                  </View>
-                  <View style={styles.main}>
-                    <Text style={styles.rowTitle}>{row.source}</Text>
-                    <Text style={styles.amount}>₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}</Text>
-                    <Text style={styles.rowDate} numberOfLines={1}>{titleCase(row.type)} · {received ? 'Received' : 'Expected'} {shortIncomeDate(date, selectedMonth)}</Text>
-                    <Text style={styles.muted} numberOfLines={1}>
-                      {incomeWalletName(row, wallets)}
-                    </Text>
-                    <Text style={styles.muted} numberOfLines={1}>
-                      {row.is_recurring ? titleCase(row.frequency ?? 'recurring') : 'One-time'}
-                    </Text>
-                  </View>
-                  <View style={styles.rowRight}>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`More options for ${row.source}`}
-                      onPress={(event) => { event.stopPropagation(); setManaging(row); }}
-                      style={styles.more}
-                    >
-                      <MoreHorizontal size={20} color={colors.textSecondary} />
-                    </Pressable>
-                    <StatusBadge status={status} variant="plain" />
-                  </View>
-                </Pressable>
+                  <Pressable
+                    key={row.id}
+                    style={styles.row}
+                    onPress={() => setDetails(row)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`View details for ${row.source}`}
+                  >
+                    <View style={styles.icon}>
+                      <ArrowUpRight size={18} color={colors.primary} />
+                    </View>
+                    <View style={styles.main}>
+                      <Text style={styles.rowTitle}>{row.source}</Text>
+                      <Text style={styles.amount}>
+                        ₱{Math.round(Number(row.amount)).toLocaleString('en-PH')}
+                      </Text>
+                      <Text style={styles.rowDate} numberOfLines={1}>
+                        {titleCase(row.type)} · {received ? 'Received' : 'Expected'}{' '}
+                        {shortIncomeDate(date, selectedMonth)}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {incomeWalletName(row, wallets)}
+                      </Text>
+                      <Text style={styles.muted} numberOfLines={1}>
+                        {row.is_recurring ? titleCase(row.frequency ?? 'recurring') : 'One-time'}
+                      </Text>
+                    </View>
+                    <View style={styles.rowRight}>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={`More options for ${row.source}`}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          setManaging(row);
+                        }}
+                        style={styles.more}
+                      >
+                        <MoreHorizontal size={20} color={colors.textSecondary} />
+                      </Pressable>
+                      <StatusBadge status={status} variant="plain" />
+                    </View>
+                  </Pressable>
                 );
               })
             ) : (
@@ -520,72 +535,95 @@ export default function IncomeScreen() {
           onClose={() => setManaging(null)}
           actions={[
             {
-              label: managing.is_projected && managing.is_recurring ? 'Edit recurring income' : 'Edit income',
+              label:
+                managing.is_projected && managing.is_recurring
+                  ? 'Edit recurring income'
+                  : 'Edit income',
               onPress: () => {
                 setManaging(null);
                 // Projected rows are virtual. Edit their recurring source UUID,
                 // never the source/date UI key used to render the occurrence.
-                setEditing(managing.is_projected ? { ...managing, id: managing.schedule_id ?? managing.id, is_projected: false } : managing);
+                setEditing(
+                  managing.is_projected
+                    ? { ...managing, id: managing.schedule_id ?? managing.id, is_projected: false }
+                    : managing,
+                );
               },
             },
-            ...(managing.is_projected && managing.is_recurring ? [{
-              label: 'Skip this occurrence',
-              tone: 'destructive' as const,
-              confirm: {
-                title: 'Skip this occurrence?',
-                message: `${managing.source} scheduled for ${shortIncomeDate(managing.occurrence_date ?? managing.date, selectedMonth)} will be removed, but future occurrences will continue.`,
-              },
-              onPress: async () => {
-                if (deletingRef.current) return;
-                deletingRef.current = true;
-                try {
-                  await authenticatedApiRequest(`/api/income/recurring/${managing.schedule_id}/occurrences/${managing.occurrence_date}`, { method: 'DELETE' });
-                  notifyFinancialMutation();
-                  await refresh();
-                  toast.success('Scheduled income skipped.');
-                } finally {
-                  deletingRef.current = false;
-                }
-              },
-            }, {
-              label: 'Delete recurring income',
-              tone: 'destructive' as const,
-              confirm: {
-                title: 'Delete recurring income?',
-                message: `This will remove ${managing.source} and all future scheduled occurrences. Previously received income will remain in your records.`,
-              },
-              onPress: async () => {
-                if (deletingRef.current) return;
-                deletingRef.current = true;
-                try {
-                  const request = incomeDeleteRequestIntent(managing.schedule_id!);
-                  await authenticatedApiRequest(request.path, { method: request.method });
-                  notifyFinancialMutation();
-                  await refresh();
-                  toast.success('Recurring income deleted. Received history was kept.');
-                } finally {
-                  deletingRef.current = false;
-                }
-              },
-            }] : [{
-              label: managing.is_recurring ? 'Delete received income' : 'Delete income',
-              tone: 'destructive' as const,
-              confirm: {
-                title: managing.is_recurring ? 'Delete received income?' : `Delete ${managing.source}?`,
-                message: managing.is_recurring ? 'This received income record will be deleted.' : 'This income record will be deleted.',
-              },
-              onPress: async () => {
-                if (deletingRef.current) return;
-                deletingRef.current = true;
-                try {
-                  const request = incomeDeleteRequestIntent(managing.id);
-                  await authenticatedApiRequest(request.path, { method: request.method });
-                  notifyFinancialMutation();
-                  await refresh();
-                  toast.success('Income deleted.');
-                } finally { deletingRef.current = false; }
-              },
-            }]),
+            ...(managing.is_projected && managing.is_recurring
+              ? [
+                  {
+                    label: 'Skip this occurrence',
+                    tone: 'destructive' as const,
+                    confirm: {
+                      title: 'Skip this occurrence?',
+                      message: `${managing.source} scheduled for ${shortIncomeDate(managing.occurrence_date ?? managing.date, selectedMonth)} will be removed, but future occurrences will continue.`,
+                    },
+                    onPress: async () => {
+                      if (deletingRef.current) return;
+                      deletingRef.current = true;
+                      try {
+                        await authenticatedApiRequest(
+                          `/api/income/recurring/${managing.schedule_id}/occurrences/${managing.occurrence_date}`,
+                          { method: 'DELETE' },
+                        );
+                        notifyFinancialMutation();
+                        await refresh();
+                        toast.success('Scheduled income skipped.');
+                      } finally {
+                        deletingRef.current = false;
+                      }
+                    },
+                  },
+                  {
+                    label: 'Delete recurring income',
+                    tone: 'destructive' as const,
+                    confirm: {
+                      title: 'Delete recurring income?',
+                      message: `This will remove ${managing.source} and all future scheduled occurrences. Previously received income will remain in your records.`,
+                    },
+                    onPress: async () => {
+                      if (deletingRef.current) return;
+                      deletingRef.current = true;
+                      try {
+                        const request = incomeDeleteRequestIntent(managing.schedule_id!);
+                        await authenticatedApiRequest(request.path, { method: request.method });
+                        notifyFinancialMutation();
+                        await refresh();
+                        toast.success('Recurring income deleted. Received history was kept.');
+                      } finally {
+                        deletingRef.current = false;
+                      }
+                    },
+                  },
+                ]
+              : [
+                  {
+                    label: managing.is_recurring ? 'Delete received income' : 'Delete income',
+                    tone: 'destructive' as const,
+                    confirm: {
+                      title: managing.is_recurring
+                        ? 'Delete received income?'
+                        : `Delete ${managing.source}?`,
+                      message: managing.is_recurring
+                        ? 'This received income record will be deleted.'
+                        : 'This income record will be deleted.',
+                    },
+                    onPress: async () => {
+                      if (deletingRef.current) return;
+                      deletingRef.current = true;
+                      try {
+                        const request = incomeDeleteRequestIntent(managing.id);
+                        await authenticatedApiRequest(request.path, { method: request.method });
+                        notifyFinancialMutation();
+                        await refresh();
+                        toast.success('Income deleted.');
+                      } finally {
+                        deletingRef.current = false;
+                      }
+                    },
+                  },
+                ]),
           ]}
         />
       )}
@@ -654,7 +692,10 @@ function IncomeDetailsRedesigned({
   const [retryError, setRetryError] = useState('');
   const retryCredit = async () => {
     const scheduleId = income.schedule_id;
-    if (!scheduleId) return setRetryError('This delayed occurrence cannot be retried safely. Refresh and try again.');
+    if (!scheduleId)
+      return setRetryError(
+        'This delayed occurrence cannot be retried safely. Refresh and try again.',
+      );
     setRetrying(true);
     setRetryError('');
     try {
@@ -746,10 +787,17 @@ function IncomeDetailsRedesigned({
             {overdue ? (
               <>
                 <Text style={styles.detailsNotice}>
-                  Delayed — this income has not been credited yet. It was expected on {friendlyIncomeDate(expectedDate)}.
+                  Delayed — this income has not been credited yet. It was expected on{' '}
+                  {friendlyIncomeDate(expectedDate)}.
                 </Text>
-                <Pressable disabled={retrying} onPress={() => void retryCredit()} style={[styles.retry, retrying && styles.pressed]}>
-                  <Text style={styles.retryText}>{retrying ? 'Retrying credit…' : 'Retry credit'}</Text>
+                <Pressable
+                  disabled={retrying}
+                  onPress={() => void retryCredit()}
+                  style={[styles.retry, retrying && styles.pressed]}
+                >
+                  <Text style={styles.retryText}>
+                    {retrying ? 'Retrying credit…' : 'Retry credit'}
+                  </Text>
                 </Pressable>
                 {retryError ? <Text style={styles.detailsNotice}>{retryError}</Text> : null}
               </>

@@ -1,10 +1,10 @@
-import { asNumber, client, requireUserId, throwIfError, todayIso } from "./db.js";
-import { env } from "../config/env.js";
+import { asNumber, client, requireUserId, throwIfError, todayIso } from './db.js';
+import { env } from '../config/env.js';
 
-export type SubscriptionBillingCycle = "weekly" | "monthly" | "quarterly" | "yearly";
+export type SubscriptionBillingCycle = 'weekly' | 'monthly' | 'quarterly' | 'yearly';
 
 function parseDate(value: string) {
-  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
+  const [year, month, day] = value.slice(0, 10).split('-').map(Number);
   return new Date(Date.UTC(year, month - 1, day));
 }
 
@@ -18,23 +18,29 @@ function daysInMonth(year: number, month: number) {
 
 export function addBillingCycle(date: string, cycle: SubscriptionBillingCycle) {
   const current = parseDate(date);
-  if (cycle === "weekly") current.setUTCDate(current.getUTCDate() + 7);
+  if (cycle === 'weekly') current.setUTCDate(current.getUTCDate() + 7);
   else {
-    const months = cycle === "quarterly" ? 3 : cycle === "yearly" ? 12 : 1;
+    const months = cycle === 'quarterly' ? 3 : cycle === 'yearly' ? 12 : 1;
     const originalDay = current.getUTCDate();
     current.setUTCDate(1);
     current.setUTCMonth(current.getUTCMonth() + months);
-    current.setUTCDate(Math.min(originalDay, daysInMonth(current.getUTCFullYear(), current.getUTCMonth())));
+    current.setUTCDate(
+      Math.min(originalDay, daysInMonth(current.getUTCFullYear(), current.getUTCMonth())),
+    );
   }
   return dateKey(current);
 }
 
 function cycleOf(value: unknown): SubscriptionBillingCycle {
-  const cycle = String(value ?? "monthly").toLowerCase();
-  return cycle === "weekly" || cycle === "quarterly" || cycle === "yearly" ? cycle : "monthly";
+  const cycle = String(value ?? 'monthly').toLowerCase();
+  return cycle === 'weekly' || cycle === 'quarterly' || cycle === 'yearly' ? cycle : 'monthly';
 }
 
-export function dueOccurrences(renewalDate: string, cycle: SubscriptionBillingCycle, through: string) {
+export function dueOccurrences(
+  renewalDate: string,
+  cycle: SubscriptionBillingCycle,
+  through: string,
+) {
   const occurrences: string[] = [];
   let occurrence = renewalDate.slice(0, 10);
   while (occurrence <= through) {
@@ -70,7 +76,11 @@ function addDays(date: string, days: number) {
   return dateKey(value);
 }
 
-export function nextUpcomingRenewal(renewalDate: string, cycle: SubscriptionBillingCycle, today: string) {
+export function nextUpcomingRenewal(
+  renewalDate: string,
+  cycle: SubscriptionBillingCycle,
+  today: string,
+) {
   let next = renewalDate.slice(0, 10);
   while (next < today) next = addBillingCycle(next, cycle);
   return next;
@@ -91,7 +101,11 @@ export function projectWalletFundingWarnings(
   const groups = new Map<string, Array<UpcomingSubscription & { effectiveRenewalDate: string }>>();
   for (const subscription of subscriptions) {
     if (subscription.auto_renew === false || !subscription.wallet_id) continue;
-    const effectiveRenewalDate = nextUpcomingRenewal(subscription.renewal_date, subscription.billing_cycle, today);
+    const effectiveRenewalDate = nextUpcomingRenewal(
+      subscription.renewal_date,
+      subscription.billing_cycle,
+      today,
+    );
     const rows = groups.get(subscription.wallet_id) ?? [];
     rows.push({ ...subscription, effectiveRenewalDate });
     groups.set(subscription.wallet_id, rows);
@@ -99,7 +113,11 @@ export function projectWalletFundingWarnings(
 
   const warnings: WalletFundingWarning[] = [];
   for (const [walletId, rows] of groups) {
-    const triggerDates = [...new Set(rows.map((row) => row.effectiveRenewalDate).filter((date) => date === reminderDate))];
+    const triggerDates = [
+      ...new Set(
+        rows.map((row) => row.effectiveRenewalDate).filter((date) => date === reminderDate),
+      ),
+    ];
     const balance = walletBalances.get(walletId) ?? 0;
     for (const renewalDate of triggerDates) {
       const obligations = rows.filter((row) => row.effectiveRenewalDate <= renewalDate);
@@ -122,9 +140,10 @@ export function projectWalletFundingWarnings(
 export async function processSubscriptionBilling(userId?: string, now = new Date()) {
   const through = todayIso(now);
   const log = (event: string, details: Record<string, unknown> = {}) => {
-    if (env.BILLING_DEBUG) console.info(`[subscription-billing] ${event}`, { current_date: through, ...details });
+    if (env.BILLING_DEBUG)
+      console.info(`[subscription-billing] ${event}`, { current_date: through, ...details });
   };
-  log("started", { user_id: userId ?? "all" });
+  log('started', { user_id: userId ?? 'all' });
   const { data, error } = await client().rpc('process_subscription_billing_occurrences', {
     target_user_id: userId ? requireUserId(userId) : null,
     target_through: through,

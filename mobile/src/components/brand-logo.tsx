@@ -1,4 +1,17 @@
-import { Banknote, Droplets, HandCoins, House, Landmark, Phone, Receipt, Repeat, Shield, Tv, Wifi, Zap } from 'lucide-react-native';
+import {
+  Banknote,
+  Droplets,
+  HandCoins,
+  House,
+  Landmark,
+  Phone,
+  Receipt,
+  Repeat,
+  Shield,
+  Tv,
+  Wifi,
+  Zap,
+} from 'lucide-react-native';
 import { createElement, type ComponentType } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -25,10 +38,14 @@ export function BrandLogo({
 }) {
   const { colors } = useAppTheme();
   const brand = resolveBrand(name, entity, institutionKey);
-  const billResolution = entity === 'bill'
-    ? resolveBillIcon({ name, category, customCategory, icon, providerKey: brand?.key })
-    : null;
-  const billIcons: Record<BillIconName, ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
+  const billResolution =
+    entity === 'bill'
+      ? resolveBillIcon({ name, category, customCategory, icon, providerKey: brand?.key })
+      : null;
+  const billIcons: Record<
+    BillIconName,
+    ComponentType<{ size?: number; color?: string; strokeWidth?: number }>
+  > = {
     electricity: Zap,
     water: Droplets,
     internet: Wifi,
@@ -68,7 +85,9 @@ export function BrandLogo({
       {CategoryIcon ? (
         createElement(CategoryIcon, { size: size * 0.48, color: colors.primary, strokeWidth: 1.9 })
       ) : billResolution?.kind === 'initial' ? (
-        <Text style={[styles.mark, { color: colors.primary, fontSize: size * 0.38 }]}>{billResolution.name}</Text>
+        <Text style={[styles.mark, { color: colors.primary, fontSize: size * 0.38 }]}>
+          {billResolution.name}
+        </Text>
       ) : brand ? (
         <Text
           numberOfLines={1}

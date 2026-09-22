@@ -40,10 +40,7 @@ export function WalletCard({ wallet, onPress, onManage, formatBalance }: WalletC
       ? ''
       : walletTypeLabel(wallet);
   const metadata = [category, subtype, wallet.currency ?? 'PHP'].filter(Boolean).join(' · ');
-  const amountLabel =
-    wallet.account_type === 'credit'
-      ? 'AVAILABLE CREDIT'
-      : 'AVAILABLE TO SPEND';
+  const amountLabel = wallet.account_type === 'credit' ? 'AVAILABLE CREDIT' : 'AVAILABLE TO SPEND';
   const displayBalance =
     wallet.account_type === 'credit'
       ? Math.max(0, Number(wallet.credit_limit ?? 0) - Number(wallet.balance))

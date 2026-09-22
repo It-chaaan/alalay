@@ -25,7 +25,8 @@ export function formatRelativeDate(value: string, now = new Date()) {
 
   const differenceInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
   if (differenceInSeconds >= 0 && differenceInSeconds < 60) return 'Just now';
-  if (differenceInSeconds >= 60 && differenceInSeconds < 3600) return `${Math.floor(differenceInSeconds / 60)}m ago`;
+  if (differenceInSeconds >= 60 && differenceInSeconds < 3600)
+    return `${Math.floor(differenceInSeconds / 60)}m ago`;
 
   const today = dateKey(now);
   const notificationDay = dateKey(date);

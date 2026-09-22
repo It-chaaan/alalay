@@ -118,10 +118,16 @@ export async function myIncomeForMonth(userId: string, month?: string) {
     .filter((row) => row.is_posted === false && isRecurring(row))
     .map((row) => String(row.id));
   const { data: skippedRows, error: skippedError } = sourceIds.length
-    ? await client().from('income_skipped_occurrences').select('source_id, occurrence_date').eq('user_id', requireUserId(userId)).in('source_id', sourceIds)
+    ? await client()
+        .from('income_skipped_occurrences')
+        .select('source_id, occurrence_date')
+        .eq('user_id', requireUserId(userId))
+        .in('source_id', sourceIds)
     : { data: [], error: null };
   throwIfError(skippedError);
-  const skipped = new Set((skippedRows ?? []).map((row) => `${row.source_id}:${row.occurrence_date}`));
+  const skipped = new Set(
+    (skippedRows ?? []).map((row) => `${row.source_id}:${row.occurrence_date}`),
+  );
   const sourceRows = summary.sourceRows.filter(
     (row) =>
       row.is_posted === false &&
@@ -149,7 +155,9 @@ export async function myIncomeForMonth(userId: string, month?: string) {
       sourceId: String(schedule?.id ?? row.schedule_id ?? row.id),
       occurrenceId: schedule ? String(row.id) : null,
       isProjected: false,
-      occurrenceKey: String(row.occurrence_key ?? `${schedule?.id ?? row.schedule_id ?? row.id}:${row.date}`),
+      occurrenceKey: String(
+        row.occurrence_key ?? `${schedule?.id ?? row.schedule_id ?? row.id}:${row.date}`,
+      ),
       transactionId: String(row.id),
       name: String(row.source),
       category: String(row.type ?? 'other'),
@@ -208,7 +216,12 @@ export async function myIncomeForMonth(userId: string, month?: string) {
     const rightDate =
       right.status === 'received' ? (right.receivedDate ?? '') : (right.dueDate ?? '9999-12-31');
     const statusOrder = (status: MyIncomeItem['status']) =>
-      status === 'upcoming' || status === 'expected_today' || status === 'overdue' || status === 'failed' ? 0 : 1;
+      status === 'upcoming' ||
+      status === 'expected_today' ||
+      status === 'overdue' ||
+      status === 'failed'
+        ? 0
+        : 1;
     return (
       statusOrder(left.status) - statusOrder(right.status) ||
       rightDate.localeCompare(leftDate) ||

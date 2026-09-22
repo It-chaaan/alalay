@@ -1,0 +1,2 @@
+-- Intentionally empty. The local database is migration-driven and must start
+-- without fixtures so SQL/RLS tests create and roll back their own data.

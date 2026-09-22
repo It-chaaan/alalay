@@ -22,7 +22,11 @@ test('uses the canonical visual separator', () => {
 });
 
 test('preserves Unicode values through API-style JSON serialization', () => {
-  const payload = { name: 'Meralco Ñ', label: `Electricity ${currencySeparator} Due`, amount: formatCurrency(5000) };
+  const payload = {
+    name: 'Meralco Ñ',
+    label: `Electricity ${currencySeparator} Due`,
+    amount: formatCurrency(5000),
+  };
   assert.deepEqual(JSON.parse(JSON.stringify(payload)), payload);
 });
 

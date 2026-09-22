@@ -7,10 +7,11 @@ export type MfaFactor = { id: string; friendlyName?: string | null };
 export async function getMfaState() {
   const client = getSupabaseClient();
   if (!client) throw new Error('Authentication is unavailable right now.');
-  const [{ data: factors, error: factorError }, { data: assurance, error: assuranceError }] = await Promise.all([
-    client.auth.mfa.listFactors(),
-    client.auth.mfa.getAuthenticatorAssuranceLevel(),
-  ]);
+  const [{ data: factors, error: factorError }, { data: assurance, error: assuranceError }] =
+    await Promise.all([
+      client.auth.mfa.listFactors(),
+      client.auth.mfa.getAuthenticatorAssuranceLevel(),
+    ]);
   if (factorError) throw factorError;
   if (assuranceError) throw assuranceError;
   const factor = factors.totp.find((candidate) => candidate.status === 'verified');
@@ -31,11 +32,14 @@ export async function isTrustedDevice() {
 }
 
 export async function rememberTrustedDevice() {
-  const result = await authenticatedApiRequest<{ trusted: boolean; token?: string }>('/api/trusted-device', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Client-Platform': 'mobile' },
-    body: JSON.stringify({}),
-  });
+  const result = await authenticatedApiRequest<{ trusted: boolean; token?: string }>(
+    '/api/trusted-device',
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Client-Platform': 'mobile' },
+      body: JSON.stringify({}),
+    },
+  );
   if (result.token) await saveTrustedDeviceToken(result.token);
 }
 
@@ -45,7 +49,8 @@ export async function clearMobileTrust() {
 
 export async function requiresMfa() {
   const state = await getMfaState();
-  if (!state.factor || state.currentLevel === 'aal2' || state.nextLevel !== 'aal2') return { required: false, factor: state.factor };
+  if (!state.factor || state.currentLevel === 'aal2' || state.nextLevel !== 'aal2')
+    return { required: false, factor: state.factor };
   if (await isTrustedDevice()) return { required: false, factor: state.factor };
   return { required: true, factor: state.factor };
 }

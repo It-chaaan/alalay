@@ -15,9 +15,18 @@ const bill = {
   created_at: '2026-01-01T00:00:00.000Z',
 };
 
-assert.deepEqual(parseBillListResponse({ month: '2026-09', items: [bill], overdue_items: [], overview: {} }), [bill]);
-assert.deepEqual(parseBillListResponse({ month: '2026-09', items: [bill], overdue_items: [bill], overview: {} }), [bill]);
-assert.deepEqual(parseBillListResponse({ month: '2026-09', items: [], overdue_items: [], overview: {} }), []);
+assert.deepEqual(
+  parseBillListResponse({ month: '2026-09', items: [bill], overdue_items: [], overview: {} }),
+  [bill],
+);
+assert.deepEqual(
+  parseBillListResponse({ month: '2026-09', items: [bill], overdue_items: [bill], overview: {} }),
+  [bill],
+);
+assert.deepEqual(
+  parseBillListResponse({ month: '2026-09', items: [], overdue_items: [], overview: {} }),
+  [],
+);
 assert.throws(
   () => parseBillListResponse({ bills: [bill] }),
   (error: unknown) => error instanceof ApiRequestError && error.code === 'invalid_response',

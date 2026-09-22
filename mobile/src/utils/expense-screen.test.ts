@@ -11,8 +11,14 @@ import {
 } from './expense-screen';
 
 assert.deepEqual(expenseRequestIntent(), { path: '/api/expenses', method: 'POST' });
-assert.deepEqual(expenseRequestIntent('expense-1'), { path: '/api/expenses/expense-1', method: 'PATCH' });
-assert.deepEqual(expenseDeleteRequestIntent('expense-1'), { path: '/api/expenses/expense-1', method: 'DELETE' });
+assert.deepEqual(expenseRequestIntent('expense-1'), {
+  path: '/api/expenses/expense-1',
+  method: 'PATCH',
+});
+assert.deepEqual(expenseDeleteRequestIntent('expense-1'), {
+  path: '/api/expenses/expense-1',
+  method: 'DELETE',
+});
 assert.equal(canStartExpenseSave(false), true);
 assert.equal(canStartExpenseSave(true), false);
 assert.equal(expenseCentavos('10.105'), 1011);
@@ -26,9 +32,15 @@ const groups = groupExpenseRows([
   { id: 'new', date: '2026-08-02', amount: '0.20', created_at: '2026-08-02T10:00:00Z' },
   { id: 'previous', date: '2026-08-01', amount: 5 },
 ]);
-assert.deepEqual(groups.map((group) => group.date), ['2026-08-02', '2026-08-01']);
+assert.deepEqual(
+  groups.map((group) => group.date),
+  ['2026-08-02', '2026-08-01'],
+);
 assert.equal(groups[0].subtotal, 10.3);
-assert.deepEqual(groups[0].items.map((item) => item.id), ['new', 'old']);
+assert.deepEqual(
+  groups[0].items.map((item) => item.id),
+  ['new', 'old'],
+);
 
 assert.equal(walletAvailableForExpense({ balance: 1_000, available_balance: 650 }), 650);
 assert.equal(walletAvailableForExpense({ balance: 1_000 }), 1_000);

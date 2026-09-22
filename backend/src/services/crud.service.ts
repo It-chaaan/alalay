@@ -1,10 +1,15 @@
-import { client, requireUserId, throwIfError, type TableName } from "./db.js";
-import { AppError } from "../utils/api.js";
+import { client, requireUserId, throwIfError, type TableName } from './db.js';
+import { AppError } from '../utils/api.js';
 
 async function assertWalletBelongsToUser(userId: string, walletId: unknown) {
-  if (walletId === undefined || walletId === null || walletId === "") return;
-  const { data, error } = await client().from("wallets").select("id").eq("id", walletId).eq("user_id", requireUserId(userId)).maybeSingle();
-  if (error || !data) throw new AppError(400, "invalid_wallet", "Choose one of your wallets.");
+  if (walletId === undefined || walletId === null || walletId === '') return;
+  const { data, error } = await client()
+    .from('wallets')
+    .select('id')
+    .eq('id', walletId)
+    .eq('user_id', requireUserId(userId))
+    .maybeSingle();
+  if (error || !data) throw new AppError(400, 'invalid_wallet', 'Choose one of your wallets.');
 }
 
 async function assertIncomeWalletEligible(userId: string, walletId: unknown) {
@@ -21,20 +26,29 @@ async function assertIncomeWalletEligible(userId: string, walletId: unknown) {
   }
 }
 
-export async function listOwned(table: TableName, userId: string, filters?: Record<string, unknown>) {
-  let query = client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null);
-  query = table === "expenses"
-    ? query.order("date", { ascending: false }).order("created_at", { ascending: false })
-    : query.order("created_at", { ascending: false });
+export async function listOwned(
+  table: TableName,
+  userId: string,
+  filters?: Record<string, unknown>,
+) {
+  let query = client()
+    .from(table)
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .is('deleted_at', null);
+  query =
+    table === 'expenses'
+      ? query.order('date', { ascending: false }).order('created_at', { ascending: false })
+      : query.order('created_at', { ascending: false });
 
   if (filters) {
     const { from, to, ...exactFilters } = filters;
-    if (typeof from === "string" && from) query = query.gte("date", from);
+    if (typeof from === 'string' && from) query = query.gte('date', from);
     // Date ranges are inclusive. Clients pass `to` as the last local
     // calendar day, so a strict upper bound drops today's transactions.
-    if (typeof to === "string" && to) query = query.lte("date", to);
+    if (typeof to === 'string' && to) query = query.lte('date', to);
     for (const [key, value] of Object.entries(exactFilters)) {
-      if (value !== undefined && value !== null && value !== "") {
+      if (value !== undefined && value !== null && value !== '') {
         query = query.eq(key, value);
       }
     }
@@ -46,40 +60,77 @@ export async function listOwned(table: TableName, userId: string, filters?: Reco
 }
 
 export async function getOwned(table: TableName, userId: string, id: string) {
-  const { data, error } = await client().from(table).select("*").eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).single();
+  const { data, error } = await client()
+    .from(table)
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single();
   if (error) {
-    throw new AppError(404, "not_found", "Record not found.");
+    throw new AppError(404, 'not_found', 'Record not found.');
   }
   return data;
 }
 
-export async function createOwned(table: TableName, userId: string, payload: Record<string, unknown>) {
+export async function createOwned(
+  table: TableName,
+  userId: string,
+  payload: Record<string, unknown>,
+) {
   await assertWalletBelongsToUser(userId, payload.wallet_id);
   if (table === 'income') await assertIncomeWalletEligible(userId, payload.wallet_id);
-  const { data, error } = await client().from(table).insert({ ...payload, user_id: requireUserId(userId) }).select("*").single();
+  const { data, error } = await client()
+    .from(table)
+    .insert({ ...payload, user_id: requireUserId(userId) })
+    .select('*')
+    .single();
   throwIfError(error);
   return data;
 }
 
-export async function updateOwned(table: TableName, userId: string, id: string, payload: Record<string, unknown>) {
+export async function updateOwned(
+  table: TableName,
+  userId: string,
+  id: string,
+  payload: Record<string, unknown>,
+) {
   await assertWalletBelongsToUser(userId, payload.wallet_id);
   if (table === 'income') await assertIncomeWalletEligible(userId, payload.wallet_id);
-  const { data, error } = await client().from(table).update(payload).eq("user_id", requireUserId(userId)).eq("id", id).is("deleted_at", null).select("*").single();
+  const { data, error } = await client()
+    .from(table)
+    .update(payload)
+    .eq('user_id', requireUserId(userId))
+    .eq('id', id)
+    .is('deleted_at', null)
+    .select('*')
+    .single();
   if (error) {
-    throw new AppError(404, "not_found", "Record not found.");
+    throw new AppError(404, 'not_found', 'Record not found.');
   }
   return data;
 }
 
 export async function softDeleteOwned(table: TableName, userId: string, id: string) {
   const ownerId = requireUserId(userId);
-  const { data: existing, error: lookupError } = await client().from(table).select("id").eq("user_id", ownerId).eq("id", id).is("deleted_at", null).maybeSingle();
-  if (lookupError || !existing) throw new AppError(404, "not_found", "Record not found.");
+  const { data: existing, error: lookupError } = await client()
+    .from(table)
+    .select('id')
+    .eq('user_id', ownerId)
+    .eq('id', id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (lookupError || !existing) throw new AppError(404, 'not_found', 'Record not found.');
 
   // Do not select the updated row here. Once deleted_at is set, the active-row
   // SELECT policy intentionally hides it, which makes PostgREST report zero
   // returned rows even though the soft delete succeeded.
-  const { error } = await client().from(table).update({ deleted_at: new Date().toISOString() }).eq("user_id", ownerId).eq("id", id).is("deleted_at", null);
+  const { error } = await client()
+    .from(table)
+    .update({ deleted_at: new Date().toISOString() })
+    .eq('user_id', ownerId)
+    .eq('id', id)
+    .is('deleted_at', null);
   if (error) throwIfError(error);
   return { id: existing.id };
 }

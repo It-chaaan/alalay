@@ -13,10 +13,30 @@ type GlassSurfaceProps = {
   accentTint?: boolean;
 };
 
-export function GlassSurface({ children, style, intensity = 38, radius = 24, padding, selected = false, accentTint = false }: GlassSurfaceProps) {
+export function GlassSurface({
+  children,
+  style,
+  intensity = 38,
+  radius = 24,
+  padding,
+  selected = false,
+  accentTint = false,
+}: GlassSurfaceProps) {
   const { colors, resolvedTheme } = useAppTheme();
   const tint = selected || accentTint ? `${colors.primary}2E` : 'transparent';
-  return <View style={[style, styles.clip, { borderRadius: radius, borderColor: colors.border }]}><BlurView intensity={intensity} tint={resolvedTheme} style={StyleSheet.absoluteFill} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]} /><View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} /><View style={[padding !== undefined && { padding }, { borderRadius: radius }]}>{children}</View></View>;
+  return (
+    <View style={[style, styles.clip, { borderRadius: radius, borderColor: colors.border }]}>
+      <BlurView intensity={intensity} tint={resolvedTheme} style={StyleSheet.absoluteFill} />
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: colors.surfaceTranslucent }]}
+      />
+      <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: tint }]} />
+      <View style={[padding !== undefined && { padding }, { borderRadius: radius }]}>
+        {children}
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

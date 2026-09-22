@@ -543,7 +543,8 @@ export function CategoryChipRow({
   const insets = useSafeAreaInsets();
   const [open, setOpen] = useState(false);
   const sortedOptions = sortCategoriesByLabel(options);
-  const visibleOptions = showAllOptions || sortedOptions.length <= 6 ? sortedOptions : sortedOptions.slice(0, 4);
+  const visibleOptions =
+    showAllOptions || sortedOptions.length <= 6 ? sortedOptions : sortedOptions.slice(0, 4);
   const selectedExtended = sortedOptions.find(
     (option) => option.label === value && !visibleOptions.some((item) => item.label === value),
   );
@@ -617,7 +618,7 @@ export function CategoryChipRow({
             <Plus size={17} color={colors.primary} />
             <Text style={[chipStyles.text, { color: colors.primary }]}>Add</Text>
           </Pressable>
-  ) : sortedOptions.length > 6 && !selectedExtended ? (
+        ) : sortedOptions.length > 6 && !selectedExtended ? (
           <Pressable
             accessibilityRole="button"
             onPress={() => setOpen(true)}
@@ -645,18 +646,34 @@ export function CategoryChipRow({
         >
           <Pressable style={pickerStyles.backdrop} onPress={() => setOpen(false)}>
             <Pressable
-              style={[pickerStyles.sheet, { backgroundColor: colors.surfaceElevated, paddingBottom: Math.max(20, insets.bottom + 12) }]}
+              style={[
+                pickerStyles.sheet,
+                {
+                  backgroundColor: colors.surfaceElevated,
+                  paddingBottom: Math.max(20, insets.bottom + 12),
+                },
+              ]}
               onPress={(event) => event.stopPropagation()}
             >
               <View style={pickerStyles.header}>
-                <Text style={[pickerStyles.title, { color: colors.textPrimary }]}>{label.replace(' *', '')}</Text>
-                <Pressable accessibilityRole="button" accessibilityLabel="Close income type selector" onPress={() => setOpen(false)} style={pickerStyles.close}>
+                <Text style={[pickerStyles.title, { color: colors.textPrimary }]}>
+                  {label.replace(' *', '')}
+                </Text>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Close income type selector"
+                  onPress={() => setOpen(false)}
+                  style={pickerStyles.close}
+                >
                   <X size={22} color={colors.textSecondary} />
                 </Pressable>
               </View>
               <ScrollView
                 style={pickerStyles.scroll}
-                contentContainerStyle={[pickerStyles.list, { paddingBottom: Math.max(28, insets.bottom + 20) }]}
+                contentContainerStyle={[
+                  pickerStyles.list,
+                  { paddingBottom: Math.max(28, insets.bottom + 20) },
+                ]}
                 showsVerticalScrollIndicator
               >
                 {sortedOptions.map(({ label: optionLabel, icon: Icon }) => (
@@ -1476,9 +1493,10 @@ export function FinanceFormSheet({
     Keyboard.dismiss();
     setAmountActive(true);
   };
-  const displayedAmount = amountDisplayTwoDecimals && !amountActive
-    ? formatCurrencyDisplay(amount)
-    : formatAmountForDisplay(amount);
+  const displayedAmount =
+    amountDisplayTwoDecimals && !amountActive
+      ? formatCurrencyDisplay(amount)
+      : formatAmountForDisplay(amount);
   return (
     <View style={sheetStyles.overlay}>
       <Pressable
@@ -1497,7 +1515,11 @@ export function FinanceFormSheet({
           <View style={[sheetStyles.header, { paddingTop: Math.max(18, insets.top + 8) }]}>
             <View style={sheetStyles.headerCopy}>
               <Text style={[sheetStyles.eyebrow, { color: colors.accent }]}>{eyebrow}</Text>
-              <Text numberOfLines={2} ellipsizeMode="tail" style={[sheetStyles.title, { color: colors.ink }]}>
+              <Text
+                numberOfLines={2}
+                ellipsizeMode="tail"
+                style={[sheetStyles.title, { color: colors.ink }]}
+              >
                 {title}
               </Text>
             </View>
@@ -1524,7 +1546,11 @@ export function FinanceFormSheet({
               {displayedAmount}
             </Text>
           </Pressable>
-          {amountError ? <Text accessibilityRole="alert" style={[sheetStyles.error, { color: colors.danger }]}>{amountError}</Text> : null}
+          {amountError ? (
+            <Text accessibilityRole="alert" style={[sheetStyles.error, { color: colors.danger }]}>
+              {amountError}
+            </Text>
+          ) : null}
           <FinanceFormInteractionContext.Provider value={{ deactivateAmount }}>
             <View
               style={financeEntryStyles.body}
@@ -1642,7 +1668,11 @@ export function FormTextInput({
         keyboardType={keyboardType}
         textAlignVertical={multiline ? 'top' : 'center'}
       />
-      {error ? <Text accessibilityRole="alert" style={[inputStyles.error, { color: colors.danger }]}>{error}</Text> : null}
+      {error ? (
+        <Text accessibilityRole="alert" style={[inputStyles.error, { color: colors.danger }]}>
+          {error}
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -1820,7 +1850,13 @@ const pickerStyles = StyleSheet.create({
   scroll: { flexShrink: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: 20, fontWeight: '900' },
-  close: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22 },
+  close: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 22,
+  },
   list: { paddingTop: 18, paddingBottom: 20, gap: 16 },
   group: { gap: 8 },
   groupTitle: { fontSize: 11, fontWeight: '900', letterSpacing: 1 },

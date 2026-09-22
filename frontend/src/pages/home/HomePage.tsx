@@ -1,68 +1,73 @@
-import alalayLogo from "../../assets/logo-symbol-full-color.svg";
-import alalayLogoWhite from "../../assets/logo-symbol-white.svg";
-import { Container } from "../../components/layout/Container";
-import { MarketingFooter } from "../../components/layout/MarketingFooter";
-import { Navbar } from "../../components/navigation/Navbar";
-import { mobileDownloadCopy, qrPreviewCells } from "../../constants/mobileDownload";
-import { ReceiptText, Bot, PiggyBank, ChartNoAxesCombined, CreditCard, Scan, Smartphone } from "lucide-react";
+import alalayLogo from '../../assets/logo-symbol-full-color.svg';
+import alalayLogoWhite from '../../assets/logo-symbol-white.svg';
+import { Container } from '../../components/layout/Container';
+import { MarketingFooter } from '../../components/layout/MarketingFooter';
+import { Navbar } from '../../components/navigation/Navbar';
+import { mobileDownloadCopy, qrPreviewCells } from '../../constants/mobileDownload';
+import {
+  ReceiptText,
+  Bot,
+  PiggyBank,
+  ChartNoAxesCombined,
+  CreditCard,
+  Scan,
+  Smartphone,
+} from 'lucide-react';
 
 const features = [
   {
     icon: ReceiptText,
-    title: "Bill tracking",
+    title: 'Bill tracking',
     description:
-      "Never miss a due date again. Get reminders 3 days before, day-of, and instant overdue alerts.",
+      'Never miss a due date again. Get reminders 3 days before, day-of, and instant overdue alerts.',
   },
   {
     icon: Bot,
-    title: "AI financial companion",
+    title: 'AI financial companion',
     description:
-      "Ask Alalay anything in English or Filipino. Get personalized insights, spending analysis, and actionable tips.",
+      'Ask Alalay anything in English or Filipino. Get personalized insights, spending analysis, and actionable tips.',
   },
   {
     icon: PiggyBank,
-    title: "Savings goals",
+    title: 'Savings goals',
     description:
-      "Set a target, track your progress, and let Alalay tell you exactly how much to save each month to hit your goal.",
+      'Set a target, track your progress, and let Alalay tell you exactly how much to save each month to hit your goal.',
   },
   {
     icon: ChartNoAxesCombined,
-    title: "Expense analytics",
+    title: 'Expense analytics',
     description:
-      "Visualize where your money goes with clean charts. Spot patterns, find leaks, and build better habits month over month.",
+      'Visualize where your money goes with clean charts. Spot patterns, find leaks, and build better habits month over month.',
   },
   {
     icon: CreditCard,
-    title: "Subscription review",
+    title: 'Subscription review',
     description:
-      "Track renewal dates, local reminder preferences, and monthly subscription costs from the details you save.",
+      'Track renewal dates, local reminder preferences, and monthly subscription costs from the details you save.',
   },
   {
     icon: Scan,
-    title: "OCR receipt scanning",
+    title: 'OCR receipt scanning',
     description:
-      "Point your camera at any receipt. Alalay reads it and logs the expense automatically with no manual entry.",
+      'Point your camera at any receipt. Alalay reads it and logs the expense automatically with no manual entry.',
   },
 ];
 
 const steps = [
   {
-    number: "01",
-    title: "Create your account",
-    copy:
-      "Sign up in 30 seconds. Choose your billers from common Philippine utilities, telcos, and government services.",
+    number: '01',
+    title: 'Create your account',
+    copy: 'Sign up in 30 seconds. Choose your billers from common Philippine utilities, telcos, and government services.',
   },
   {
-    number: "02",
-    title: "Add your bills & income",
-    copy:
-      "Tell Alalay your monthly income and recurring bills. It calculates your budget automatically with no spreadsheets needed.",
+    number: '02',
+    title: 'Add your bills & income',
+    copy: 'Tell Alalay your monthly income and recurring bills. It calculates your budget automatically with no spreadsheets needed.',
   },
   {
-    number: "03",
-    title: "Let Alalay guide you",
-    copy:
-      "Get proactive reminders, spending insights in Tagalog or English, and savings recommendations tailored to your situation.",
+    number: '03',
+    title: 'Let Alalay guide you',
+    copy: 'Get proactive reminders, spending insights in Tagalog or English, and savings recommendations tailored to your situation.',
   },
 ];
 
@@ -172,10 +177,7 @@ export function HomePage() {
     <main className="min-h-screen bg-[#f8f7f2] text-slate-900">
       <Navbar />
 
-      <section
-        id="top"
-        className="relative flex min-h-[calc(100vh-4rem)] overflow-hidden"
-      >
+      <section id="top" className="relative flex min-h-[calc(100vh-4rem)] overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(2,132,108,0.10),transparent_42%),radial-gradient(circle_at_80%_20%,rgba(18,164,129,0.14),transparent_18%)]" />
         <Container className="relative grid flex-1 items-center gap-14 py-16 lg:grid-cols-2 lg:py-24">
           <div className="max-w-2xl">
@@ -183,9 +185,8 @@ export function HomePage() {
               Pangalagaan ang iyong <span className="text-[#0f8a6b]">pera</span>.
             </h1>
             <p className="mt-6 max-w-xl text-lg leading-8 text-slate-600">
-              Alalay is an AI-powered finance app built for Filipinos. Track bills,
-              track subscriptions, hit savings goals, all in one calm, intelligent
-              dashboard.
+              Alalay is an AI-powered finance app built for Filipinos. Track bills, track
+              subscriptions, hit savings goals, all in one calm, intelligent dashboard.
             </p>
             <div className="mt-10 flex flex-col gap-3 sm:flex-row">
               <a
@@ -218,8 +219,13 @@ export function HomePage() {
             <aside className="mt-6 flex max-w-xl items-start gap-3 rounded-2xl border border-[#b9dfd0] bg-[#e8f6f0] px-4 py-3 text-[#164e3b]">
               <Smartphone aria-hidden="true" className="mt-0.5 h-5 w-5 shrink-0 text-[#0f8a6b]" />
               <div className="min-w-0">
-                <p className="text-sm font-semibold">For the best Alalay experience, use our mobile app.</p>
-                <p className="mt-1 text-sm leading-6 text-[#356b59]">Access your finances, receive reminders, and manage your money conveniently on the go.</p>
+                <p className="text-sm font-semibold">
+                  For the best Alalay experience, use our mobile app.
+                </p>
+                <p className="mt-1 text-sm leading-6 text-[#356b59]">
+                  Access your finances, receive reminders, and manage your money conveniently on the
+                  go.
+                </p>
               </div>
             </aside>
           </div>
@@ -235,20 +241,16 @@ export function HomePage() {
                 <aside className="space-y-3 text-sm text-slate-500">
                   <div className="flex items-center gap-2 rounded-xl bg-[#e3f6ef] px-3 py-2 font-medium text-[#0b7b62]">
                     <span className="grid h-5 w-5 place-items-center rounded-md bg-[#0f8a6b]">
-                      <img
-                        src={alalayLogoWhite}
-                        alt="Alalay Logo"
-                        className="h-3.5 w-3.5"
-                      />
+                      <img src={alalayLogoWhite} alt="Alalay Logo" className="h-3.5 w-3.5" />
                     </span>
                     Alalay
                   </div>
-                  {["Dashboard", "Bills", "Expenses", "Savings", "AI Assistant"].map(
+                  {['Dashboard', 'Bills', 'Expenses', 'Savings', 'AI Assistant'].map(
                     (item, index) => (
                       <div
                         key={item}
                         className={`rounded-xl px-3 py-2 ${
-                          index === 0 ? "bg-[#dff2eb] font-medium text-[#0b7b62]" : ""
+                          index === 0 ? 'bg-[#dff2eb] font-medium text-[#0b7b62]' : ''
                         }`}
                       >
                         {item}
@@ -262,19 +264,17 @@ export function HomePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     {[
-                      ["Bills", "₱4,599"],
-                      ["Due soon", "₱3,699"],
-                      ["Expenses", "₱14,086"],
-                      ["Savings", "48%"],
+                      ['Bills', '₱4,599'],
+                      ['Due soon', '₱3,699'],
+                      ['Expenses', '₱14,086'],
+                      ['Savings', '48%'],
                     ].map(([label, value]) => (
                       <div
                         key={label}
                         className="rounded-2xl border border-black/5 bg-white p-3 shadow-sm"
                       >
                         <div className="text-slate-400">{label}</div>
-                        <div className="mt-2 text-sm font-semibold text-slate-800">
-                          {value}
-                        </div>
+                        <div className="mt-2 text-sm font-semibold text-slate-800">{value}</div>
                       </div>
                     ))}
                   </div>
@@ -285,7 +285,6 @@ export function HomePage() {
         </Container>
       </section>
 
-
       <section id="features" className="bg-[#fbfaf6] py-24">
         <Container>
           <div className="mx-auto max-w-2xl text-center">
@@ -293,8 +292,8 @@ export function HomePage() {
               Everything you need to take control
             </h2>
             <p className="mt-4 text-lg leading-8 text-slate-600">
-              Built for the way Filipinos actually manage money, multiple billers,
-              mixed payments, bilingual support.
+              Built for the way Filipinos actually manage money, multiple billers, mixed payments,
+              bilingual support.
             </p>
           </div>
           <div className="mt-14 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -306,9 +305,7 @@ export function HomePage() {
                 <div className="mb-5 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e3f6ef] text-[#0f8a6b]">
                   <feature.icon className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-semibold text-slate-950">
-                  {feature.title}
-                </h3>
+                <h3 className="text-lg font-semibold text-slate-950">{feature.title}</h3>
                 <p className="mt-3 leading-7 text-slate-600">{feature.description}</p>
               </article>
             ))}
@@ -322,9 +319,7 @@ export function HomePage() {
             <h2 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
               Handa ka in 3 minutes
             </h2>
-            <p className="mt-4 text-lg text-slate-600">
-              No complicated setup. Just open and go.
-            </p>
+            <p className="mt-4 text-lg text-slate-600">No complicated setup. Just open and go.</p>
           </div>
           <div className="mt-14 grid gap-8 lg:grid-cols-3">
             {steps.map((step) => (
@@ -332,12 +327,8 @@ export function HomePage() {
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#0f8a6b] font-mono text-lg font-semibold text-white">
                   {step.number}
                 </div>
-                <h3 className="mt-6 text-xl font-semibold text-slate-950">
-                  {step.title}
-                </h3>
-                <p className="mx-auto mt-3 max-w-md leading-7 text-slate-600">
-                  {step.copy}
-                </p>
+                <h3 className="mt-6 text-xl font-semibold text-slate-950">{step.title}</h3>
+                <p className="mx-auto mt-3 max-w-md leading-7 text-slate-600">{step.copy}</p>
               </div>
             ))}
           </div>
@@ -349,12 +340,10 @@ export function HomePage() {
           <div className="mb-6 grid h-14 w-14 place-items-center overflow-hidden rounded-full bg-white/15 p-1 ring-1 ring-white/10">
             <img src={alalayLogoWhite} alt="Alalay" className="h-full w-full object-contain" />
           </div>
-          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-            Simulan na natin.
-          </h2>
+          <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">Simulan na natin.</h2>
           <p className="mt-4 max-w-2xl text-lg leading-8 text-white/85">
-            Join thousands of Filipinos who finally know where their money goes.
-            Free to start, no credit card needed.
+            Join thousands of Filipinos who finally know where their money goes. Free to start, no
+            credit card needed.
           </p>
           <a
             href="/register"
@@ -369,100 +358,110 @@ export function HomePage() {
 
       <MarketingFooter />
       {/* Footer links are kept in the shared marketing footer. */}
-      {false && <footer><Container><div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
-            <div className="max-w-sm">
-              <div className="flex items-center gap-3 font-semibold text-slate-950">
-                <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">
-                  <img src={alalayLogoWhite} alt="Alalay" className="h-full w-full object-contain" />
-                </span>
-                <span>Alalay</span>
+      {false && (
+        <footer>
+          <Container>
+            <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
+              <div className="max-w-sm">
+                <div className="flex items-center gap-3 font-semibold text-slate-950">
+                  <span className="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-white shadow-sm ring-1 ring-black/5">
+                    <img
+                      src={alalayLogoWhite}
+                      alt="Alalay"
+                      className="h-full w-full object-contain"
+                    />
+                  </span>
+                  <span>Alalay</span>
+                </div>
+                <p className="mt-4 text-sm leading-6 text-slate-600">
+                  Take control of your bills, savings, and spending in the Philippines, with an AI
+                  assistant whenever you need guidance.
+                </p>
               </div>
-              <p className="mt-4 text-sm leading-6 text-slate-600">
-                Take control of your bills, savings, and spending in the Philippines, with an AI assistant whenever you need guidance.
-              </p>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Product</h3>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  <li>
+                    <a href="#features" className="transition hover:text-[#0f8a6b]">
+                      Features
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#how-it-works" className="transition hover:text-[#0f8a6b]">
+                      How it works
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#signup" className="transition hover:text-[#0f8a6b]">
+                      Get started
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#demo" className="transition hover:text-[#0f8a6b]">
+                      Demo
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Company</h3>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  <li>
+                    <a href="/privacy" className="transition hover:text-[#0f8a6b]">
+                      Privacy
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#terms" className="transition hover:text-[#0f8a6b]">
+                      Terms
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#updates" className="transition hover:text-[#0f8a6b]">
+                      Updates
+                    </a>
+                  </li>
+                </ul>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-950">Support</h3>
+                <ul className="mt-4 space-y-3 text-sm text-slate-600">
+                  <li>
+                    <a href="#help-center" className="transition hover:text-[#0f8a6b]">
+                      Help center
+                    </a>
+                  </li>
+                  <li>
+                    <a href="/contact" className="transition hover:text-[#0f8a6b]">
+                      Contact
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#status" className="transition hover:text-[#0f8a6b]">
+                      Status
+                    </a>
+                  </li>
+                  <li>
+                    <a href="#community" className="transition hover:text-[#0f8a6b]">
+                      Community
+                    </a>
+                  </li>
+                </ul>
+              </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Product</h3>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                <li>
-                  <a href="#features" className="transition hover:text-[#0f8a6b]">
-                    Features
-                  </a>
-                </li>
-                <li>
-                  <a href="#how-it-works" className="transition hover:text-[#0f8a6b]">
-                    How it works
-                  </a>
-                </li>
-                <li>
-                  <a href="#signup" className="transition hover:text-[#0f8a6b]">
-                    Get started
-                  </a>
-                </li>
-                <li>
-                  <a href="#demo" className="transition hover:text-[#0f8a6b]">
-                    Demo
-                  </a>
-                </li>
-              </ul>
+            <div className="mt-14 border-t border-black/5 pt-6">
+              <div className="flex flex-col gap-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
+                <p>© 2026 Alalay.</p>
+                <p>It_chaaan</p>
+              </div>
             </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Company</h3>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                <li>
-                  <a href="/privacy" className="transition hover:text-[#0f8a6b]">
-                    Privacy
-                  </a>
-                </li>
-                <li>
-                  <a href="#terms" className="transition hover:text-[#0f8a6b]">
-                    Terms
-                  </a>
-                </li>
-                <li>
-                  <a href="#updates" className="transition hover:text-[#0f8a6b]">
-                    Updates
-                  </a>
-                </li>
-              </ul>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Support</h3>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                <li>
-                  <a href="#help-center" className="transition hover:text-[#0f8a6b]">
-                    Help center
-                  </a>
-                </li>
-                <li>
-                  <a href="/contact" className="transition hover:text-[#0f8a6b]">
-                    Contact
-                  </a>
-                </li>
-                <li>
-                  <a href="#status" className="transition hover:text-[#0f8a6b]">
-                    Status
-                  </a>
-                </li>
-                <li>
-                  <a href="#community" className="transition hover:text-[#0f8a6b]">
-                    Community
-                  </a>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          <div className="mt-14 border-t border-black/5 pt-6">
-            <div className="flex flex-col gap-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-              <p>© 2026 Alalay.</p>
-              <p>It_chaaan</p>
-            </div>
-          </div>
-      </Container></footer>}
+          </Container>
+        </footer>
+      )}
     </main>
   );
 }

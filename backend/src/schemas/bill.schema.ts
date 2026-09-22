@@ -6,7 +6,10 @@ export const billQuerySchema = z
     status: z.enum(['unpaid', 'paid', 'overdue']).optional(),
     due_within_days: z.coerce.number().int().nonnegative().max(365).optional(),
     category: z.string().trim().max(100).optional(),
-    month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/).optional(),
+    month: z
+      .string()
+      .regex(/^\d{4}-(0[1-9]|1[0-2])$/)
+      .optional(),
   })
   .strict();
 
@@ -56,8 +59,8 @@ export const updateBillSchema = billShape
   .partial()
   .extend({ paid_occurrence_date: safeDate.nullable().optional() })
   .superRefine((value, ctx) => {
-  if (value.recurring === undefined && value.frequency === undefined) return;
-  checkRecurringFrequency(value, ctx);
+    if (value.recurring === undefined && value.frequency === undefined) return;
+    checkRecurringFrequency(value, ctx);
   });
 
 export const billPaymentSchema = z

@@ -69,7 +69,9 @@ for (const testPath of selectedTests) {
   process.stdout.write(result.stdout ?? '');
   process.stderr.write(result.stderr ?? '');
   if (result.error) {
-    process.stderr.write(`HARNESS FAILURE: ${relative(root, testPath)} could not start: ${result.error.message}\n`);
+    process.stderr.write(
+      `HARNESS FAILURE: ${relative(root, testPath)} could not start: ${result.error.message}\n`,
+    );
   }
   results.push({ testPath, status: result.status ?? 1, harnessError: result.error?.message });
 }

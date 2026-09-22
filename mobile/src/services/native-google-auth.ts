@@ -9,7 +9,10 @@ import { oauthRedirectUri } from '@/services/oauth-redirect';
 
 WebBrowser.maybeCompleteAuthSession();
 
-let activeGoogleSignIn: Promise<{ resultType: string; callback: Awaited<ReturnType<typeof processMobileAuthCallback>> }> | null = null;
+let activeGoogleSignIn: Promise<{
+  resultType: string;
+  callback: Awaited<ReturnType<typeof processMobileAuthCallback>>;
+}> | null = null;
 
 export class GoogleSignInCancelledError extends Error {
   constructor(message = 'Google sign-in was cancelled.') {
@@ -30,7 +33,9 @@ function redirectParts(value: string | null) {
 
 export async function signInWithGoogleNative(supabase: SupabaseClient) {
   if (activeGoogleSignIn) return activeGoogleSignIn;
-  activeGoogleSignIn = signInWithGoogleNativeOnce(supabase).finally(() => { activeGoogleSignIn = null; });
+  activeGoogleSignIn = signInWithGoogleNativeOnce(supabase).finally(() => {
+    activeGoogleSignIn = null;
+  });
   return activeGoogleSignIn;
 }
 
@@ -39,9 +44,10 @@ async function signInWithGoogleNativeOnce(supabase: SupabaseClient) {
   // the configured alalay scheme. The same value is sent to Supabase and the
   // auth browser so Supabase cannot fall back to its web Site URL.
   const redirectTo = oauthRedirectUri({
-    platform: Platform.OS === 'web' ? 'web' : Platform.OS as 'ios' | 'android',
+    platform: Platform.OS === 'web' ? 'web' : (Platform.OS as 'ios' | 'android'),
     executionEnvironment: Constants.executionEnvironment,
-    webOrigin: Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined,
+    webOrigin:
+      Platform.OS === 'web' && typeof window !== 'undefined' ? window.location.origin : undefined,
     createUrl: Linking.createURL,
   });
   if (__DEV__) console.info('[Mobile OAuth] Generated redirect:', redirectTo);
@@ -61,17 +67,26 @@ async function signInWithGoogleNativeOnce(supabase: SupabaseClient) {
     throw new Error('Supabase returned an invalid OAuth URL.');
   }
   const embeddedParts = redirectParts(embeddedRedirect);
-  if (__DEV__) console.info('[Mobile OAuth] Supabase redirect_to:', embeddedParts ? `${embeddedParts.scheme} ${embeddedParts.pathname}` : 'missing or invalid');
+  if (__DEV__)
+    console.info(
+      '[Mobile OAuth] Supabase redirect_to:',
+      embeddedParts ? `${embeddedParts.scheme} ${embeddedParts.pathname}` : 'missing or invalid',
+    );
   if (!embeddedRedirect) throw new Error('Supabase returned an OAuth URL without redirect_to.');
   if (__DEV__) console.info('[Mobile OAuth] Redirect matches:', embeddedRedirect === redirectTo);
   if (embeddedRedirect !== redirectTo) {
-    throw new Error(`Google OAuth redirect mismatch: expected ${redirectTo}, received ${embeddedRedirect}.`);
+    throw new Error(
+      `Google OAuth redirect mismatch: expected ${redirectTo}, received ${embeddedRedirect}.`,
+    );
   }
 
   const result = await WebBrowser.openAuthSessionAsync(data.url, redirectTo);
   if (__DEV__) console.info('[Mobile OAuth] Browser result:', result.type);
   if (result.type !== 'success') {
-    if (result.type === 'cancel' || result.type === 'dismiss') throw new GoogleSignInCancelledError(result.type === 'cancel' ? undefined : 'Google sign-in was dismissed.');
+    if (result.type === 'cancel' || result.type === 'dismiss')
+      throw new GoogleSignInCancelledError(
+        result.type === 'cancel' ? undefined : 'Google sign-in was dismissed.',
+      );
     throw new Error('Google sign-in did not complete.');
   }
 

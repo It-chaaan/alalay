@@ -24,7 +24,32 @@ const WorkflowContext = createContext<IncomeWorkflow | null>(null);
 export function IncomeWorkflowProvider({ children }: { children: ReactNode }) {
   const [draft, setDraft] = useState<IncomeWorkflowDraft | null>(null);
   const [createdWalletId, setCreatedWalletId] = useState<string | null>(null);
-  const value = useMemo<IncomeWorkflow>(() => ({ draft, saveDraft: setDraft, takeDraft: () => { const value = draft; setDraft(null); return value; }, completeWallet: setCreatedWalletId, takeCreatedWallet: () => { const value = createdWalletId; setCreatedWalletId(null); return value; }, clear: () => { setDraft(null); setCreatedWalletId(null); } }), [createdWalletId, draft]);
+  const value = useMemo<IncomeWorkflow>(
+    () => ({
+      draft,
+      saveDraft: setDraft,
+      takeDraft: () => {
+        const value = draft;
+        setDraft(null);
+        return value;
+      },
+      completeWallet: setCreatedWalletId,
+      takeCreatedWallet: () => {
+        const value = createdWalletId;
+        setCreatedWalletId(null);
+        return value;
+      },
+      clear: () => {
+        setDraft(null);
+        setCreatedWalletId(null);
+      },
+    }),
+    [createdWalletId, draft],
+  );
   return <WorkflowContext.Provider value={value}>{children}</WorkflowContext.Provider>;
 }
-export function useIncomeWorkflow() { const value = useContext(WorkflowContext); if (!value) throw new Error('Income workflow provider is missing.'); return value; }
+export function useIncomeWorkflow() {
+  const value = useContext(WorkflowContext);
+  if (!value) throw new Error('Income workflow provider is missing.');
+  return value;
+}

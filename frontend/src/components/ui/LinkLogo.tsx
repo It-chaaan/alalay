@@ -1,10 +1,10 @@
-import { faviconUrl } from "../../utils/linkPreview";
+import { faviconUrl } from '../../utils/linkPreview';
 
 export function LinkLogo({
   label,
   link,
   className,
-  textClassName = "",
+  textClassName = '',
 }: {
   label: string;
   link?: string | null;
@@ -12,7 +12,7 @@ export function LinkLogo({
   textClassName?: string;
 }) {
   const logo = faviconUrl(link);
-  const initial = label.trim().charAt(0).toUpperCase() || "?";
+  const initial = label.trim().charAt(0).toUpperCase() || '?';
 
   return (
     <span className={`relative grid shrink-0 place-items-center overflow-hidden ${className}`}>
@@ -23,7 +23,7 @@ export function LinkLogo({
           alt=""
           className="absolute inset-0 h-full w-full object-cover"
           onError={(event) => {
-            event.currentTarget.style.display = "none";
+            event.currentTarget.style.display = 'none';
           }}
         />
       ) : null}

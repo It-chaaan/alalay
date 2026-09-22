@@ -3,7 +3,6 @@ node_modules/
 dist/
 .vite/
 
-# Local environment files
-.env
-.env.local
-.env.*.local
+# Local environment files (templates remain versioned)
+.env*
+!.env.example

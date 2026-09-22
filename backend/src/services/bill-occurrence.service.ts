@@ -26,7 +26,9 @@ export type MaterializedBillOccurrence = Record<string, unknown> & {
   title: string;
 };
 
-export function monthKey(date: string) { return date.slice(0, 7); }
+export function monthKey(date: string) {
+  return date.slice(0, 7);
+}
 
 export function monthBounds(month: string) {
   const [year, value] = month.split('-').map(Number);
@@ -42,11 +44,16 @@ export function occurrenceDateFromAnchor(anchor: string, frequency: string, inde
   }
   const step = frequency === 'quarterly' ? 3 : frequency === 'yearly' ? 12 : 1;
   const target = new Date(Date.UTC(year, month - 1 + index * step, 1));
-  const last = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate();
+  const last = new Date(
+    Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+  ).getUTCDate();
   return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, '0')}-${String(Math.min(day, last)).padStart(2, '0')}`;
 }
 
-export function occurrenceStatus(occurrence: Pick<PersistedBillOccurrence, 'status' | 'paid_at' | 'occurrence_date'>, today: string): BillOccurrenceStatus {
+export function occurrenceStatus(
+  occurrence: Pick<PersistedBillOccurrence, 'status' | 'paid_at' | 'occurrence_date'>,
+  today: string,
+): BillOccurrenceStatus {
   if (occurrence.status === 'paid' || occurrence.paid_at) return 'paid';
   if (occurrence.occurrence_date < today) return 'overdue';
   const dueSoon = new Date(`${today}T12:00:00Z`);
@@ -55,7 +62,12 @@ export function occurrenceStatus(occurrence: Pick<PersistedBillOccurrence, 'stat
 }
 
 /** Merge a schedule with an occurrence without allowing legacy template state to win. */
-export function materializeBillOccurrence(row: PersistedBillOccurrence & { bill?: Record<string, unknown> | Record<string, unknown>[] | null }, today: string): MaterializedBillOccurrence {
+export function materializeBillOccurrence(
+  row: PersistedBillOccurrence & {
+    bill?: Record<string, unknown> | Record<string, unknown>[] | null;
+  },
+  today: string,
+): MaterializedBillOccurrence {
   const template = Array.isArray(row.bill) ? row.bill[0] : row.bill;
   return {
     ...(template ?? {}),
@@ -70,10 +82,16 @@ export function materializeBillOccurrence(row: PersistedBillOccurrence & { bill?
   } as unknown as MaterializedBillOccurrence;
 }
 
-export function splitOccurrencesForMonth<T extends { occurrence_date: string; status: string; paid_at?: string | null }>(occurrences: T[], month: string, today: string) {
+export function splitOccurrencesForMonth<
+  T extends { occurrence_date: string; status: string; paid_at?: string | null },
+>(occurrences: T[], month: string, today: string) {
   const { start } = monthBounds(month);
   return {
     items: occurrences.filter((row) => monthKey(row.occurrence_date) === month),
-    overdue_items: occurrences.filter((row) => row.occurrence_date < start && occurrenceStatus(row as unknown as PersistedBillOccurrence, today) === 'overdue'),
+    overdue_items: occurrences.filter(
+      (row) =>
+        row.occurrence_date < start &&
+        occurrenceStatus(row as unknown as PersistedBillOccurrence, today) === 'overdue',
+    ),
   };
 }

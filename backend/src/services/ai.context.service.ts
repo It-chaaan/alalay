@@ -1,11 +1,12 @@
-import { getBudgetSummary, getDashboardSummary, getReports } from "./analytics.service.js";
-import { asNumber, client, monthRange, requireUserId, todayIso, throwIfError } from "./db.js";
-import { incomeForRange } from "./financial-summary.service.js";
-import { processSubscriptionBilling } from "./subscription-billing.service.js";
-import { getProfile } from "./settings.service.js";
-import { resolveAiDateRange } from "./ai.date-range.service.js";
+import { getBudgetSummary, getDashboardSummary, getReports } from './analytics.service.js';
+import { asNumber, client, monthRange, requireUserId, todayIso, throwIfError } from './db.js';
+import { incomeForRange } from './financial-summary.service.js';
+import { processSubscriptionBilling } from './subscription-billing.service.js';
+import { getProfile } from './settings.service.js';
+import { resolveAiDateRange } from './ai.date-range.service.js';
 
-type ContextTopic = "overview" | "spending" | "bills" | "subscriptions" | "budget" | "savings" | "reports";
+type ContextTopic =
+  'overview' | 'spending' | 'bills' | 'subscriptions' | 'budget' | 'savings' | 'reports';
 
 type AiReportSummary = {
   total_income: number;
@@ -22,29 +23,40 @@ type AiReportSummary = {
 };
 
 function normalizeCategoryKey(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '');
 }
 
 function detectTopics(message: string): ContextTopic[] {
   const text = message.toLowerCase();
-  const topics = new Set<ContextTopic>(["overview"]);
+  const topics = new Set<ContextTopic>(['overview']);
 
-  if (/spend|spent|expense|transaction|purchase|category|gastos|gumastos/i.test(text)) topics.add("spending");
-  if (/bill|due|overdue|bayarin|deadline/i.test(text)) topics.add("bills");
-  if (/subscription|renew|cancel|recurring|netflix|spotify|membership/i.test(text)) topics.add("subscriptions");
-  if (/budget|overspend|over budget|remaining|afford|kaya|kasya/i.test(text)) topics.add("budget");
-  if (/save|savings|goal|emergency|ipon|mag-ipon/i.test(text)) topics.add("savings");
-  if (/compare|trend|last month|report|habit|why|bakit/i.test(text)) topics.add("reports");
+  if (/spend|spent|expense|transaction|purchase|category|gastos|gumastos/i.test(text))
+    topics.add('spending');
+  if (/bill|due|overdue|bayarin|deadline/i.test(text)) topics.add('bills');
+  if (/subscription|renew|cancel|recurring|netflix|spotify|membership/i.test(text))
+    topics.add('subscriptions');
+  if (/budget|overspend|over budget|remaining|afford|kaya|kasya/i.test(text)) topics.add('budget');
+  if (/save|savings|goal|emergency|ipon|mag-ipon/i.test(text)) topics.add('savings');
+  if (/compare|trend|last month|report|habit|why|bakit/i.test(text)) topics.add('reports');
 
   return Array.from(topics);
 }
 
-async function rowsFor(table: string, userId: string, dateColumn: string, from: string, to: string) {
+async function rowsFor(
+  table: string,
+  userId: string,
+  dateColumn: string,
+  from: string,
+  to: string,
+) {
   const { data, error } = await client()
     .from(table)
-    .select("*")
-    .eq("user_id", requireUserId(userId))
-    .is("deleted_at", null)
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .is('deleted_at', null)
     .gte(dateColumn, from)
     .lte(dateColumn, to)
     .order(dateColumn, { ascending: false });
@@ -56,17 +68,17 @@ async function rowsFor(table: string, userId: string, dateColumn: string, from: 
 async function recentRows(table: string, userId: string, limit = 8) {
   const { data, error } = await client()
     .from(table)
-    .select("*")
-    .eq("user_id", requireUserId(userId))
-    .is("deleted_at", null)
-    .order("created_at", { ascending: false })
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .is('deleted_at', null)
+    .order('created_at', { ascending: false })
     .limit(limit);
 
   throwIfError(error);
   return data ?? [];
 }
 
-function sumRows(rows: Array<Record<string, unknown>>, field = "amount") {
+function sumRows(rows: Array<Record<string, unknown>>, field = 'amount') {
   return Number(rows.reduce((sum, row) => sum + asNumber(row[field]), 0).toFixed(2));
 }
 
@@ -74,8 +86,8 @@ function categoryTotals(expenses: Array<Record<string, unknown>>) {
   const totals = new Map<string, { name: string; amount: number }>();
 
   for (const expense of expenses) {
-    const category = String(expense.category || "Uncategorized");
-    const key = normalizeCategoryKey(category) || "uncategorized";
+    const category = String(expense.category || 'Uncategorized');
+    const key = normalizeCategoryKey(category) || 'uncategorized';
     const current = totals.get(key) ?? { name: category, amount: 0 };
     current.amount += asNumber(expense.amount);
     totals.set(key, current);
@@ -96,13 +108,20 @@ function buildRiskAlerts(input: {
   const alerts: string[] = [];
   const today = todayIso();
   const nextWeek = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const dueBills = input.bills.filter((bill) => String(bill.due_date) >= today && String(bill.due_date) <= nextWeek && bill.status !== "paid");
-  const overdueBills = input.bills.filter((bill) => String(bill.due_date) < today && bill.status !== "paid");
+  const dueBills = input.bills.filter(
+    (bill) =>
+      String(bill.due_date) >= today && String(bill.due_date) <= nextWeek && bill.status !== 'paid',
+  );
+  const overdueBills = input.bills.filter(
+    (bill) => String(bill.due_date) < today && bill.status !== 'paid',
+  );
   const duplicateSubscriptions = new Set<string>();
   const seenSubscriptions = new Set<string>();
 
   for (const subscription of input.subscriptions) {
-    const key = String(subscription.name || "").trim().toLowerCase();
+    const key = String(subscription.name || '')
+      .trim()
+      .toLowerCase();
     if (!key) continue;
     if (seenSubscriptions.has(key)) duplicateSubscriptions.add(String(subscription.name));
     seenSubscriptions.add(key);
@@ -110,12 +129,23 @@ function buildRiskAlerts(input: {
 
   if (dueBills.length) alerts.push(`${dueBills.length} bill(s) due within 7 days.`);
   if (overdueBills.length) alerts.push(`${overdueBills.length} overdue bill(s).`);
-  if (duplicateSubscriptions.size) alerts.push(`Possible duplicate subscriptions: ${Array.from(duplicateSubscriptions).join(", ")}.`);
-  if (input.budget?.remaining_budget !== undefined && Number(input.budget.remaining_budget) < 0) alerts.push("Current budget is over the planned amount.");
-  if (input.report.net_savings < 0) alerts.push("Expenses are higher than income for the selected period.");
+  if (duplicateSubscriptions.size)
+    alerts.push(
+      `Possible duplicate subscriptions: ${Array.from(duplicateSubscriptions).join(', ')}.`,
+    );
+  if (input.budget?.remaining_budget !== undefined && Number(input.budget.remaining_budget) < 0)
+    alerts.push('Current budget is over the planned amount.');
+  if (input.report.net_savings < 0)
+    alerts.push('Expenses are higher than income for the selected period.');
 
-  const largeExpense = input.currentExpenses.find((expense) => asNumber(expense.amount) >= Math.max(1000, input.report.average_daily_spending * 3));
-  if (largeExpense) alerts.push(`Large transaction detected: ${largeExpense.merchant ?? "Expense"} at ${asNumber(largeExpense.amount)}.`);
+  const largeExpense = input.currentExpenses.find(
+    (expense) =>
+      asNumber(expense.amount) >= Math.max(1000, input.report.average_daily_spending * 3),
+  );
+  if (largeExpense)
+    alerts.push(
+      `Large transaction detected: ${largeExpense.merchant ?? 'Expense'} at ${asNumber(largeExpense.amount)}.`,
+    );
 
   return alerts;
 }
@@ -145,14 +175,14 @@ export async function buildFinancialContext(userId: string, message: string) {
     getProfile(userId),
     getDashboardSummary(userId),
     getBudgetSummary(userId),
-    getReports(userId, { period: "this_month" }),
-    getReports(userId, { period: "last_month" }),
+    getReports(userId, { period: 'this_month' }),
+    getReports(userId, { period: 'last_month' }),
     incomeForRange(userId, current.start, current.end),
-    rowsFor("expenses", userId, "date", current.start, current.end),
-    rowsFor("bills", userId, "due_date", current.start, current.end),
-    recentRows("expenses", userId, 8),
-    recentRows("subscriptions", userId, 12),
-    recentRows("savings_goals", userId, 12),
+    rowsFor('expenses', userId, 'date', current.start, current.end),
+    rowsFor('bills', userId, 'due_date', current.start, current.end),
+    recentRows('expenses', userId, 8),
+    recentRows('subscriptions', userId, 12),
+    recentRows('savings_goals', userId, 12),
   ]);
   const report = rawReport as AiReportSummary;
   const previousReport = rawPreviousReport as AiReportSummary;
@@ -160,22 +190,28 @@ export async function buildFinancialContext(userId: string, message: string) {
   const categories = categoryTotals(currentExpenses);
   const savingsTarget = savingsGoals.reduce((sum, goal) => sum + asNumber(goal.target_amount), 0);
   const savingsCurrent = savingsGoals.reduce((sum, goal) => sum + asNumber(goal.current_amount), 0);
-  const riskAlerts = buildRiskAlerts({ budget, bills: currentBills, subscriptions, currentExpenses, report });
+  const riskAlerts = buildRiskAlerts({
+    budget,
+    bills: currentBills,
+    subscriptions,
+    currentExpenses,
+    report,
+  });
 
   const context: Record<string, unknown> = {
     generated_at: new Date().toISOString(),
     user: {
-      currency: profile.currency ?? "PHP",
-      preferred_language: profile.language ?? "en",
-      pay_schedule: profile.pay_schedule ?? "monthly",
+      currency: profile.currency ?? 'PHP',
+      preferred_language: profile.language ?? 'en',
+      pay_schedule: profile.pay_schedule ?? 'monthly',
       monthly_income: currentIncomeData.total,
     },
     range: current,
     financial_score: dashboard.health_score,
     monthly_summary: {
-        income: currentIncomeData.total,
+      income: currentIncomeData.total,
       expenses: sumRows(currentExpenses),
-        cash_flow: Number((currentIncomeData.total - sumRows(currentExpenses)).toFixed(2)),
+      cash_flow: Number((currentIncomeData.total - sumRows(currentExpenses)).toFixed(2)),
       dashboard_monthly_expenses: dashboard.monthly_expenses,
       month_vs_last_month_expense_delta_percent: dashboard.monthly_expenses_delta_percent,
       savings_rate: report.savings_rate,
@@ -186,11 +222,11 @@ export async function buildFinancialContext(userId: string, message: string) {
   };
 
   if (requestedRange) {
-    const requestedReport = await getReports(userId, {
-      period: "custom",
+    const requestedReport = (await getReports(userId, {
+      period: 'custom',
       from: requestedRange.start,
       to: requestedRange.end,
-    }) as {
+    })) as {
       total_expenses: number;
       average_daily_spending: number;
       average_weekly_spending: number;
@@ -215,7 +251,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     };
   }
 
-  if (topics.includes("spending") || topics.includes("overview")) {
+  if (topics.includes('spending') || topics.includes('overview')) {
     context.spending = {
       highest_category: categories[0] ?? null,
       categories: categories.slice(0, 8),
@@ -230,7 +266,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     };
   }
 
-  if (topics.includes("bills") || topics.includes("overview")) {
+  if (topics.includes('bills') || topics.includes('overview')) {
     context.bills = {
       total_this_month: dashboard.total_bills_this_month,
       due_this_week: dashboard.bills_due_this_week,
@@ -245,7 +281,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     };
   }
 
-  if (topics.includes("subscriptions")) {
+  if (topics.includes('subscriptions')) {
     context.subscriptions = {
       tracked_subscriptions: subscriptions.length,
       rows: subscriptions.map((subscription) => ({
@@ -259,7 +295,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     };
   }
 
-  if (topics.includes("budget") || topics.includes("overview")) {
+  if (topics.includes('budget') || topics.includes('overview')) {
     context.budget = budget
       ? {
           month: budget.month,
@@ -280,12 +316,13 @@ export async function buildFinancialContext(userId: string, message: string) {
       : null;
   }
 
-  if (topics.includes("savings") || topics.includes("overview")) {
+  if (topics.includes('savings') || topics.includes('overview')) {
     context.savings = {
       current: Number(savingsCurrent.toFixed(2)),
       target: Number(savingsTarget.toFixed(2)),
       progress_percent: savingsTarget ? Math.round((savingsCurrent / savingsTarget) * 100) : 0,
-      monthly_savings_budget: budget?.monthly_savings_budget ?? report.savings.monthly_savings_budget,
+      monthly_savings_budget:
+        budget?.monthly_savings_budget ?? report.savings.monthly_savings_budget,
       goals: savingsGoals.map((goal) => ({
         title: goal.title,
         current_amount: asNumber(goal.current_amount),
@@ -297,7 +334,7 @@ export async function buildFinancialContext(userId: string, message: string) {
     };
   }
 
-  if (topics.includes("reports")) {
+  if (topics.includes('reports')) {
     context.trends = {
       this_month: {
         income: report.total_income,

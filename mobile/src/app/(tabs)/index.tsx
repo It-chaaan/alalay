@@ -117,35 +117,41 @@ export default function HomeScreen() {
   const { profile } = useCurrentProfile();
   const financeRefreshGate = useRef(createRequestGate<void>()).current;
 
-  const refreshFinance = useCallback(() => financeRefreshGate(async () => {
-    setFinanceLoading(true);
-    setWalletLoading(true);
-    setFinanceError('');
-    setWalletError('');
-    try {
-      const [items, expenseRows, incomeRows] = await Promise.all([
-        fetchFinanceItems(),
-        fetchExpenses(),
-        fetchRecentIncome(),
-      ]);
-      setFinanceItems(items);
-      setRecentTransactions(combineRecentTransactions(expenseRows, incomeRows));
-      try {
-        setWallets(await fetchWallets());
+  const refreshFinance = useCallback(
+    () =>
+      financeRefreshGate(async () => {
+        setFinanceLoading(true);
+        setWalletLoading(true);
+        setFinanceError('');
         setWalletError('');
-      } catch (walletFetchError) {
-        setWalletError(
-          walletFetchError instanceof Error ? walletFetchError.message : 'Wallets could not load.',
-        );
-      }
-    } catch (error) {
-      setFinanceError(error instanceof Error ? error.message : 'Bills could not load.');
-      setWalletError('Wallets could not load.');
-    } finally {
-      setFinanceLoading(false);
-      setWalletLoading(false);
-    }
-  }), [financeRefreshGate]);
+        try {
+          const [items, expenseRows, incomeRows] = await Promise.all([
+            fetchFinanceItems(),
+            fetchExpenses(),
+            fetchRecentIncome(),
+          ]);
+          setFinanceItems(items);
+          setRecentTransactions(combineRecentTransactions(expenseRows, incomeRows));
+          try {
+            setWallets(await fetchWallets());
+            setWalletError('');
+          } catch (walletFetchError) {
+            setWalletError(
+              walletFetchError instanceof Error
+                ? walletFetchError.message
+                : 'Wallets could not load.',
+            );
+          }
+        } catch (error) {
+          setFinanceError(error instanceof Error ? error.message : 'Bills could not load.');
+          setWalletError('Wallets could not load.');
+        } finally {
+          setFinanceLoading(false);
+          setWalletLoading(false);
+        }
+      }),
+    [financeRefreshGate],
+  );
 
   const firstName = profile ? getProfileFirstName(profile.name) : 'there';
 
@@ -214,7 +220,14 @@ export default function HomeScreen() {
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.textPrimary }]}>This month</Text>
           <Text style={[styles.sectionHint, { color: colors.textSecondary }]}>
-            {financeItems.filter((item) => item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) && !item.isOverdueFromPreviousMonth).length} items
+            {
+              financeItems.filter(
+                (item) =>
+                  item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) &&
+                  !item.isOverdueFromPreviousMonth,
+              ).length
+            }{' '}
+            items
           </Text>
         </View>
         <GlassSurface style={styles.listCard} padding={0}>
@@ -230,7 +243,12 @@ export default function HomeScreen() {
               <Text style={[styles.errorText, { color: colors.danger }]}>{financeError}</Text>
             </View>
           ) : financeItems.length ? (
-            financeItems.filter((item) => item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) && !item.isOverdueFromPreviousMonth)
+            financeItems
+              .filter(
+                (item) =>
+                  item.dueDate.slice(0, 7) === dateKeyInManila().slice(0, 7) &&
+                  !item.isOverdueFromPreviousMonth,
+              )
               .slice(0, 5)
               .map((item) => <FinanceRow key={`${item.source}-${item.id}`} item={item} />)
           ) : (
@@ -442,10 +460,34 @@ type QuickAction = {
 };
 
 const navigationQuickActions = [
-  { id: 'expense', label: 'Expense', accessibilityLabel: 'Add expense', icon: BanknoteArrowDown, href: '/(tabs)/expenses' },
-  { id: 'income', label: 'Income', accessibilityLabel: 'Add income', icon: BanknoteArrowUp, href: '/(tabs)/income' },
-  { id: 'bills', label: 'Bills', accessibilityLabel: 'Open bills', icon: ReceiptText, href: '/(tabs)/bills' },
-  { id: 'subscription', label: 'Subscription', accessibilityLabel: 'Open subscriptions', icon: Repeat, href: '/(tabs)/subscriptions' },
+  {
+    id: 'expense',
+    label: 'Expense',
+    accessibilityLabel: 'Add expense',
+    icon: BanknoteArrowDown,
+    href: '/(tabs)/expenses',
+  },
+  {
+    id: 'income',
+    label: 'Income',
+    accessibilityLabel: 'Add income',
+    icon: BanknoteArrowUp,
+    href: '/(tabs)/income',
+  },
+  {
+    id: 'bills',
+    label: 'Bills',
+    accessibilityLabel: 'Open bills',
+    icon: ReceiptText,
+    href: '/(tabs)/bills',
+  },
+  {
+    id: 'subscription',
+    label: 'Subscription',
+    accessibilityLabel: 'Open subscriptions',
+    icon: Repeat,
+    href: '/(tabs)/subscriptions',
+  },
 ] as const;
 
 function WalletHero({
@@ -491,12 +533,11 @@ function WalletHero({
   const visibleCards = useMemo(() => visibleWallets(wallets, frontIndex), [wallets, frontIndex]);
   const selectedWallet = wallets[frontIndex];
   const selectedBalanceLabel =
+    selectedWallet?.account_type === 'credit' ? 'OUTSTANDING BALANCE' : 'AVAILABLE BALANCE';
+  const selectedBalance =
     selectedWallet?.account_type === 'credit'
-      ? 'OUTSTANDING BALANCE'
-      : 'AVAILABLE BALANCE';
-  const selectedBalance = selectedWallet?.account_type === 'credit'
-    ? Number(selectedWallet.balance)
-    : Number(selectedWallet?.available_balance);
+      ? Number(selectedWallet.balance)
+      : Number(selectedWallet?.available_balance);
   const selectedPosition = wallets.length ? frontIndex + 1 : 0;
   const advance = useCallback(
     (steps: number) => {
@@ -514,9 +555,15 @@ function WalletHero({
       AccessibilityInfo.announceForAccessibility(`${visibleCards[0].name} selected`);
   }, [visibleCards]);
 
-  const unavailable = Boolean(walletError) || walletLoading || wallets.some(
-    (wallet) => wallet.account_type !== 'credit' && (wallet.available_balance === undefined || !Number.isFinite(Number(wallet.available_balance))),
-  );
+  const unavailable =
+    Boolean(walletError) ||
+    walletLoading ||
+    wallets.some(
+      (wallet) =>
+        wallet.account_type !== 'credit' &&
+        (wallet.available_balance === undefined ||
+          !Number.isFinite(Number(wallet.available_balance))),
+    );
   const walletSwipeResponder = useLegacyWalletSwipeResponder(wallets.length, advance);
   return (
     <View style={styles.walletHero}>
@@ -560,8 +607,8 @@ function WalletHero({
           unavailable
             ? 'Available balance unavailable'
             : amountsVisible
-            ? `${selectedBalanceLabel.toLowerCase()} ${formatBalancePeso(selectedBalance)}`
-            : `${selectedBalanceLabel.toLowerCase()} hidden`
+              ? `${selectedBalanceLabel.toLowerCase()} ${formatBalancePeso(selectedBalance)}`
+              : `${selectedBalanceLabel.toLowerCase()} hidden`
         }
         style={styles.balanceValue}
       >
@@ -639,7 +686,9 @@ const WalletStackCard = memo(function WalletStackCard({
               : typeLabel(wallet.institution_type);
   const availableBalanceLabel = !visible
     ? 'hidden'
-    : formatBalancePeso(Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance));
+    : formatBalancePeso(
+        Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance),
+      );
   const balanceLabel = !visible ? '••••••' : formatBalancePeso(Number(wallet.balance));
   const translateY = useSharedValue(walletSlotOffset(slotIndex));
   const scale = useSharedValue(slotIndex === 0 ? 1 : slotIndex === 1 ? 0.97 : 0.94);
@@ -925,7 +974,9 @@ function WalletQuickView({
             </Text>
           </View>
           <Text style={[styles.walletBalance, { color: colors.textPrimary }]}>
-              {formatBalancePeso(Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance))}
+            {formatBalancePeso(
+              Number(wallet.account_type === 'credit' ? wallet.balance : wallet.available_balance),
+            )}
           </Text>
           <ChevronRight size={18} color={colors.textSecondary} />
         </Pressable>
@@ -1095,11 +1146,7 @@ function Shortcut({ action, onPress }: { action: QuickAction; onPress: () => voi
           },
         ]}
       >
-        <IconComponent
-          size={22}
-          color={colors.primary}
-          strokeWidth={2}
-        />
+        <IconComponent size={22} color={colors.primary} strokeWidth={2} />
       </View>
       <Text
         numberOfLines={1}

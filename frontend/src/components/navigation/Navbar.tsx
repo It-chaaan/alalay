@@ -1,9 +1,9 @@
-import alalayLogo from "../../assets/logo-horizontal.svg";
+import alalayLogo from '../../assets/logo-horizontal.svg';
 
 const navItems = [
-  { label: "Home", href: "#top" },
-  { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how-it-works" },
+  { label: 'Home', href: '#top' },
+  { label: 'Features', href: '#features' },
+  { label: 'How it works', href: '#how-it-works' },
 ];
 
 export function Navbar() {

@@ -1,10 +1,19 @@
-import { randomUUID } from "crypto";
-import { addDaysIso, asNumber, client, monthRange, previousMonthRange, requireUserId, throwIfError, todayIso } from "./db.js";
-import { generateDashboardInsight } from "./dashboard-insight.service.js";
-import { incomeForMonth, incomeForRange } from "./financial-summary.service.js";
-import { processSubscriptionBilling } from "./subscription-billing.service.js";
+import { randomUUID } from 'crypto';
+import {
+  addDaysIso,
+  asNumber,
+  client,
+  monthRange,
+  previousMonthRange,
+  requireUserId,
+  throwIfError,
+  todayIso,
+} from './db.js';
+import { generateDashboardInsight } from './dashboard-insight.service.js';
+import { incomeForMonth, incomeForRange } from './financial-summary.service.js';
+import { processSubscriptionBilling } from './subscription-billing.service.js';
 
-const budgetColors = ["#e8775d", "#6fa3d2", "#7db59c", "#f2c87c", "#9d90ac", "#bdb2a5", "#0f8a6b"];
+const budgetColors = ['#e8775d', '#6fa3d2', '#7db59c', '#f2c87c', '#9d90ac', '#bdb2a5', '#0f8a6b'];
 
 type BudgetCategoryInput = {
   id: string;
@@ -22,7 +31,7 @@ type SaveBudgetOptions = {
   remainingSavingsBehavior?: string;
 };
 
-type SavingsPreferenceBehavior = "auto_general" | "leave_unallocated" | "ask_monthly";
+type SavingsPreferenceBehavior = 'auto_general' | 'leave_unallocated' | 'ask_monthly';
 
 type SavingsGoalAllocation = {
   goal_id: string;
@@ -31,7 +40,8 @@ type SavingsGoalAllocation = {
   progress_percent: number;
 };
 
-export type ReportPeriod = "this_month" | "last_month" | "last_3_months" | "one_year" | "quarter" | "ytd" | "custom";
+export type ReportPeriod =
+  'this_month' | 'last_month' | 'last_3_months' | 'one_year' | 'quarter' | 'ytd' | 'custom';
 
 type ReportOptions = {
   period?: string;
@@ -56,7 +66,7 @@ type SpendingEntry = {
   date: string;
   amount: number;
   category: string;
-  source: "expense" | "bill" | "subscription";
+  source: 'expense' | 'bill' | 'subscription';
   label: string;
   status?: string;
 };
@@ -95,7 +105,7 @@ export function calculateCanonicalSpending(
 
 const reportCache = new Map<string, { expiresAt: number; data: unknown }>();
 const reportCacheTtlMs = 15_000;
-const defaultSavingsPreferenceBehavior: SavingsPreferenceBehavior = "auto_general";
+const defaultSavingsPreferenceBehavior: SavingsPreferenceBehavior = 'auto_general';
 
 export function invalidateReportsForUser(userId: string) {
   const prefix = `${requireUserId(userId)}:`;
@@ -108,26 +118,30 @@ function normalizeCategoryKey(value: string) {
   const normalized = value.trim().toLowerCase();
 
   if (!normalized) {
-    return "";
+    return '';
   }
 
-  if (normalized.includes("transport") || normalized.includes("commut") || normalized.includes("travel")) {
-    return "transport";
+  if (
+    normalized.includes('transport') ||
+    normalized.includes('commut') ||
+    normalized.includes('travel')
+  ) {
+    return 'transport';
   }
 
-  if (normalized.includes("utilit")) {
-    return "utilities";
+  if (normalized.includes('utilit')) {
+    return 'utilities';
   }
 
-  if (normalized.includes("subscript") || normalized.includes("membership")) {
-    return "subscriptions";
+  if (normalized.includes('subscript') || normalized.includes('membership')) {
+    return 'subscriptions';
   }
 
-  if (normalized.includes("savings")) {
-    return "savings";
+  if (normalized.includes('savings')) {
+    return 'savings';
   }
 
-  return normalized.replace(/[^a-z0-9]+/g, "");
+  return normalized.replace(/[^a-z0-9]+/g, '');
 }
 
 function addCategoryAmount(target: Map<string, number>, category: string, amount: number) {
@@ -158,7 +172,7 @@ function normalizeBudgetCategories(value: unknown): BudgetCategoryInput[] {
 
   return value
     .map((item): BudgetCategoryInput | null => {
-      if (!item || typeof item !== "object") {
+      if (!item || typeof item !== 'object') {
         return null;
       }
 
@@ -171,19 +185,26 @@ function normalizeBudgetCategories(value: unknown): BudgetCategoryInput[] {
         last_distributed_month?: unknown;
         last_distributed_amount?: unknown;
       };
-      const name = typeof category.name === "string" ? category.name.trim() : "";
+      const name = typeof category.name === 'string' ? category.name.trim() : '';
 
       if (!name) {
         return null;
       }
 
       return {
-        id: typeof category.id === "string" && category.id.trim() ? category.id.trim() : randomUUID(),
+        id:
+          typeof category.id === 'string' && category.id.trim() ? category.id.trim() : randomUUID(),
         name,
-        icon: typeof category.icon === "string" && category.icon.trim() ? category.icon.trim() : undefined,
+        icon:
+          typeof category.icon === 'string' && category.icon.trim()
+            ? category.icon.trim()
+            : undefined,
         budget: asNumber(category.budget),
         auto_distribute: Boolean(category.auto_distribute),
-        last_distributed_month: typeof category.last_distributed_month === "string" ? category.last_distributed_month : null,
+        last_distributed_month:
+          typeof category.last_distributed_month === 'string'
+            ? category.last_distributed_month
+            : null,
         last_distributed_amount: asNumber(category.last_distributed_amount),
       };
     })
@@ -191,37 +212,37 @@ function normalizeBudgetCategories(value: unknown): BudgetCategoryInput[] {
 }
 
 function isSavingsCategory(category: BudgetCategoryInput) {
-  return category.id === "savings" || /savings/i.test(category.name);
+  return category.id === 'savings' || /savings/i.test(category.name);
 }
 
 function normalizeSavingsPreference(value: unknown): SavingsPreferenceBehavior {
-  return value === "leave_unallocated" || value === "ask_monthly" || value === "auto_general"
+  return value === 'leave_unallocated' || value === 'ask_monthly' || value === 'auto_general'
     ? value
     : defaultSavingsPreferenceBehavior;
 }
 
 function getSavingsPreferenceLabel(value: SavingsPreferenceBehavior) {
-  if (value === "leave_unallocated") {
-    return "Leave remaining savings unallocated";
+  if (value === 'leave_unallocated') {
+    return 'Leave remaining savings unallocated';
   }
 
-  if (value === "ask_monthly") {
-    return "Ask every month";
+  if (value === 'ask_monthly') {
+    return 'Ask every month';
   }
 
-  return "Automatically move remaining savings into General Savings";
+  return 'Automatically move remaining savings into General Savings';
 }
 
 function toDateOnlyIso(date: Date) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }
 
 function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.split('-').map(Number);
 
   return new Date(year, (month || 1) - 1, day || 1);
 }
@@ -236,13 +257,18 @@ function addMonths(date: Date, months: number) {
 
   next.setDate(1);
   next.setMonth(next.getMonth() + months);
-  next.setDate(Math.min(originalDay, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()));
+  next.setDate(
+    Math.min(originalDay, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()),
+  );
 
   return next;
 }
 
 function diffDaysInclusive(start: string, end: string) {
-  return Math.max(1, Math.floor((parseDateOnly(end).getTime() - parseDateOnly(start).getTime()) / 86400000) + 1);
+  return Math.max(
+    1,
+    Math.floor((parseDateOnly(end).getTime() - parseDateOnly(start).getTime()) / 86400000) + 1,
+  );
 }
 
 function monthKeysBetween(start: string, end: string) {
@@ -260,52 +286,62 @@ function monthKeysBetween(start: string, end: string) {
 
 export function getReportRange(options: ReportOptions = {}): ReportRange {
   const today = new Date();
-  const requestedPeriod = options.period === "last_month" || options.period === "last_3_months" || options.period === "one_year" || options.period === "quarter" || options.period === "ytd" || options.period === "custom"
-    ? options.period
-    : "this_month";
+  const requestedPeriod =
+    options.period === 'last_month' ||
+    options.period === 'last_3_months' ||
+    options.period === 'one_year' ||
+    options.period === 'quarter' ||
+    options.period === 'ytd' ||
+    options.period === 'custom'
+      ? options.period
+      : 'this_month';
   let start: string;
   let end: string;
   let period: ReportPeriod = requestedPeriod;
 
-  if (requestedPeriod === "custom" && isDateOnly(options.from) && isDateOnly(options.to)) {
+  if (requestedPeriod === 'custom' && isDateOnly(options.from) && isDateOnly(options.to)) {
     start = options.from!;
     end = options.to!;
 
     if (start > end) {
       [start, end] = [end, start];
     }
-  } else if (requestedPeriod === "last_month") {
+  } else if (requestedPeriod === 'last_month') {
     const range = previousMonthRange(today);
     start = range.start;
     end = range.end;
-  } else if (requestedPeriod === "last_3_months") {
+  } else if (requestedPeriod === 'last_3_months') {
     const startDate = new Date(today.getFullYear(), today.getMonth() - 2, 1);
     const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     start = toDateOnlyIso(startDate);
     end = toDateOnlyIso(endDate);
-  } else if (requestedPeriod === "one_year") {
+  } else if (requestedPeriod === 'one_year') {
     // Rolling twelve complete calendar months, including the current month.
     const startDate = new Date(today.getFullYear(), today.getMonth() - 11, 1);
     const endDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
     start = toDateOnlyIso(startDate);
     end = toDateOnlyIso(endDate);
-  } else if (requestedPeriod === "quarter") {
+  } else if (requestedPeriod === 'quarter') {
     const quarterStartMonth = Math.floor(today.getMonth() / 3) * 3;
     const startDate = new Date(today.getFullYear(), quarterStartMonth, 1);
     const endDate = new Date(today.getFullYear(), quarterStartMonth + 3, 0);
     start = toDateOnlyIso(startDate);
     end = toDateOnlyIso(endDate);
-  } else if (requestedPeriod === "ytd") {
+  } else if (requestedPeriod === 'ytd') {
     start = toDateOnlyIso(new Date(today.getFullYear(), 0, 1));
     end = toDateOnlyIso(today);
   } else {
     const range = monthRange(today);
-    period = "this_month";
+    period = 'this_month';
     start = range.start;
     end = range.end;
   }
 
-  const formatter = new Intl.DateTimeFormat("en", { month: "short", day: "numeric", year: "numeric" });
+  const formatter = new Intl.DateTimeFormat('en', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
   const startLabel = formatter.format(parseDateOnly(start));
   const endLabel = formatter.format(parseDateOnly(end));
 
@@ -329,7 +365,9 @@ function addAmountByMonth(target: Map<string, number>, date: string, amount: num
 }
 
 function sortedSeries(map: Map<string, number>, keys?: string[]) {
-  const entries = keys ? keys.map((key) => [key, map.get(key) ?? 0] as const) : Array.from(map.entries()).sort(([left], [right]) => left.localeCompare(right));
+  const entries = keys
+    ? keys.map((key) => [key, map.get(key) ?? 0] as const)
+    : Array.from(map.entries()).sort(([left], [right]) => left.localeCompare(right));
 
   return entries.map(([date, amount]) => ({ date, amount: Number(amount.toFixed(2)) }));
 }
@@ -348,12 +386,12 @@ function dateKeysBetween(start: string, end: string) {
 }
 
 function getDateFromTimestamp(value: unknown, fallback: string) {
-  return typeof value === "string" && value.length >= 10 ? value.slice(0, 10) : fallback;
+  return typeof value === 'string' && value.length >= 10 ? value.slice(0, 10) : fallback;
 }
 
 function getBudgetRange(options: BudgetSummaryOptions = {}) {
   if (options.month && /^\d{4}-\d{2}$/.test(options.month)) {
-    const [year, month] = options.month.split("-").map(Number);
+    const [year, month] = options.month.split('-').map(Number);
 
     return monthRange(new Date(year, month - 1, 1));
   }
@@ -363,18 +401,22 @@ function getBudgetRange(options: BudgetSummaryOptions = {}) {
 
 async function getSavingsPreference(userId: string) {
   const { data, error } = await client()
-    .from("savings_preferences")
-    .select("*")
-    .eq("user_id", requireUserId(userId))
+    .from('savings_preferences')
+    .select('*')
+    .eq('user_id', requireUserId(userId))
     .maybeSingle();
 
   if (error) {
     const message = error.message.toLowerCase();
 
-    if (message.includes("savings_preferences") || message.includes("relation") || message.includes("schema cache")) {
+    if (
+      message.includes('savings_preferences') ||
+      message.includes('relation') ||
+      message.includes('schema cache')
+    ) {
       return {
         remaining_savings_behavior: defaultSavingsPreferenceBehavior,
-        general_savings_label: "General Savings",
+        general_savings_label: 'General Savings',
       };
     }
 
@@ -383,9 +425,10 @@ async function getSavingsPreference(userId: string) {
 
   return {
     remaining_savings_behavior: normalizeSavingsPreference(data?.remaining_savings_behavior),
-    general_savings_label: typeof data?.general_savings_label === "string" && data.general_savings_label.trim()
-      ? data.general_savings_label.trim()
-      : "General Savings",
+    general_savings_label:
+      typeof data?.general_savings_label === 'string' && data.general_savings_label.trim()
+        ? data.general_savings_label.trim()
+        : 'General Savings',
   };
 }
 
@@ -396,25 +439,29 @@ async function saveSavingsPreference(userId: string, remainingSavingsBehavior?: 
 
   const preference = normalizeSavingsPreference(remainingSavingsBehavior);
   const { data, error } = await client()
-    .from("savings_preferences")
+    .from('savings_preferences')
     .upsert(
       {
         user_id: requireUserId(userId),
         remaining_savings_behavior: preference,
-        general_savings_label: "General Savings",
+        general_savings_label: 'General Savings',
       },
-      { onConflict: "user_id" },
+      { onConflict: 'user_id' },
     )
-    .select("*")
+    .select('*')
     .single();
 
   if (error) {
     const message = error.message.toLowerCase();
 
-    if (message.includes("savings_preferences") || message.includes("relation") || message.includes("schema cache")) {
+    if (
+      message.includes('savings_preferences') ||
+      message.includes('relation') ||
+      message.includes('schema cache')
+    ) {
       return {
         remaining_savings_behavior: preference,
-        general_savings_label: "General Savings",
+        general_savings_label: 'General Savings',
       };
     }
 
@@ -423,13 +470,18 @@ async function saveSavingsPreference(userId: string, remainingSavingsBehavior?: 
 
   return {
     remaining_savings_behavior: normalizeSavingsPreference(data?.remaining_savings_behavior),
-    general_savings_label: typeof data?.general_savings_label === "string" && data.general_savings_label.trim()
-      ? data.general_savings_label.trim()
-      : "General Savings",
+    general_savings_label:
+      typeof data?.general_savings_label === 'string' && data.general_savings_label.trim()
+        ? data.general_savings_label.trim()
+        : 'General Savings',
   };
 }
 
-function calculateGoalAllocations(monthlySavingsBudget: number, autoDistribute: boolean, goals: Array<Record<string, unknown>>) {
+function calculateGoalAllocations(
+  monthlySavingsBudget: number,
+  autoDistribute: boolean,
+  goals: Array<Record<string, unknown>>,
+) {
   if (!autoDistribute || monthlySavingsBudget <= 0) {
     return [] as SavingsGoalAllocation[];
   }
@@ -444,8 +496,8 @@ function calculateGoalAllocations(monthlySavingsBudget: number, autoDistribute: 
 
       return {
         id: String(goal.id),
-        title: String(goal.title || "Savings goal"),
-        deadline: String(goal.deadline || ""),
+        title: String(goal.title || 'Savings goal'),
+        deadline: String(goal.deadline || ''),
         currentAmount,
         targetAmount,
         remaining,
@@ -469,7 +521,9 @@ function calculateGoalAllocations(monthlySavingsBudget: number, autoDistribute: 
         goal_id: goal.id,
         title: goal.title,
         amount: Number(amount.toFixed(2)),
-        progress_percent: goal.targetAmount ? Math.round((goal.currentAmount / goal.targetAmount) * 100) : 0,
+        progress_percent: goal.targetAmount
+          ? Math.round((goal.currentAmount / goal.targetAmount) * 100)
+          : 0,
       });
       remainingBudget -= amount;
     }
@@ -485,10 +539,13 @@ function buildSavingsAllocationSummary(
   remainingSavingsBehavior: SavingsPreferenceBehavior,
 ) {
   const goalAllocations = calculateGoalAllocations(monthlySavingsBudget, autoDistribute, goals);
-  const goalAllocationTotal = goalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+  const goalAllocationTotal = goalAllocations.reduce(
+    (sum, allocation) => sum + allocation.amount,
+    0,
+  );
   const remainingSavings = Math.max(0, monthlySavingsBudget - goalAllocationTotal);
-  const generalSavings = remainingSavingsBehavior === "auto_general" ? remainingSavings : 0;
-  const unallocatedSavings = remainingSavingsBehavior === "auto_general" ? 0 : remainingSavings;
+  const generalSavings = remainingSavingsBehavior === 'auto_general' ? remainingSavings : 0;
+  const unallocatedSavings = remainingSavingsBehavior === 'auto_general' ? 0 : remainingSavings;
 
   return {
     monthly_savings_budget: Number(monthlySavingsBudget.toFixed(2)),
@@ -502,14 +559,27 @@ function buildSavingsAllocationSummary(
 }
 
 async function getBudgetPlan(userId: string, month?: string) {
-  const planMonth = month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : monthRange().start.slice(0, 7);
-  const { data, error } = await client().from("budget_plans").select("*").eq("user_id", requireUserId(userId)).eq("month", planMonth).maybeSingle();
+  const planMonth =
+    month && /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : monthRange().start.slice(0, 7);
+  const { data, error } = await client()
+    .from('budget_plans')
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .eq('month', planMonth)
+    .maybeSingle();
   throwIfError(error);
   return data ?? null;
 }
 
-export async function saveBudgetPlan(userId: string, categories: BudgetCategoryInput[], options: SaveBudgetOptions = {}) {
-  const planMonth = options.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(options.month) ? options.month : monthRange().start.slice(0, 7);
+export async function saveBudgetPlan(
+  userId: string,
+  categories: BudgetCategoryInput[],
+  options: SaveBudgetOptions = {},
+) {
+  const planMonth =
+    options.month && /^\d{4}-(0[1-9]|1[0-2])$/.test(options.month)
+      ? options.month
+      : monthRange().start.slice(0, 7);
   let sanitizedCategories = categories
     .map((category) => ({
       id: category.id || randomUUID(),
@@ -523,22 +593,24 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
     .filter((category) => category.name.length > 0);
 
   const { error } = await client()
-    .from("budget_plans")
+    .from('budget_plans')
     .upsert(
       {
         user_id: requireUserId(userId),
         month: planMonth,
-        categories: sanitizedCategories.map((category) => isSavingsCategory(category)
-          ? {
-              ...category,
-              name: category.name || "Monthly Savings Budget",
-              auto_distribute: Boolean(options.autoDistributeSavings),
-            }
-          : category),
+        categories: sanitizedCategories.map((category) =>
+          isSavingsCategory(category)
+            ? {
+                ...category,
+                name: category.name || 'Monthly Savings Budget',
+                auto_distribute: Boolean(options.autoDistributeSavings),
+              }
+            : category,
+        ),
       },
-      { onConflict: "user_id,month" },
+      { onConflict: 'user_id,month' },
     )
-    .select("*")
+    .select('*')
     .single();
 
   throwIfError(error);
@@ -547,8 +619,20 @@ export async function saveBudgetPlan(userId: string, categories: BudgetCategoryI
   return getBudgetSummary(userId, { month: planMonth });
 }
 
-async function rowsFor(table: string, userId: string, dateColumn: string, from: string, to: string) {
-  const { data, error } = await client().from(table).select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null).gte(dateColumn, from).lte(dateColumn, to);
+async function rowsFor(
+  table: string,
+  userId: string,
+  dateColumn: string,
+  from: string,
+  to: string,
+) {
+  const { data, error } = await client()
+    .from(table)
+    .select('*')
+    .eq('user_id', requireUserId(userId))
+    .is('deleted_at', null)
+    .gte(dateColumn, from)
+    .lte(dateColumn, to);
   throwIfError(error);
   return data ?? [];
 }
@@ -556,11 +640,17 @@ async function rowsFor(table: string, userId: string, dateColumn: string, from: 
 /** The dashboard and Bill list both use persisted occurrence dates, never a template's updated_at or payment state. */
 async function billOccurrencesFor(userId: string, from: string, to: string) {
   const ownerId = requireUserId(userId);
-  const { error: reconcileError } = await client().rpc('reconcile_bill_occurrences', { target_user_id: ownerId });
+  const { error: reconcileError } = await client().rpc('reconcile_bill_occurrences', {
+    target_user_id: ownerId,
+  });
   throwIfError(reconcileError);
-  const { data, error } = await client().from('bill_occurrences').select('*, bill:bills!inner(*)')
-    .eq('user_id', ownerId).is('bill.deleted_at', null)
-    .gte('occurrence_date', from).lte('occurrence_date', to);
+  const { data, error } = await client()
+    .from('bill_occurrences')
+    .select('*, bill:bills!inner(*)')
+    .eq('user_id', ownerId)
+    .is('bill.deleted_at', null)
+    .gte('occurrence_date', from)
+    .lte('occurrence_date', to);
   throwIfError(error);
   return (data ?? []).map((row) => {
     const template = Array.isArray(row.bill) ? row.bill[0] : row.bill;
@@ -568,7 +658,10 @@ async function billOccurrencesFor(userId: string, from: string, to: string) {
   });
 }
 
-export function buildMonthlySpending(expenses: Array<{ date: string; amount: unknown }>, now: Date) {
+export function buildMonthlySpending(
+  expenses: Array<{ date: string; amount: unknown }>,
+  now: Date,
+) {
   const currentRange = monthRange(now);
   const cursor = new Date(`${currentRange.start}T12:00:00Z`);
   cursor.setUTCMonth(cursor.getUTCMonth() - 7, 1);
@@ -577,9 +670,11 @@ export function buildMonthlySpending(expenses: Array<{ date: string; amount: unk
     const range = monthRange(cursor);
     const monthKey = range.start.slice(0, 7);
     const monthExpenses = expenses.filter((expense) => expense.date.slice(0, 7) === monthKey);
-    const value = monthExpenses
-      .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
-    const label = new Intl.DateTimeFormat("en-US", { month: "short", timeZone: "Asia/Manila" }).format(cursor);
+    const value = monthExpenses.reduce((sum, expense) => sum + asNumber(expense.amount), 0);
+    const label = new Intl.DateTimeFormat('en-US', {
+      month: 'short',
+      timeZone: 'Asia/Manila',
+    }).format(cursor);
     const current = monthKey === currentRange.start.slice(0, 7);
     cursor.setUTCMonth(cursor.getUTCMonth() + 1, 1);
 
@@ -594,41 +689,60 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
 
   const [incomeSummaryData, expenses, bills, savingsGoals] = await Promise.all([
     incomeForMonth(userId, range.start.slice(0, 7)),
-    rowsFor("expenses", userId, "date", range.start, range.end),
+    rowsFor('expenses', userId, 'date', range.start, range.end),
     billOccurrencesFor(userId, range.start, range.end),
-    client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
+    client()
+      .from('savings_goals')
+      .select('*')
+      .eq('user_id', requireUserId(userId))
+      .is('deleted_at', null),
   ]);
 
-  const savingsGoalsData = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
-  if ("error" in savingsGoals) throwIfError(savingsGoals.error);
+  const savingsGoalsData = 'data' in savingsGoals ? (savingsGoals.data ?? []) : [];
+  if ('error' in savingsGoals) throwIfError(savingsGoals.error);
 
-  const categoriesData = normalizeBudgetCategories(plan?.categories ?? []).filter((category) => !isSavingsCategory(category));
+  const categoriesData = normalizeBudgetCategories(plan?.categories ?? []).filter(
+    (category) => !isSavingsCategory(category),
+  );
   const monthlyGoalAllocations: SavingsGoalAllocation[] = savingsGoalsData
-    .filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount))
+    .filter(
+      (goal) =>
+        goal.funding_method === 'monthly' &&
+        !goal.completed_at &&
+        asNumber(goal.current_amount) < asNumber(goal.target_amount),
+    )
     .map((goal) => ({
       goal_id: String(goal.id),
-      title: String(goal.title || "Goal"),
-      amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))),
-      progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0,
+      title: String(goal.title || 'Goal'),
+      amount: Math.min(
+        asNumber(goal.monthly_contribution),
+        Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount)),
+      ),
+      progress_percent: asNumber(goal.target_amount)
+        ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100)
+        : 0,
     }))
     .filter((allocation) => allocation.amount > 0);
-  const goalAllocationTotal = Number(monthlyGoalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0).toFixed(2));
+  const goalAllocationTotal = Number(
+    monthlyGoalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0).toFixed(2),
+  );
   if (!plan && monthlyGoalAllocations.length === 0) {
     return null;
   }
-  const totalBudget = categoriesData.reduce((sum, item) => sum + item.budget, 0) + goalAllocationTotal;
+  const totalBudget =
+    categoriesData.reduce((sum, item) => sum + item.budget, 0) + goalAllocationTotal;
   const categoryTotals = new Map<string, number>();
   const categoryLabels = new Map<string, string>();
-  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const paidBills = bills.filter((bill) => bill.status === 'paid' && !bill.credit_wallet_id);
   const ordinaryExpenses = expenses.filter((expense) => !expense.source_bill_id);
   for (const expense of ordinaryExpenses) {
-    const category = String(expense.category || "");
+    const category = String(expense.category || '');
     addCategoryAmount(categoryTotals, category, asNumber(expense.amount));
     addCategoryLabel(categoryLabels, category);
   }
 
   for (const bill of paidBills) {
-    const category = String(bill.category || "");
+    const category = String(bill.category || '');
     addCategoryAmount(categoryTotals, category, asNumber(bill.amount));
     addCategoryLabel(categoryLabels, category);
   }
@@ -649,10 +763,20 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
   });
 
   for (const allocation of monthlyGoalAllocations) {
-    categories.push({ id: `goal-${allocation.goal_id}`, name: allocation.title, budget: allocation.amount, spent: 0, percent: 0, color: budgetColors[categories.length % budgetColors.length], goal: true });
+    categories.push({
+      id: `goal-${allocation.goal_id}`,
+      name: allocation.title,
+      budget: allocation.amount,
+      spent: 0,
+      percent: 0,
+      color: budgetColors[categories.length % budgetColors.length],
+      goal: true,
+    });
   }
 
-  const plannedCategoryKeys = new Set(categoriesData.map((category) => normalizeCategoryKey(category.name)).filter(Boolean));
+  const plannedCategoryKeys = new Set(
+    categoriesData.map((category) => normalizeCategoryKey(category.name)).filter(Boolean),
+  );
 
   for (const [key, spent] of categoryTotals.entries()) {
     if (plannedCategoryKeys.has(key)) {
@@ -681,10 +805,18 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
     budget_health: {
       income: monthlyIncome,
       budgeted_percent: monthlyIncome ? Math.round((totalBudget / monthlyIncome) * 100) : 0,
-      spent_percent: monthlyIncome ? Math.round((totalSpent / monthlyIncome) * 100) : totalBudget ? Math.round((totalSpent / totalBudget) * 100) : 0,
+      spent_percent: monthlyIncome
+        ? Math.round((totalSpent / monthlyIncome) * 100)
+        : totalBudget
+          ? Math.round((totalSpent / totalBudget) * 100)
+          : 0,
       saved_percent: monthlyIncome ? Math.round((goalAllocationTotal / monthlyIncome) * 100) : 0,
-      remaining_percent: totalBudget ? Math.round((Math.max(0, remainingBudget) / totalBudget) * 100) : 0,
-      unallocated_percent: monthlyIncome ? Math.round((unallocatedIncome / monthlyIncome) * 100) : 0,
+      remaining_percent: totalBudget
+        ? Math.round((Math.max(0, remainingBudget) / totalBudget) * 100)
+        : 0,
+      unallocated_percent: monthlyIncome
+        ? Math.round((unallocatedIncome / monthlyIncome) * 100)
+        : 0,
     },
     savings_allocation_summary: {
       monthly_savings_budget: goalAllocationTotal,
@@ -692,8 +824,8 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
       general_savings: 0,
       unallocated_savings: 0,
       goal_allocations: monthlyGoalAllocations,
-      remaining_savings_behavior: "leave_unallocated",
-      remaining_savings_label: "Leave unallocated",
+      remaining_savings_behavior: 'leave_unallocated',
+      remaining_savings_label: 'Leave unallocated',
     },
     total_budget: totalBudget,
     total_spent: totalSpent,
@@ -705,8 +837,8 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
     general_savings: 0,
     unallocated_savings: 0,
     goal_allocations: monthlyGoalAllocations,
-    remaining_savings_behavior: "leave_unallocated",
-    remaining_savings_label: "Leave unallocated",
+    remaining_savings_behavior: 'leave_unallocated',
+    remaining_savings_label: 'Leave unallocated',
     savings_allocation: goalAllocationTotal,
     savings_auto_distribute: false,
     savings_last_distributed_month: null,
@@ -719,27 +851,52 @@ export async function getBudgetSummary(userId: string, options: BudgetSummaryOpt
 export async function getSavingsDashboard(userId: string) {
   await processSubscriptionBilling(userId);
   const [savingsGoals, incomeData] = await Promise.all([
-    client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
+    client()
+      .from('savings_goals')
+      .select('*')
+      .eq('user_id', requireUserId(userId))
+      .is('deleted_at', null),
     incomeForMonth(userId),
   ]);
 
-  const goals = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
-  if ("error" in savingsGoals) throwIfError(savingsGoals.error);
+  const goals = 'data' in savingsGoals ? (savingsGoals.data ?? []) : [];
+  if ('error' in savingsGoals) throwIfError(savingsGoals.error);
 
   const goalSavings = goals.reduce((sum, goal) => sum + asNumber(goal.current_amount), 0);
-  const activeGoals = goals.filter((goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount));
-  const completedGoals = goals.filter((goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount));
-  const monthlyContribution = goals.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount)).reduce((sum, goal) => sum + Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), 0);
+  const activeGoals = goals.filter(
+    (goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount),
+  );
+  const completedGoals = goals.filter(
+    (goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount),
+  );
+  const monthlyContribution = goals
+    .filter(
+      (goal) =>
+        goal.funding_method === 'monthly' &&
+        !goal.completed_at &&
+        asNumber(goal.current_amount) < asNumber(goal.target_amount),
+    )
+    .reduce(
+      (sum, goal) =>
+        sum +
+        Math.min(
+          asNumber(goal.monthly_contribution),
+          Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount)),
+        ),
+      0,
+    );
   const generalSavings = 0;
   const totalSavings = goalSavings;
   const monthlyIncome = incomeData.this_month;
   const savingsRate = monthlyIncome ? Math.round((monthlyContribution / monthlyIncome) * 100) : 0;
-  const topGoalAllocation = goals.find((goal) => goal.funding_method === "monthly" && !goal.completed_at);
+  const topGoalAllocation = goals.find(
+    (goal) => goal.funding_method === 'monthly' && !goal.completed_at,
+  );
   const aiInsight = topGoalAllocation
     ? `At your current goal plan, ${topGoalAllocation.title} has ${Number(asNumber(topGoalAllocation.monthly_contribution).toFixed(2))} planned each month.`
     : monthlyContribution > 0
-      ? `You have ${new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(monthlyContribution)} planned across your active monthly goals.`
-      : "Create a monthly savings budget to see savings recommendations here.";
+      ? `You have ${new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', maximumFractionDigits: 0 }).format(monthlyContribution)} planned across your active monthly goals.`
+      : 'Create a monthly savings budget to see savings recommendations here.';
 
   return {
     overview: {
@@ -753,33 +910,51 @@ export async function getSavingsDashboard(userId: string) {
     },
     breakdown: [
       {
-        key: "goal_savings",
-        label: "Goal Savings",
+        key: 'goal_savings',
+        label: 'Goal Savings',
         amount: Number(goalSavings.toFixed(2)),
-        description: "Money currently assigned to savings goals.",
+        description: 'Money currently assigned to savings goals.',
       },
       {
-        key: "general_savings",
-        label: "General Savings",
+        key: 'general_savings',
+        label: 'General Savings',
         amount: Number(generalSavings.toFixed(2)),
-        description: "Savings not assigned to a specific goal.",
+        description: 'Savings not assigned to a specific goal.',
       },
     ],
-    futureSavingsTypes: ["Emergency Fund", "Cash Reserve", "Investment Pool", "Retirement Savings"],
+    futureSavingsTypes: ['Emergency Fund', 'Cash Reserve', 'Investment Pool', 'Retirement Savings'],
     allocation: {
       monthly_savings_budget: Number(monthlyContribution.toFixed(2)),
       goal_allocation_total: Number(monthlyContribution.toFixed(2)),
       general_savings: 0,
       unallocated_savings: 0,
-      goal_allocations: goals.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount)).map((goal) => ({ goal_id: goal.id, title: goal.title, amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0 })),
-      remaining_savings_behavior: "leave_unallocated",
-      remaining_savings_label: "Leave unallocated",
+      goal_allocations: goals
+        .filter(
+          (goal) =>
+            goal.funding_method === 'monthly' &&
+            !goal.completed_at &&
+            asNumber(goal.current_amount) < asNumber(goal.target_amount),
+        )
+        .map((goal) => ({
+          goal_id: goal.id,
+          title: goal.title,
+          amount: Math.min(
+            asNumber(goal.monthly_contribution),
+            Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount)),
+          ),
+          progress_percent: asNumber(goal.target_amount)
+            ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100)
+            : 0,
+        })),
+      remaining_savings_behavior: 'leave_unallocated',
+      remaining_savings_label: 'Leave unallocated',
     },
     aiInsight: {
-      status: "available",
-      message: savingsRate > 0
-        ? `You're planning to save ${savingsRate}% of your monthly income. ${aiInsight}`
-        : aiInsight,
+      status: 'available',
+      message:
+        savingsRate > 0
+          ? `You're planning to save ${savingsRate}% of your monthly income. ${aiInsight}`
+          : aiInsight,
     },
     goals,
   };
@@ -795,49 +970,64 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     return cached.data;
   }
 
-  const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights] = await Promise.all([
-    rowsFor("expenses", userId, "date", range.start, range.end),
-    range.period === "this_month" ? incomeForMonth(userId, range.start.slice(0, 7)) : incomeForRange(userId, range.start, range.end),
-    billOccurrencesFor(userId, range.start, range.end),
-    client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
-    client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
-    getBudgetPlan(userId),
-    client().from("users").select("currency,income,pay_schedule").eq("id", requireUserId(userId)).maybeSingle(),
-    client()
-      .from("ai_insights")
-      .select("id,type,created_at")
-      .eq("user_id", requireUserId(userId))
-      .gte("created_at", `${range.start}T00:00:00.000Z`)
-      .lte("created_at", `${range.end}T23:59:59.999Z`),
-  ]);
+  const [expenses, incomeData, bills, subscriptions, savingsGoals, plan, profile, aiInsights] =
+    await Promise.all([
+      rowsFor('expenses', userId, 'date', range.start, range.end),
+      range.period === 'this_month'
+        ? incomeForMonth(userId, range.start.slice(0, 7))
+        : incomeForRange(userId, range.start, range.end),
+      billOccurrencesFor(userId, range.start, range.end),
+      client()
+        .from('subscriptions')
+        .select('*')
+        .eq('user_id', requireUserId(userId))
+        .is('deleted_at', null),
+      client()
+        .from('savings_goals')
+        .select('*')
+        .eq('user_id', requireUserId(userId))
+        .is('deleted_at', null),
+      getBudgetPlan(userId),
+      client()
+        .from('users')
+        .select('currency,income,pay_schedule')
+        .eq('id', requireUserId(userId))
+        .maybeSingle(),
+      client()
+        .from('ai_insights')
+        .select('id,type,created_at')
+        .eq('user_id', requireUserId(userId))
+        .gte('created_at', `${range.start}T00:00:00.000Z`)
+        .lte('created_at', `${range.end}T23:59:59.999Z`),
+    ]);
 
-  const subscriptionsData = "data" in subscriptions ? subscriptions.data ?? [] : [];
-  const savingsGoalsData = "data" in savingsGoals ? savingsGoals.data ?? [] : [];
-  const aiInsightsData = "data" in aiInsights ? aiInsights.data ?? [] : [];
-  const profileData = "data" in profile ? profile.data ?? null : null;
-  if ("error" in subscriptions) throwIfError(subscriptions.error);
-  if ("error" in savingsGoals) throwIfError(savingsGoals.error);
-  if ("error" in aiInsights) throwIfError(aiInsights.error);
-  if ("error" in profile) throwIfError(profile.error);
+  const subscriptionsData = 'data' in subscriptions ? (subscriptions.data ?? []) : [];
+  const savingsGoalsData = 'data' in savingsGoals ? (savingsGoals.data ?? []) : [];
+  const aiInsightsData = 'data' in aiInsights ? (aiInsights.data ?? []) : [];
+  const profileData = 'data' in profile ? (profile.data ?? null) : null;
+  if ('error' in subscriptions) throwIfError(subscriptions.error);
+  if ('error' in savingsGoals) throwIfError(savingsGoals.error);
+  if ('error' in aiInsights) throwIfError(aiInsights.error);
+  if ('error' in profile) throwIfError(profile.error);
 
-  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const paidBills = bills.filter((bill) => bill.status === 'paid' && !bill.credit_wallet_id);
   const ordinaryExpenses = expenses.filter((expense) => !expense.source_bill_id);
-  const outstandingBills = bills.filter((bill) => bill.status !== "paid");
+  const outstandingBills = bills.filter((bill) => bill.status !== 'paid');
   const spendingEntries: SpendingEntry[] = [
     ...ordinaryExpenses.map((expense) => ({
       date: String(expense.date),
       amount: asNumber(expense.amount),
-      category: String(expense.category || "Uncategorized"),
-      source: "expense" as const,
-      label: String(expense.merchant || "Expense"),
+      category: String(expense.category || 'Uncategorized'),
+      source: 'expense' as const,
+      label: String(expense.merchant || 'Expense'),
     })),
     ...paidBills.map((bill) => ({
       date: getDateFromTimestamp(bill.paid_at, String(bill.due_date)),
       amount: asNumber(bill.amount),
-      category: String(bill.category || "Bills"),
-      source: "bill" as const,
-      label: String(bill.title || "Bill"),
-      status: String(bill.status || ""),
+      category: String(bill.category || 'Bills'),
+      source: 'bill' as const,
+      label: String(bill.title || 'Bill'),
+      status: String(bill.status || ''),
     })),
   ];
 
@@ -846,9 +1036,12 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   const spending = calculateCanonicalSpending(expenses, paidBills, incomeData.total);
   const manualExpenseTotal = spending.ordinary_expenses;
   const paidBillsTotal = spending.paid_bills;
-  const outstandingBillsTotal = outstandingBills.reduce((sum, item) => sum + asNumber(item.amount), 0);
+  const outstandingBillsTotal = outstandingBills.reduce(
+    (sum, item) => sum + asNumber(item.amount),
+    0,
+  );
   const subscriptionSpending = ordinaryExpenses
-    .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
+    .filter((expense) => normalizeCategoryKey(String(expense.category || '')) === 'subscriptions')
     .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
   // Subscription expenses are regular expense rows and are already included in
   // manualExpenseTotal. Adding subscriptionSpending here double-counts them.
@@ -880,15 +1073,47 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     .sort((left, right) => right.amount - left.amount);
   const nonZeroCategories = categories.filter((category) => category.amount > 0);
   const highestSpendingCategory = nonZeroCategories[0] ?? null;
-  const lowestSpendingCategory = nonZeroCategories.length ? nonZeroCategories[nonZeroCategories.length - 1] : null;
-  const budgetCategories = normalizeBudgetCategories(plan?.categories).filter((category) => !isSavingsCategory(category));
+  const lowestSpendingCategory = nonZeroCategories.length
+    ? nonZeroCategories[nonZeroCategories.length - 1]
+    : null;
+  const budgetCategories = normalizeBudgetCategories(plan?.categories).filter(
+    (category) => !isSavingsCategory(category),
+  );
   const monthlyGoalAllocations: SavingsGoalAllocation[] = savingsGoalsData
-    .filter((goal) => goal.funding_method === "monthly" && !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount))
-    .map((goal) => ({ goal_id: String(goal.id), title: String(goal.title || "Goal"), amount: Math.min(asNumber(goal.monthly_contribution), Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount))), progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0 }))
+    .filter(
+      (goal) =>
+        goal.funding_method === 'monthly' &&
+        !goal.completed_at &&
+        asNumber(goal.current_amount) < asNumber(goal.target_amount),
+    )
+    .map((goal) => ({
+      goal_id: String(goal.id),
+      title: String(goal.title || 'Goal'),
+      amount: Math.min(
+        asNumber(goal.monthly_contribution),
+        Math.max(0, asNumber(goal.target_amount) - asNumber(goal.current_amount)),
+      ),
+      progress_percent: asNumber(goal.target_amount)
+        ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100)
+        : 0,
+    }))
     .filter((allocation) => allocation.amount > 0);
-  const goalAllocationTotal = monthlyGoalAllocations.reduce((sum, allocation) => sum + allocation.amount, 0);
-  const plannedBudget = (budgetCategories.reduce((sum, category) => sum + category.budget, 0) + goalAllocationTotal) * range.budgetMonths;
-  const savingsAllocation = { monthly_savings_budget: goalAllocationTotal, goal_allocation_total: goalAllocationTotal, general_savings: 0, unallocated_savings: 0, goal_allocations: monthlyGoalAllocations, remaining_savings_behavior: "leave_unallocated" as const, remaining_savings_label: "Leave unallocated" };
+  const goalAllocationTotal = monthlyGoalAllocations.reduce(
+    (sum, allocation) => sum + allocation.amount,
+    0,
+  );
+  const plannedBudget =
+    (budgetCategories.reduce((sum, category) => sum + category.budget, 0) + goalAllocationTotal) *
+    range.budgetMonths;
+  const savingsAllocation = {
+    monthly_savings_budget: goalAllocationTotal,
+    goal_allocation_total: goalAllocationTotal,
+    general_savings: 0,
+    unallocated_savings: 0,
+    goal_allocations: monthlyGoalAllocations,
+    remaining_savings_behavior: 'leave_unallocated' as const,
+    remaining_savings_label: 'Leave unallocated',
+  };
   const plannedSavingsAllocation = goalAllocationTotal * range.budgetMonths;
   const plannedGoalAllocation = goalAllocationTotal * range.budgetMonths;
   const plannedGeneralSavings = 0;
@@ -911,12 +1136,23 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   });
   for (const allocation of monthlyGoalAllocations) {
     const budget = allocation.amount * range.budgetMonths;
-    budgetRows.push({ id: `goal-${allocation.goal_id}`, name: allocation.title, budget, spent: 0, remaining: budget, percent: 0, color: budgetColors[budgetRows.length % budgetColors.length], goal: true });
+    budgetRows.push({
+      id: `goal-${allocation.goal_id}`,
+      name: allocation.title,
+      budget,
+      spent: 0,
+      remaining: budget,
+      percent: 0,
+      color: budgetColors[budgetRows.length % budgetColors.length],
+      goal: true,
+    });
   }
-  const plannedKeys = new Set(budgetCategories.map((category) => normalizeCategoryKey(category.name)).filter(Boolean));
+  const plannedKeys = new Set(
+    budgetCategories.map((category) => normalizeCategoryKey(category.name)).filter(Boolean),
+  );
 
   for (const [key, spent] of categoryTotals.entries()) {
-    if (plannedKeys.has(key) || key === "savings") {
+    if (plannedKeys.has(key) || key === 'savings') {
       continue;
     }
 
@@ -933,17 +1169,26 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
   }
 
   const totalSaved = savingsGoalsData.reduce((sum, goal) => sum + asNumber(goal.current_amount), 0);
-  const savingsTarget = savingsGoalsData.reduce((sum, goal) => sum + asNumber(goal.target_amount), 0);
-  const activeGoals = savingsGoalsData.filter((goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount));
-  const completedGoals = savingsGoalsData.filter((goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount));
-  const monthlyContributions = savingsGoalsData.filter((goal) => goal.funding_method === "monthly" && !goal.completed_at).reduce((sum, goal) => sum + asNumber(goal.monthly_contribution), 0);
+  const savingsTarget = savingsGoalsData.reduce(
+    (sum, goal) => sum + asNumber(goal.target_amount),
+    0,
+  );
+  const activeGoals = savingsGoalsData.filter(
+    (goal) => !goal.completed_at && asNumber(goal.current_amount) < asNumber(goal.target_amount),
+  );
+  const completedGoals = savingsGoalsData.filter(
+    (goal) => goal.completed_at || asNumber(goal.current_amount) >= asNumber(goal.target_amount),
+  );
+  const monthlyContributions = savingsGoalsData
+    .filter((goal) => goal.funding_method === 'monthly' && !goal.completed_at)
+    .reduce((sum, goal) => sum + asNumber(goal.monthly_contribution), 0);
   const monthKeys = monthKeysBetween(range.start, range.end);
   const result = {
     range,
     profile: {
-      currency: profileData?.currency ?? "PHP",
+      currency: profileData?.currency ?? 'PHP',
       configured_income: asNumber(profileData?.income),
-      pay_schedule: profileData?.pay_schedule ?? "monthly",
+      pay_schedule: profileData?.pay_schedule ?? 'monthly',
     },
     total_income: Number(totalIncome.toFixed(2)),
     total_expenses: Number(totalExpenses.toFixed(2)),
@@ -983,9 +1228,15 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       remaining_savings_behavior: savingsAllocation.remaining_savings_behavior,
       remaining_savings_label: savingsAllocation.remaining_savings_label,
       monthly_savings_allocation: Number(plannedSavingsAllocation.toFixed(2)),
-      savings_allocation_usage: plannedSavingsAllocation ? Math.round((plannedGoalAllocation / plannedSavingsAllocation) * 100) : 0,
-      over_budget_categories: budgetRows.filter((category) => !category.goal && category.spent > category.budget),
-      under_budget_categories: budgetRows.filter((category) => !category.goal && category.budget > 0 && category.spent <= category.budget),
+      savings_allocation_usage: plannedSavingsAllocation
+        ? Math.round((plannedGoalAllocation / plannedSavingsAllocation) * 100)
+        : 0,
+      over_budget_categories: budgetRows.filter(
+        (category) => !category.goal && category.spent > category.budget,
+      ),
+      under_budget_categories: budgetRows.filter(
+        (category) => !category.goal && category.budget > 0 && category.spent <= category.budget,
+      ),
       categories: budgetRows,
     },
     savings: {
@@ -998,13 +1249,20 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
       goal_progress: savingsTarget ? Math.round((totalSaved / savingsTarget) * 100) : 0,
       monthly_contributions: Number(monthlyContributions.toFixed(2)),
       contribution_history: [] as Array<{ date: string; amount: number; goal: string }>,
-      savings_allocation_history: [] as Array<{ month: string; goal_allocation: number; general_savings: number; unallocated_savings: number }>,
+      savings_allocation_history: [] as Array<{
+        month: string;
+        goal_allocation: number;
+        general_savings: number;
+        unallocated_savings: number;
+      }>,
       goal_contribution_history: [] as Array<{ date: string; amount: number; goal: string }>,
       projected_completion: activeGoals.map((goal) => ({
         id: String(goal.id),
         title: String(goal.title),
         projected_date: String(goal.deadline),
-        progress_percent: asNumber(goal.target_amount) ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100) : 0,
+        progress_percent: asNumber(goal.target_amount)
+          ? Math.round((asNumber(goal.current_amount) / asNumber(goal.target_amount)) * 100)
+          : 0,
       })),
       distribution: savingsGoalsData.map((goal) => ({
         id: String(goal.id),
@@ -1016,31 +1274,42 @@ export async function getReports(userId: string, options: ReportOptions = {}) {
     },
     charts: {
       daily_spending: sortedSeries(dailySpending, dateKeysBetween(range.start, range.end)),
-      monthly_spending: monthKeys.map((month) => ({ month, amount: Number((monthlySpending.get(month) ?? 0).toFixed(2)) })),
+      monthly_spending: monthKeys.map((month) => ({
+        month,
+        amount: Number((monthlySpending.get(month) ?? 0).toFixed(2)),
+      })),
       income_vs_expense: monthKeys.map((month) => ({
         month,
         income: Number((monthlyIncome.get(month) ?? 0).toFixed(2)),
         expenses: Number((monthlySpending.get(month) ?? 0).toFixed(2)),
       })),
-      budget_vs_actual: budgetRows.map((category) => ({ name: category.name, budget: category.budget, actual: category.spent })),
+      budget_vs_actual: budgetRows.map((category) => ({
+        name: category.name,
+        budget: category.budget,
+        actual: category.spent,
+      })),
       savings_growth: savingsGoalsData.map((goal) => ({
         name: String(goal.title),
         current: Number(asNumber(goal.current_amount).toFixed(2)),
         target: Number(asNumber(goal.target_amount).toFixed(2)),
       })),
       category_distribution: categories,
-      bills_timeline: bills.map((bill) => ({
-        date: String(bill.due_date),
-        amount: asNumber(bill.amount),
-        label: String(bill.title || "Bill"),
-        status: String(bill.status || "unpaid"),
-      })).sort((left, right) => left.date.localeCompare(right.date)),
-      subscriptions_timeline: subscriptionsData.map((subscription) => ({
-        date: String(subscription.renewal_date),
-        amount: asNumber(subscription.amount),
-        label: String(subscription.name || "Subscription"),
-        status: subscription.auto_renew === false ? "auto-renew off" : "active",
-      })).sort((left, right) => left.date.localeCompare(right.date)),
+      bills_timeline: bills
+        .map((bill) => ({
+          date: String(bill.due_date),
+          amount: asNumber(bill.amount),
+          label: String(bill.title || 'Bill'),
+          status: String(bill.status || 'unpaid'),
+        }))
+        .sort((left, right) => left.date.localeCompare(right.date)),
+      subscriptions_timeline: subscriptionsData
+        .map((subscription) => ({
+          date: String(subscription.renewal_date),
+          amount: asNumber(subscription.amount),
+          label: String(subscription.name || 'Subscription'),
+          status: subscription.auto_renew === false ? 'auto-renew off' : 'active',
+        }))
+        .sort((left, right) => left.date.localeCompare(right.date)),
     },
     data_sources: {
       income: incomeData.rows.length,
@@ -1068,45 +1337,78 @@ export async function getDashboardSummary(userId: string) {
   chartStartDate.setUTCMonth(chartStartDate.getUTCMonth() - 7, 1);
   const chartStart = monthRange(chartStartDate).start;
   const dueWeekEnd = addDaysIso(7);
-  const [bills, expenses, previousExpenses, previousBills, chartExpenses, dueWeekBills, goals, subscriptions, incomeData, previousIncomeData] = await Promise.all([
+  const [
+    bills,
+    expenses,
+    previousExpenses,
+    previousBills,
+    chartExpenses,
+    dueWeekBills,
+    goals,
+    subscriptions,
+    incomeData,
+    previousIncomeData,
+  ] = await Promise.all([
     billOccurrencesFor(userId, current.start, current.end),
-    rowsFor("expenses", userId, "date", current.start, current.end),
-    rowsFor("expenses", userId, "date", previous.start, previous.end),
+    rowsFor('expenses', userId, 'date', current.start, current.end),
+    rowsFor('expenses', userId, 'date', previous.start, previous.end),
     billOccurrencesFor(userId, previous.start, previous.end),
-    rowsFor("expenses", userId, "date", chartStart, current.end),
+    rowsFor('expenses', userId, 'date', chartStart, current.end),
     billOccurrencesFor(userId, current.start, dueWeekEnd),
-    client().from("savings_goals").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
-    client().from("subscriptions").select("*").eq("user_id", requireUserId(userId)).is("deleted_at", null),
+    client()
+      .from('savings_goals')
+      .select('*')
+      .eq('user_id', requireUserId(userId))
+      .is('deleted_at', null),
+    client()
+      .from('subscriptions')
+      .select('*')
+      .eq('user_id', requireUserId(userId))
+      .is('deleted_at', null),
     incomeForMonth(userId),
     incomeForMonth(userId, previous.start.slice(0, 7)),
   ]);
 
-  const goalsData = "data" in goals ? goals.data ?? [] : [];
-  const subscriptionsData = "data" in subscriptions ? subscriptions.data ?? [] : [];
-  if ("error" in goals) throwIfError(goals.error);
-  if ("error" in subscriptions) throwIfError(subscriptions.error);
+  const goalsData = 'data' in goals ? (goals.data ?? []) : [];
+  const subscriptionsData = 'data' in subscriptions ? (subscriptions.data ?? []) : [];
+  if ('error' in goals) throwIfError(goals.error);
+  if ('error' in subscriptions) throwIfError(subscriptions.error);
 
-  const paidBills = bills.filter((bill) => bill.status === "paid" && !bill.credit_wallet_id);
+  const paidBills = bills.filter((bill) => bill.status === 'paid' && !bill.credit_wallet_id);
   const previousPaidBills = previousBills.filter(
-    (bill) => bill.status === "paid" && !bill.credit_wallet_id,
+    (bill) => bill.status === 'paid' && !bill.credit_wallet_id,
   );
-  const monthlyExpenses = calculateCanonicalSpending(expenses, paidBills, incomeData.this_month).total_expenses;
-  const previousTotal = calculateCanonicalSpending(previousExpenses, previousPaidBills, previousIncomeData.this_month).total_expenses;
+  const monthlyExpenses = calculateCanonicalSpending(
+    expenses,
+    paidBills,
+    incomeData.this_month,
+  ).total_expenses;
+  const previousTotal = calculateCanonicalSpending(
+    previousExpenses,
+    previousPaidBills,
+    previousIncomeData.this_month,
+  ).total_expenses;
   // Match the Reports screen's net-savings calculation: monthly income minus
   // expenses and paid bills. Keeping it server-side preserves one financial definition.
   const netSavings = incomeData.this_month - monthlyExpenses;
   const previousNetSavings = previousIncomeData.this_month - previousTotal;
-  const hasPreviousNetSavingsData = previousIncomeData.rows.length > 0 || previousExpenses.length > 0 || previousBills.length > 0;
-  const netSavingsTrendPercent = hasPreviousNetSavingsData && previousNetSavings !== 0
-    ? Number((((netSavings - previousNetSavings) / Math.abs(previousNetSavings)) * 100).toFixed(1))
-    : null;
+  const hasPreviousNetSavingsData =
+    previousIncomeData.rows.length > 0 || previousExpenses.length > 0 || previousBills.length > 0;
+  const netSavingsTrendPercent =
+    hasPreviousNetSavingsData && previousNetSavings !== 0
+      ? Number(
+          (((netSavings - previousNetSavings) / Math.abs(previousNetSavings)) * 100).toFixed(1),
+        )
+      : null;
   const savingsTarget = goalsData.reduce((sum, item) => sum + asNumber(item.target_amount), 0);
   const savingsCurrent = goalsData.reduce((sum, item) => sum + asNumber(item.current_amount), 0);
-  const onTimeBills = bills.filter((bill) => bill.status === "paid" || bill.due_date >= todayIso()).length;
+  const onTimeBills = bills.filter(
+    (bill) => bill.status === 'paid' || bill.due_date >= todayIso(),
+  ).length;
   const billScore = bills.length ? (onTimeBills / bills.length) * 35 : 35;
   const savingsRateScore = savingsTarget ? Math.min(25, (savingsCurrent / savingsTarget) * 25) : 10;
   const subscriptionExpenses = expenses
-    .filter((expense) => normalizeCategoryKey(String(expense.category || "")) === "subscriptions")
+    .filter((expense) => normalizeCategoryKey(String(expense.category || '')) === 'subscriptions')
     .reduce((sum, expense) => sum + asNumber(expense.amount), 0);
   const subscriptionRatio = monthlyExpenses ? subscriptionExpenses / monthlyExpenses : 0;
   const subscriptionScore = Math.max(0, 20 - subscriptionRatio * 20);
@@ -1127,18 +1429,29 @@ export async function getDashboardSummary(userId: string) {
     net_savings: Number(netSavings.toFixed(2)),
     net_savings_trend_percent: netSavingsTrendPercent,
     total_bills_this_month: bills.reduce((sum, item) => sum + asNumber(item.amount), 0),
-    bills_due_this_week: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd).reduce((sum, item) => sum + asNumber(item.amount), 0),
+    bills_due_this_week: dueWeekBills
+      .filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd)
+      .reduce((sum, item) => sum + asNumber(item.amount), 0),
     monthly_expenses: monthlyExpenses,
     subscription_spending: Number(subscriptionExpenses.toFixed(2)),
-    monthly_expenses_delta_percent: previousExpenses.length > 0 || previousPaidBills.length > 0
-      ? previousTotal ? Math.round(((monthlyExpenses - previousTotal) / previousTotal) * 100) : null
-      : null,
-    savings_progress_percent: savingsTarget ? Math.round((savingsCurrent / savingsTarget) * 100) : 0,
+    monthly_expenses_delta_percent:
+      previousExpenses.length > 0 || previousPaidBills.length > 0
+        ? previousTotal
+          ? Math.round(((monthlyExpenses - previousTotal) / previousTotal) * 100)
+          : null
+        : null,
+    savings_progress_percent: savingsTarget
+      ? Math.round((savingsCurrent / savingsTarget) * 100)
+      : 0,
     savings_current: savingsCurrent,
     savings_target: savingsTarget,
     health_score: Math.round(billScore + savingsRateScore + subscriptionScore + budgetScore),
-    weekly_bills: dueWeekBills.filter((bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd),
-    recent_activity: [...chartExpenses].sort((left, right) => right.date.localeCompare(left.date)).slice(0, 5),
+    weekly_bills: dueWeekBills.filter(
+      (bill) => bill.due_date >= todayIso() && bill.due_date <= dueWeekEnd,
+    ),
+    recent_activity: [...chartExpenses]
+      .sort((left, right) => right.date.localeCompare(left.date))
+      .slice(0, 5),
     monthly_spending: buildMonthlySpending(chartExpenses, new Date()),
     ai_insight: aiInsight,
   };

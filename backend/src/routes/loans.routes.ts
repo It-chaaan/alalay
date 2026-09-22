@@ -1,14 +1,39 @@
-import { Router } from "express";
-import * as controller from "../controllers/loans.controller.js";
-import { validateRequest } from "../middleware/validateRequest.js";
-import { writeRateLimit } from "../middleware/rateLimit.js";
-import { idParamSchema } from "../schemas/common.schema.js";
-import { createLoanSchema, loanPaymentSchema, updateLoanSchema } from "../schemas/loan.schema.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
+import { Router } from 'express';
+import * as controller from '../controllers/loans.controller.js';
+import { validateRequest } from '../middleware/validateRequest.js';
+import { writeRateLimit } from '../middleware/rateLimit.js';
+import { idParamSchema } from '../schemas/common.schema.js';
+import { createLoanSchema, loanPaymentSchema, updateLoanSchema } from '../schemas/loan.schema.js';
+import { asyncHandler } from '../utils/asyncHandler.js';
 export const loansRouter = Router();
-loansRouter.get("/", asyncHandler(controller.list));
-loansRouter.post("/", writeRateLimit, validateRequest({ body: createLoanSchema }), asyncHandler(controller.create));
-loansRouter.post("/:id/payments", writeRateLimit, validateRequest({ params: idParamSchema, body: loanPaymentSchema }), asyncHandler(controller.payment));
-loansRouter.post("/:id/write-off", writeRateLimit, validateRequest({ params: idParamSchema }), asyncHandler(controller.writeOff));
-loansRouter.patch("/:id", writeRateLimit, validateRequest({ params: idParamSchema, body: updateLoanSchema }), asyncHandler(controller.update));
-loansRouter.delete("/:id", writeRateLimit, validateRequest({ params: idParamSchema }), asyncHandler(controller.remove));
+loansRouter.get('/', asyncHandler(controller.list));
+loansRouter.post(
+  '/',
+  writeRateLimit,
+  validateRequest({ body: createLoanSchema }),
+  asyncHandler(controller.create),
+);
+loansRouter.post(
+  '/:id/payments',
+  writeRateLimit,
+  validateRequest({ params: idParamSchema, body: loanPaymentSchema }),
+  asyncHandler(controller.payment),
+);
+loansRouter.post(
+  '/:id/write-off',
+  writeRateLimit,
+  validateRequest({ params: idParamSchema }),
+  asyncHandler(controller.writeOff),
+);
+loansRouter.patch(
+  '/:id',
+  writeRateLimit,
+  validateRequest({ params: idParamSchema, body: updateLoanSchema }),
+  asyncHandler(controller.update),
+);
+loansRouter.delete(
+  '/:id',
+  writeRateLimit,
+  validateRequest({ params: idParamSchema }),
+  asyncHandler(controller.remove),
+);

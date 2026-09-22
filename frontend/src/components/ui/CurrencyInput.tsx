@@ -1,14 +1,25 @@
-import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type FocusEvent,
+  type ReactNode,
+} from 'react';
 
 function rawValue(value: unknown) {
-  return String(value ?? "").replace(/,/g, "").replace(/[^\d.]/g, "");
+  return String(value ?? '')
+    .replace(/,/g, '')
+    .replace(/[^\d.]/g, '');
 }
 
 export function formatCurrencyInputValue(value: unknown) {
   const raw = rawValue(value);
-  if (!raw) return "";
-  const [whole, decimal] = raw.split(".");
-  const formattedWhole = (whole || "0").replace(/^0+(?=\d)/, "").replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (!raw) return '';
+  const [whole, decimal] = raw.split('.');
+  const formattedWhole = (whole || '0')
+    .replace(/^0+(?=\d)/, '')
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   return decimal === undefined ? formattedWhole : `${formattedWhole}.${decimal.slice(0, 2)}`;
 }
 
@@ -32,9 +43,9 @@ export function CurrencyInput({
   inputRef,
   error,
   helper,
-  placeholder = "0.00",
+  placeholder = '0.00',
   min,
-  step = "0.01",
+  step = '0.01',
 }: {
   id: string;
   label: string;
@@ -62,15 +73,21 @@ export function CurrencyInput({
   }
 
   function handleChange(event: ChangeEvent<HTMLInputElement>) {
-    const next = event.target.value.replace(/[^\d.]/g, "");
-    const parts = next.split(".");
-    const normalized = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}` : next;
-    const digitsBeforeCursor = next.slice(0, event.target.selectionStart ?? next.length).replace(/\D/g, "").length;
+    const next = event.target.value.replace(/[^\d.]/g, '');
+    const parts = next.split('.');
+    const normalized =
+      parts.length > 1 ? `${parts[0]}.${parts.slice(1).join('').slice(0, 2)}` : next;
+    const digitsBeforeCursor = next
+      .slice(0, event.target.selectionStart ?? next.length)
+      .replace(/\D/g, '').length;
     const formatted = formatCurrencyInputValue(normalized);
     setDisplayValue(formatted);
     onChange(normalized);
     requestAnimationFrame(() => {
-      ref.current?.setSelectionRange(cursorForDigitCount(formatted, digitsBeforeCursor), cursorForDigitCount(formatted, digitsBeforeCursor));
+      ref.current?.setSelectionRange(
+        cursorForDigitCount(formatted, digitsBeforeCursor),
+        cursorForDigitCount(formatted, digitsBeforeCursor),
+      );
     });
   }
 
@@ -78,7 +95,9 @@ export function CurrencyInput({
     <label htmlFor={id} className="block">
       <span className="mb-2 block text-sm font-semibold text-slate-800">{label}</span>
       <span className="relative block">
-        <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-sm font-semibold text-slate-500">₱</span>
+        <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-sm font-semibold text-slate-500">
+          ₱
+        </span>
         <input
           ref={setRefs}
           id={id}
@@ -96,7 +115,9 @@ export function CurrencyInput({
         />
       </span>
       {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}
-      {!error && helper ? <div className="mt-2 text-xs leading-5 text-slate-500">{helper}</div> : null}
+      {!error && helper ? (
+        <div className="mt-2 text-xs leading-5 text-slate-500">{helper}</div>
+      ) : null}
     </label>
   );
 }

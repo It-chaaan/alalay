@@ -45,10 +45,29 @@ async function avatarUrl(path: string | null | undefined) {
   return error ? null : data.signedUrl;
 }
 
-async function normalizeProfile(userId: string, email: string, provider: string | null, value: ProfileRecord): Promise<CurrentProfile> {
+async function normalizeProfile(
+  userId: string,
+  email: string,
+  provider: string | null,
+  value: ProfileRecord,
+): Promise<CurrentProfile> {
   const name = getInitialsName(value.name || email.split('@')[0] || 'User');
   const customUrl = await avatarUrl(value.avatar_path);
-  return { userId, name, nickname: value.nickname?.trim() || name, onboardingRequired: Boolean(value.onboarding_required), email, phone: value.phone?.trim() || '', avatarUrl: customUrl || value.avatar_url || null, avatarSource: customUrl ? 'uploaded' : (value.avatar_source === 'provider' || value.avatar_url ? 'provider' : null), provider: value.provider || provider };
+  return {
+    userId,
+    name,
+    nickname: value.nickname?.trim() || name,
+    onboardingRequired: Boolean(value.onboarding_required),
+    email,
+    phone: value.phone?.trim() || '',
+    avatarUrl: customUrl || value.avatar_url || null,
+    avatarSource: customUrl
+      ? 'uploaded'
+      : value.avatar_source === 'provider' || value.avatar_url
+        ? 'provider'
+        : null,
+    provider: value.provider || provider,
+  };
 }
 
 async function resolveUser() {
@@ -72,7 +91,12 @@ export async function loadCurrentProfile(force = false) {
 
   const request = authenticatedApiRequest<ProfileRecord>('/api/users/me')
     .then(async (value) => {
-      const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
+      const profile = await normalizeProfile(
+        user.id,
+        user.email || value.email || '',
+        provider,
+        value,
+      );
       cache.set(user.id, profile);
       listeners.forEach((listener) => listener());
       return profile;
@@ -95,15 +119,33 @@ export async function updateCurrentProfile(payload: ProfileUpdate) {
   return profile;
 }
 
-export async function completeCurrentOnboarding(payload: { nickname: string; walletName: string; openingBalance: number; operationId: string }) {
+export async function completeCurrentOnboarding(payload: {
+  nickname: string;
+  walletName: string;
+  openingBalance: number;
+  operationId: string;
+}) {
   const { user, provider } = await resolveUser();
-  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/onboarding', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nickname: payload.nickname, wallet_name: payload.walletName, opening_balance: payload.openingBalance, operation_id: payload.operationId }) });
+  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      nickname: payload.nickname,
+      wallet_name: payload.walletName,
+      opening_balance: payload.openingBalance,
+      operation_id: payload.operationId,
+    }),
+  });
   const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
-  cache.set(user.id, profile); listeners.forEach((listener) => listener());
+  cache.set(user.id, profile);
+  listeners.forEach((listener) => listener());
   return profile;
 }
 
-export async function uploadCurrentAvatar(uri: string, mimeType: 'image/jpeg' | 'image/png' | 'image/webp') {
+export async function uploadCurrentAvatar(
+  uri: string,
+  mimeType: 'image/jpeg' | 'image/png' | 'image/webp',
+) {
   const { user } = await resolveUser();
   const current = await authenticatedApiRequest<ProfileRecord>('/api/users/me');
   const oldPath = current.avatar_path;
@@ -111,13 +153,21 @@ export async function uploadCurrentAvatar(uri: string, mimeType: 'image/jpeg' | 
   const path = `${user.id}/avatar/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${extension}`;
   const response = await fetch(uri);
   const body = await response.arrayBuffer();
-  if (!body.byteLength || body.byteLength > 2 * 1024 * 1024) throw new Error('Choose an image smaller than 2 MB.');
+  if (!body.byteLength || body.byteLength > 2 * 1024 * 1024)
+    throw new Error('Choose an image smaller than 2 MB.');
   const storage = getSupabaseClient()?.storage.from(avatarBucket);
   if (!storage) throw new Error('Photo upload is unavailable.');
-  const { error: uploadError } = await storage.upload(path, body, { contentType: mimeType, upsert: false });
+  const { error: uploadError } = await storage.upload(path, body, {
+    contentType: mimeType,
+    upsert: false,
+  });
   if (uploadError) throw new Error('Your profile photo could not be uploaded.');
   try {
-    await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_path: path }) });
+    await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ avatar_path: path }),
+    });
   } catch (error) {
     await storage.remove([path]);
     throw error;
@@ -130,10 +180,15 @@ export async function removeCurrentAvatar() {
   const { user, provider } = await resolveUser();
   const current = await authenticatedApiRequest<ProfileRecord>('/api/users/me');
   const oldPath = current.avatar_path;
-  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar_path: null }) });
+  const value = await authenticatedApiRequest<ProfileRecord>('/api/users/me/avatar', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ avatar_path: null }),
+  });
   if (oldPath) await getSupabaseClient()?.storage.from(avatarBucket).remove([oldPath]);
   const profile = await normalizeProfile(user.id, user.email || value.email || '', provider, value);
-  cache.set(user.id, profile); listeners.forEach((listener) => listener());
+  cache.set(user.id, profile);
+  listeners.forEach((listener) => listener());
   return profile;
 }
 
@@ -149,7 +204,9 @@ export function subscribeToCurrentProfile(listener: () => void) {
 export function getProfileInitials(name: string) {
   const parts = name.trim().split(/\s+/).filter(Boolean);
   if (parts.length === 0) return 'U';
-  return (parts.length === 1 ? parts[0][0] : `${parts[0][0]}${parts[parts.length - 1][0]}`).toUpperCase();
+  return (
+    parts.length === 1 ? parts[0][0] : `${parts[0][0]}${parts[parts.length - 1][0]}`
+  ).toUpperCase();
 }
 
 export function getProfileFirstName(name: string) {

@@ -36,6 +36,9 @@ export function snappedChatHeadPosition({
 }): ChatHeadPosition {
   return {
     x: x + size / 2 < width / 2 ? 16 : width - size - 16,
-    y: Math.min(Math.max(insetTop + 56, height - size - insetBottom - 150), Math.max(insetTop + 56, y)),
+    y: Math.min(
+      Math.max(insetTop + 56, height - size - insetBottom - 150),
+      Math.max(insetTop + 56, y),
+    ),
   };
 }

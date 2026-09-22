@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { apiRequest } from "../lib/apiClient";
+import { useEffect, useState } from 'react';
+import { apiRequest } from '../lib/apiClient';
 
 export type ApiQueryState<T> = {
   data: T | null;
@@ -37,7 +37,11 @@ export function useApiQuery<T>(path: string) {
       })
       .catch((error: unknown) => {
         if (isMounted) {
-          setState({ data: null, isLoading: false, error: error instanceof Error ? error.message : "Unable to load data." });
+          setState({
+            data: null,
+            isLoading: false,
+            error: error instanceof Error ? error.message : 'Unable to load data.',
+          });
           setIsSlowLoading(false);
         }
       });

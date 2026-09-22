@@ -137,8 +137,7 @@ export function WalletPickerModal({
 }) {
   const [search, setSearch] = useState('');
   const filtered = useMemo(
-    () =>
-      walletPresets.filter((preset) => matchesWalletPreset(preset, search)),
+    () => walletPresets.filter((preset) => matchesWalletPreset(preset, search)),
     [search],
   );
   const choosePreset = (preset: WalletPreset) => {
@@ -198,24 +197,27 @@ export function WalletPickerModal({
                 <Text style={styles.empty}>No wallets found.</Text>
               ))}
             {showPresets &&
-              ['E-wallets', 'Digital and app-based banks', 'Traditional banks', 'Cash'].map((group) => (
-                <View key={group}>
-                  <Text style={styles.group}>{group}</Text>
-                  {filtered.filter((preset) => preset.group === group)
-                    .map((preset) => (
-                      <WalletChoice
-                        key={preset.key}
-                        label={preset.name}
-                        status={
-                          wallets.filter((wallet) => wallet.institution_key === preset.key).length
-                            ? `${wallets.filter((wallet) => wallet.institution_key === preset.key).length} added`
-                            : undefined
-                        }
-                        onPress={() => choosePreset(preset)}
-                      />
-                    ))}
-                </View>
-              ))}
+              ['E-wallets', 'Digital and app-based banks', 'Traditional banks', 'Cash'].map(
+                (group) => (
+                  <View key={group}>
+                    <Text style={styles.group}>{group}</Text>
+                    {filtered
+                      .filter((preset) => preset.group === group)
+                      .map((preset) => (
+                        <WalletChoice
+                          key={preset.key}
+                          label={preset.name}
+                          status={
+                            wallets.filter((wallet) => wallet.institution_key === preset.key).length
+                              ? `${wallets.filter((wallet) => wallet.institution_key === preset.key).length} added`
+                              : undefined
+                          }
+                          onPress={() => choosePreset(preset)}
+                        />
+                      ))}
+                  </View>
+                ),
+              )}
             {showPresets && (
               <>
                 <Text style={styles.group}>Other</Text>
@@ -290,8 +292,14 @@ function WalletChoice({
         size={34}
       />
       <View style={styles.choiceCopy}>
-        <Text numberOfLines={1} style={styles.choiceText}>{label}</Text>
-        {detail ? <Text numberOfLines={1} style={styles.choiceDetail}>{detail}</Text> : null}
+        <Text numberOfLines={1} style={styles.choiceText}>
+          {label}
+        </Text>
+        {detail ? (
+          <Text numberOfLines={1} style={styles.choiceDetail}>
+            {detail}
+          </Text>
+        ) : null}
       </View>
       {status ? (
         <Text style={styles.status}>{status}</Text>
@@ -304,7 +312,9 @@ function WalletChoice({
   );
 }
 
-export function walletTypeLabel(wallet: Pick<Wallet, 'account_type' | 'account_purpose' | 'is_default_cash'>) {
+export function walletTypeLabel(
+  wallet: Pick<Wallet, 'account_type' | 'account_purpose' | 'is_default_cash'>,
+) {
   if (wallet.account_type === 'credit') return 'Credit';
   if (wallet.account_purpose === 'savings') return 'Savings';
   if (wallet.is_default_cash) return 'Cash';
@@ -421,7 +431,17 @@ const styles = StyleSheet.create({
   status: { marginRight: 8, color: formPalette.accent, fontSize: 11, fontWeight: '800' },
   unset: { alignItems: 'center', padding: 13 },
   unsetText: { color: formPalette.muted, fontSize: 12, fontWeight: '800' },
-  addWallet: { minHeight: 52, alignItems: 'center', justifyContent: 'center', marginTop: 8, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: formPalette.accent, backgroundColor: formPalette.accentPale },
+  addWallet: {
+    minHeight: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    paddingHorizontal: 14,
+    borderRadius: 15,
+    borderWidth: 1,
+    borderColor: formPalette.accent,
+    backgroundColor: formPalette.accentPale,
+  },
   addWalletText: { color: formPalette.accent, fontSize: 13, fontWeight: '900' },
   pressed: { backgroundColor: formPalette.background, opacity: 0.9 },
 });

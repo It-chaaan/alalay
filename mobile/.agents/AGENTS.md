@@ -172,6 +172,7 @@ Budget create/edit uses the shared `/api/budget` contract and sends the selected
 ## Known implementation issues to track
 
 Carry over anything from the web app's "Known implementation issues" list that also affects the shared backend/database (since mobile calls the same backend), specifically:
+
 - Budget PATCH validation weakness (shared backend issue, affects mobile too until fixed upstream).
 - Any RLS/service-role issues noted in the web app's most recent security audit — these affect mobile requests equally since they hit the same backend.
 

@@ -178,7 +178,9 @@ export function fetchLoanSummary() {
 }
 
 /** Uses the same server-computed wallet balances shown by Wallets Overview. */
-export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance' | 'total_balance' | 'account_type'>[]) {
+export function totalWalletBalance(
+  wallets: Pick<WalletRecord, 'balance' | 'total_balance' | 'account_type'>[],
+) {
   return wallets.reduce((sum, wallet) => {
     if (wallet.account_type === 'credit') return sum;
     const balance = Number(wallet.total_balance ?? wallet.balance);
@@ -191,7 +193,9 @@ export function totalWalletBalance(wallets: Pick<WalletRecord, 'balance' | 'tota
  * deliberately not substituted with physical balance: callers must show an
  * unavailable state until the backend contract is present.
  */
-export function totalWalletAvailableBalance(wallets: Pick<WalletRecord, 'available_balance' | 'account_type'>[]): number | null {
+export function totalWalletAvailableBalance(
+  wallets: Pick<WalletRecord, 'available_balance' | 'account_type'>[],
+): number | null {
   let total = 0;
   for (const wallet of wallets) {
     if (wallet.account_type === 'credit') continue;
@@ -412,9 +416,10 @@ export async function fetchFinanceItems() {
       ? billResult.reason
       : new Error('Bills could not load.');
   }
-  const billResponse = billResult.status === 'fulfilled'
-    ? normalizeBillListResponse(billResult.value)
-    : normalizeBillListResponse([]);
+  const billResponse =
+    billResult.status === 'fulfilled'
+      ? normalizeBillListResponse(billResult.value)
+      : normalizeBillListResponse([]);
   const bills = billResponse.items;
   const subscriptions = subscriptionResult.status === 'fulfilled' ? subscriptionResult.value : [];
   const billItems: FinanceItem[] = bills.map((bill) => ({
@@ -433,23 +438,34 @@ export async function fetchFinanceItems() {
     templateId: bill.bill_id ?? bill.id,
   }));
   const overdueBillItems: FinanceItem[] = billResponse.overdue_items.map((bill) => ({
-    id: bill.id, source: 'bill', name: bill.title, amount: Number(bill.amount), category: bill.category,
-    dueDate: bill.occurrence_date ?? bill.due_date, recurring: bill.recurring, frequency: bill.frequency,
-    paid: bill.status === 'paid', wallet_id: bill.wallet_id, credit_wallet_id: bill.credit_wallet_id,
-    templateId: bill.bill_id ?? bill.id, isOverdueFromPreviousMonth: true,
+    id: bill.id,
+    source: 'bill',
+    name: bill.title,
+    amount: Number(bill.amount),
+    category: bill.category,
+    dueDate: bill.occurrence_date ?? bill.due_date,
+    recurring: bill.recurring,
+    frequency: bill.frequency,
+    paid: bill.status === 'paid',
+    wallet_id: bill.wallet_id,
+    credit_wallet_id: bill.credit_wallet_id,
+    templateId: bill.bill_id ?? bill.id,
+    isOverdueFromPreviousMonth: true,
   }));
-  const subscriptionItems: FinanceItem[] = subscriptions.filter((subscription) => subscription.auto_renew !== false).map((subscription) => ({
-    id: subscription.id,
-    source: 'subscription',
-    name: subscription.name,
-    amount: Number(subscription.amount),
-    category: 'Subscriptions',
-    dueDate: subscription.current_occurrence_date ?? subscription.renewal_date,
-    recurring: true,
-    frequency: subscription.billing_cycle,
-    paid: subscription.current_status === 'paid',
-    wallet_id: subscription.wallet_id,
-  }));
+  const subscriptionItems: FinanceItem[] = subscriptions
+    .filter((subscription) => subscription.auto_renew !== false)
+    .map((subscription) => ({
+      id: subscription.id,
+      source: 'subscription',
+      name: subscription.name,
+      amount: Number(subscription.amount),
+      category: 'Subscriptions',
+      dueDate: subscription.current_occurrence_date ?? subscription.renewal_date,
+      recurring: true,
+      frequency: subscription.billing_cycle,
+      paid: subscription.current_status === 'paid',
+      wallet_id: subscription.wallet_id,
+    }));
   return [...billItems, ...overdueBillItems, ...subscriptionItems].sort((left, right) =>
     left.dueDate.localeCompare(right.dueDate),
   );
@@ -482,11 +498,14 @@ export async function markFinanceItemPaid(
 ) {
   if (item.source === 'bill') {
     if (!payment) throw new Error('Select a payment wallet and date.');
-    const result = await authenticatedApiRequest<BillRecord>(`/api/bills/${item.templateId ?? item.id}/pay`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...payment, occurrence_date: item.dueDate }),
-    });
+    const result = await authenticatedApiRequest<BillRecord>(
+      `/api/bills/${item.templateId ?? item.id}/pay`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...payment, occurrence_date: item.dueDate }),
+      },
+    );
     const { cancelBillReminders } = await import('./financial-reminders');
     await cancelBillReminders(item.id);
     notifyFinancialMutation();
@@ -506,7 +525,10 @@ export async function markFinanceItemPaid(
 }
 
 export async function deleteFinanceItem(item: FinanceItem) {
-  const path = item.source === 'bill' ? `/api/bills/${item.templateId ?? item.id}` : `/api/subscriptions/${item.id}`;
+  const path =
+    item.source === 'bill'
+      ? `/api/bills/${item.templateId ?? item.id}`
+      : `/api/subscriptions/${item.id}`;
   const result = await authenticatedApiRequest(path, { method: 'DELETE' });
   if (item.source === 'bill') {
     const { cancelBillReminders } = await import('./financial-reminders');

@@ -93,11 +93,15 @@ const envSchema = z
         message: 'IN_PROCESS_SCHEDULERS_ENABLED must not be enabled in production.',
       });
     }
-    if (value.NOTIFICATION_SCHEDULER_ENABLED && (!value.SUPABASE_URL || !value.SUPABASE_SERVICE_ROLE_KEY)) {
+    if (
+      value.NOTIFICATION_SCHEDULER_ENABLED &&
+      (!value.SUPABASE_URL || !value.SUPABASE_SERVICE_ROLE_KEY)
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['SUPABASE_SERVICE_ROLE_KEY'],
-        message: 'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when notification scheduling is enabled.',
+        message:
+          'SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required when notification scheduling is enabled.',
       });
     }
   });

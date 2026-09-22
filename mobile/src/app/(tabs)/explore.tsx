@@ -23,12 +23,19 @@ export default function ExploreScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.eyebrow}>ALALAY FEATURES</Text>
         <Text style={styles.title}>A clearer way forward.</Text>
-        <Text style={styles.description}>Explore the tools that will help you make money feel easier to understand.</Text>
+        <Text style={styles.description}>
+          Explore the tools that will help you make money feel easier to understand.
+        </Text>
         <View style={styles.list}>
           {features.map(([title, description]) => (
             <View key={title} style={styles.card}>
-              <View style={styles.icon}><Text style={styles.iconText}>{title.slice(0, 1)}</Text></View>
-              <View style={styles.copy}><Text style={styles.cardTitle}>{title}</Text><Text style={styles.cardDescription}>{description}</Text></View>
+              <View style={styles.icon}>
+                <Text style={styles.iconText}>{title.slice(0, 1)}</Text>
+              </View>
+              <View style={styles.copy}>
+                <Text style={styles.cardTitle}>{title}</Text>
+                <Text style={styles.cardDescription}>{description}</Text>
+              </View>
             </View>
           ))}
         </View>
@@ -44,8 +51,23 @@ const styles = StyleSheet.create({
   title: { marginTop: 10, color: palette.ink, fontSize: 32, fontWeight: '800', letterSpacing: -1 },
   description: { marginTop: 10, color: palette.muted, fontSize: 15, lineHeight: 22 },
   list: { gap: 12, marginTop: 30 },
-  card: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 18, backgroundColor: palette.surface, borderWidth: 1, borderColor: palette.line },
-  icon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: palette.accentPale },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: 18,
+    backgroundColor: palette.surface,
+    borderWidth: 1,
+    borderColor: palette.line,
+  },
+  icon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: palette.accentPale,
+  },
   iconText: { color: palette.accent, fontSize: 17, fontWeight: '800' },
   copy: { flex: 1, marginLeft: 13 },
   cardTitle: { color: palette.ink, fontSize: 15, fontWeight: '800' },

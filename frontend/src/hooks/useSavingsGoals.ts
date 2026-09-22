@@ -1,10 +1,10 @@
-import { useApiQuery } from "./useApiQuery";
-import type { SavingsDashboard, SavingsGoal } from "./types";
+import { useApiQuery } from './useApiQuery';
+import type { SavingsDashboard, SavingsGoal } from './types';
 
 export function useSavingsGoals() {
-  return useApiQuery<SavingsGoal[]>("/savings-goals");
+  return useApiQuery<SavingsGoal[]>('/savings-goals');
 }
 
 export function useSavingsDashboard() {
-  return useApiQuery<SavingsDashboard>("/savings-goals/summary");
+  return useApiQuery<SavingsDashboard>('/savings-goals/summary');
 }

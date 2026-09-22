@@ -55,15 +55,25 @@ const presentation = presentationIncomeOccurrences([
   { kind: 'recurring', isProjected: true, occurrenceKey: 'salary:2026-08-01', sourceId: 'salary' },
   { kind: 'recurring', isProjected: true, occurrenceKey: 'salary:2026-08-01', sourceId: 'salary' },
   { kind: 'recurring', isProjected: true, occurrenceKey: 'salary:2026-08-15', sourceId: 'salary' },
-  { kind: 'one_time', isProjected: false, occurrenceKey: 'manual:2026-08-01', transactionId: 'transaction-1', sourceId: 'one-time' },
-  { kind: 'one_time', isProjected: false, occurrenceKey: 'manual:2026-08-01', transactionId: 'transaction-2', sourceId: 'one-time' },
+  {
+    kind: 'one_time',
+    isProjected: false,
+    occurrenceKey: 'manual:2026-08-01',
+    transactionId: 'transaction-1',
+    sourceId: 'one-time',
+  },
+  {
+    kind: 'one_time',
+    isProjected: false,
+    occurrenceKey: 'manual:2026-08-01',
+    transactionId: 'transaction-2',
+    sourceId: 'one-time',
+  },
 ]);
 assert.equal(presentation.duplicateProjectedOccurrences, 1);
-assert.deepEqual(presentation.items.map((item) => item.transactionId ?? item.occurrenceKey), [
-  'salary:2026-08-01',
-  'salary:2026-08-15',
-  'transaction-1',
-  'transaction-2',
-]);
+assert.deepEqual(
+  presentation.items.map((item) => item.transactionId ?? item.occurrenceKey),
+  ['salary:2026-08-01', 'salary:2026-08-15', 'transaction-1', 'transaction-2'],
+);
 
 console.log('income screen tests passed');

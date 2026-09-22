@@ -288,27 +288,35 @@ export default function WalletsScreen() {
     setListError('');
     return loadWallets();
   }, [loadWallets]);
-  const loadWalletDetailData = useCallback((id: string) => {
-    const generation = detailRequestGuard.begin();
-    return authenticatedApiRequest<WalletDetail>(`/api/wallets/${id}`)
-      .then((nextDetail) => {
-        if (!detailRequestGuard.isCurrent(generation)) return;
-        setSelected(nextDetail);
-        setDetailError('');
-      })
-      .catch((cause) => {
-        if (detailRequestGuard.isCurrent(generation))
-          setDetailError(cause instanceof Error ? cause.message : 'Wallet details could not load.');
-      })
-      .finally(() => {
-        if (detailRequestGuard.isCurrent(generation)) setDetailLoading(false);
-      });
-  }, [detailRequestGuard]);
-  const loadWalletDetail = useCallback((id: string) => {
-    setDetailLoading(true);
-    setDetailError('');
-    return loadWalletDetailData(id);
-  }, [loadWalletDetailData]);
+  const loadWalletDetailData = useCallback(
+    (id: string) => {
+      const generation = detailRequestGuard.begin();
+      return authenticatedApiRequest<WalletDetail>(`/api/wallets/${id}`)
+        .then((nextDetail) => {
+          if (!detailRequestGuard.isCurrent(generation)) return;
+          setSelected(nextDetail);
+          setDetailError('');
+        })
+        .catch((cause) => {
+          if (detailRequestGuard.isCurrent(generation))
+            setDetailError(
+              cause instanceof Error ? cause.message : 'Wallet details could not load.',
+            );
+        })
+        .finally(() => {
+          if (detailRequestGuard.isCurrent(generation)) setDetailLoading(false);
+        });
+    },
+    [detailRequestGuard],
+  );
+  const loadWalletDetail = useCallback(
+    (id: string) => {
+      setDetailLoading(true);
+      setDetailError('');
+      return loadWalletDetailData(id);
+    },
+    [loadWalletDetailData],
+  );
   useEffect(() => {
     void loadWallets();
     const unsubscribe = subscribeFinancialMutations(() => {
@@ -343,8 +351,18 @@ export default function WalletsScreen() {
     }
   };
   const totalBalance = totalWalletBalance(wallets);
-  const availableBalance = wallets.reduce((sum, wallet) => wallet.account_type === 'credit' ? sum : sum + Number(wallet.available_balance ?? wallet.balance), 0);
-  const reservedBalance = wallets.reduce((sum, wallet) => wallet.account_type === 'credit' ? sum : sum + Number(wallet.reserved_for_goals ?? 0), 0);
+  const availableBalance = wallets.reduce(
+    (sum, wallet) =>
+      wallet.account_type === 'credit'
+        ? sum
+        : sum + Number(wallet.available_balance ?? wallet.balance),
+    0,
+  );
+  const reservedBalance = wallets.reduce(
+    (sum, wallet) =>
+      wallet.account_type === 'credit' ? sum : sum + Number(wallet.reserved_for_goals ?? 0),
+    0,
+  );
   const filteredWallets =
     walletFilter === 'all'
       ? wallets
@@ -1212,7 +1230,11 @@ export function TransferForm({
         required
         label="From wallet"
       />
-      {source ? <Text style={styles.muted}>{peso(source.available_balance ?? source.balance)} available to spend</Text> : null}
+      {source ? (
+        <Text style={styles.muted}>
+          {peso(source.available_balance ?? source.balance)} available to spend
+        </Text>
+      ) : null}
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Swap source and destination wallets"
@@ -1232,7 +1254,11 @@ export function TransferForm({
         required
         label="To wallet"
       />
-      {destination ? <Text style={styles.muted}>{peso(destination.available_balance ?? destination.balance)} available to spend</Text> : null}
+      {destination ? (
+        <Text style={styles.muted}>
+          {peso(destination.available_balance ?? destination.balance)} available to spend
+        </Text>
+      ) : null}
       <FormTextInput label="Transfer fee" value={fee} onChangeText={setFee} placeholder="0" />
       <View
         style={[
@@ -1897,7 +1923,12 @@ function InterestForm({
       await authenticatedApiRequest(`/api/wallets/${wallet.id}/interest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: value, date, note: note.trim() || null, idempotency_key: idempotencyKey }),
+        body: JSON.stringify({
+          amount: value,
+          date,
+          note: note.trim() || null,
+          idempotency_key: idempotencyKey,
+        }),
       });
       notifyFinancialMutation();
       await onSaved();

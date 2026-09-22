@@ -36,10 +36,7 @@ import { TextInput } from '../ui/TextInput';
 import { CurrencyInput } from '../ui/CurrencyInput';
 import { CategorySelect } from '../ui/CategorySelect';
 import { institutionFor } from '@shared/institution-registry';
-import {
-  incomeCategoryKeys,
-  subscriptionCategoryDefinitions,
-} from '@shared/category-registry';
+import { incomeCategoryKeys, subscriptionCategoryDefinitions } from '@shared/category-registry';
 import type { BudgetDraftCategory } from '../../utils/budgetSetups';
 
 type FormDialogProps = {
@@ -73,7 +70,9 @@ type SavingsGoalProgressPanelProps = FormDialogProps & {
 };
 
 const billCategoryOptions = getCategories('expense').map((category) => category.name);
-const subscriptionCategoryOptions = subscriptionCategoryDefinitions.map((category) => category.label);
+const subscriptionCategoryOptions = subscriptionCategoryDefinitions.map(
+  (category) => category.label,
+);
 
 function isPresetBillCategory(category: string | null | undefined) {
   return billCategoryOptions.includes((category ?? '') as (typeof billCategoryOptions)[number]);
@@ -404,9 +403,7 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
           label="Credit statement account (optional)"
           value={creditWalletId}
           onlyCredit
-          onChange={(value) =>
-            setValue('credit_wallet_id', value || null, { shouldDirty: true })
-          }
+          onChange={(value) => setValue('credit_wallet_id', value || null, { shouldDirty: true })}
           emptyMessage="Add a credit wallet before linking a statement."
         />
 
@@ -459,22 +456,28 @@ export function BillFormPanel({ open, onClose, onSuccess, bill }: BillFormPanelP
   );
 }
 
-const subscriptionSchema = z.object({
-  name: z.string().trim().min(1, 'Subscription name is required'),
-  category: z.string().trim().min(1, 'Select a subscription category'),
-  custom_category: z.string().optional(),
-  amount: z.coerce.number().positive('Please enter an amount greater than 0'),
-  renewal_date: z.string().date('Renewal date is required'),
-  billing_cycle: z.enum(['weekly', 'monthly', 'quarterly', 'yearly']),
-  auto_renew: z.boolean(),
-  last_used_at: z.string().optional(),
-  logo_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
-  wallet_id: z.string().uuid('Choose a payment wallet'),
-}).superRefine((values, context) => {
-  if (values.category === 'Other' && !values.custom_category?.trim()) {
-    context.addIssue({ code: z.ZodIssueCode.custom, path: ['custom_category'], message: 'Specify the subscription category' });
-  }
-});
+const subscriptionSchema = z
+  .object({
+    name: z.string().trim().min(1, 'Subscription name is required'),
+    category: z.string().trim().min(1, 'Select a subscription category'),
+    custom_category: z.string().optional(),
+    amount: z.coerce.number().positive('Please enter an amount greater than 0'),
+    renewal_date: z.string().date('Renewal date is required'),
+    billing_cycle: z.enum(['weekly', 'monthly', 'quarterly', 'yearly']),
+    auto_renew: z.boolean(),
+    last_used_at: z.string().optional(),
+    logo_url: z.union([z.string().url('Enter a valid URL'), z.literal('')]).optional(),
+    wallet_id: z.string().uuid('Choose a payment wallet'),
+  })
+  .superRefine((values, context) => {
+    if (values.category === 'Other' && !values.custom_category?.trim()) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['custom_category'],
+        message: 'Specify the subscription category',
+      });
+    }
+  });
 
 type SubscriptionFormInput = z.input<typeof subscriptionSchema>;
 type SubscriptionFormValues = z.output<typeof subscriptionSchema>;
@@ -531,7 +534,7 @@ export function SubscriptionFormPanel({
     const payload = {
       ...values,
       custom_category:
-        values.category === 'Other' ? toOptionalString(values.custom_category) ?? null : null,
+        values.category === 'Other' ? (toOptionalString(values.custom_category) ?? null) : null,
       logo_url: toOptionalString(values.logo_url),
       last_used_at: values.last_used_at
         ? new Date(`${values.last_used_at}T00:00:00`).toISOString()
@@ -605,7 +608,9 @@ export function SubscriptionFormPanel({
             label="Category"
             value={watch('category')}
             options={subscriptionCategoryOptions}
-            onChange={(value) => setValue('category', value, { shouldDirty: true, shouldValidate: true })}
+            onChange={(value) =>
+              setValue('category', value, { shouldDirty: true, shouldValidate: true })
+            }
             error={errors.category?.message}
           />
           <SelectField
@@ -723,11 +728,10 @@ function WalletSelector({
   emptyMessage?: string;
 }) {
   const { data: wallets, isLoading, error: walletError } = useApiQuery<Wallet[]>('/wallets');
-  const eligibleWallets = (wallets ?? []).filter(
-    (wallet) =>
-      onlyCredit
-        ? wallet.account_type === 'credit'
-        : !excludeCredit || wallet.account_type !== 'credit',
+  const eligibleWallets = (wallets ?? []).filter((wallet) =>
+    onlyCredit
+      ? wallet.account_type === 'credit'
+      : !excludeCredit || wallet.account_type !== 'credit',
   );
   const selectorError =
     error ??
@@ -950,7 +954,7 @@ type IncomeFormValues = z.output<typeof incomeSchema>;
 function defaultIncomeValues(income?: IncomeEntry | null): IncomeFormInput {
   return {
     source: income?.source ?? '',
-    type: income?.type === 'other' ? 'other-income' : income?.type ?? 'salary',
+    type: income?.type === 'other' ? 'other-income' : (income?.type ?? 'salary'),
     amount: income ? Number(income.amount) : undefined,
     date: income?.date ?? todayInputValue(),
     is_recurring: income ? Boolean(income.is_recurring) : false,
@@ -1261,7 +1265,6 @@ export function SavingsGoalFormPanel({
             helper={contributionHint}
           />
         </div>
-
       </form>
     </SlideOver>
   );
@@ -1336,7 +1339,9 @@ export function SavingsGoalProgressPanel({
       open={open}
       onClose={onClose}
       title="Add contribution"
-      description={goal ? `Allocate money from a wallet to ${goal.title}.` : 'Allocate money to a goal.'}
+      description={
+        goal ? `Allocate money from a wallet to ${goal.title}.` : 'Allocate money to a goal.'
+      }
       footer={
         <DialogActions
           formId={formId}
@@ -1384,7 +1389,11 @@ export function SavingsGoalProgressPanel({
           }
         />
 
-        {remaining > 0 ? <p className="text-xs text-slate-500">Contributions cannot exceed the remaining {formatCurrency(remaining)}.</p> : null}
+        {remaining > 0 ? (
+          <p className="text-xs text-slate-500">
+            Contributions cannot exceed the remaining {formatCurrency(remaining)}.
+          </p>
+        ) : null}
       </form>
     </SlideOver>
   );
@@ -1448,12 +1457,12 @@ function buildBudgetDefaults(
     categories: initialCategories
       ? initialCategories.map((category) => ({ ...category }))
       : spendingCategories.length
-      ? spendingCategories.map((category) => ({
-          id: category.id,
-          name: category.name,
-          budget: category.budget,
-        }))
-      : starterBudgetCategories,
+        ? spendingCategories.map((category) => ({
+            id: category.id,
+            name: category.name,
+            budget: category.budget,
+          }))
+        : starterBudgetCategories,
     savings_allocation: Number(budgetSummary?.savings_allocation ?? savingsCategory?.budget ?? 0),
     auto_distribute_savings: Boolean(
       budgetSummary?.savings_auto_distribute ?? savingsCategory?.auto_distribute,

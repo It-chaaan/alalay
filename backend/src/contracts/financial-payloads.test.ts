@@ -5,7 +5,11 @@ import { createExpenseSchema } from '../schemas/expense.schema.js';
 import { createIncomeSchema } from '../schemas/income.schema.js';
 import { createLoanSchema, loanPaymentSchema } from '../schemas/loan.schema.js';
 import { createSubscriptionSchema } from '../schemas/subscription.schema.js';
-import { creditCardFinanceChargeSchema, creditRepaymentSchema, walletTransferSchema } from '../schemas/wallet.schema.js';
+import {
+  creditCardFinanceChargeSchema,
+  creditRepaymentSchema,
+  walletTransferSchema,
+} from '../schemas/wallet.schema.js';
 
 const walletId = '11111111-1111-4111-8111-111111111111';
 const otherWalletId = '22222222-2222-4222-8222-222222222222';
@@ -161,18 +165,9 @@ test('credit repayment contract keeps principal, interest, fee, and idempotency 
     payment_date: date,
     idempotency_key: 'credit-repayment-contract-0001',
   });
-  assert.equal(
-    creditRepaymentSchema.safeParse({ ...payload, principal_amount: 0 }).success,
-    false,
-  );
-  assert.equal(
-    creditRepaymentSchema.safeParse({ ...payload, interest_amount: -1 }).success,
-    false,
-  );
-  assert.equal(
-    creditRepaymentSchema.safeParse({ ...payload, fee_amount: -1 }).success,
-    false,
-  );
+  assert.equal(creditRepaymentSchema.safeParse({ ...payload, principal_amount: 0 }).success, false);
+  assert.equal(creditRepaymentSchema.safeParse({ ...payload, interest_amount: -1 }).success, false);
+  assert.equal(creditRepaymentSchema.safeParse({ ...payload, fee_amount: -1 }).success, false);
 });
 
 test('manual card finance charges require a statement, a positive centavo amount, and an idempotency key', () => {
@@ -185,5 +180,8 @@ test('manual card finance charges require a statement, a positive centavo amount
   };
   assert.equal(creditCardFinanceChargeSchema.safeParse(payload).success, true);
   assert.equal(creditCardFinanceChargeSchema.safeParse({ ...payload, amount: 0 }).success, false);
-  assert.equal(creditCardFinanceChargeSchema.safeParse({ ...payload, statement_id: 'not-a-uuid' }).success, false);
+  assert.equal(
+    creditCardFinanceChargeSchema.safeParse({ ...payload, statement_id: 'not-a-uuid' }).success,
+    false,
+  );
 });

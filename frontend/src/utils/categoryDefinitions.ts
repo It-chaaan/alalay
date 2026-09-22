@@ -1,15 +1,22 @@
-import { categoryDefinitions, getCategoryMeta } from "./categoryRegistry";
+import { categoryDefinitions, getCategoryMeta } from './categoryRegistry';
 
 export type CategoryDefinition = { name: string; icon: string; color: string; tint: string };
 
-export const expenseCategoryDefinitions: CategoryDefinition[] = categoryDefinitions.map((category) => ({
-  name: category.label,
-  icon: category.iconKey,
-  color: category.color,
-  tint: category.tint,
-}));
+export const expenseCategoryDefinitions: CategoryDefinition[] = categoryDefinitions.map(
+  (category) => ({
+    name: category.label,
+    icon: category.iconKey,
+    color: category.color,
+    tint: category.tint,
+  }),
+);
 
 export function getCategoryDefinition(name: string) {
   const category = getCategoryMeta(name);
-  return { name: category.label === "Other" && name.trim() ? name : category.label, icon: category.iconKey, color: category.color, tint: category.tint };
+  return {
+    name: category.label === 'Other' && name.trim() ? name : category.label,
+    icon: category.iconKey,
+    color: category.color,
+    tint: category.tint,
+  };
 }

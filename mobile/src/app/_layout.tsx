@@ -1,4 +1,13 @@
-import { DarkTheme, DefaultTheme, Stack, ThemeProvider, type Href, usePathname, useRouter, useSegments } from 'expo-router';
+import {
+  DarkTheme,
+  DefaultTheme,
+  Stack,
+  ThemeProvider,
+  type Href,
+  usePathname,
+  useRouter,
+  useSegments,
+} from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, StyleSheet, Text, View } from 'react-native';
@@ -37,17 +46,20 @@ function ThemedRoot() {
   const base = resolvedTheme === 'dark' ? DarkTheme : DefaultTheme;
   // This hook must run before the loading return. The previous placement made
   // the initial theme hydration render use fewer hooks than the ready render.
-  const navigationTheme = useMemo(() => ({
-    ...base,
-    colors: {
-      ...base.colors,
-      background: colors.background,
-      card: colors.surface,
-      text: colors.ink,
-      border: colors.line,
-      primary: colors.accent,
-    },
-  }), [base, colors]);
+  const navigationTheme = useMemo(
+    () => ({
+      ...base,
+      colors: {
+        ...base.colors,
+        background: colors.background,
+        card: colors.surface,
+        text: colors.ink,
+        border: colors.line,
+        primary: colors.accent,
+      },
+    }),
+    [base, colors],
+  );
   if (!ready)
     return (
       <View
@@ -68,9 +80,7 @@ function ThemedRoot() {
           <SessionGate />
         </ToastProvider>
       </ModalVisibilityProvider>
-      <StatusBar
-        style={resolvedTheme === 'dark' ? 'light' : 'dark'}
-      />
+      <StatusBar style={resolvedTheme === 'dark' ? 'light' : 'dark'} />
     </ThemeProvider>
   );
 }
@@ -189,7 +199,9 @@ function SessionGate() {
       .catch(() => {
         if (active) setOnboarding({ userId: sessionUserId, required: false });
       });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [mfaPending, sessionUserId]);
 
   useEffect(() => {
@@ -233,7 +245,9 @@ function SessionGate() {
 
   useEffect(() => {
     if (!sessionUserId) return;
-    return subscribeFinancialMutations(() => { void reconcileOnAppResume(); });
+    return subscribeFinancialMutations(() => {
+      void reconcileOnAppResume();
+    });
   }, [sessionUserId]);
 
   useEffect(() => {
@@ -255,16 +269,30 @@ function SessionGate() {
     // loop. Reset this guard once the route has settled or app state changes.
     const redirectKey = `${sessionUserId ?? 'anonymous'}:${mfaPending}:${onboardingRequired}:${destination}`;
     if (!redirectGuard.shouldRedirect(redirectKey)) return;
-    if (destination === '/auth?mode=mfa') router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
-    else if (destination === '/auth?mode=signin') router.replace({ pathname: '/auth', params: { mode: 'signin' } });
+    if (destination === '/auth?mode=mfa')
+      router.replace({ pathname: '/auth', params: { mode: 'mfa' } });
+    else if (destination === '/auth?mode=signin')
+      router.replace({ pathname: '/auth', params: { mode: 'signin' } });
     else router.replace(destination as Href);
-  }, [checkingOnboarding, checkingSession, mfaPending, onboardingRequired, pathname, redirectGuard, router, segments, sessionUserId]);
+  }, [
+    checkingOnboarding,
+    checkingSession,
+    mfaPending,
+    onboardingRequired,
+    pathname,
+    redirectGuard,
+    router,
+    segments,
+    sessionUserId,
+  ]);
 
   if (checkingSession || checkingOnboarding) return <SessionLoadingScreen />;
 
   return (
     <IncomeWorkflowProvider>
-      <DashboardInsightProvider enabled={Boolean(sessionUserId && !mfaPending && !onboardingRequired)}>
+      <DashboardInsightProvider
+        enabled={Boolean(sessionUserId && !mfaPending && !onboardingRequired)}
+      >
         <View
           style={[
             styles.appShell,

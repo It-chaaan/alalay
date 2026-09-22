@@ -8,10 +8,158 @@ import { completeCurrentOnboarding } from '@/services/profile';
 import { useAppTheme } from '@/theme/theme';
 
 export default function OnboardingScreen() {
-  const { colors } = useAppTheme(); const { profile, loading } = useCurrentProfile();
-  const [step, setStep] = useState(1); const [nickname, setNickname] = useState(''); const [walletName, setWalletName] = useState('Cash'); const [balance, setBalance] = useState('0'); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [operationId] = useState(() => Crypto.randomUUID());
-  const continueNickname = () => { const value = nickname.trim() || profile?.nickname || ''; if (!value) { setError('Enter the name you want Alalay to use.'); return; } if (value.length > 80) { setError('Nickname is too long.'); return; } setNickname(value); setError(''); setStep(2); };
-  const finish = async () => { const amount = Number(balance); if (!walletName.trim()) { setError('Enter a wallet name.'); return; } if (!Number.isFinite(amount)) { setError('Enter a valid amount.'); return; } if (amount < 0) { setError('Cash balance cannot be negative.'); return; } if (saving) return; setSaving(true); setError(''); try { await completeCurrentOnboarding({ nickname: nickname.trim(), walletName: walletName.trim(), openingBalance: Math.round(amount * 100) / 100, operationId }); router.replace('/(tabs)'); } catch { setError('We couldn’t finish setting up your account. Your information is safe—try again.'); } finally { setSaving(false); } };
-  if (loading) return <SafeAreaView style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={colors.accent} /></SafeAreaView>;
-  return <SafeAreaView style={{ flex: 1, padding: 28, justifyContent: 'center', backgroundColor: colors.background }}><Text style={{ color: colors.ink, fontSize: 28, fontWeight: '900' }}>{step === 1 ? 'What should Alalay call you?' : 'How much cash do you have right now?'}</Text><Text style={{ color: colors.muted, marginTop: 12, lineHeight: 21 }}>{step === 1 ? 'Use a name or nickname you’re comfortable seeing in greetings and Alalay AI.' : 'We’ll create your first Cash wallet so you can start tracking immediately. Your opening balance is not income.'}</Text>{step === 1 ? <TextInput autoFocus value={nickname} onChangeText={(value) => { setNickname(value); setError(''); }} placeholder={profile?.nickname || 'Nickname'} placeholderTextColor={colors.subtle} style={{ marginTop: 28, padding: 15, borderWidth: 1, borderColor: colors.line, borderRadius: 14, color: colors.ink, backgroundColor: colors.surface }} /> : <><TextInput value={walletName} onChangeText={setWalletName} placeholder="Cash" placeholderTextColor={colors.subtle} style={{ marginTop: 28, padding: 15, borderWidth: 1, borderColor: colors.line, borderRadius: 14, color: colors.ink, backgroundColor: colors.surface }} /><TextInput value={balance} onChangeText={setBalance} keyboardType="decimal-pad" placeholder="0.00" placeholderTextColor={colors.subtle} style={{ marginTop: 12, padding: 15, borderWidth: 1, borderColor: colors.line, borderRadius: 14, color: colors.ink, backgroundColor: colors.surface }} /></>}{error ? <Text style={{ color: colors.danger, marginTop: 12 }}>{error}</Text> : null}<Pressable disabled={saving} onPress={() => void (step === 1 ? continueNickname() : finish())} style={{ marginTop: 24, minHeight: 52, borderRadius: 26, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.accent, opacity: saving ? .6 : 1 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{saving ? 'Setting up…' : step === 1 ? 'Continue' : 'Start using Alalay'}</Text></Pressable></SafeAreaView>;
+  const { colors } = useAppTheme();
+  const { profile, loading } = useCurrentProfile();
+  const [step, setStep] = useState(1);
+  const [nickname, setNickname] = useState('');
+  const [walletName, setWalletName] = useState('Cash');
+  const [balance, setBalance] = useState('0');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [operationId] = useState(() => Crypto.randomUUID());
+  const continueNickname = () => {
+    const value = nickname.trim() || profile?.nickname || '';
+    if (!value) {
+      setError('Enter the name you want Alalay to use.');
+      return;
+    }
+    if (value.length > 80) {
+      setError('Nickname is too long.');
+      return;
+    }
+    setNickname(value);
+    setError('');
+    setStep(2);
+  };
+  const finish = async () => {
+    const amount = Number(balance);
+    if (!walletName.trim()) {
+      setError('Enter a wallet name.');
+      return;
+    }
+    if (!Number.isFinite(amount)) {
+      setError('Enter a valid amount.');
+      return;
+    }
+    if (amount < 0) {
+      setError('Cash balance cannot be negative.');
+      return;
+    }
+    if (saving) return;
+    setSaving(true);
+    setError('');
+    try {
+      await completeCurrentOnboarding({
+        nickname: nickname.trim(),
+        walletName: walletName.trim(),
+        openingBalance: Math.round(amount * 100) / 100,
+        operationId,
+      });
+      router.replace('/(tabs)');
+    } catch {
+      setError('We couldn’t finish setting up your account. Your information is safe—try again.');
+    } finally {
+      setSaving(false);
+    }
+  };
+  if (loading)
+    return (
+      <SafeAreaView
+        style={{
+          flex: 1,
+          backgroundColor: colors.background,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <ActivityIndicator color={colors.accent} />
+      </SafeAreaView>
+    );
+  return (
+    <SafeAreaView
+      style={{ flex: 1, padding: 28, justifyContent: 'center', backgroundColor: colors.background }}
+    >
+      <Text style={{ color: colors.ink, fontSize: 28, fontWeight: '900' }}>
+        {step === 1 ? 'What should Alalay call you?' : 'How much cash do you have right now?'}
+      </Text>
+      <Text style={{ color: colors.muted, marginTop: 12, lineHeight: 21 }}>
+        {step === 1
+          ? 'Use a name or nickname you’re comfortable seeing in greetings and Alalay AI.'
+          : 'We’ll create your first Cash wallet so you can start tracking immediately. Your opening balance is not income.'}
+      </Text>
+      {step === 1 ? (
+        <TextInput
+          autoFocus
+          value={nickname}
+          onChangeText={(value) => {
+            setNickname(value);
+            setError('');
+          }}
+          placeholder={profile?.nickname || 'Nickname'}
+          placeholderTextColor={colors.subtle}
+          style={{
+            marginTop: 28,
+            padding: 15,
+            borderWidth: 1,
+            borderColor: colors.line,
+            borderRadius: 14,
+            color: colors.ink,
+            backgroundColor: colors.surface,
+          }}
+        />
+      ) : (
+        <>
+          <TextInput
+            value={walletName}
+            onChangeText={setWalletName}
+            placeholder="Cash"
+            placeholderTextColor={colors.subtle}
+            style={{
+              marginTop: 28,
+              padding: 15,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderRadius: 14,
+              color: colors.ink,
+              backgroundColor: colors.surface,
+            }}
+          />
+          <TextInput
+            value={balance}
+            onChangeText={setBalance}
+            keyboardType="decimal-pad"
+            placeholder="0.00"
+            placeholderTextColor={colors.subtle}
+            style={{
+              marginTop: 12,
+              padding: 15,
+              borderWidth: 1,
+              borderColor: colors.line,
+              borderRadius: 14,
+              color: colors.ink,
+              backgroundColor: colors.surface,
+            }}
+          />
+        </>
+      )}
+      {error ? <Text style={{ color: colors.danger, marginTop: 12 }}>{error}</Text> : null}
+      <Pressable
+        disabled={saving}
+        onPress={() => void (step === 1 ? continueNickname() : finish())}
+        style={{
+          marginTop: 24,
+          minHeight: 52,
+          borderRadius: 26,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: colors.accent,
+          opacity: saving ? 0.6 : 1,
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '900' }}>
+          {saving ? 'Setting up…' : step === 1 ? 'Continue' : 'Start using Alalay'}
+        </Text>
+      </Pressable>
+    </SafeAreaView>
+  );
 }

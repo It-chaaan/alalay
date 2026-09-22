@@ -34,6 +34,12 @@ export function createServer() {
       credentials: true,
     }),
   );
+  // Health probes originate from the container or platform network and may not
+  // carry the public proxy's HTTPS header. Keep this non-sensitive liveness
+  // endpoint available before HTTPS enforcement.
+  app.get('/health', (_req, res) => {
+    res.json({ status: 'ok' });
+  });
   app.use((_req, res, next) => {
     if (env.HTTPS_ENABLED) {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
@@ -61,15 +67,14 @@ export function createServer() {
     });
   }
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok' });
-  });
-
   // Deliberately outside the user API. A single durable scheduler should invoke
   // these idempotent jobs; no mobile or web client receives this secret.
   const runScheduler: RequestHandler = async (req, res, next) => {
     const job = req.params.job as SchedulerJob;
-    if (!['income', 'billing', 'notifications'].includes(job) || !hasSchedulerSecret(req.header('x-scheduler-secret'), env.INCOME_SCHEDULER_SECRET)) {
+    if (
+      !['income', 'billing', 'notifications'].includes(job) ||
+      !hasSchedulerSecret(req.header('x-scheduler-secret'), env.INCOME_SCHEDULER_SECRET)
+    ) {
       res.status(401).json({
         success: false,
         error: { code: 'unauthorized', message: 'Scheduler authentication failed.' },
@@ -77,11 +82,12 @@ export function createServer() {
       return;
     }
     try {
-      const result = job === 'income'
-        ? { processed: await processIncomeSchedules() }
-        : job === 'billing'
-          ? await runBillingScheduler()
-          : await runNotificationScheduler();
+      const result =
+        job === 'income'
+          ? { processed: await processIncomeSchedules() }
+          : job === 'billing'
+            ? await runBillingScheduler()
+            : await runNotificationScheduler();
       res.json({ success: true, data: { job, ...result } });
     } catch (error) {
       next(error);
@@ -91,10 +97,14 @@ export function createServer() {
 
   // Compatibility for an already-configured external scheduler. Remove after
   // the deployment has switched to /internal/scheduler/income.
-  app.post('/internal/income-scheduler', (req, _res, next) => {
-    req.params.job = 'income';
-    next();
-  }, runScheduler);
+  app.post(
+    '/internal/income-scheduler',
+    (req, _res, next) => {
+      req.params.job = 'income';
+      next();
+    },
+    runScheduler,
+  );
 
   app.use('/api', apiRouter);
 

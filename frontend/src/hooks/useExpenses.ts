@@ -1,6 +1,6 @@
-import { useApiQuery } from "./useApiQuery";
-import type { Expense } from "./types";
+import { useApiQuery } from './useApiQuery';
+import type { Expense } from './types';
 
 export function useExpenses() {
-  return useApiQuery<Expense[]>("/expenses");
+  return useApiQuery<Expense[]>('/expenses');
 }

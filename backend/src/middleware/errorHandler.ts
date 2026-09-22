@@ -1,21 +1,34 @@
-import type { NextFunction, Request, Response } from "express";
-import { AppError } from "../utils/api.js";
-import { randomUUID } from "node:crypto";
-import { env } from "../config/env.js";
+import type { NextFunction, Request, Response } from 'express';
+import { AppError } from '../utils/api.js';
+import { randomUUID } from 'node:crypto';
+import { env } from '../config/env.js';
 
 export function errorHandler(error: unknown, req: Request, res: Response, _next: NextFunction) {
   const correlationId = randomUUID();
-  res.setHeader("X-Correlation-Id", correlationId);
-  const details = error instanceof AppError && error.details
-    ? error.details
-    : error instanceof Error ? error.stack || error.message : String(error);
+  res.setHeader('X-Correlation-Id', correlationId);
+  const details =
+    error instanceof AppError && error.details
+      ? error.details
+      : error instanceof Error
+        ? error.stack || error.message
+        : String(error);
   const status = error instanceof AppError ? error.status : 500;
-  const code = error instanceof AppError ? error.code : "internal_error";
-  const clientRequestId = req.get("X-Request-Id");
-  console.error(`[API] ${req.method} ${req.originalUrl} -> ${status} ${code} [${correlationId}]${clientRequestId ? ` client=${clientRequestId}` : ""}`, details);
+  const code = error instanceof AppError ? error.code : 'internal_error';
+  const clientRequestId = req.get('X-Request-Id');
+  console.error(
+    `[API] ${req.method} ${req.originalUrl} -> ${status} ${code} [${correlationId}]${clientRequestId ? ` client=${clientRequestId}` : ''}`,
+    details,
+  );
 
-  if (error instanceof SyntaxError && "body" in error) {
-    res.status(400).json({ success: false, error: { code: "invalid_json", message: "The request body is not valid JSON.", correlationId } });
+  if (error instanceof SyntaxError && 'body' in error) {
+    res.status(400).json({
+      success: false,
+      error: {
+        code: 'invalid_json',
+        message: 'The request body is not valid JSON.',
+        correlationId,
+      },
+    });
     return;
   }
 
@@ -25,9 +38,9 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
       success: false,
       error: {
         code: error.code,
-        message: isServerError ? "The service is temporarily unavailable." : error.message,
+        message: isServerError ? 'The service is temporarily unavailable.' : error.message,
         correlationId,
-        ...(env.NODE_ENV !== "production" ? { details: error.message } : {}),
+        ...(env.NODE_ENV !== 'production' ? { details: error.message } : {}),
       },
     });
     return;
@@ -36,8 +49,11 @@ export function errorHandler(error: unknown, req: Request, res: Response, _next:
   res.status(500).json({
     success: false,
     error: {
-      code: "internal_error",
-      message: env.NODE_ENV === "production" ? "The service is temporarily unavailable." : "Something went wrong.",
+      code: 'internal_error',
+      message:
+        env.NODE_ENV === 'production'
+          ? 'The service is temporarily unavailable.'
+          : 'Something went wrong.',
       correlationId,
     },
   });

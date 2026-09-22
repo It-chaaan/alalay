@@ -36,7 +36,9 @@ export default function AuthCallbackScreen() {
         // to the dashboard before the MFA assurance check completes.
         router.replace(callback.mode === 'recovery' ? '/(tabs)/settings/change-password' : '/');
       } catch (cause) {
-        setError(cause instanceof Error ? cause.message : 'This confirmation link could not be verified.');
+        setError(
+          cause instanceof Error ? cause.message : 'This confirmation link could not be verified.',
+        );
         setState('error');
       }
     };
@@ -45,21 +47,59 @@ export default function AuthCallbackScreen() {
   }, [url]);
 
   if (state === 'loading') {
-    return <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}><ActivityIndicator color={colors.accent} /><Text style={[styles.title, { color: colors.ink }]}>Confirming your email…</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <ActivityIndicator color={colors.accent} />
+        <Text style={[styles.title, { color: colors.ink }]}>Confirming your email…</Text>
+      </SafeAreaView>
+    );
   }
 
   if (state === 'success') {
-    return <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}><Text style={[styles.title, { color: colors.ink }]}>Email confirmed</Text><Text style={[styles.copy, { color: colors.muted }]}>Your email is confirmed. Opening Alalay…</Text></SafeAreaView>;
+    return (
+      <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={[styles.title, { color: colors.ink }]}>Email confirmed</Text>
+        <Text style={[styles.copy, { color: colors.muted }]}>
+          Your email is confirmed. Opening Alalay…
+        </Text>
+      </SafeAreaView>
+    );
   }
 
-  return <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}><Text style={[styles.title, { color: colors.ink }]}>Confirmation link unavailable</Text><Text style={[styles.copy, { color: colors.muted }]}>{error}</Text><Pressable accessibilityRole="button" onPress={() => router.replace({ pathname: '/auth', params: { mode: 'signin' } })} style={[styles.action, { backgroundColor: colors.accent }]}><Text style={styles.actionText}>Sign in</Text></Pressable><Pressable accessibilityRole="button" onPress={() => router.replace({ pathname: '/auth', params: { mode: 'create' } })} style={styles.secondaryAction}><Text style={[styles.secondaryText, { color: colors.accent }]}>Resend confirmation</Text></Pressable></SafeAreaView>;
+  return (
+    <SafeAreaView style={[styles.center, { backgroundColor: colors.background }]}>
+      <Text style={[styles.title, { color: colors.ink }]}>Confirmation link unavailable</Text>
+      <Text style={[styles.copy, { color: colors.muted }]}>{error}</Text>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.replace({ pathname: '/auth', params: { mode: 'signin' } })}
+        style={[styles.action, { backgroundColor: colors.accent }]}
+      >
+        <Text style={styles.actionText}>Sign in</Text>
+      </Pressable>
+      <Pressable
+        accessibilityRole="button"
+        onPress={() => router.replace({ pathname: '/auth', params: { mode: 'create' } })}
+        style={styles.secondaryAction}
+      >
+        <Text style={[styles.secondaryText, { color: colors.accent }]}>Resend confirmation</Text>
+      </Pressable>
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 28 },
   title: { marginTop: 16, textAlign: 'center', fontSize: 22, fontWeight: '900' },
   copy: { maxWidth: 330, marginTop: 10, textAlign: 'center', fontSize: 14, lineHeight: 21 },
-  action: { minWidth: 180, minHeight: 48, marginTop: 24, alignItems: 'center', justifyContent: 'center', borderRadius: 24 },
+  action: {
+    minWidth: 180,
+    minHeight: 48,
+    marginTop: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+  },
   actionText: { color: '#FFFFFF', fontSize: 14, fontWeight: '800' },
   secondaryAction: { minHeight: 44, marginTop: 8, alignItems: 'center', justifyContent: 'center' },
   secondaryText: { fontSize: 14, fontWeight: '800' },

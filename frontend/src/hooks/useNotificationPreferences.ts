@@ -1,4 +1,4 @@
-import { useApiQuery } from "./useApiQuery";
+import { useApiQuery } from './useApiQuery';
 
 export type NotificationPreferences = {
   user_id: string;
@@ -13,5 +13,5 @@ export type NotificationPreferences = {
 };
 
 export function useNotificationPreferences() {
-  return useApiQuery<NotificationPreferences>("/users/me/notification-preferences");
+  return useApiQuery<NotificationPreferences>('/users/me/notification-preferences');
 }

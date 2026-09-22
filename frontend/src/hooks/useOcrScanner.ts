@@ -1,5 +1,10 @@
-import { useApiQuery } from "./useApiQuery";
+import { useApiQuery } from './useApiQuery';
 
 export function useOcrScanner() {
-  return useApiQuery<{ status: string; message: string; supported_uploads: string[]; readable_fields: string[] }>("/ocr/capabilities");
+  return useApiQuery<{
+    status: string;
+    message: string;
+    supported_uploads: string[];
+    readable_fields: string[];
+  }>('/ocr/capabilities');
 }

@@ -154,6 +154,7 @@ Ask Alalay financial actions remain backend-only tool calls with server-side wal
 These rules exist to push mobile UI work past "functionally correct" toward genuinely well-considered, cared-about interface design — the kind of attention to detail associated with designers like Emil Kowalski (creator of Sonner, Vaul, and other widely-used interaction-focused components). Apply these whenever building or reviewing any mobile screen, not just when explicitly asked for "polish."
 
 ### Motion has to earn its place
+
 - Animate state changes, not decoration. Every transition should communicate something (an item appearing, a value changing, a screen relationship) — don't add motion just because it's easy to add.
 - Match easing to physical intuition: elements entering the screen should generally ease out (fast start, gentle stop); elements leaving should ease in (gentle start, fast exit). Avoid linear easing for anything meant to feel natural.
 - Duration should scale with distance/size — a small icon state change should be quick (~120–180ms); a full-screen transition or larger sheet/modal can run longer (~250–350ms). Don't use one flat duration for everything in the app.
@@ -161,22 +162,26 @@ These rules exist to push mobile UI work past "functionally correct" toward genu
 - Every animation must be interruptible. If a user taps/drags mid-animation, the UI should respond immediately from its current position, not queue up or ignore the input until the animation finishes.
 
 ### Every state deserves real design attention, not just the happy path
+
 - Loading, empty, error, and success states are not afterthoughts — design each one with the same care as the primary content state. A skeleton loader, a genuinely helpful empty state (with a clear next action, not just "No data"), and a specific, actionable error message all matter as much as the fully-loaded screen.
 - Test with realistic data, not placeholder/lorem-ipsum content: long biller names, large peso amounts with many digits, a user with zero bills vs. a user with forty, a very long AI insight paragraph vs. a one-liner. Layouts that only work for "nice" sample data aren't finished.
 - Test edge cases specific to mobile: very long text that must truncate/wrap gracefully, small screens (SE-sized) vs. large screens (Pro Max/tablet), one-handed reachability for primary actions.
 
 ### Spacing, alignment, and consistency
+
 - Use a single consistent spacing scale (e.g. 4/8/12/16/24/32) throughout the app — don't introduce arbitrary one-off pixel/point values per screen.
-- Align optically, not just mathematically — icons, text baselines, and touch targets sometimes need small manual nudges (1–2px) to *look* aligned even when their bounding boxes are technically aligned, especially with rounded shapes or asymmetric glyphs.
+- Align optically, not just mathematically — icons, text baselines, and touch targets sometimes need small manual nudges (1–2px) to _look_ aligned even when their bounding boxes are technically aligned, especially with rounded shapes or asymmetric glyphs.
 - Keep a limited, deliberate type scale (a handful of sizes/weights used consistently for their role — heading, body, caption, label) rather than picking a new font size for each new piece of text as it's built.
 - Respect platform convention where it matters (iOS vs. Android navigation patterns, back gesture behavior, action sheet vs. bottom sheet idioms) rather than forcing one platform's patterns onto the other purely for codebase simplicity.
 
 ### Restraint over decoration
+
 - Prefer subtle, functional visual cues (borders, slight elevation, spacing) over heavy shadows, gradients, or effects added purely for visual interest. If a shadow or effect doesn't communicate hierarchy or state, question whether it's needed.
 - Reduce before adding. When a screen feels cluttered or busy, the fix is usually removing or consolidating elements, not adding more structure (borders, dividers, background colors) to organize them.
 - Microcopy matters — button labels, empty-state text, and error messages should be specific and human ("Add your first bill to see it here" beats "No data"), not generic templated copy.
 
 ### Iteration and self-review
+
 - After building a screen, deliberately review it against this checklist before considering it done: Does every interactive element have a pressed/active state? Does every async action have a loading state? Does every list have a genuine empty state? Is spacing consistent with the rest of the app? Would this still look intentional with unusually long or unusually short real data?
 - When something feels "almost right but off," the cause is very often spacing, alignment, or timing — not color or content. Check those first before reaching for a bigger redesign.
 - Prefer showing a before/after or brief description of what changed when reporting UI work, so design decisions are visible and reviewable, not just asserted as done.

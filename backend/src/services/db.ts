@@ -1,15 +1,15 @@
-import { getSupabase } from "../config/supabase.js";
-import { AppError } from "../utils/api.js";
+import { getSupabase } from '../config/supabase.js';
+import { AppError } from '../utils/api.js';
 
-export type TableName = "bills" | "expenses" | "income" | "subscriptions" | "savings_goals";
+export type TableName = 'bills' | 'expenses' | 'income' | 'subscriptions' | 'savings_goals';
 
 export function asNumber(value: unknown) {
-  if (typeof value === "number") {
+  if (typeof value === 'number') {
     return Number.isFinite(value) ? value : 0;
   }
 
-  if (typeof value === "string") {
-    const parsed = Number(value.replace(/[^\d.-]/g, ""));
+  if (typeof value === 'string') {
+    const parsed = Number(value.replace(/[^\d.-]/g, ''));
 
     return Number.isFinite(parsed) ? parsed : 0;
   }
@@ -21,31 +21,31 @@ export function asNumber(value: unknown) {
 
 export function requireUserId(userId: string | undefined) {
   if (!userId) {
-    throw new AppError(401, "unauthorized", "Authentication is required.");
+    throw new AppError(401, 'unauthorized', 'Authentication is required.');
   }
   return userId;
 }
 
-const appTimeZone = "Asia/Manila";
+const appTimeZone = 'Asia/Manila';
 
 function zonedDateParts(date: Date) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: appTimeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
   }).formatToParts(date);
 
   return {
-    year: Number(parts.find((part) => part.type === "year")?.value),
-    month: Number(parts.find((part) => part.type === "month")?.value),
-    day: Number(parts.find((part) => part.type === "day")?.value),
+    year: Number(parts.find((part) => part.type === 'year')?.value),
+    month: Number(parts.find((part) => part.type === 'month')?.value),
+    day: Number(parts.find((part) => part.type === 'day')?.value),
   };
 }
 
 export function todayIso(date = new Date()) {
   const parts = zonedDateParts(date);
-  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(parts.day).padStart(2, "0")}`;
+  return `${parts.year}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
 }
 
 export function addDaysIso(days: number) {
@@ -56,9 +56,9 @@ export function addDaysIso(days: number) {
 
 export function monthRange(date = new Date()) {
   const parts = zonedDateParts(date);
-  const start = `${parts.year}-${String(parts.month).padStart(2, "0")}-01`;
+  const start = `${parts.year}-${String(parts.month).padStart(2, '0')}-01`;
   const daysInMonth = new Date(Date.UTC(parts.year, parts.month, 0)).getUTCDate();
-  const end = `${parts.year}-${String(parts.month).padStart(2, "0")}-${daysInMonth}`;
+  const end = `${parts.year}-${String(parts.month).padStart(2, '0')}-${daysInMonth}`;
   return {
     start,
     end,
@@ -73,32 +73,74 @@ export function previousMonthRange(date = new Date()) {
 
 export function throwIfError(error: { message: string; code?: string; details?: string } | null) {
   if (error) {
-    const code = error.code ?? "unknown";
-    if (code === "23505") throw new AppError(409, "database_conflict", "This record already exists.", `${code}: ${error.message}`);
-    if (code === "23514" && error.message.includes("income_type_check")) {
-      throw new AppError(400, "invalid_income_category", "Select an income category.", `${code}: ${error.message}`);
+    const code = error.code ?? 'unknown';
+    if (code === '23505')
+      throw new AppError(
+        409,
+        'database_conflict',
+        'This record already exists.',
+        `${code}: ${error.message}`,
+      );
+    if (code === '23514' && error.message.includes('income_type_check')) {
+      throw new AppError(
+        400,
+        'invalid_income_category',
+        'Select an income category.',
+        `${code}: ${error.message}`,
+      );
     }
-    if (code === "23503" && error.message.includes("income_wallet_id_fkey")) {
-      throw new AppError(400, "invalid_wallet", "Select where this income was received.", `${code}: ${error.message}`);
+    if (code === '23503' && error.message.includes('income_wallet_id_fkey')) {
+      throw new AppError(
+        400,
+        'invalid_wallet',
+        'Select where this income was received.',
+        `${code}: ${error.message}`,
+      );
     }
-    if (code === "P0001" && error.message.includes("income destination wallet")) {
-      throw new AppError(400, "invalid_wallet", "Choose one of your wallets.", `${code}: ${error.message}`);
+    if (code === 'P0001' && error.message.includes('income destination wallet')) {
+      throw new AppError(
+        400,
+        'invalid_wallet',
+        'Choose one of your wallets.',
+        `${code}: ${error.message}`,
+      );
     }
-    if (code === "P0001" && /Contribution must be|Contribution date is required|enough available|exceeds the goal target/.test(error.message)) {
-      throw new AppError(422, "validation_error", error.message, `${code}: ${error.message}`);
+    if (
+      code === 'P0001' &&
+      /Contribution must be|Contribution date is required|enough available|exceeds the goal target/.test(
+        error.message,
+      )
+    ) {
+      throw new AppError(422, 'validation_error', error.message, `${code}: ${error.message}`);
     }
-    if (code === "P0001" && /Goal not found|Wallet not found/.test(error.message)) {
-      throw new AppError(404, "not_found", "The goal or wallet could not be found.", `${code}: ${error.message}`);
+    if (code === 'P0001' && /Goal not found|Wallet not found/.test(error.message)) {
+      throw new AppError(
+        404,
+        'not_found',
+        'The goal or wallet could not be found.',
+        `${code}: ${error.message}`,
+      );
     }
-    if (code === "23503" || code === "23514" || code.startsWith("22")) throw new AppError(400, "database_validation", "The submitted information could not be saved.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
-    throw new AppError(500, "database_error", "The database operation could not be completed.", `${code}: ${error.message}${error.details ? ` (${error.details})` : ""}`);
+    if (code === '23503' || code === '23514' || code.startsWith('22'))
+      throw new AppError(
+        400,
+        'database_validation',
+        'The submitted information could not be saved.',
+        `${code}: ${error.message}${error.details ? ` (${error.details})` : ''}`,
+      );
+    throw new AppError(
+      500,
+      'database_error',
+      'The database operation could not be completed.',
+      `${code}: ${error.message}${error.details ? ` (${error.details})` : ''}`,
+    );
   }
 }
 
 function toDateOnlyIso(date: Date) {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
 
   return `${year}-${month}-${day}`;
 }

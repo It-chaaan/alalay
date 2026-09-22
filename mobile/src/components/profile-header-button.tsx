@@ -10,12 +10,41 @@ export function ProfileHeaderButton() {
   const { colors } = useAppTheme();
   const { profile } = useCurrentProfile();
 
-  return <Pressable accessibilityRole="button" accessibilityLabel="Open Settings" style={({ pressed }) => [styles.button, { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border }, pressed && styles.pressed]} onPress={() => router.push('/(tabs)/settings')}>
-    {profile ? <ProfileAvatar name={profile.name} url={profile.avatarUrl} size={44} color={colors.primary} /> : <UserCircle size={27} color={colors.textPrimary} strokeWidth={1.7} />}
-  </Pressable>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="Open Settings"
+      style={({ pressed }) => [
+        styles.button,
+        { backgroundColor: colors.surfaceTranslucent, borderColor: colors.border },
+        pressed && styles.pressed,
+      ]}
+      onPress={() => router.push('/(tabs)/settings')}
+    >
+      {profile ? (
+        <ProfileAvatar
+          name={profile.name}
+          url={profile.avatarUrl}
+          size={44}
+          color={colors.primary}
+        />
+      ) : (
+        <UserCircle size={27} color={colors.textPrimary} strokeWidth={1.7} />
+      )}
+    </Pressable>
+  );
 }
 
 const styles = StyleSheet.create({
-  button: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.14)' },
+  button: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.14)',
+  },
   pressed: { opacity: 0.72 },
 });

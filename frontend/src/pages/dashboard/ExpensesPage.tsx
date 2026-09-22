@@ -1,83 +1,101 @@
-import type { Session } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
-import { MenuAction, MoreActionsMenu } from "../../components/dashboard/BillsComponents";
-import { ExpenseFormPanel } from "../../components/forms/FinancialActionPanels";
-import { DashboardShell } from "../../components/layout/DashboardShell";
-import { useActionDialog } from "../../hooks/useActionDialog";
-import { useApiMutation } from "../../hooks/useApiMutation";
-import { useBills } from "../../hooks/useBills";
-import { useExpenses } from "../../hooks/useExpenses";
-import type { Bill, Expense } from "../../hooks/types";
-import { formatCurrency, formatDateShort } from "../../utils/formatters";
-import { getCategoryColor } from "../../utils/categoryColors";
-import { Pen, Scan, Trash2 } from "lucide-react";
-import { CategoryBadge } from "../../components/ui/CategoryBadge";
-import { CategoryIcon } from "../../components/ui/CategoryIcon";
-import { groupExpensesByDate } from "../../utils/expenseGrouping";
-import { ExpensesSkeleton, SlowLoadNotice } from "../../components/ui/Skeleton";
-import { SectionToolbar } from "../../components/dashboard/SectionToolbar";
-import { FinancialOverviewCard } from "../../components/dashboard/FinancialOverviewCard";
+import type { Session } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
+import { MenuAction, MoreActionsMenu } from '../../components/dashboard/BillsComponents';
+import { ExpenseFormPanel } from '../../components/forms/FinancialActionPanels';
+import { DashboardShell } from '../../components/layout/DashboardShell';
+import { useActionDialog } from '../../hooks/useActionDialog';
+import { useApiMutation } from '../../hooks/useApiMutation';
+import { useBills } from '../../hooks/useBills';
+import { useExpenses } from '../../hooks/useExpenses';
+import type { Bill, Expense } from '../../hooks/types';
+import { formatCurrency, formatDateShort } from '../../utils/formatters';
+import { getCategoryColor } from '../../utils/categoryColors';
+import { Pen, Scan, Trash2 } from 'lucide-react';
+import { CategoryBadge } from '../../components/ui/CategoryBadge';
+import { CategoryIcon } from '../../components/ui/CategoryIcon';
+import { groupExpensesByDate } from '../../utils/expenseGrouping';
+import { ExpensesSkeleton, SlowLoadNotice } from '../../components/ui/Skeleton';
+import { SectionToolbar } from '../../components/dashboard/SectionToolbar';
+import { FinancialOverviewCard } from '../../components/dashboard/FinancialOverviewCard';
 
-type ExpenseListItem = Expense & { source: "expense" | "bill" };
+type ExpenseListItem = Expense & { source: 'expense' | 'bill' };
 
 export function ExpensesPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
-  const name = session.user.user_metadata?.name || session.user.email?.split("@")[0] || "Juan";
-  const logExpenseDialog = useActionDialog("log-expense");
-  const editExpenseDialog = useActionDialog("edit-expense");
+  const name = session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
+  const logExpenseDialog = useActionDialog('log-expense');
+  const editExpenseDialog = useActionDialog('edit-expense');
   const [selectedExpense, setSelectedExpense] = useState<Expense | null>(null);
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const { data: expenses, isLoading: expensesLoading, isSlowLoading: expensesSlow, error: expensesError, refetch } = useExpenses();
-  const { data: bills, isLoading: billsLoading, isSlowLoading: billsSlow, error: billsError } = useBills();
+  const {
+    data: expenses,
+    isLoading: expensesLoading,
+    isSlowLoading: expensesSlow,
+    error: expensesError,
+    refetch,
+  } = useExpenses();
+  const {
+    data: bills,
+    isLoading: billsLoading,
+    isSlowLoading: billsSlow,
+    error: billsError,
+  } = useBills();
   const { mutate, isSubmitting, error: mutationError } = useApiMutation();
   const items: ExpenseListItem[] = [
-    ...(expenses ?? []).map((expense) => ({ ...expense, source: "expense" as const })),
+    ...(expenses ?? []).map((expense) => ({ ...expense, source: 'expense' as const })),
     ...(bills ?? [])
-      .filter((bill: Bill) => bill.status === "paid")
+      .filter((bill: Bill) => bill.status === 'paid')
       .map((bill) => ({
         id: bill.id,
         amount: bill.amount,
         category: bill.category,
         merchant: bill.title,
         date: bill.paid_at?.slice(0, 10) ?? bill.due_date,
-        payment_method: "bill",
+        payment_method: 'bill',
         receipt_url: null,
         ocr_raw: null,
         is_split: false,
         split_with: [],
         created_at: bill.created_at,
-        source: "bill" as const,
+        source: 'bill' as const,
       })),
   ];
   const dateGroups = groupExpensesByDate(items);
-const isLoading = expensesLoading || billsLoading;
-const isSlowLoading = expensesSlow || billsSlow;
+  const isLoading = expensesLoading || billsLoading;
+  const isSlowLoading = expensesSlow || billsSlow;
   const error = expensesError ?? billsError;
   const total = items.reduce((sum, item) => sum + Number(item.amount), 0);
   const categories = Array.from(new Set(items.map((item) => item.category)));
   const categoryBreakdown = categories.map((category, index) => {
-    const amount = items.filter((item) => item.category === category).reduce((sum, item) => sum + Number(item.amount), 0);
-    return { category, amount, percent: total ? (amount / total) * 100 : 0, color: getCategoryColor(category, index) };
+    const amount = items
+      .filter((item) => item.category === category)
+      .reduce((sum, item) => sum + Number(item.amount), 0);
+    return {
+      category,
+      amount,
+      percent: total ? (amount / total) * 100 : 0,
+      color: getCategoryColor(category, index),
+    };
   });
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
+      if (event.key === 'Escape') {
         setOpenMenuId(null);
       }
     }
 
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as HTMLElement | null;
-      if (target && !target.closest("[data-actions-menu]")) {
+      if (target && !target.closest('[data-actions-menu]')) {
         setOpenMenuId(null);
       }
     }
 
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("click", handleClickOutside);
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('click', handleClickOutside);
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("click", handleClickOutside);
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('click', handleClickOutside);
     };
   }, []);
 
@@ -99,7 +117,7 @@ const isSlowLoading = expensesSlow || billsSlow;
     }
 
     try {
-      await mutate(`/expenses/${expense.id}`, { method: "DELETE" });
+      await mutate(`/expenses/${expense.id}`, { method: 'DELETE' });
       setOpenMenuId(null);
       refetch();
     } catch {
@@ -121,26 +139,42 @@ const isSlowLoading = expensesSlow || billsSlow;
         primary={formatCurrency(total)}
         primaryLabel="Total spent"
         metrics={[
-          { label: "Categories", value: String(categories.length) },
-          { label: "Transactions", value: String(items.length) },
-          { label: "Average transaction", value: formatCurrency(items.length ? total / items.length : 0) },
+          { label: 'Categories', value: String(categories.length) },
+          { label: 'Transactions', value: String(items.length) },
+          {
+            label: 'Average transaction',
+            value: formatCurrency(items.length ? total / items.length : 0),
+          },
         ]}
       />
 
       <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <h2 className="font-semibold">Spending by category</h2>
         <div className="mt-4 flex h-8 overflow-hidden rounded-full">
-          {categoryBreakdown.length ? categoryBreakdown.map((item) => (
-            <div key={item.category} style={{ width: `${item.percent}%`, backgroundColor: item.color }} title={`${item.category}: ${formatCurrency(item.amount)}`} />
-          )) : <div className="w-full bg-slate-100" />}
+          {categoryBreakdown.length ? (
+            categoryBreakdown.map((item) => (
+              <div
+                key={item.category}
+                style={{ width: `${item.percent}%`, backgroundColor: item.color }}
+                title={`${item.category}: ${formatCurrency(item.amount)}`}
+              />
+            ))
+          ) : (
+            <div className="w-full bg-slate-100" />
+          )}
         </div>
         {categoryBreakdown.length ? (
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600" aria-label="Spending by category legend">
+          <div
+            className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-slate-600"
+            aria-label="Spending by category legend"
+          >
             {categoryBreakdown.map((item) => (
               <span key={item.category} className="inline-flex items-center gap-2">
                 <CategoryIcon category={item.category} />
                 <span>{item.category}</span>
-                <span className="font-mono text-slate-500">{formatCurrency(item.amount)} ({item.percent.toFixed(1)}%)</span>
+                <span className="font-mono text-slate-500">
+                  {formatCurrency(item.amount)} ({item.percent.toFixed(1)}%)
+                </span>
               </span>
             ))}
           </div>
@@ -149,16 +183,49 @@ const isSlowLoading = expensesSlow || billsSlow;
 
       <div className="mt-5">
         <SectionToolbar title="Recent Expenses" count={items.length}>
-          <button type="button" onClick={() => window.location.assign("/app/ocr-scanner")} className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"><Scan className="h-4 w-4" />Scan receipt</button>
-          <button type="button" onClick={() => { setSelectedExpense(null); logExpenseDialog.open(); }} className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><span className="text-lg leading-none">+</span>Log expense</button>
+          <button
+            type="button"
+            onClick={() => window.location.assign('/app/ocr-scanner')}
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium"
+          >
+            <Scan className="h-4 w-4" />
+            Scan receipt
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedExpense(null);
+              logExpenseDialog.open();
+            }}
+            className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            <span className="text-lg leading-none">+</span>Log expense
+          </button>
         </SectionToolbar>
       </div>
 
       <div className="mt-4 space-y-5">
-{isLoading ? <><ExpensesSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}
-        {error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}
-        {mutationError ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{mutationError}</div> : null}
-        {!isLoading && !error && items.length === 0 ? <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">No expenses yet. Log an expense to start seeing your spending.</div> : null}
+        {isLoading ? (
+          <>
+            <ExpensesSkeleton />
+            <SlowLoadNotice show={isSlowLoading} />
+          </>
+        ) : null}
+        {error ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+            {error}
+          </div>
+        ) : null}
+        {mutationError ? (
+          <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+            {mutationError}
+          </div>
+        ) : null}
+        {!isLoading && !error && items.length === 0 ? (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm">
+            No expenses yet. Log an expense to start seeing your spending.
+          </div>
+        ) : null}
         {dateGroups.map((group) => (
           <section key={group.date}>
             <div className="mb-2 flex items-center justify-between text-sm text-slate-500">
@@ -167,31 +234,54 @@ const isSlowLoading = expensesSlow || billsSlow;
             </div>
             <div className="space-y-3">
               {group.items.map((item) => (
-                <div key={`${item.source}-${item.id}`} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                <div
+                  key={`${item.source}-${item.id}`}
+                  className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+                >
                   <div className="flex items-center justify-between border-b border-slate-100 p-4 last:border-0">
                     <div className="min-w-0">
                       <div className="font-medium">{item.merchant}</div>
-                      <div className="mt-1 flex items-center gap-2 text-xs"><CategoryBadge category={item.category} compact /><span className="rounded-full bg-slate-100 px-2 py-0.5">{item.payment_method}</span></div>
+                      <div className="mt-1 flex items-center gap-2 text-xs">
+                        <CategoryBadge category={item.category} compact />
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                          {item.payment_method}
+                        </span>
+                      </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="font-mono font-semibold">{formatCurrency(Number(item.amount))}</div>
-                      {item.source === "expense" ? (
+                      <div className="font-mono font-semibold">
+                        {formatCurrency(Number(item.amount))}
+                      </div>
+                      {item.source === 'expense' ? (
                         <MoreActionsMenu
                           isOpen={openMenuId === item.id}
-                          onToggle={() => setOpenMenuId((current) => (current === item.id ? null : item.id))}
+                          onToggle={() =>
+                            setOpenMenuId((current) => (current === item.id ? null : item.id))
+                          }
                           ariaLabel={`More actions for ${item.merchant} expense`}
                           estimatedMenuHeight={96}
                         >
-                          <MenuAction icon={Pen} label="Edit expense" tone="info" onClick={() => openEditExpense(item)} />
+                          <MenuAction
+                            icon={Pen}
+                            label="Edit expense"
+                            tone="info"
+                            onClick={() => openEditExpense(item)}
+                          />
                           <MenuAction
                             icon={Trash2}
                             label="Delete expense"
                             tone="danger"
                             disabled={isSubmitting}
-                            onClick={() => { void deleteExpense(item); }}
+                            onClick={() => {
+                              void deleteExpense(item);
+                            }}
                           />
                         </MoreActionsMenu>
-                      ) : <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">Paid bill</span>}
+                      ) : (
+                        <span className="rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+                          Paid bill
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

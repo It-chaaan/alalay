@@ -1,7 +1,7 @@
-import { Search, ArrowLeft } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useApiQuery } from "../../hooks/useApiQuery";
-import { NotificationBell } from "../notifications/NotificationBell";
+import { Search, ArrowLeft } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { useApiQuery } from '../../hooks/useApiQuery';
+import { NotificationBell } from '../notifications/NotificationBell';
 
 type SearchData = {
   wallets: Array<{ name: string }>;
@@ -16,7 +16,7 @@ export function DesktopPageHeader({
   subtitle,
   searchData,
   backHref,
-  backLabel = "Go back",
+  backLabel = 'Go back',
 }: {
   title: React.ReactNode;
   subtitle?: React.ReactNode;
@@ -24,11 +24,11 @@ export function DesktopPageHeader({
   backHref?: string;
   backLabel?: string;
 }) {
-  const [query, setQuery] = useState("");
-  const { data: wallets } = useApiQuery<Array<{ name: string }>>(searchData ? "" : "/wallets");
-  const { data: bills } = useApiQuery<Array<{ title: string }>>(searchData ? "" : "/bills");
+  const [query, setQuery] = useState('');
+  const { data: wallets } = useApiQuery<Array<{ name: string }>>(searchData ? '' : '/wallets');
+  const { data: bills } = useApiQuery<Array<{ title: string }>>(searchData ? '' : '/bills');
   const { data: subscriptions } = useApiQuery<Array<{ name: string }>>(
-    searchData ? "" : "/subscriptions",
+    searchData ? '' : '/subscriptions',
   );
   const normalizedQuery = query.trim().toLowerCase();
   const matches = useMemo<SearchMatch[]>(() => {
@@ -43,26 +43,26 @@ export function DesktopPageHeader({
     return [
       ...data.wallets
         .filter((wallet) => wallet.name.toLowerCase().includes(normalizedQuery))
-        .map((wallet) => ({ label: wallet.name, group: "Wallets", href: "/app/wallets" })),
+        .map((wallet) => ({ label: wallet.name, group: 'Wallets', href: '/app/wallets' })),
       ...data.bills
         .filter((bill) => bill.title.toLowerCase().includes(normalizedQuery))
-        .map((bill) => ({ label: bill.title, group: "Bills", href: "/app/bills" })),
+        .map((bill) => ({ label: bill.title, group: 'Bills', href: '/app/bills' })),
       ...data.subscriptions
         .filter((subscription) => subscription.name.toLowerCase().includes(normalizedQuery))
         .map((subscription) => ({
           label: subscription.name,
-          group: "Subscriptions",
-          href: "/app/subscriptions",
+          group: 'Subscriptions',
+          href: '/app/subscriptions',
         })),
     ].slice(0, 6);
   }, [bills, normalizedQuery, searchData, subscriptions, wallets]);
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Escape") {
-      setQuery("");
+    if (event.key === 'Escape') {
+      setQuery('');
     }
 
-    if (event.key === "Enter" && matches[0]) {
+    if (event.key === 'Enter' && matches[0]) {
       window.location.assign(matches[0].href);
     }
   }
@@ -80,14 +80,21 @@ export function DesktopPageHeader({
           </a>
         ) : null}
         <div className="min-w-0">
-          <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">{title}</h1>
-          {subtitle ? <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div> : null}
+          <h1 className="page-header-title text-2xl font-bold tracking-normal text-slate-950">
+            {title}
+          </h1>
+          {subtitle ? (
+            <div className="page-header-subtitle mt-0.5 text-xs text-slate-500">{subtitle}</div>
+          ) : null}
         </div>
       </div>
 
       <div className="flex w-full items-center justify-end gap-2 sm:w-auto">
         <div className="relative hidden sm:block">
-          <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400"
+          />
           <input
             value={query}
             onChange={(event) => setQuery(event.target.value)}
@@ -98,12 +105,20 @@ export function DesktopPageHeader({
           />
           {normalizedQuery ? (
             <div className="absolute right-0 top-12 z-50 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-              {matches.length ? matches.map((match, index) => (
-                <a key={`${match.group}-${match.label}-${index}`} href={match.href} className="block rounded-lg px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800">
-                  <span className="block text-xs text-slate-400">{match.group}</span>
-                  <span className="block truncate text-sm font-medium">{match.label}</span>
-                </a>
-              )) : <p className="px-3 py-3 text-sm text-slate-500">No Alalay matches.</p>}
+              {matches.length ? (
+                matches.map((match, index) => (
+                  <a
+                    key={`${match.group}-${match.label}-${index}`}
+                    href={match.href}
+                    className="block rounded-lg px-3 py-2 hover:bg-slate-50 dark:hover:bg-slate-800"
+                  >
+                    <span className="block text-xs text-slate-400">{match.group}</span>
+                    <span className="block truncate text-sm font-medium">{match.label}</span>
+                  </a>
+                ))
+              ) : (
+                <p className="px-3 py-3 text-sm text-slate-500">No Alalay matches.</p>
+              )}
             </div>
           ) : null}
         </div>

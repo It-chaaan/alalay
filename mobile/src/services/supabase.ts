@@ -85,7 +85,9 @@ function isValidPublicSupabaseUrl(value: string | undefined) {
   if (!value) return false;
   try {
     const url = new URL(value);
-    return (url.protocol === 'https:' || (__DEV__ && url.protocol === 'http:')) && Boolean(url.hostname);
+    return (
+      (url.protocol === 'https:' || (__DEV__ && url.protocol === 'http:')) && Boolean(url.hostname)
+    );
   } catch {
     return false;
   }
@@ -101,7 +103,11 @@ function isValidPublicSupabaseKey(value: string | undefined) {
   if (parts.length !== 3) return false;
   try {
     const encodedPayload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(encodedPayload.padEnd(encodedPayload.length + (4 - encodedPayload.length % 4) % 4, '=')));
+    const payload = JSON.parse(
+      atob(
+        encodedPayload.padEnd(encodedPayload.length + ((4 - (encodedPayload.length % 4)) % 4), '='),
+      ),
+    );
     return payload.role !== 'service_role';
   } catch {
     return false;
@@ -109,8 +115,10 @@ function isValidPublicSupabaseKey(value: string | undefined) {
 }
 
 export function hasPublicSupabaseConfiguration() {
-  return isValidPublicSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL)
-    && isValidPublicSupabaseKey(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY);
+  return (
+    isValidPublicSupabaseUrl(process.env.EXPO_PUBLIC_SUPABASE_URL) &&
+    isValidPublicSupabaseKey(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY)
+  );
 }
 
 export function getSupabaseClient() {

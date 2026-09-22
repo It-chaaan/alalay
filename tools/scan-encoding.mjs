@@ -32,13 +32,13 @@ async function filesUnder(directory) {
 const findings = [];
 for (const root of roots) {
   try {
-  for (const path of await filesUnder(root)) {
-    const content = await readFile(path, 'utf8');
-    const lines = content.split(/\r?\n/u);
-    lines.forEach((line, index) => {
-      if (markerPattern.test(line)) findings.push(`${relative('.', path)}:${index + 1}`);
-    });
-  }
+    for (const path of await filesUnder(root)) {
+      const content = await readFile(path, 'utf8');
+      const lines = content.split(/\r?\n/u);
+      lines.forEach((line, index) => {
+        if (markerPattern.test(line)) findings.push(`${relative('.', path)}:${index + 1}`);
+      });
+    }
   } catch (error) {
     if (error?.code !== 'ENOENT') throw error;
   }

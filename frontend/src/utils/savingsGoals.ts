@@ -11,7 +11,11 @@ export function getMonthlyNeeded(currentAmount: number, targetAmount: number, de
   return remaining ? remaining / monthsUntil(deadline) : 0;
 }
 
-export function getProjectedGoalDate(currentAmount: number, targetAmount: number, monthlyContribution: number) {
+export function getProjectedGoalDate(
+  currentAmount: number,
+  targetAmount: number,
+  monthlyContribution: number,
+) {
   const remaining = Math.max(0, targetAmount - currentAmount);
 
   if (!remaining || monthlyContribution <= 0) {

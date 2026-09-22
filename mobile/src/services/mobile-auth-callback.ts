@@ -24,13 +24,17 @@ function getCallbackParams(url: string) {
   };
 }
 
-export async function processMobileAuthCallback(supabase: SupabaseClient, url: string): Promise<MobileCallbackResult> {
+export async function processMobileAuthCallback(
+  supabase: SupabaseClient,
+  url: string,
+): Promise<MobileCallbackResult> {
   const existing = callbackPromises.get(url);
   if (existing) return existing;
   if (processedCallbacks.has(url)) {
     const { data, error } = await supabase.auth.getSession();
     if (error) throw error;
-    if (!data.session) throw new Error('This callback was already processed and no mobile session is available.');
+    if (!data.session)
+      throw new Error('This callback was already processed and no mobile session is available.');
     return { mode: null, session: data.session };
   }
 
@@ -45,7 +49,10 @@ export async function processMobileAuthCallback(supabase: SupabaseClient, url: s
   }
 }
 
-async function processMobileAuthCallbackOnce(supabase: SupabaseClient, url: string): Promise<MobileCallbackResult> {
+async function processMobileAuthCallbackOnce(
+  supabase: SupabaseClient,
+  url: string,
+): Promise<MobileCallbackResult> {
   if (__DEV__) console.info('[Mobile OAuth] Callback processing started:', true);
   const params = getCallbackParams(url);
   if (params.error) throw new Error('Google sign-in could not be completed. Please try again.');
@@ -55,11 +62,16 @@ async function processMobileAuthCallbackOnce(supabase: SupabaseClient, url: stri
     if (result.error) throw result.error;
     if (__DEV__) console.info('[Mobile OAuth] Code exchange succeeded:', true);
   } else if (params.accessToken && params.refreshToken) {
-    const result = await supabase.auth.setSession({ access_token: params.accessToken, refresh_token: params.refreshToken });
+    const result = await supabase.auth.setSession({
+      access_token: params.accessToken,
+      refresh_token: params.refreshToken,
+    });
     if (result.error) throw result.error;
     if (__DEV__) console.info('[Mobile OAuth] Token session exchange succeeded:', true);
   } else {
-    throw new Error('This confirmation link is missing the required parameters or has already been used.');
+    throw new Error(
+      'This confirmation link is missing the required parameters or has already been used.',
+    );
   }
 
   const { data, error } = await supabase.auth.getSession();

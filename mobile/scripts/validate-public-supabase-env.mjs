@@ -14,14 +14,23 @@ const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 function validUrl(value) {
-  try { const parsed = new URL(value); return parsed.protocol === 'https:' && Boolean(parsed.hostname); } catch { return false; }
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === 'https:' && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
 }
 function validKey(value) {
   if (!value || value.length < 20) return false;
   if (value.startsWith('sb_publishable_')) return true;
   const parts = value.split('.');
   if (parts.length !== 3) return false;
-  try { return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')).role !== 'service_role'; } catch { return false; }
+  try {
+    return JSON.parse(Buffer.from(parts[1], 'base64url').toString('utf8')).role !== 'service_role';
+  } catch {
+    return false;
+  }
 }
 
 if (!validUrl(url) || !validKey(key)) {

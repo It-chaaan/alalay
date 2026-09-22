@@ -405,10 +405,7 @@ export default function Budget() {
                 {data.categories
                   ?.filter((category) => !category.goal)
                   .map((category) => (
-                    <BudgetCategoryRow
-                      key={category.id}
-                      category={category}
-                    />
+                    <BudgetCategoryRow key={category.id} category={category} />
                   ))}
               </View>
             ) : (
@@ -537,9 +534,7 @@ function BudgetSummary({
           <Metric label="Used" value={peso(spent)} />
           <Metric
             label="Remaining"
-            value={
-              over ? `-${peso(Math.abs(remaining))}` : peso(remaining)
-            }
+            value={over ? `-${peso(Math.abs(remaining))}` : peso(remaining)}
             tone={over ? 'danger' : 'positive'}
           />
         </View>
@@ -588,11 +583,7 @@ function Metric({
   );
 }
 
-function BudgetCategoryRow({
-  category,
-}: {
-  category: Category;
-}) {
+function BudgetCategoryRow({ category }: { category: Category }) {
   const over = category.spent > category.budget;
   const color = getCategoryMeta(category.name).color;
   const tone = over ? formPalette.danger : color;
@@ -753,7 +744,11 @@ function BudgetForm({
     return commonCategoryEntries();
   }, [copyLastMonthSetup, pendingTemplate, previousSummary, startEmpty, summary, shortfalls]);
   const [entries, setEntries] = useState<BudgetEntry[]>(initialEntries);
-  const [monthlyBudget, setMonthlyBudget] = useState(() => String(summary?.budget_amount ?? (copyLastMonthSetup ? previousSummary?.budget_amount ?? '' : '')));
+  const [monthlyBudget, setMonthlyBudget] = useState(() =>
+    String(
+      summary?.budget_amount ?? (copyLastMonthSetup ? (previousSummary?.budget_amount ?? '') : ''),
+    ),
+  );
   const [drafts, setDrafts] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       initialEntries.map((entry) => [entry.id, entry.budget ? String(entry.budget) : '']),
@@ -1172,12 +1167,18 @@ function TemplatePicker({
               style={({ pressed }) => [
                 styles.templateCard,
                 { backgroundColor: colors.surfaceInput, borderColor: colors.border },
-                !previousSummary?.categories.some((category) => !category.goal) && { opacity: 0.55 },
+                !previousSummary?.categories.some((category) => !category.goal) && {
+                  opacity: 0.55,
+                },
                 pressed && styles.pressed,
               ]}
             >
-              <Text style={[styles.templateName, { color: colors.textPrimary }]}>Copy last month</Text>
-              <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>Reuse your most recent budget categories and limits.</Text>
+              <Text style={[styles.templateName, { color: colors.textPrimary }]}>
+                Copy last month
+              </Text>
+              <Text style={[styles.templateDescription, { color: colors.textSecondary }]}>
+                Reuse your most recent budget categories and limits.
+              </Text>
               <Text style={[styles.templatePreview, { color: colors.primary }]}>
                 {previousSummary?.categories.some((category) => !category.goal)
                   ? `${monthLabel(previousSummary.month)} · ${previousSummary.categories.filter((category) => !category.goal).length} categories · ${peso(previousSummary.budget_amount)}`

@@ -1,26 +1,35 @@
-import { readAppSettings, type CurrencyCode, type DateFormat } from "../lib/appSettings";
+import { readAppSettings, type CurrencyCode, type DateFormat } from '../lib/appSettings';
 
 const currencyLocales: Record<CurrencyCode, string> = {
-  PHP: "en-PH",
-  USD: "en-US",
-  EUR: "de-DE",
-  JPY: "ja-JP",
-  SGD: "en-SG",
+  PHP: 'en-PH',
+  USD: 'en-US',
+  EUR: 'de-DE',
+  JPY: 'ja-JP',
+  SGD: 'en-SG',
 };
 
-export function formatCurrency(amount: number, showCentavos = false, currency = readAppSettings().currency) {
+export function formatCurrency(
+  amount: number,
+  showCentavos = false,
+  currency = readAppSettings().currency,
+) {
   const hasCentavos = !Number.isInteger(amount);
 
   return new Intl.NumberFormat(currencyLocales[currency], {
-    style: "currency",
+    style: 'currency',
     currency,
-    minimumFractionDigits: currency === "JPY" ? 0 : showCentavos || hasCentavos ? 2 : 0,
-    maximumFractionDigits: currency === "JPY" ? 0 : showCentavos || hasCentavos ? 2 : 0,
+    minimumFractionDigits: currency === 'JPY' ? 0 : showCentavos || hasCentavos ? 2 : 0,
+    maximumFractionDigits: currency === 'JPY' ? 0 : showCentavos || hasCentavos ? 2 : 0,
   }).format(amount);
 }
 
 /** Formats a signed amount without the alarming "-₱" presentation. */
-export function formatSignedCurrency(amount: number, negativeSuffix = "short", showCentavos = false, currency = readAppSettings().currency) {
+export function formatSignedCurrency(
+  amount: number,
+  negativeSuffix = 'short',
+  showCentavos = false,
+  currency = readAppSettings().currency,
+) {
   if (amount >= 0) return formatCurrency(amount, showCentavos, currency);
 
   return `${formatCurrency(Math.abs(amount), showCentavos, currency)} ${negativeSuffix}`;
@@ -31,23 +40,27 @@ export function formatDateShort(value: string) {
 }
 
 export function formatMonthYear(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    year: "numeric",
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    year: 'numeric',
   }).format(parseDateOnly(value));
 }
 
 export function formatDate(value: string, format: DateFormat = readAppSettings().dateFormat) {
   const date = parseDateOnly(value);
-  if (format === "iso") return value.slice(0, 10);
-  if (format === "slash") {
-    return `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}/${date.getFullYear()}`;
+  if (format === 'iso') return value.slice(0, 10);
+  if (format === 'slash') {
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`;
   }
-  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" }).format(date);
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  }).format(date);
 }
 
 function parseDateOnly(value: string) {
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.split('-').map(Number);
 
   if (!year || !month || !day) {
     return new Date(value);

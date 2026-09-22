@@ -28,23 +28,46 @@ export type ServerReceiptScan = {
 };
 
 export class ReceiptUploadError extends Error {
-  constructor(message: string, public readonly kind: 'network' | 'ocr' | 'upload') { super(message); }
+  constructor(
+    message: string,
+    public readonly kind: 'network' | 'ocr' | 'upload',
+  ) {
+    super(message);
+  }
 }
 
 /** Uploads the selected local image. OCR stays exclusively on the authenticated server. */
-export async function scanReceiptImage(image: { uri: string; mimeType?: string | null }, signal?: AbortSignal): Promise<ServerReceiptScan> {
+export async function scanReceiptImage(
+  image: { uri: string; mimeType?: string | null },
+  signal?: AbortSignal,
+): Promise<ServerReceiptScan> {
   const { filename } = receiptUploadMetadata(image);
   const form = new FormData();
   const file = new File(image.uri);
   form.append('image', file, filename);
   try {
-    return await authenticatedApiRequest<ServerReceiptScan>('/api/ocr/receipt', { method: 'POST', body: form, signal });
+    return await authenticatedApiRequest<ServerReceiptScan>('/api/ocr/receipt', {
+      method: 'POST',
+      body: form,
+      signal,
+    });
   } catch (error) {
     if (error instanceof ApiRequestError) {
-      if (error.code === 'network_error' || error.code === 'network_error_after_refresh') throw new ReceiptUploadError("We couldn't upload this receipt. Check your connection and try again.", 'network');
-      if (error.code === 'ocr_failed' || error.code === 'ocr_timeout') throw new ReceiptUploadError("We couldn't read this receipt. Try taking a clearer photo.", 'ocr');
+      if (error.code === 'network_error' || error.code === 'network_error_after_refresh')
+        throw new ReceiptUploadError(
+          "We couldn't upload this receipt. Check your connection and try again.",
+          'network',
+        );
+      if (error.code === 'ocr_failed' || error.code === 'ocr_timeout')
+        throw new ReceiptUploadError(
+          "We couldn't read this receipt. Try taking a clearer photo.",
+          'ocr',
+        );
       throw new ReceiptUploadError(error.message, 'upload');
     }
-    throw new ReceiptUploadError("We couldn't upload this receipt. Check your connection and try again.", 'network');
+    throw new ReceiptUploadError(
+      "We couldn't upload this receipt. Check your connection and try again.",
+      'network',
+    );
   }
 }

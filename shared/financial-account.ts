@@ -4,12 +4,7 @@ export type CardNetwork = 'visa' | 'mastercard' | 'jcb' | 'unionpay' | 'amex' | 
 export type CardInstrumentType = 'debit' | 'prepaid' | 'virtual_debit' | 'virtual_prepaid';
 export type FinancialAccountStatus = 'active' | 'frozen' | 'closed';
 export type PaymentInstructionStatus =
-  | 'scheduled'
-  | 'pending_confirmation'
-  | 'completed'
-  | 'failed'
-  | 'cancelled'
-  | 'reversed';
+  'scheduled' | 'pending_confirmation' | 'completed' | 'failed' | 'cancelled' | 'reversed';
 
 export type FinancialAccountSummary = {
   id: string;

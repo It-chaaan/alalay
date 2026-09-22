@@ -16,10 +16,10 @@ export function sortExpensesByDateDesc<T extends DatedExpense>(items: T[]) {
     const byDate = right.date.slice(0, 10).localeCompare(left.date.slice(0, 10));
     if (byDate) return byDate;
 
-    const byCreatedAt = (right.created_at ?? "").localeCompare(left.created_at ?? "");
+    const byCreatedAt = (right.created_at ?? '').localeCompare(left.created_at ?? '');
     if (byCreatedAt) return byCreatedAt;
 
-    return (right.id ?? "").localeCompare(left.id ?? "");
+    return (right.id ?? '').localeCompare(left.id ?? '');
   });
 }
 

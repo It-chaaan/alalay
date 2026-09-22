@@ -176,22 +176,26 @@ export default function Goals() {
   const { colors } = useAppTheme();
   const toast = useToast();
   const bottomNavClearance = useBottomNavClearance();
-  const styles = useMemo(() => makeStyles({
-    ...formPalette,
-    background: colors.background,
-    surface: colors.surfaceElevated,
-    ink: colors.textPrimary,
-    muted: colors.textSecondary,
-    accent: colors.balance,
-    accentDark: colors.balance,
-    accentPale: colors.primarySoft,
-    balance: colors.balance,
-    progressTrack: colors.primarySoft,
-    progressFill: colors.primary,
-    secondarySurface: colors.accentMuted,
-    secondaryText: colors.primary,
-    line: colors.border,
-  }), [colors]);
+  const styles = useMemo(
+    () =>
+      makeStyles({
+        ...formPalette,
+        background: colors.background,
+        surface: colors.surfaceElevated,
+        ink: colors.textPrimary,
+        muted: colors.textSecondary,
+        accent: colors.balance,
+        accentDark: colors.balance,
+        accentPale: colors.primarySoft,
+        balance: colors.balance,
+        progressTrack: colors.primarySoft,
+        progressFill: colors.primary,
+        secondarySurface: colors.accentMuted,
+        secondaryText: colors.primary,
+        line: colors.border,
+      }),
+    [colors],
+  );
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -263,137 +267,136 @@ export default function Goals() {
   return (
     <SavingsStylesContext.Provider value={styles}>
       <SafeAreaView style={styles.safe}>
-      <FinancialScreenHeader
-        title="Goals"
-        onBack={() => router.back()}
-        rightAction={<NotificationHeaderButton />}
-      />
-      {loading ? (
-        <GoalsLoadingState />
-      ) : error ? (
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Goals unavailable</Text>
-          <Text style={styles.muted}>{error}</Text>
-          <Pressable onPress={() => void refresh()} style={styles.retry}>
-            <Text style={styles.retryText}>Try again</Text>
-          </Pressable>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance + 24 }]}
-          showsVerticalScrollIndicator={false}
-        >
-          <GoalsSummaryCard
-            totalSaved={totalSaved}
-            activeGoals={activeGoals.length}
-            overallProgress={overallProgress}
-          />
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionHeaderCopy}>
-              <Text style={styles.sectionTitle}>
-                {goalTab === 'active' ? 'Your goals' : 'Completed goals'}
-              </Text>
-              <Text style={styles.sectionHint}>
-                {goals.length} {goalTab} goal{goals.length === 1 ? '' : 's'}
-              </Text>
-            </View>
-            <SectionAddButton label="Create goal" onPress={() => setOpen(true)} />
+        <FinancialScreenHeader
+          title="Goals"
+          onBack={() => router.back()}
+          rightAction={<NotificationHeaderButton />}
+        />
+        {loading ? (
+          <GoalsLoadingState />
+        ) : error ? (
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Goals unavailable</Text>
+            <Text style={styles.muted}>{error}</Text>
+            <Pressable onPress={() => void refresh()} style={styles.retry}>
+              <Text style={styles.retryText}>Try again</Text>
+            </Pressable>
           </View>
-          <View style={styles.goalTabs}>
-            {(['active', 'completed'] as const).map((tab) => (
-              <Pressable
-                key={tab}
-                accessibilityRole="tab"
-                accessibilityState={{ selected: goalTab === tab }}
-                onPress={() => setGoalTab(tab)}
-                style={[styles.goalTab, goalTab === tab && styles.goalTabSelected]}
-              >
-                <Text style={[styles.goalTabText, goalTab === tab && styles.goalTabTextSelected]}>
-                  {tab === 'active'
-                    ? `Active (${activeGoals.length})`
-                    : `Completed (${completedGoals.length})`}
+        ) : (
+          <ScrollView
+            contentContainerStyle={[styles.content, { paddingBottom: bottomNavClearance + 24 }]}
+            showsVerticalScrollIndicator={false}
+          >
+            <GoalsSummaryCard
+              totalSaved={totalSaved}
+              activeGoals={activeGoals.length}
+              overallProgress={overallProgress}
+            />
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderCopy}>
+                <Text style={styles.sectionTitle}>
+                  {goalTab === 'active' ? 'Your goals' : 'Completed goals'}
                 </Text>
-              </Pressable>
-            ))}
-          </View>
-          {goals.length ? (
-            <View style={styles.goalsGrid}>
-              {goals.map((goal) => (
-                <GoalCard
-                  key={goal.id}
-                  goal={goal}
-                  onAdd={goalTab === 'active' ? () => setContributionGoal(goal) : undefined}
-                  onManage={() => {
-                    setDeleteError('');
-                    setManaging(goal);
-                  }}
-                />
-              ))}
-            </View>
-          ) : (
-            <View style={styles.emptyCard}>
-              <Text style={styles.cardTitle}>
-                {goalTab === 'completed'
-                  ? 'No completed goals'
-                  : data?.goals.length
-                    ? 'No active goals'
-                    : 'No goals yet'}
-              </Text>
-              <Text style={styles.muted}>
-                Create a goal, set a target, and track your progress over time.
-              </Text>
+                <Text style={styles.sectionHint}>
+                  {goals.length} {goalTab} goal{goals.length === 1 ? '' : 's'}
+                </Text>
+              </View>
               <SectionAddButton label="Create goal" onPress={() => setOpen(true)} />
             </View>
-          )}
-        </ScrollView>
-      )}
-      {open && (
-        <GoalForm
-          onClose={() => setOpen(false)}
-          onSaved={async () => {
-            setOpen(false);
-            await refresh();
-          }}
-        />
-      )}
-      {editing && (
-        <GoalForm
-          initial={editing}
-          onClose={() => setEditing(null)}
-          onSaved={async () => {
-            setEditing(null);
-            await refresh();
-          }}
-        />
-      )}
-      {contributionGoal && (
-        <WalletContributionForm
-          goal={contributionGoal}
-          onClose={() => setContributionGoal(null)}
-          onSaved={async () => {
-            setContributionGoal(null);
-            await refresh();
-          }}
-        />
-      )}
-      {managing && (
-        <ItemManagementSheet
-          visible
-          title="Goal"
-          itemName={managing.title}
-          deleteDescription="This goal will be removed. Its progress will be released without changing wallet balances."
-          onClose={() => setManaging(null)}
-          onEdit={() => setEditing(managing)}
-          onDelete={() => remove(managing)}
-          deleting={deleting}
-          error={deleteError}
-        />
-      )}
+            <View style={styles.goalTabs}>
+              {(['active', 'completed'] as const).map((tab) => (
+                <Pressable
+                  key={tab}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: goalTab === tab }}
+                  onPress={() => setGoalTab(tab)}
+                  style={[styles.goalTab, goalTab === tab && styles.goalTabSelected]}
+                >
+                  <Text style={[styles.goalTabText, goalTab === tab && styles.goalTabTextSelected]}>
+                    {tab === 'active'
+                      ? `Active (${activeGoals.length})`
+                      : `Completed (${completedGoals.length})`}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            {goals.length ? (
+              <View style={styles.goalsGrid}>
+                {goals.map((goal) => (
+                  <GoalCard
+                    key={goal.id}
+                    goal={goal}
+                    onAdd={goalTab === 'active' ? () => setContributionGoal(goal) : undefined}
+                    onManage={() => {
+                      setDeleteError('');
+                      setManaging(goal);
+                    }}
+                  />
+                ))}
+              </View>
+            ) : (
+              <View style={styles.emptyCard}>
+                <Text style={styles.cardTitle}>
+                  {goalTab === 'completed'
+                    ? 'No completed goals'
+                    : data?.goals.length
+                      ? 'No active goals'
+                      : 'No goals yet'}
+                </Text>
+                <Text style={styles.muted}>
+                  Create a goal, set a target, and track your progress over time.
+                </Text>
+                <SectionAddButton label="Create goal" onPress={() => setOpen(true)} />
+              </View>
+            )}
+          </ScrollView>
+        )}
+        {open && (
+          <GoalForm
+            onClose={() => setOpen(false)}
+            onSaved={async () => {
+              setOpen(false);
+              await refresh();
+            }}
+          />
+        )}
+        {editing && (
+          <GoalForm
+            initial={editing}
+            onClose={() => setEditing(null)}
+            onSaved={async () => {
+              setEditing(null);
+              await refresh();
+            }}
+          />
+        )}
+        {contributionGoal && (
+          <WalletContributionForm
+            goal={contributionGoal}
+            onClose={() => setContributionGoal(null)}
+            onSaved={async () => {
+              setContributionGoal(null);
+              await refresh();
+            }}
+          />
+        )}
+        {managing && (
+          <ItemManagementSheet
+            visible
+            title="Goal"
+            itemName={managing.title}
+            deleteDescription="This goal will be removed. Its progress will be released without changing wallet balances."
+            onClose={() => setManaging(null)}
+            onEdit={() => setEditing(managing)}
+            onDelete={() => remove(managing)}
+            deleting={deleting}
+            error={deleteError}
+          />
+        )}
       </SafeAreaView>
     </SavingsStylesContext.Provider>
   );
 }
-
 
 function GoalsLoadingState() {
   const styles = useSavingsStyles();
@@ -514,12 +517,18 @@ function GoalCard({
           style={[styles.fill, { width: `${percent}%`, backgroundColor: formPalette.progressFill }]}
         />
       </View>
-      <Text adjustsFontSizeToFit minimumFontScale={0.72} numberOfLines={1} style={styles.goalAmount}>
+      <Text
+        adjustsFontSizeToFit
+        minimumFontScale={0.72}
+        numberOfLines={1}
+        style={styles.goalAmount}
+      >
         {peso(saved)} <Text style={styles.goalTarget}>/ {peso(target)}</Text>
       </Text>
       <View style={styles.fundingRegion}>
         <Text numberOfLines={2} ellipsizeMode="tail" style={styles.fundingHint}>
-          {fundingMethod === 'monthly' && Number(goal.monthly_contribution ?? goal.monthly_target ?? 0) > 0
+          {fundingMethod === 'monthly' &&
+          Number(goal.monthly_contribution ?? goal.monthly_target ?? 0) > 0
             ? `${peso(Number(goal.monthly_contribution ?? goal.monthly_target ?? 0))}/month planned`
             : 'Manual funding'}
         </Text>
@@ -757,14 +766,21 @@ function WalletContributionForm({
       return;
     }
     savingRef.current = true;
-    if (!idempotencyKey.current) idempotencyKey.current = `goal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    if (!idempotencyKey.current)
+      idempotencyKey.current = `goal-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     setSaving(true);
     setError('');
     try {
       await authenticatedApiRequest(`/api/savings-goals/${goal.id}/contributions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ wallet_id: walletId, amount: value, contribution_date: contributionDate, note: note || undefined, idempotency_key: idempotencyKey.current }),
+        body: JSON.stringify({
+          wallet_id: walletId,
+          amount: value,
+          contribution_date: contributionDate,
+          note: note || undefined,
+          idempotency_key: idempotencyKey.current,
+        }),
       });
       notifyFinancialMutation();
       await onSaved();
@@ -798,12 +814,29 @@ function WalletContributionForm({
         required
         label="From wallet"
       />
-      {walletId ? (() => {
-        const selected = wallets.find((wallet) => wallet.id === walletId);
-        return selected ? <Text style={styles.muted}>{peso(Number(selected.available_balance ?? selected.balance))} available to spend in {selected.name}. Reserved money remains in this wallet.</Text> : null;
-      })() : null}
-      <DatePickerField label="Funding date" value={contributionDate} onChange={setContributionDate} compact />
-      <FormTextInput label="Note (optional)" value={note} onChangeText={setNote} placeholder="What is this allocation for?" />
+      {walletId
+        ? (() => {
+            const selected = wallets.find((wallet) => wallet.id === walletId);
+            return selected ? (
+              <Text style={styles.muted}>
+                {peso(Number(selected.available_balance ?? selected.balance))} available to spend in{' '}
+                {selected.name}. Reserved money remains in this wallet.
+              </Text>
+            ) : null;
+          })()
+        : null}
+      <DatePickerField
+        label="Funding date"
+        value={contributionDate}
+        onChange={setContributionDate}
+        compact
+      />
+      <FormTextInput
+        label="Note (optional)"
+        value={note}
+        onChangeText={setNote}
+        placeholder="What is this allocation for?"
+      />
     </FinanceFormSheet>
   );
 }
@@ -991,7 +1024,12 @@ function makeStyles(themePalette: typeof formPalette) {
     },
     sectionTitle: { color: formPalette.ink, fontSize: 18, fontWeight: '900' },
     sectionHint: { marginTop: 3, color: formPalette.muted, fontSize: 11, fontWeight: '700' },
-    goalsGrid: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'stretch', justifyContent: 'space-between' },
+    goalsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      alignItems: 'stretch',
+      justifyContent: 'space-between',
+    },
     goalTabs: { flexDirection: 'row', gap: 8, marginBottom: 14 },
     goalTab: {
       flex: 1,

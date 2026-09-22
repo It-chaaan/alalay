@@ -8,7 +8,8 @@ export default function TabLayout() {
         headerShown: false,
         // Navigation is rendered by the dashboard's floating custom bar.
         tabBarStyle: { display: 'none' },
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{

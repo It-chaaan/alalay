@@ -2,7 +2,10 @@ import type { Session } from '@supabase/supabase-js';
 import { CheckCircle2, Plus, Target } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useMemo, useState } from 'react';
-import { SavingsGoalFormPanel, SavingsGoalProgressPanel } from '../../components/forms/FinancialActionPanels';
+import {
+  SavingsGoalFormPanel,
+  SavingsGoalProgressPanel,
+} from '../../components/forms/FinancialActionPanels';
 import { FinancialOverviewCard } from '../../components/dashboard/FinancialOverviewCard';
 import { DashboardShell } from '../../components/layout/DashboardShell';
 import { SectionToolbar } from '../../components/dashboard/SectionToolbar';
@@ -12,17 +15,197 @@ import { useSavingsDashboard } from '../../hooks/useSavingsGoals';
 import type { SavingsGoal } from '../../hooks/types';
 import { formatCurrency, formatMonthYear } from '../../utils/formatters';
 
-function displayName(session: Session) { return session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan'; }
+function displayName(session: Session) {
+  return session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Juan';
+}
 
 function GoalCard({ goal, onContribute }: { goal: SavingsGoal; onContribute: () => void }) {
-  const progress = Number(goal.current_amount); const target = Number(goal.target_amount); const percent = target ? Math.min(100, Math.round(progress / target * 100)) : 0; const complete = percent >= 100 || Boolean(goal.completed_at);
-  return <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand-primary"><Target className="h-5 w-5" /></span><div className="min-w-0"><h3 className="truncate font-semibold text-slate-950 dark:text-white">{goal.title}</h3><p className="mt-1 text-xs text-slate-500">Target {formatMonthYear(goal.deadline)}</p></div></div><span className="font-mono text-xs font-semibold text-brand-primary">{percent}%</span></div><p className="mt-6 font-mono text-2xl font-bold text-slate-950 dark:text-white">{formatCurrency(progress)} <span className="text-sm font-normal text-slate-500">of {formatCurrency(target)}</span></p><div className="mt-4 h-2 rounded-full bg-slate-100 dark:bg-slate-800"><div className="h-2 rounded-full bg-brand-primary" style={{ width: `${percent}%` }} /></div><div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500"><span>{complete ? 'Target reached' : `${formatCurrency(Math.max(0, target - progress))} remaining`}</span>{complete ? <span className="inline-flex items-center gap-1 font-semibold text-brand-primary"><CheckCircle2 className="h-4 w-4" />Completed</span> : null}</div>{!complete ? <button type="button" onClick={onContribute} className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark"><Plus className="h-4 w-4" />Add contribution</button> : null}</article>;
+  const progress = Number(goal.current_amount);
+  const target = Number(goal.target_amount);
+  const percent = target ? Math.min(100, Math.round((progress / target) * 100)) : 0;
+  const complete = percent >= 100 || Boolean(goal.completed_at);
+  return (
+    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-brand-soft text-brand-primary">
+            <Target className="h-5 w-5" />
+          </span>
+          <div className="min-w-0">
+            <h3 className="truncate font-semibold text-slate-950 dark:text-white">{goal.title}</h3>
+            <p className="mt-1 text-xs text-slate-500">Target {formatMonthYear(goal.deadline)}</p>
+          </div>
+        </div>
+        <span className="font-mono text-xs font-semibold text-brand-primary">{percent}%</span>
+      </div>
+      <p className="mt-6 font-mono text-2xl font-bold text-slate-950 dark:text-white">
+        {formatCurrency(progress)}{' '}
+        <span className="text-sm font-normal text-slate-500">of {formatCurrency(target)}</span>
+      </p>
+      <div className="mt-4 h-2 rounded-full bg-slate-100 dark:bg-slate-800">
+        <div className="h-2 rounded-full bg-brand-primary" style={{ width: `${percent}%` }} />
+      </div>
+      <div className="mt-3 flex items-center justify-between gap-3 text-xs text-slate-500">
+        <span>
+          {complete
+            ? 'Target reached'
+            : `${formatCurrency(Math.max(0, target - progress))} remaining`}
+        </span>
+        {complete ? (
+          <span className="inline-flex items-center gap-1 font-semibold text-brand-primary">
+            <CheckCircle2 className="h-4 w-4" />
+            Completed
+          </span>
+        ) : null}
+      </div>
+      {!complete ? (
+        <button
+          type="button"
+          onClick={onContribute}
+          className="mt-5 inline-flex min-h-10 items-center gap-2 rounded-lg bg-brand-primary px-4 text-xs font-semibold text-white hover:bg-brand-dark"
+        >
+          <Plus className="h-4 w-4" />
+          Add contribution
+        </button>
+      ) : null}
+    </article>
+  );
 }
 
-export function SavingsGoalsPage({ session, onSignOut }: { session: Session; onSignOut: () => void }) {
-  const { data, isLoading, isSlowLoading, error, refetch } = useSavingsDashboard(); const createDialog = useActionDialog('create-goal'); const contributionDialog = useActionDialog('add-goal-contribution'); const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null); const goals = data?.goals ?? [];
-  const active = goals.filter((goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount)); const completed = goals.filter((goal) => !active.includes(goal)); const totals = useMemo(() => goals.reduce((result, goal) => ({ target: result.target + Number(goal.target_amount), progress: result.progress + Number(goal.current_amount) }), { target: 0, progress: 0 }), [goals]); const overall = totals.target ? Math.min(100, Math.round(totals.progress / totals.target * 100)) : 0;
-  return <DashboardShell activeLabel="Goals" title="Goals" subtitle="Track your financial goals and progress." name={displayName(session)} onSignOut={onSignOut}>{isLoading ? <><GoalsSkeleton /><SlowLoadNotice show={isSlowLoading} /></> : null}{error ? <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</div> : null}{data ? <><FinancialOverviewCard label="Goals overview" period="All goals" primary={formatCurrency(totals.progress)} primaryLabel="Total saved toward goals" metrics={[{ label: 'Active goals', value: String(active.length) }, { label: 'Completed goals', value: String(completed.length) }, { label: 'Overall progress', value: `${overall}%` }, { label: 'Total targets', value: formatCurrency(totals.target) }]} /><GoalSection title="Your goals" goals={active} count={active.length} action={<button type="button" onClick={createDialog.open} className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"><Plus className="h-4 w-4" />Create goal</button>} empty="No active goals. Create a goal to start tracking progress." onContribute={(goal) => { setSelectedGoal(goal); contributionDialog.open(); }} />{completed.length ? <GoalSection title="Completed goals" goals={completed} onContribute={() => undefined} /> : null}</> : null}<SavingsGoalFormPanel open={createDialog.isOpen} onClose={createDialog.close} onSuccess={refetch} /><SavingsGoalProgressPanel open={contributionDialog.isOpen} onClose={contributionDialog.close} onSuccess={refetch} goal={selectedGoal} /></DashboardShell>;
+export function SavingsGoalsPage({
+  session,
+  onSignOut,
+}: {
+  session: Session;
+  onSignOut: () => void;
+}) {
+  const { data, isLoading, isSlowLoading, error, refetch } = useSavingsDashboard();
+  const createDialog = useActionDialog('create-goal');
+  const contributionDialog = useActionDialog('add-goal-contribution');
+  const [selectedGoal, setSelectedGoal] = useState<SavingsGoal | null>(null);
+  const goals = data?.goals ?? [];
+  const active = goals.filter(
+    (goal) => !goal.completed_at && Number(goal.current_amount) < Number(goal.target_amount),
+  );
+  const completed = goals.filter((goal) => !active.includes(goal));
+  const totals = useMemo(
+    () =>
+      goals.reduce(
+        (result, goal) => ({
+          target: result.target + Number(goal.target_amount),
+          progress: result.progress + Number(goal.current_amount),
+        }),
+        { target: 0, progress: 0 },
+      ),
+    [goals],
+  );
+  const overall = totals.target
+    ? Math.min(100, Math.round((totals.progress / totals.target) * 100))
+    : 0;
+  return (
+    <DashboardShell
+      activeLabel="Goals"
+      title="Goals"
+      subtitle="Track your financial goals and progress."
+      name={displayName(session)}
+      onSignOut={onSignOut}
+    >
+      {isLoading ? (
+        <>
+          <GoalsSkeleton />
+          <SlowLoadNotice show={isSlowLoading} />
+        </>
+      ) : null}
+      {error ? (
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+      {data ? (
+        <>
+          <FinancialOverviewCard
+            label="Goals overview"
+            period="All goals"
+            primary={formatCurrency(totals.progress)}
+            primaryLabel="Total saved toward goals"
+            metrics={[
+              { label: 'Active goals', value: String(active.length) },
+              { label: 'Completed goals', value: String(completed.length) },
+              { label: 'Overall progress', value: `${overall}%` },
+              { label: 'Total targets', value: formatCurrency(totals.target) },
+            ]}
+          />
+          <GoalSection
+            title="Your goals"
+            goals={active}
+            count={active.length}
+            action={
+              <button
+                type="button"
+                onClick={createDialog.open}
+                className="inline-flex items-center gap-2 rounded-lg bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white"
+              >
+                <Plus className="h-4 w-4" />
+                Create goal
+              </button>
+            }
+            empty="No active goals. Create a goal to start tracking progress."
+            onContribute={(goal) => {
+              setSelectedGoal(goal);
+              contributionDialog.open();
+            }}
+          />
+          {completed.length ? (
+            <GoalSection title="Completed goals" goals={completed} onContribute={() => undefined} />
+          ) : null}
+        </>
+      ) : null}
+      <SavingsGoalFormPanel
+        open={createDialog.isOpen}
+        onClose={createDialog.close}
+        onSuccess={refetch}
+      />
+      <SavingsGoalProgressPanel
+        open={contributionDialog.isOpen}
+        onClose={contributionDialog.close}
+        onSuccess={refetch}
+        goal={selectedGoal}
+      />
+    </DashboardShell>
+  );
 }
 
-function GoalSection({ title, goals, count, action, empty, onContribute }: { title: string; goals: SavingsGoal[]; count?: number; action?: ReactNode; empty?: string; onContribute: (goal: SavingsGoal) => void }) { return <section className="mt-6"><SectionToolbar title={title} count={count}>{action}</SectionToolbar>{goals.length ? <div className="mt-4 grid gap-4 md:grid-cols-2">{goals.map((goal) => <GoalCard key={goal.id} goal={goal} onContribute={() => onContribute(goal)} />)}</div> : <p className="mt-4 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500 dark:bg-slate-800">{empty}</p>}</section>; }
+function GoalSection({
+  title,
+  goals,
+  count,
+  action,
+  empty,
+  onContribute,
+}: {
+  title: string;
+  goals: SavingsGoal[];
+  count?: number;
+  action?: ReactNode;
+  empty?: string;
+  onContribute: (goal: SavingsGoal) => void;
+}) {
+  return (
+    <section className="mt-6">
+      <SectionToolbar title={title} count={count}>
+        {action}
+      </SectionToolbar>
+      {goals.length ? (
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          {goals.map((goal) => (
+            <GoalCard key={goal.id} goal={goal} onContribute={() => onContribute(goal)} />
+          ))}
+        </div>
+      ) : (
+        <p className="mt-4 rounded-2xl bg-slate-50 p-5 text-sm text-slate-500 dark:bg-slate-800">
+          {empty}
+        </p>
+      )}
+    </section>
+  );
+}

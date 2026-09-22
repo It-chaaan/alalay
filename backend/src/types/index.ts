@@ -1,6 +1,6 @@
-import type { User } from "@supabase/supabase-js";
+import type { User } from '@supabase/supabase-js';
 
-export type AuthedUser = Pick<User, "id" | "email" | "user_metadata">;
+export type AuthedUser = Pick<User, 'id' | 'email' | 'user_metadata'>;
 
 export type ApiSuccess<T> = {
   success: true;

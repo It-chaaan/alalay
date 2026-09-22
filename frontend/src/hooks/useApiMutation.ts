@@ -1,5 +1,5 @@
-import { useCallback, useState } from "react";
-import { apiRequest } from "../lib/apiClient";
+import { useCallback, useState } from 'react';
+import { apiRequest } from '../lib/apiClient';
 
 export function useApiMutation() {
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -13,9 +13,7 @@ export function useApiMutation() {
       return await apiRequest<T>(path, options);
     } catch (mutationError: unknown) {
       setError(
-        mutationError instanceof Error
-          ? mutationError.message
-          : "Unable to save your changes.",
+        mutationError instanceof Error ? mutationError.message : 'Unable to save your changes.',
       );
       throw mutationError;
     } finally {
