@@ -1,0 +1,45 @@
+# Render Blueprint for a native Node.js deployment of the backend only.
+# The service name is a suggested name for a new Blueprint-managed service.
+services:
+  - type: web
+    name: alalay-backend
+    runtime: node
+    rootDir: backend
+    # Explicitly include build dependencies even though NODE_ENV is production
+    # at runtime; TypeScript is required only to create dist/ during the build.
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /health
+    maxShutdownDelaySeconds: 10
+    envVars:
+      # Pin to the tested local Node release; the backend engines also constrain
+      # supported versions to Node 24.
+      - key: NODE_VERSION
+        value: 24.19.0
+      - key: NODE_ENV
+        value: production
+      - key: HTTPS_ENABLED
+        value: 'true'
+      # Render terminates public TLS before forwarding requests to the service.
+      - key: HTTPS_TERMINATE_LOCALLY
+        value: 'false'
+      - key: NOTIFICATION_SCHEDULER_ENABLED
+        value: 'true'
+      - key: IN_PROCESS_SCHEDULERS_ENABLED
+        value: 'false'
+      - key: BILLING_DEBUG
+        value: 'false'
+      # Render prompts for these only when creating a service from this Blueprint.
+      # Existing services retain their dashboard values; do not commit credentials.
+      - key: APP_URL
+        sync: false
+      - key: CORS_ORIGIN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: INCOME_SCHEDULER_SECRET
+        sync: false

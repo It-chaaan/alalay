@@ -69,16 +69,71 @@ jobs:
     steps:
       # actions/checkout@v5
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09
-      # supabase/setup-cli@v1.7.1
-      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1
+      # actions/setup-node@v5
+      - uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: package-lock.json
+      # supabase/setup-cli@v3.0.0
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520
         with:
           version: 2.99.0
-      - name: Start an isolated local Supabase stack
-        run: supabase start
+      - name: Verify local Docker and Supabase CLI prerequisites
+        run: |
+          docker version
+          supabase --version
+      - name: Start an isolated local Supabase database
+        run: supabase db start
       - name: Apply migrations from a clean local state
-        run: supabase db reset
+        run: supabase db reset --local
+      - name: Select the local Supabase database container
+        id: database-container
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t containers < <(
+            docker ps \
+              --filter 'label=com.supabase.cli.project=alalay' \
+              --format '{{.Names}}' |
+              grep '^supabase_db_' || true
+          )
+
+          if [ "${#containers[@]}" -ne 1 ]; then
+            echo "Expected exactly one running Supabase database container for project alalay; found ${#containers[@]}." >&2
+            docker ps -a --filter 'label=com.supabase.cli.project=alalay' --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' >&2
+            exit 1
+          fi
+
+          echo "container=${containers[0]}" >> "$GITHUB_OUTPUT"
       - name: Run SQL and RLS regression tests
         run: npm run test:db
+        env:
+          SUPABASE_DB_CONTAINER: ${{ steps.database-container.outputs.container }}
+      - name: Diagnose local Supabase failure
+        if: failure()
+        shell: bash
+        run: |
+          set +e
+          redact() {
+            sed -E \
+              -e 's#(postgres(ql)?://)[^[:space:]]+#\1[REDACTED]#g' \
+              -e 's/^([[:space:]]*.*(password|secret|token|api[ _-]?key|jwt).*[=:][[:space:]]*).*/\1[REDACTED]/I'
+          }
+
+          echo 'Supabase status (sensitive values redacted):'
+          supabase status 2>&1 | redact
+          echo 'Relevant containers:'
+          docker ps -a --filter 'label=com.supabase.cli.project=alalay' --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}'
+          echo 'Relevant container logs (sensitive values redacted):'
+          docker ps -a --filter 'label=com.supabase.cli.project=alalay' --format '{{.Names}}' | while IFS= read -r container; do
+            echo "--- ${container} ---"
+            docker logs --tail 200 "$container" 2>&1 | redact
+          done
+      - name: Stop isolated local Supabase stack
+        if: always()
+        shell: bash
+        run: supabase stop --no-backup || true
 
   secrets:
     name: Secret scan

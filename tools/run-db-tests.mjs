@@ -5,7 +5,36 @@ import process from 'node:process';
 
 const root = process.cwd();
 const testsDirectory = join(root, 'supabase', 'tests');
-const container = 'supabase_db_alalay';
+
+function resolveDatabaseContainer() {
+  const configuredContainer = process.env.SUPABASE_DB_CONTAINER;
+  if (configuredContainer) return configuredContainer;
+
+  const result = spawnSync(
+    'docker',
+    ['ps', '--filter', 'label=com.supabase.cli.project=alalay', '--format', '{{.Names}}'],
+    { cwd: root, encoding: 'utf8' },
+  );
+  if (result.status !== 0) {
+    throw new Error(
+      result.error?.message || result.stderr?.trim() || 'Unable to list local Docker containers.',
+    );
+  }
+
+  const containers = (result.stdout ?? '')
+    .split(/\r?\n/)
+    .filter((name) => name.startsWith('supabase_db_'));
+  if (containers.length !== 1) {
+    throw new Error(
+      `Expected exactly one running local Supabase database container; found ${containers.length}. ` +
+        'Start the local Supabase database or set SUPABASE_DB_CONTAINER explicitly.',
+    );
+  }
+
+  return containers[0];
+}
+
+const container = resolveDatabaseContainer();
 
 function findSqlTests(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {

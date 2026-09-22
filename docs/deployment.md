@@ -13,6 +13,34 @@ not provider-specific deployment credentials or automatic production deployment.
 | Scheduler       | One durable trigger for each documented job, the scheduler secret, alerting, and execution records                             |
 | EAS             | Preview/production public values, Android signing ownership, artifact review, and distribution                                 |
 
+## Render backend settings
+
+Use a **Web Service** with the **Native Runtime / Node** runtime. Render commands
+are relative to the configured root directory, so set **Root Directory** to
+`backend`, **Build Command** to `npm ci --include=dev && npm run build`, and
+**Start Command** to `npm start`. Set the health-check path to `/health` and pin
+Node to `24.19.0`. Do not set `PORT`; Render injects it and the server binds to
+it automatically.
+
+Set `NODE_ENV=production`, `HTTPS_ENABLED=true`,
+`HTTPS_TERMINATE_LOCALLY=false`, `NOTIFICATION_SCHEDULER_ENABLED=true`, and
+`IN_PROCESS_SCHEDULERS_ENABLED=false`. Add values for `APP_URL`, `CORS_ORIGIN`,
+`SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, and
+`INCOME_SCHEDULER_SECRET` in Render's environment/secret settings. Add Gemini
+and Resend variables only if those features are enabled. Do not commit or upload
+an env file.
+
+Native Runtime is recommended over Docker for Render because `backend` can be
+the service root and all commands are self-contained. The Dockerfile remains a
+portable alternative, but it must be built with the repository root as its
+context and `backend/Dockerfile` as its Dockerfile path; setting `backend` as
+both Docker root and context would make its `COPY backend/...` instructions fail.
+
+The root `render.yaml` is a safe Blueprint for creating a new service named
+`alalay-backend`. It does not update an existing Render service until an operator
+explicitly syncs it. Existing services should be corrected in the dashboard with
+the settings above.
+
 ## Staging and production procedure
 
 1. Merge only a reviewed pull request whose quality, database, and secret-scan

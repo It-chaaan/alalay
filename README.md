@@ -266,6 +266,46 @@ endpoint. The image must receive production-valid backend configuration; see
 [`backend/.env.example`](backend/.env.example). Docker Compose is intentionally
 not supplied because Supabase's local stack is managed by the Supabase CLI.
 
+### Render backend deployment
+
+Use Render's **Native Runtime / Node** for the backend. This is the supported
+default because the monorepo backend is self-contained and the native build can
+explicitly compile TypeScript before startup. Do not select Docker unless the
+Render Docker settings use the repository root as the build context; the
+[`backend/Dockerfile`](backend/Dockerfile) intentionally copies `backend/...`
+paths from that root.
+
+For an existing Render web service, set these dashboard values:
+
+| Setting           | Value                                   |
+| ----------------- | --------------------------------------- |
+| Runtime           | Native Runtime / Node                   |
+| Root Directory    | `backend`                               |
+| Build Command     | `npm ci --include=dev && npm run build` |
+| Start Command     | `npm start`                             |
+| Health Check Path | `/health`                               |
+| Node Version      | `24.19.0`                               |
+
+Do not set `PORT`; Render supplies it. Required production variable names are
+`NODE_ENV`, `HTTPS_ENABLED`, `HTTPS_TERMINATE_LOCALLY`, `APP_URL`,
+`CORS_ORIGIN`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
+`SUPABASE_SERVICE_ROLE_KEY`, `INCOME_SCHEDULER_SECRET`,
+`NOTIFICATION_SCHEDULER_ENABLED`, and `IN_PROCESS_SCHEDULERS_ENABLED`.
+`GEMINI_API_KEY`, `RESEND_API_KEY`, and `EMAIL_FROM` are additionally needed
+when their corresponding features are enabled. Use Render's secret store for
+credentials; do not upload `backend/.env`.
+
+The root [`render.yaml`](render.yaml) encodes these values for a _new_, suggested
+`alalay-backend` Blueprint service. It does not alter an existing service until
+an operator explicitly creates or syncs that Blueprint. For an existing service,
+enter the settings above in the dashboard instead.
+
+If a deploy reports a missing `dist/index.js`, the build command did not run the
+compile step in `backend`. If it reports a missing `typescript`, ensure the build
+command retains `--include=dev`. If startup fails before the health check, check
+the environment-validation message for missing production HTTPS, CORS, Supabase,
+or scheduler configuration.
+
 Start the web client:
 
 ```bash
