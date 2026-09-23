@@ -31,14 +31,16 @@ begin
     raise exception 'Null-email Auth identity did not receive an id-matched profile';
   end if;
 
-  -- A legacy public row must not be merged into a different Auth identity.
-  -- The production migration intentionally checks new rows while leaving
-  -- legacy rows unvalidated. Simulate one legacy row without changing schema
-  -- or committing data in this rollback-only test.
-  perform set_config('session_replication_role', 'replica', true);
-  insert into public.users (id, name, email)
-  values (orphan_user, 'Legacy orphan', orphan_email);
-  perform set_config('session_replication_role', 'origin', true);
+  -- A current-schema profile whose editable public email differs from its Auth
+  -- email must not be merged into a newly-created Auth identity. This retains
+  -- the historical regression coverage without bypassing the validated FK or
+  -- disabling triggers.
+  perform pg_temp.create_supabase_test_user(
+    orphan_user,
+    'auth-profile-existing@example.test',
+    '{"name":"Existing owner"}'
+  );
+  update public.users set name = 'Existing owner', email = orphan_email where id = orphan_user;
 
   insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at)
   values (gen_random_uuid(), 'authenticated', 'authenticated', orphan_email, now(), '{"provider":"email"}', '{"name":"New owner"}', now(), now());

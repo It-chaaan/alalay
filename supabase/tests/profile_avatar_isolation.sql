@@ -8,12 +8,24 @@ declare
   second_user uuid := gen_random_uuid();
   duplicate_rejected boolean := false;
 begin
-  insert into public.users (id, name, email, avatar_url)
-  values (first_user, 'Avatar Test One', 'avatar-test-one@example.test', 'https://example.test/avatar-one.png');
+  perform pg_temp.create_supabase_test_user(
+    first_user,
+    'avatar-test-one@example.test',
+    '{"name":"Avatar Test One"}'
+  );
+  update public.users
+  set avatar_url = 'https://example.test/avatar-one.png'
+  where id = first_user;
+  perform pg_temp.create_supabase_test_user(
+    second_user,
+    'avatar-test-two@example.test',
+    '{"name":"Avatar Test Two"}'
+  );
 
   begin
-    insert into public.users (id, name, email, avatar_url)
-    values (second_user, 'Avatar Test Two', 'avatar-test-two@example.test', 'https://example.test/avatar-one.png');
+    update public.users
+    set avatar_url = 'https://example.test/avatar-one.png'
+    where id = second_user;
   exception when unique_violation then
     duplicate_rejected := true;
   end;
@@ -22,8 +34,9 @@ begin
     raise exception 'Duplicate non-null avatar_url was accepted';
   end if;
 
-  insert into public.users (id, name, email, avatar_url)
-  values (second_user, 'Avatar Test Two', 'avatar-test-two@example.test', 'https://example.test/avatar-two.png');
+  update public.users
+  set avatar_url = 'https://example.test/avatar-two.png'
+  where id = second_user;
 
   if (select count(*) from public.users where id in (first_user, second_user) and avatar_url is not null) <> 2 then
     raise exception 'Back-to-back profiles did not retain distinct avatar URLs';

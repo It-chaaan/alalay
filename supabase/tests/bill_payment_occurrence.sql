@@ -10,8 +10,11 @@ declare
   v_result jsonb;
   v_duplicate_rejected boolean := false;
 begin
-  insert into public.users (id, name, email)
-  values (v_user_id, 'Bill Payment Test', v_user_id || '@example.test');
+  perform pg_temp.create_supabase_test_user(
+    v_user_id,
+    v_user_id || '@example.test',
+    '{"name":"Bill Payment Test"}'
+  );
 
   insert into public.wallets (
     id,

@@ -55,8 +55,13 @@ begin
     (v_user_id, v_transfer_source_id, 5000, date '2026-08-01', 'Opening balance'),
     (v_user_id, v_transfer_destination_id, 20000, date '2026-08-01', 'Opening balance');
 
-  insert into public.income (user_id, source, type, amount, date, is_recurring, frequency, wallet_id)
-  values (v_user_id, 'Company', 'allowance', 1500, date '2026-08-18', false, null, v_gcash_id);
+  insert into public.income (
+    user_id, source, type, amount, date, is_recurring, frequency, wallet_id,
+    is_posted, schedule_status, source_type, received_at
+  ) values (
+    v_user_id, 'Company', 'allowance', 1500, date '2026-08-18', false, null,
+    v_gcash_id, true, 'posted', 'manual', timestamptz '2026-08-18 00:00:00+08'
+  );
 
   if (select balance from public.wallets where id = v_gcash_id) <> 6500 then
     raise exception 'One-time income did not credit GCash exactly once';

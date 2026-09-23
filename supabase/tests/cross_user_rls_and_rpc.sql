@@ -37,8 +37,14 @@ begin
     (user_b, wallet_b, 10000, date '2026-08-01', 'B opening'),
     (user_b, credit_b, 3000, date '2026-08-01', 'B credit opening');
 
-  insert into public.income (id, user_id, wallet_id, source, type, amount, date, is_recurring)
-  values (income_b, user_b, wallet_b, 'B salary', 'salary', 1000, date '2026-08-10', false);
+  insert into public.income (
+    id, user_id, wallet_id, source, type, amount, date, is_recurring,
+    is_posted, schedule_status, source_type, received_at
+  ) values (
+    income_b, user_b, wallet_b, 'B salary', 'salary', 1000,
+    date '2026-08-10', false, true, 'posted', 'manual',
+    timestamptz '2026-08-10 00:00:00+08'
+  );
   insert into public.expenses (id, user_id, wallet_id, merchant, category, amount, date, payment_method)
   values (expense_b, user_b, wallet_b, 'B purchase', 'Food', 100, date '2026-08-10', 'bank_transfer');
   insert into public.bills (id, user_id, wallet_id, title, amount, category, due_date)
@@ -108,8 +114,14 @@ begin
   end if;
 
   begin
-    insert into public.income (user_id, wallet_id, source, type, amount, date, is_recurring)
-    values (user_b, wallet_b, 'Injected income', 'salary', 1, date '2026-08-18', false);
+    insert into public.income (
+      user_id, wallet_id, source, type, amount, date, is_recurring,
+      is_posted, schedule_status, source_type, received_at
+    ) values (
+      user_b, wallet_b, 'Injected income', 'salary', 1,
+      date '2026-08-18', false, true, 'posted', 'manual',
+      timestamptz '2026-08-18 00:00:00+08'
+    );
   exception when others then null;
   end;
   if (select count(*) from public.income where user_id = user_b and source = 'Injected income') <> 0 then

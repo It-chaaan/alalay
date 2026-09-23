@@ -5,6 +5,7 @@ import process from 'node:process';
 
 const root = process.cwd();
 const testsDirectory = join(root, 'supabase', 'tests');
+const testHelpers = readFileSync(join(root, 'supabase', 'test_helpers.sql'), 'utf8');
 
 function resolveDatabaseContainer() {
   const configuredContainer = process.env.SUPABASE_DB_CONTAINER;
@@ -64,7 +65,7 @@ const results = findSqlTests(testsDirectory).map((testPath) => {
     {
       cwd: root,
       encoding: 'utf8',
-      input: readFileSync(testPath, 'utf8'),
+      input: `${testHelpers}\n${readFileSync(testPath, 'utf8')}`,
     },
   );
   process.stdout.write(result.stdout ?? '');
