@@ -19,6 +19,7 @@ declare
   before_failure_count integer;
   before_failure_date date;
   scheduler_raised boolean := false;
+  credit_schedule_rejected boolean := false;
 begin
   if (
     select count(*)
@@ -69,6 +70,20 @@ begin
   -- A wallet can be reclassified after a schedule exists. This must not make
   -- the invalid schedule block unrelated eligible income.
   update public.wallets set account_type = 'credit' where id = wallet_invalid;
+  begin
+    insert into public.income (
+      user_id, wallet_id, source, type, amount, date, is_recurring, frequency,
+      is_posted, schedule_status
+    ) values (
+      user_a, wallet_invalid, 'New invalid schedule', 'salary', 1,
+      (now() at time zone 'Asia/Manila')::date, false, null, false, 'active'
+    );
+  exception when others then
+    credit_schedule_rejected := sqlerrm = 'Credit cards cannot receive income';
+  end;
+  if not credit_schedule_rejected then
+    raise exception 'A new income schedule targeting a credit wallet was accepted';
+  end if;
 
   first_run := public.process_due_income_schedules(null::uuid, null::uuid);
   second_run := public.process_due_income_schedules();

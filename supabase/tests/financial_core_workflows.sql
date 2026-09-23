@@ -130,8 +130,15 @@ begin
   end if;
 
   insert into public.savings_goals (id, user_id, title, target_amount, current_amount, deadline, monthly_target)
-  values (v_goal_id, v_user_id, 'Emergency Fund', 10000, 2000, date '2027-01-01', 0);
-  perform public.add_goal_contribution(v_goal_id, v_bdo_id, 3000);
+  values (v_goal_id, v_user_id, 'Emergency Fund', 10000, 0, date '2027-01-01', 0);
+  perform public.add_goal_contribution(
+    v_goal_id, v_bdo_id, 2000, date '2026-08-01',
+    'Existing allocation', 'financial-goal-request-0001'
+  );
+  perform public.add_goal_contribution(
+    v_goal_id, v_bdo_id, 3000, date '2026-08-18',
+    'Additional allocation', 'financial-goal-request-0002'
+  );
 
   if (select current_amount from public.savings_goals where id = v_goal_id) <> 5000 then
     raise exception 'Goal contribution did not increase saved progress';

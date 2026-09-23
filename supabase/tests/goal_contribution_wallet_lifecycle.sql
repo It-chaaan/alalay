@@ -91,6 +91,11 @@ begin
 
   if not has_function_privilege('authenticated', 'public.add_goal_contribution(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
     or has_function_privilege('anon', 'public.add_goal_contribution(uuid,uuid,numeric,date,text,text)', 'EXECUTE')
+    or (select count(*)
+        from pg_proc as signature
+        join pg_namespace as signature_namespace on signature_namespace.oid = signature.pronamespace
+        where signature_namespace.nspname = 'public'
+          and signature.proname = 'add_goal_contribution') <> 1
     or not exists (
       select 1 from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace
