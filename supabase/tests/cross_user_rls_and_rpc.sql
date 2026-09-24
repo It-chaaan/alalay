@@ -69,6 +69,24 @@ begin
   grant usage, select on all sequences in schema public to authenticated;
 
   select name, balance into before_name, before_balance from public.wallets where id = wallet_b;
+  -- Do not invoke a revoked SECURITY DEFINER function while SET ROLE is an API
+  -- role. Affected Supabase Postgres 17 images can terminate the backend in
+  -- that privilege-denial path instead of returning SQLSTATE 42501. Inspect
+  -- the effective ACL directly; the test still fails if either helper becomes
+  -- callable by authenticated clients.
+  if has_function_privilege(
+      'authenticated',
+      'public.recompute_wallet_balance(uuid)',
+      'EXECUTE'
+    )
+    or has_function_privilege(
+      'authenticated',
+      'public.ensure_default_cash_wallet(uuid)',
+      'EXECUTE'
+    ) then
+    raise exception 'Authenticated clients can execute an internal wallet helper';
+  end if;
+
   perform set_config('role', 'authenticated', true);
   perform set_config('request.jwt.claim.role', 'authenticated', true);
   perform set_config('request.jwt.claim.sub', user_a::text, true);
@@ -84,20 +102,6 @@ begin
     or (select count(*) from public.wallet_transfers where id = transfer_b) <> 0 then
     raise exception 'User A can read User B financial data';
   end if;
-
-  rejected := false;
-  begin
-    perform public.recompute_wallet_balance(wallet_b);
-  exception when others then rejected := true;
-  end;
-  if not rejected then raise exception 'User A could call the internal wallet recompute helper'; end if;
-
-  rejected := false;
-  begin
-    perform public.ensure_default_cash_wallet(user_b);
-  exception when others then rejected := true;
-  end;
-  if not rejected then raise exception 'User A could call the internal wallet setup helper'; end if;
 
   update public.wallets set name = 'ATTACKED' where id = wallet_b;
   if exists (select 1 from public.wallets where id = wallet_b and name <> before_name) then
