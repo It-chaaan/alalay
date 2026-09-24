@@ -256,7 +256,7 @@ begin
 
   begin
     perform public.repay_credit_account(
-      v_credit_id, v_bdo_id, 10000, 0, 0, date '2026-08-18',
+      v_credit_id, v_bdo_id, 3000, 0, 0, date '2026-08-18',
       'credit-repayment-overpayment-0001', null, null
     );
     raise exception 'Credit overpayment was accepted';
@@ -270,13 +270,16 @@ begin
     v_credit_bill_id, v_user_id, 'Credit statement', 500, 'Credit Card',
     date '2026-08-19', v_credit_id
   );
+  perform public.reconcile_bill_occurrences(v_user_id, date '2026-08-19');
   insert into public.expenses (user_id, wallet_id, merchant, category, amount, date, payment_method)
   values (v_user_id, v_credit_id, 'Statement purchase', 'Shopping', 500, date '2026-08-19', 'card');
   if (select balance from public.wallets where id = v_credit_id) <> v_credit_before_repayment - 1500 then
     raise exception 'Credit statement purchase did not increase liability';
   end if;
   perform public.mark_bill_paid(v_credit_bill_id, v_bdo_id, date '2026-08-19', date '2026-08-19');
-  if (select status from public.bills where id = v_credit_bill_id) <> 'paid'
+  if (select status from public.bill_occurrences
+      where bill_id = v_credit_bill_id and occurrence_date = date '2026-08-19') <> 'paid'
+    or (select due_date from public.bills where id = v_credit_bill_id) <> date '2026-08-19'
     or (select count(*) from public.expenses where source_bill_id = v_credit_bill_id) <> 0
     or (select count(*) from public.credit_repayments where source_bill_id = v_credit_bill_id) <> 1
     or (select balance from public.wallets where id = v_credit_id) <> v_credit_before_repayment - 2000 then
