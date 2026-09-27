@@ -277,34 +277,48 @@ paths from that root.
 
 For an existing Render web service, set these dashboard values:
 
-| Setting           | Value                                   |
-| ----------------- | --------------------------------------- |
-| Runtime           | Native Runtime / Node                   |
-| Root Directory    | `backend`                               |
-| Build Command     | `npm ci --include=dev && npm run build` |
-| Start Command     | `npm start`                             |
-| Health Check Path | `/health`                               |
-| Node Version      | `24.19.0`                               |
+| Setting           | Value                     |
+| ----------------- | ------------------------- |
+| Runtime           | Native Runtime / Node     |
+| Root Directory    | `backend`                 |
+| Build Command     | `npm ci && npm run build` |
+| Start Command     | `npm start`               |
+| Health Check Path | `/health`                 |
+| Node Version      | `24.19.0`                 |
 
-Do not set `PORT`; Render supplies it. Required production variable names are
-`NODE_ENV`, `HTTPS_ENABLED`, `HTTPS_TERMINATE_LOCALLY`, `APP_URL`,
-`CORS_ORIGIN`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`,
-`SUPABASE_SERVICE_ROLE_KEY`, `INCOME_SCHEDULER_SECRET`,
-`NOTIFICATION_SCHEDULER_ENABLED`, and `IN_PROCESS_SCHEDULERS_ENABLED`.
-`GEMINI_API_KEY`, `RESEND_API_KEY`, and `EMAIL_FROM` are additionally needed
-when their corresponding features are enabled. Use Render's secret store for
-credentials; do not upload `backend/.env`.
+Also set the non-secret build variable `NPM_CONFIG_INCLUDE` to `dev`. This keeps
+TypeScript and the other development-only build tools available to `npm ci` when
+`NODE_ENV` is `production`; the service still starts only the emitted JavaScript.
+
+Do not set `PORT`; Render supplies it and the server binds that port on
+`0.0.0.0`. Production startup requires `NODE_ENV`, `HTTPS_ENABLED`,
+`HTTPS_TERMINATE_LOCALLY`, `APP_URL`, `CORS_ORIGIN`, `SUPABASE_URL`,
+`SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
+`INCOME_SCHEDULER_SECRET`, `NOTIFICATION_SCHEDULER_ENABLED`, and
+`IN_PROCESS_SCHEDULERS_ENABLED`. `BILLING_DEBUG` is an optional operational
+flag. Gemini additionally uses `GEMINI_API_KEY`, `GEMINI_MODEL`, and
+`GEMINI_THINKING_BUDGET`; outbound email uses `RESEND_API_KEY` and `EMAIL_FROM`.
+The provider credentials are required only when those features are enabled. Use
+Render's secret store for credentials; do not upload `backend/.env`.
 
 The root [`render.yaml`](render.yaml) encodes these values for a _new_, suggested
-`alalay-backend` Blueprint service. It does not alter an existing service until
-an operator explicitly creates or syncs that Blueprint. For an existing service,
-enter the settings above in the dashboard instead.
+`alalay-backend` Blueprint service. A Render service originally created in the
+dashboard does not automatically adopt a newly added or changed Blueprint. Do
+not assume that committing `render.yaml` updates such a service: either
+explicitly migrate/sync it as a Blueprint or enter the Runtime, Root Directory,
+Build Command, Start Command, Health Check Path, Node Version, and
+`NPM_CONFIG_INCLUDE` setting above in that service's dashboard. Retain its
+intended branch and existing auto-deploy policy unless the release owner
+explicitly changes them.
 
-If a deploy reports a missing `dist/index.js`, the build command did not run the
-compile step in `backend`. If it reports a missing `typescript`, ensure the build
-command retains `--include=dev`. If startup fails before the health check, check
-the environment-validation message for missing production HTTPS, CORS, Supabase,
-or scheduler configuration.
+The backend build verifies that `dist/index.js` exists, matches the production
+start command, boots under Node without `tsx`, passes `/health`, and shuts down
+cleanly on `SIGTERM` in Linux CI and Render. If a deploy reports a missing
+`dist/index.js`, the build command did not run the
+compile step in `backend`. If it reports a missing `typescript`, ensure the
+Blueprint retains `NPM_CONFIG_INCLUDE=dev`. If startup fails before the health
+check, check the environment-validation message for missing production HTTPS,
+CORS, Supabase, or scheduler configuration.
 
 Start the web client:
 
@@ -454,7 +468,7 @@ owner; this repository does not contain provider credentials or deployment jobs:
 
 - **Frontend (Vercel):** project linkage, preview/production public `VITE_*`
   variables, and Vercel deployment approvals.
-- **Backend (provider to be selected):** runtime image or compiled Node release,
+- **Backend (Render native Node):** compiled Node release,
   server-only secrets, HTTPS termination, health checks, and CORS configuration.
 - **Supabase:** hosted project, backups, remote migration history, Auth redirect
   allowlist, and production migration approval.

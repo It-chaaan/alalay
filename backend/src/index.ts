@@ -6,9 +6,10 @@ import { startIncomeScheduler } from './services/income-scheduler.service.js';
 
 const app = createServer();
 const protocol = env.HTTPS_TERMINATE_LOCALLY ? 'https' : 'http';
-const address = `${protocol}://localhost:${env.PORT}`;
+const host = '0.0.0.0';
+const address = `${protocol}://${host}:${env.PORT}`;
 
-const server = app.listen(env.PORT, () => {
+const server = app.listen(env.PORT, host, () => {
   console.log(`Server listening on ${address}`);
   if (inProcessSchedulersEnabled) {
     startBillingScheduler();

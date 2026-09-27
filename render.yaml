@@ -5,9 +5,7 @@ services:
     name: alalay-backend
     runtime: node
     rootDir: backend
-    # Explicitly include build dependencies even though NODE_ENV is production
-    # at runtime; TypeScript is required only to create dist/ during the build.
-    buildCommand: npm ci --include=dev && npm run build
+    buildCommand: npm ci && npm run build
     startCommand: npm start
     healthCheckPath: /health
     maxShutdownDelaySeconds: 10
@@ -18,6 +16,10 @@ services:
         value: 24.19.0
       - key: NODE_ENV
         value: production
+      # Keep TypeScript and other build-only tooling installable during Render's
+      # build phase even though NODE_ENV is production.
+      - key: NPM_CONFIG_INCLUDE
+        value: dev
       - key: HTTPS_ENABLED
         value: 'true'
       # Render terminates public TLS before forwarding requests to the service.
@@ -40,6 +42,16 @@ services:
       - key: SUPABASE_ANON_KEY
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
+      - key: GEMINI_THINKING_BUDGET
+        value: '0'
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM
         sync: false
       - key: INCOME_SCHEDULER_SECRET
         sync: false
