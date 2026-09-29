@@ -461,6 +461,11 @@ x-scheduler-secret: <INCOME_SCHEDULER_SECRET>
 
 Run income and billing at least every 15 minutes, and notifications at least hourly. All three endpoints use the Manila calendar date and are safe to retry. Billing writes immutable subscription expense occurrences; notifications derive their identity from those occurrences, so a delayed or out-of-order job can recover a missed renewal for up to seven days after `renewal_date` has advanced. Set a distinct, 24+ character `INCOME_SCHEDULER_SECRET` on the backend. In-process timers remain development-only and are not the production scheduling mechanism. Apply the database migrations before enabling these jobs.
 
+The billing endpoint uses the backend-only Supabase service-role client so one
+verified scheduler run can process due subscriptions for every owner. Direct
+RPC callers remain self-scoped: authenticated users can process only their own
+subscriptions, while anonymous and cross-user calls are rejected.
+
 ### Release ownership and minimum checklist
 
 The source of truth for each hosted system must be maintained by the release

@@ -12,6 +12,11 @@ import { timingSafeEqual } from 'node:crypto';
 
 type SchedulerJob = 'income' | 'billing' | 'notifications';
 
+type ServerOptions = {
+  schedulerSecret?: string | null;
+  schedulerJobRunner?: (job: SchedulerJob) => Promise<Record<string, unknown>>;
+};
+
 function hasSchedulerSecret(value: string | undefined, expected: string | undefined) {
   if (!value || !expected) return false;
   const received = Buffer.from(value);
@@ -19,8 +24,20 @@ function hasSchedulerSecret(value: string | undefined, expected: string | undefi
   return received.length === configured.length && timingSafeEqual(received, configured);
 }
 
-export function createServer() {
+export function createServer(options: ServerOptions = {}) {
   const app = express();
+  const schedulerSecret =
+    options.schedulerSecret === undefined
+      ? env.INCOME_SCHEDULER_SECRET
+      : (options.schedulerSecret ?? undefined);
+  const schedulerJobRunner =
+    options.schedulerJobRunner ??
+    (async (job: SchedulerJob) =>
+      job === 'income'
+        ? { processed: await processIncomeSchedules() }
+        : job === 'billing'
+          ? await runBillingScheduler()
+          : await runNotificationScheduler());
   app.set('trust proxy', 1);
 
   const allowedOrigins = allowedCorsOrigins();
@@ -73,7 +90,7 @@ export function createServer() {
     const job = req.params.job as SchedulerJob;
     if (
       !['income', 'billing', 'notifications'].includes(job) ||
-      !hasSchedulerSecret(req.header('x-scheduler-secret'), env.INCOME_SCHEDULER_SECRET)
+      !hasSchedulerSecret(req.header('x-scheduler-secret'), schedulerSecret)
     ) {
       res.status(401).json({
         success: false,
@@ -82,12 +99,7 @@ export function createServer() {
       return;
     }
     try {
-      const result =
-        job === 'income'
-          ? { processed: await processIncomeSchedules() }
-          : job === 'billing'
-            ? await runBillingScheduler()
-            : await runNotificationScheduler();
+      const result = await schedulerJobRunner(job);
       res.json({ success: true, data: { job, ...result } });
     } catch (error) {
       next(error);
