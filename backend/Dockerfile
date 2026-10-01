@@ -11,6 +11,7 @@ RUN npm ci
 
 COPY backend/tsconfig.json ./tsconfig.json
 COPY backend/src ./src
+COPY backend/scripts/verify-build.mjs ./scripts/verify-build.mjs
 RUN npm run build
 
 FROM node:24-bookworm-slim AS production-dependencies
