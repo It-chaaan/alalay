@@ -107,3 +107,23 @@ Google Cloud must continue to use the Supabase provider callback
 `https://your-project.supabase.co/auth/v1/callback`; do not add the native
 scheme there. Supabase must allowlist `alalay://auth/callback` so it can return
 to the APK rather than falling back to the web Site URL.
+
+## Remaining dependency audit findings
+
+As of 2026-10-01, the production dependency audit has no high or critical
+findings. Two moderate advisories remain in Expo SDK 57's dependency tree:
+
+- [decode-uri-component GHSA-vcc3-ghjq-m6fr](https://github.com/advisories/GHSA-vcc3-ghjq-m6fr):
+  `expo-router@57.0.21 -> query-string@7.1.3 -> decode-uri-component@0.2.2`.
+  The patched decoder is `0.5.0`, outside `query-string`'s `^0.2.2` range.
+  URL and query input may reach this path. Wait for a compatible upstream
+  router/query-string update before changing its decoder contract.
+- [uuid GHSA-w5hq-g745-h8pq](https://github.com/advisories/GHSA-w5hq-g745-h8pq):
+  Expo's config plugins use `xcode@3.0.1 -> uuid@7.0.3`. The patched uuid
+  release is `11.1.1`, outside xcode's `^7.0.3` range. This is Expo's Apple
+  project-generation tooling; the reported bug concerns UUID v3/v5/v6 calls
+  with a caller-supplied output buffer.
+
+`npm audit fix --force` proposes older, breaking Expo package versions for
+these paths. Recheck them when Expo SDK 57 dependencies receive compatible
+upstream patches; keep the workflow's high-severity audit enabled.
